@@ -952,6 +952,106 @@
    ],
    "rest": 0,
    "source": "flux2-klein-4b edit of the standing rig render: chin_edit seed 1"
+  },
+  "cheer": {
+   "arms": {
+    "near": {
+     "required": [
+      {
+       "id": "arm_cheer_near",
+       "tex": "arm_cheer_near",
+       "z": 6,
+       "parent": "armCheerNear",
+       "grid": [
+        6,
+        10
+       ],
+       "box": [
+        74.0,
+        111.5,
+        47.5,
+        59.0
+       ]
+      },
+      {
+       "id": "arm_cheer_near_top",
+       "tex": "arm_cheer_near_top",
+       "z": 14.2,
+       "parent": "armCheerNear",
+       "grid": [
+        6,
+        10
+       ],
+       "box": [
+        74.0,
+        111.5,
+        47.5,
+        59.0
+       ]
+      }
+     ],
+     "pivots": {
+      "armCheerNear": [
+       113.17,
+       166.17
+      ]
+     },
+     "wrist": [
+      100.33,
+      134.33
+     ],
+     "rest": 150,
+     "source": "gpt-image-2.5 edit of the standing rig render: cheer_gpt 2"
+    },
+    "far": {
+     "required": [
+      {
+       "id": "arm_cheer_far",
+       "tex": "arm_cheer_far",
+       "z": 4.5,
+       "parent": "armCheerFar",
+       "grid": [
+        6,
+        10
+       ],
+       "box": [
+        149.33,
+        116.0,
+        55.0,
+        54.67
+       ]
+      },
+      {
+       "id": "arm_cheer_far_top",
+       "tex": "arm_cheer_far_top",
+       "z": 13.2,
+       "parent": "armCheerFar",
+       "grid": [
+        6,
+        10
+       ],
+       "box": [
+        149.33,
+        116.0,
+        55.0,
+        54.67
+       ]
+      }
+     ],
+     "pivots": {
+      "armCheerFar": [
+       153.67,
+       169.0
+      ]
+     },
+     "wrist": [
+      185.33,
+      136.0
+     ],
+     "rest": -135,
+     "source": "gpt-image-2.5 edit of the standing rig render: cheer_gpt 2"
+    }
+   }
   }
  }
 }

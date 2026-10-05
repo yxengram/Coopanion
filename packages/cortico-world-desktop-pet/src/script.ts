@@ -55,6 +55,7 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'bow', kind: 'motion', zh: ['鞠躬'], note: '闭眼鞠一躬' },
   { id: 'shiver', kind: 'motion', zh: ['发抖', '哆嗦'], note: '缩着身子抖一会儿' },
   { id: 'flap', kind: 'motion', zh: ['扑腾', '激动'], note: '开心地蹦起来扑腾' },
+  { id: 'cheer', kind: 'motion', zh: ['欢呼', '好耶', '万岁'], note: '高兴地欢呼一下' },
   { id: 'dance', kind: 'motion', zh: ['跳舞', '摇摆'], note: '原地踩着节拍摇摆三秒,冒音符' },
   { id: 'flinch', kind: 'motion', zh: ['后缩', '吓一跳'], note: '吓得往后一缩,马上恢复' },
   { id: 'peek', kind: 'motion', zh: ['探头', '瞅瞅'], note: '身子往前探,盯着前方看两秒' },

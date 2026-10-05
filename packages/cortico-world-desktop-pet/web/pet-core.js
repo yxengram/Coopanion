@@ -611,7 +611,7 @@ export const EXPRESSIONS = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprise
   'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous'];
 /** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
-  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek'];
+  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
 /** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
@@ -774,6 +774,8 @@ export function createPet(els, opts) {
       case 'bow': if (!seated) setMode('idle'); pulse('bow', 1.6); holdFace('bowing', 1.5); sfx.tick(); break;
       case 'shiver': pulse('shiver', 1.8); sfx.shiver(); break;
       case 'flap': setMode('crouch', { jumpV: 540, jumpVx: 0 }); pulse('flap', 1.4); holdFace('happy', 1.6); sfx.chirps(); break;
+      // a hooray: a little hop (none while seated), arms up for a figure that has them, a couple of glints
+      case 'cheer': if (!seated) setMode('crouch', { jumpV: 420, jumpVx: 0 }); pulse('cheer', 1.8); holdFace('happy', 2); emitGlint(2); sfx.chirps(); break;
       case 'dance': setMode('dance', { dur: 3.2 }); holdFace('happy', 3.4); sfx.dance(); break;
       case 'flinch': {
         // a startled step back (less near the screen edge, none while seated) and back to normal
@@ -1079,6 +1081,7 @@ export function createPet(els, opts) {
       else if (pet.pulse.kind === 'bow') leanT += 16 * envelope(k, .25, .7);
       else if (pet.pulse.kind === 'flinch') { const e = envelope(k, .04, .45); leanT -= 12 * e; sqT += .1 * e; }
       else if (pet.pulse.kind === 'peek') { const e = envelope(k, .2, .8); leanT += (10 + 1.5 * Math.sin(k * Math.PI * 6)) * e; sqT -= .07 * e; }
+      else if (pet.pulse.kind === 'cheer') { const e = envelope(k, .1, .75); sqT -= .08 * e; tiltT += 5 * Math.sin(k * Math.PI * 6) * e; }
       else if (pet.pulse.kind === 'flap') { tiltT += 7 * Math.sin(k * Math.PI * 8) * (1 - k); sqT -= .06 * Math.abs(Math.sin(k * Math.PI * 8)) * (1 - k); }
       else if (pet.pulse.kind === 'spin' && k > .5 && !pet.pulse.flipped) { pet.pulse.flipped = true; pet.facing *= -1; }
       else if (pet.pulse.kind === 'spin' && k < .5 && !pet.pulse.first) { pet.pulse.first = true; pet.facing *= -1; pet.sqv -= 1; }

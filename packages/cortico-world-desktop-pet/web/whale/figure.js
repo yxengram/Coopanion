@@ -142,7 +142,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const WAVE = model.poses?.wave;
   // thinking, she rests her chin on her far hand: a drawing of the far forearm raised (model.poses.chin)
   const CHIN = model.poses?.chin;
-  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : [])];
+  // cheering, both arms go up with open hands: one drawing per arm (model.poses.cheer.arms.near / .far)
+  const CHEER = model.poses?.cheer?.arms;
+  const CHEER_PARTS = CHEER ? Object.values(CHEER).flatMap(a => a.required) : [];
+  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS];
   // the scheme's accent colours the listening arcs, thought bubbles and sleep z's
   const accent = () => schemeInfo(scheme).accent || '#4d6bfe';
   const loaded = {}, ready = {};
@@ -159,6 +162,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       set.lie = !!LIE && LIE.required.every(p => set.tex[p.tex]);
       set.wave = !!WAVE && WAVE.required.every(p => set.tex[p.tex]);
       set.chin = !!CHIN && CHIN.required.every(p => set.tex[p.tex]);
+      set.cheer = !!CHEER && CHEER_PARTS.every(p => set.tex[p.tex]);
       if (LIE && !set.lie && LIE.required.some(p => set.tex[p.tex])) console.warn(`whale: scheme ${id} lacks some lying-pose files; she sits instead`);
       return (ready[id] = set);
     });
@@ -234,6 +238,15 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of CHIN.required) { parts.push({ ...p, alpha: 0 }); STANDING[p.id] = true; }
   }
   const chinOK = () => !!(cur.chin && (!fade || fade.set.chin));
+  // each raised arm turns about its own shoulder with the upper body
+  if (CHEER) {
+    for (const arm of Object.values(CHEER)) {
+      const [id, pivot] = Object.entries(arm.pivots)[0];
+      deformers[id] = { kind: 'rot', parent: 'waist', pivot };
+      for (const p of arm.required) { parts.push({ ...p, alpha: 0 }); STANDING[p.id] = true; }
+    }
+  }
+  const cheerOK = () => !!(cur.cheer && (!fade || fade.set.cheer));
 
   /* ---------- face painting (master pixels) ---------- */
   const faceCv = document.createElement('canvas');
@@ -585,7 +598,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const wave = g?.kind === 'wave' ? env(.15, .8) : 0;      // the near arm up beside her head, waving
     const bow = g?.kind === 'bow' ? env(.25, .7) : 0;        // the upper body tips forward about the waist
     const shiver = g?.kind === 'shiver' ? env(.08, .85) : 0; // arms hugged in, trembling, fins down
-    const flap = g?.kind === 'flap' ? env(.05, .75) : 0;     // fins, tail, ahoge and arms all flutter
+    const flap = g?.kind === 'flap' ? env(.05, .75) : 0;
+    const cheer = g?.kind === 'cheer' ? env(.12, .8) : 0;   // both arms up, open hands, a happy bounce     // fins, tail, ahoge and arms all flutter
     const flinch = g?.kind === 'flinch' ? env(.04, .45) : 0; // head and upper body jerk back, arms hugged in
     const peek = g?.kind === 'peek' ? env(.2, .8) : 0;       // the upper body leans in, the head cranes forward
     const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)), gYaw = shake * 1.1;
@@ -645,6 +659,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // with the open-hand drawing she raises the arm on toward the drawing's own angle, and it takes over halfway up
     const { openHand } = waveHandover(wave, 0, lieK, !!WAVE && waveOK());
     if (wave) aN = lerp(aN, openHand ? WAVE.rest : 108, wave);
+    // with the drawn arms the fist arms only start up before they hand over; without them she flings them up and out
+    const cheerOn = CHEER && cheerOK() && !lieK ? cheer : 0;
+    if (cheer) { aN = lerp(aN, cheerOn ? 80 : 100, cheer); aF = lerp(aF, cheerOn ? -60 : -80, cheer); }
     if (shiver) { aN = lerp(aN, -10, shiver); aF = lerp(aF, 8, shiver); }
     if (face === 'nervous') { aN = -7 + 2.5 * Math.sin(t * 5); aF = 6; }
     // a flinch hugs the arms in tight; a peek holds them a little back and out, out of the way
@@ -673,6 +690,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.alpha.leg_back = st.alpha.leg_front = 1 - smooth(.42, .52, sitK);
     st.alpha.skirt_sit = st.alpha.waist_bow_sit_front = sitIn;
     st.armNear = { a: armN };
+    // each drawn arm below takes its share of the plain arms away (their alphas multiply)
+    st.alpha.arm_near = st.alpha.arm_far = st.alpha.arm_far_end_front = 1;
     if (WAVE) {
       // the fist arm hands over to the drawn one in a couple of frames, the two pointing the same way at that moment;
       // the drawn arm keeps the fist arm's rotation (less its own angle), so it goes on rising into place, then the hand waves
@@ -687,15 +706,26 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
           return [-hand * w * (y - qy), hand * w * (x - qx)];
         },
       };
-      st.alpha.arm_near = 1 - swap;
+      st.alpha.arm_near *= 1 - swap;
       for (const p of WAVE.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
     }
     st.armFar = { a: armF };
+    if (CHEER) {
+      // the drawn arms swing up into place from where the fist arms hand over, then bob with the cheer
+      // (only on the way up: coming down they fade where they are, rather than swinging out half seen)
+      const swap = smooth(.08, .3, cheerOn), up = gk < .5 ? smooth(.15, .6, cheerOn) : 1, bob = 4 * Math.sin(t * 11) * smooth(.3, .6, cheerOn);
+      for (const [slot, arm] of Object.entries(CHEER)) {
+        const sgn = slot === 'far' ? -1 : 1;
+        st[Object.keys(arm.pivots)[0]] = { a: -sgn * 70 * (1 - up) + sgn * bob };
+        for (const p of arm.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
+      }
+      st.alpha.arm_near *= 1 - swap; st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap;
+    }
     if (CHIN) {
       // the forearm swings up from its elbow to the chin, taking over from the far arm on the way
       const k = smooth(0, 1, chinK), swap = smooth(.15, .55, chinK);
       st.armChin = { a: -60 * (1 - k) + .8 * Math.sin(t * 1.3) * k };
-      st.alpha.arm_far = st.alpha.arm_far_end_front = 1 - swap;
+      st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap;
       for (const p of CHIN.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
     }
     st.legBack = { a: lerp(legA[0], -55, sitK), ty: -lift[0] * .9 * (1 - sitK) };
@@ -869,7 +899,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     draw,
     groupTilt,
     /** The gestures she draws herself, from the frame's `gesture` (pet-core leaves them off the body). */
-    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek'],
+    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**

@@ -29,8 +29,9 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的标志是 DeepSeek、Ope
 阿里云(通义千问)、月之暗面(Kimi)、MiniMax 的商标图形,归各自的公司所有,只用来标明配色对应哪一家,
 与这些公司没有关联,也不代表其认可。
 
-趴姿、招手张开的手臂和托腮的手臂的贴图(`tex/lie_*.png`、`tex/arm_wave*.png`、`tex/arm_chin.png` 及各配色下的同名文件)是用 FLUX.2-klein-4B(Black Forest Labs,Apache-2.0)
-按上面这些贴图渲染出的站姿编辑生成,再拆件、按区域换色得到的,属于同一形象的衍生图。
+趴姿、招手和托腮的手臂、欢呼的双臂的贴图(`tex/lie_*.png`、`tex/arm_wave*.png`、`tex/arm_chin.png`、`tex/arm_cheer_*.png`
+及各配色下的同名文件)是按上面这些贴图渲染出的站姿编辑生成,再拆件、按区域换色得到的,属于同一形象的衍生图:
+欢呼的双臂用 ChatGPT 的 GPT 图像模型(gpt-image-2.5),其余用 FLUX.2-klein-4B(Black Forest Labs,Apache-2.0)。
 
 这些贴图不在本包的 AGPL 授权范围内。它们随 Coopanion 分发,想在别处使用请自行确认原设与各家标志的权利。
 

@@ -279,3 +279,34 @@ describe('resting her chin on her hand while thinking, as the whale draws it', (
     expect(CHIN.wrist[1]).toBeLessThan(ey);
   });
 });
+
+describe('cheering with both arms up, as the whale draws it', () => {
+  const ARMS = model.poses.cheer.arms;
+  const z = id => model.parts.find(p => p.id === id).z;
+
+  it('has both arms in every scheme, each sized to its box', () => {
+    for (const arm of Object.values(ARMS)) for (const p of arm.required) {
+      const have = SCHEMES.filter(id => existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)));
+      expect(have, p.tex).toEqual(SCHEMES);
+      for (const id of have) {
+        const { w, h } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
+        expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
+        expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it('turns each arm about its own shoulder, its root under the plain arm\'s layer and its hand over the head', () => {
+    const plain = { near: 'armNear', far: 'armFar' };
+    for (const [slot, arm] of Object.entries(ARMS)) {
+      const [[, pivot]] = Object.entries(arm.pivots), [px, py] = model.pivots[plain[slot]];
+      expect(Math.hypot(pivot[0] - px, pivot[1] - py), slot).toBeLessThan(5);
+      const [root, top] = arm.required;
+      expect(root.z, slot).toBe(z(slot === 'near' ? 'arm_near' : 'arm_far'));
+      expect(top.z, slot).toBeGreaterThan(Math.max(z('sidelocks'), z('fin_near'), z('face')));
+      // raised: the hand is above the shoulder
+      expect(arm.wrist[1], slot).toBeLessThan(pivot[1] - 20);
+      for (const p of arm.required) expect(model.parts.some(q => q.id === p.id), p.id).toBe(false);
+    }
+  });
+});

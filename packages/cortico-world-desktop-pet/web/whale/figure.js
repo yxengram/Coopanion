@@ -120,6 +120,35 @@ export function eyesShut(o, eyes, mode) {
     e.shape === 'up' || e.shape === 'down' ? 1 : 0, e.shape === 'lid' ? 1 - smooth(1.5, 4, e.ry ?? 16) : 0);
 }
 
+/**
+ * The back drawing's tail flick, as backTail's warp field: the fluke (the outer part of the way from the pivot to the right
+ * of `BACK.tail`, from its top down) turns `a` radians about the tail's pivot. The rig hands a warp every vertex of the part,
+ * so the field itself keeps the far fin, hair and headdress above the tail still.
+ */
+export function backTailField(BACK, a) {
+  const [rx, ry] = BACK.pivots.backTail, [, ty, tx1] = BACK.tail, x0 = rx + .35 * (tx1 - rx), x1 = rx + .95 * (tx1 - rx);
+  return (u, v, x, y) => { const w = smooth(x0, x1, x) * smooth(ty, ty + 12, y) * a; return [-w * (y - ry), w * (x - rx)]; };
+}
+
+/**
+ * How much of her back shows (`k`, 0..1) from the frame's `facing` (-1..1) and how far she has turned away (`awayA`),
+ * and whether the drawing is mirrored. It is drawn as she turns her back on you, the fluke on the far side from her
+ * front's tail; mid-turn it is mirrored (`flip`), so the fluke stays on the side her tail was, then is, as she goes round.
+ */
+export function backView(facing, awayA) {
+  const turn = 1 - smooth(.3, .6, Math.abs(facing ?? 1));
+  return { k: Math.max(turn, awayA), flip: turn > awayA };
+}
+
+/**
+ * The away gesture's share of her back (`awayBack`, from this frame's gesture) carried over frames: it follows the
+ * gesture's own turns (in, and out at the narrowest moment of the squeeze), but an away dropped or replaced early
+ * turns her round over .3 s instead of in one frame.
+ */
+export function awayStep(awayA, awayBack, g, dt) {
+  return g?.kind === 'away' && g.k > .5 ? awayBack : Math.max(awayBack, awayA - dt / .3);
+}
+
 // the face texture covers this rect of the master drawing, one texel per master pixel
 const FACE = { x: 520, y: 578, w: 390, h: 252 };
 // the head's parallax warps act over this rect (rig units); the long hair below it stays put
@@ -287,9 +316,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of HEART.required) { parts.push({ ...p, alpha: 0 }); STANDING[p.id] = true; }
   }
   const heartOK = () => !!(cur.heart && (!fade || fade.set.heart));
-  // the back drawing stands on the body (its sway, breath and squash), with its own warp for the tail's fluke
+  // the back drawing stands on the body (its sway, breath and squash), mirrored about her middle mid-turn (backFlip),
+  // with its own warp for the tail's fluke
   if (BACK) {
-    deformers.backTail = { kind: 'warp', parent: 'body', rect: BACK.tail };
+    deformers.backFlip = { kind: 'rot', parent: 'body', pivot: [128, 256] };
+    deformers.backTail = { kind: 'warp', parent: 'backFlip', rect: BACK.tail };
     for (const p of BACK.required) parts.push({ ...p, alpha: 0 });
   }
   const backOK = () => !!(cur.back && (!fade || fade.set.back));
@@ -565,7 +596,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const GROUP = { air: [1, 1], drag: [1, 1], crouch: [1, 1], land: [1, 1], walk: [1, .5], run: [1, .5], dance: [.6, 0] };
   let wTilt = 0, wLean = 0;
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
-  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0, backA = 0;
+  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0, backA = 0, awayA = 0;
   const st = { z: {}, alpha: {} };
 
   // fins and tail by face: fins up (+) or drooping (-), tail wag size, and how far the tail droops (1 = 12°)
@@ -851,14 +882,17 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const canBack = backable();
     // (turning away, front and back trade at the narrowest moment of the squeeze, almost a cut)
     const awayBack = g?.kind === 'away' ? smooth(.05, .07, gk) * (1 - smooth(.93, .95, gk)) : 0;
-    const backK = canBack ? Math.max(1 - smooth(.3, .6, Math.abs(o.facing ?? 1)), awayBack) : 0;
+    awayA = awayStep(awayA, awayBack, g, dt);
+    const view = backView(o.facing, awayA), backK = canBack ? view.k : 0;
     backA = smooth(0, .5, backK);
     if (BACK) {
-      const [rx, ry] = BACK.pivots.backTail, a = (3 * Math.sin(t * 1.6) + wagAmp * 6 * Math.sin(t * (3 + 4 * wagAmp))) * Math.PI / 180;
-      st.backTail = { fn: (u, v, x, y) => { const w = smooth(158, 200, x) * a; return [-w * (y - ry), w * (x - rx)]; } };
+      const a = (3 * Math.sin(t * 1.6) + wagAmp * 6 * Math.sin(t * (3 + 4 * wagAmp))) * Math.PI / 180;
+      st.backTail = { fn: backTailField(BACK, a) };
+      st.backFlip = { sx: view.flip ? -1 : 1 };
       for (const p of BACK.required) st.alpha[p.id] = tex[p.tex] ? backA : 0;
-      // turning away she squeezes through the turn
-      if (away && canBack) st.body.sx *= 1 - .3 * Math.sin(Math.PI * smooth(0, .12, gk)) - .3 * Math.sin(Math.PI * smooth(.88, 1, gk));
+      // turning away she squeezes through the turn (and turning round early, through the same narrow moment)
+      const sq = Math.max(away ? .3 * Math.sin(Math.PI * smooth(0, .12, gk)) + .3 * Math.sin(Math.PI * smooth(.88, 1, gk)) : 0, awayA > awayBack ? .3 * bump(awayA) : 0);
+      if (canBack) st.body.sx *= 1 - sq;
     }
     const hideFront = hide || backA >= 1;
 
@@ -1010,7 +1044,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

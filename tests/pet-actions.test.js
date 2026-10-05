@@ -143,6 +143,24 @@ describe('the words the model can use', () => {
     expect(pet.petHtml()).toContain('c-glasses-main');
   });
 
+  it('Coo turns round gradually when something ends her back turned early', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('away');
+    run(pet, 1.5);
+    expect(eyesIn(pet.petHtml())).toBe(0);
+    // a hop ends the gesture: the face comes back over a few frames, not all at once
+    pet.act('hop');
+    run(pet, 1 / 60);
+    expect(pet.pet.pulse).toBeNull();
+    // (the face's opacity group: its blush, then its eyes)
+    const faceA = () => pet.petHtml().match(/<g opacity="([\d.]+)">(?:<g class="blush".*?<\/g>)?<path class="eye"/s)?.[1];
+    expect(Number(faceA())).toBeLessThan(.2);
+    run(pet, .4);
+    expect(eyesIn(pet.petHtml())).toBeGreaterThan(0);
+    expect(faceA()).toBeUndefined();
+  });
+
   it('lying, turning away only pouts', () => {
     const pet = barePet();
     run(pet, 1);

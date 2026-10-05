@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
 const model = JSON.parse(readFileSync(new URL('model.json', WHALE), 'utf8'));
@@ -439,5 +439,49 @@ describe('her back, as the whale draws it', () => {
     expect(p.z).toBeGreaterThan(Math.max(...model.parts.map(q => q.z)));
     const [tx0, ty0, tx1, ty1] = BACK.tail, [rx, ry] = BACK.pivots.backTail;
     expect(rx >= tx0 && rx <= tx1 && ry >= ty0 && ry <= ty1).toBe(true);
+  });
+
+  it('flicks only the fluke: the far fin, hair and headdress above the tail stay put', () => {
+    const [p] = BACK.required, [bx, by, bw, bh] = p.box, ty = BACK.tail[1];
+    const field = backTailField(BACK, 9 * Math.PI / 180);
+    for (const id of SCHEMES) {
+      const { w, h, a } = alphaOf(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
+      let most = 0, fluke = 0;
+      for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) {
+        if (a[y * w + x] < 32) continue;
+        const rx = bx + (x + .5) * bw / w, ry = by + (y + .5) * bh / h, [dx, dy] = field(0, 0, rx, ry), d = Math.hypot(dx, dy);
+        if (ry < ty) most = Math.max(most, d); else fluke = Math.max(fluke, d);
+      }
+      expect(most, id).toBe(0);
+      expect(fluke, id).toBeGreaterThan(5);
+    }
+  });
+
+  it("keeps the fluke on her tail's side through a turn, mirrored mid-turn, and as authored when she turns away", () => {
+    // facing right the front's tail is on the left; the drawing has its fluke on the right
+    expect(model.parts.find(q => q.id === 'tail').box[0] + model.parts.find(q => q.id === 'tail').box[2] / 2).toBeLessThan(128);
+    expect((BACK.tail[0] + BACK.tail[2]) / 2).toBeGreaterThan(128);
+    // pet-core's turn: faceVis eases to the other side, the group flipping at zero
+    let fv = 1, shown = 0;
+    for (let i = 0; i < 30; i++) {
+      fv += (-1 - fv) * (1 - Math.exp(-15 / 60));
+      const { k, flip } = backView(fv, 0), side = Math.sign(fv);
+      if (k <= 0) continue;
+      shown++;
+      // the front's tail is at -side on screen; the fluke at side, mirrored once more by `flip`
+      expect(side * (flip ? -1 : 1), `faceVis ${fv}`).toBe(-side);
+    }
+    expect(shown).toBeGreaterThan(2);
+    expect(backView(1, 1)).toEqual({ k: 1, flip: false });
+  });
+
+  it('turns round over a few frames when an away is dropped early, and on its own cue when it runs out', () => {
+    let a = 1, frames = 0;
+    while (a > 0) { const n = awayStep(a, 0, null, 1 / 60); expect(a - n).toBeLessThan(.1); a = n; frames++; }
+    expect(frames).toBeGreaterThan(12);
+    // a replaced one does the same, and the gesture's own way out is followed exactly
+    expect(awayStep(1, 0, { kind: 'away', k: 0 }, 1 / 60)).toBeGreaterThan(.9);
+    expect(awayStep(1, 0, { kind: 'away', k: .96 }, 1 / 60)).toBe(0);
+    expect(awayStep(.2, 1, { kind: 'away', k: .1 }, 1 / 60)).toBe(1);
   });
 });

@@ -273,7 +273,8 @@ export function figure(fc, o) {
   const t = o.t, lx = o.look[0], ly = o.look[1], acc = o.acc, sw = o.swing || 0;
   const L = o.lie || 0, g = o.gesture, gs = g ? Math.sin(Math.PI * g.k) : 0;
   // back turned (away): Coo has no back to draw, so the face goes, out over the turn and in again on the way back
-  const fa = g?.kind === 'away' ? 1 - envelope(g.k, .25, .8) : 1;
+  // (`o.away`, pet-core's eased share of it, brings the face back gradually when the gesture ends early)
+  const fa = 1 - (o.away ?? (g?.kind === 'away' ? envelope(g.k, .25, .8) : 0));
   const faceG = m => (fa > .99 ? m : fa > .01 ? `<g opacity="${f(fa)}">${m}</g>` : '');
   // ...and with it the mouth, the ring's gap, rests: no pout or talking from the back
   const gap = fa > .99 ? fc.gap : fc.gap.map(v => lerp(50, v, fa));
@@ -676,7 +677,7 @@ export function createPet(els, opts) {
     eyeSig: '', eyeCur: null, eyePrev: null, eyeDims: [[16, 16, 0, 0], [16, 16, 0, 0]], swapAge: 9,
     glance: [0, 0], glanceAt: 0, swing: 0, swingV: 0, prevA: null, velX: 0, talkK: 0, sfxAt: 0, skid: false, cue: 0,
     pulse: null, walkId: 0, listening: false, thinking: false, placed: false, noteAt: 0, tearN: 0, exprAt: 0,
-    lieK: 0, prone: false, fidgetAt: 0, kickPh: 0, backK: 0,
+    lieK: 0, prone: false, fidgetAt: 0, kickPh: 0, backK: 0, awayK: 0,
   };
   const pointer = { x: -1e4, y: -1e4, inside: false, vx: 0, samples: [] };
   let press = null, strokeAcc = 0, petCool = 0;
@@ -1170,6 +1171,9 @@ export function createPet(els, opts) {
     // only the drawing turns, so whatever ends the gesture early brings it round again)
     const ak = pet.pulse?.kind === 'away' && custom && !custom.gestures?.includes('away') ? (T - pet.pulse.t0) / pet.pulse.dur : -1;
     pet.faceVis = lerp(pet.faceVis, ak > .05 && ak < .85 ? -pet.facing : pet.facing, ease(15, dt));
+    // how far Coo's back is turned: the gesture's own turns, or turning round over .3 s once it is dropped early
+    const awayT = pet.pulse?.kind === 'away' ? envelope((T - pet.pulse.t0) / pet.pulse.dur, .25, .8) : 0;
+    pet.awayK = pet.pulse?.kind === 'away' && T - pet.pulse.t0 > pet.pulse.dur / 2 ? awayT : Math.max(awayT, pet.awayK - dt / .3);
     // a figure's back view coming or going mid-turn (sitting down, a scheme fading) eases the width floor in or out
     const backT = custom?.poses?.back === true ? 1 : 0;
     pet.backK = Math.abs(pet.faceVis - pet.facing) < .05 ? backT : lerp(pet.backK, backT, ease(6, dt));
@@ -1275,7 +1279,7 @@ export function createPet(els, opts) {
     const gesture = pet.pulse ? { kind: pet.pulse.kind, k: clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1) } : null;
     const frame = { look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing, lie: pet.lieK, prone: pet.prone, talk: pet.talkK, gesture };
     if (custom) custom.draw(petG, face, { ...frame, face: fname, mode: pet.mode, modeT: pet.modeT, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot });
-    else petG.innerHTML = figure(face, frame);
+    else petG.innerHTML = figure(face, { ...frame, away: pet.awayK });
 
     const footY = drag ? pet.dy + 220 * S * 1.09 : pet.fy;
     const k = clamp(1 - (floorY - footY) / 420, .3, 1);

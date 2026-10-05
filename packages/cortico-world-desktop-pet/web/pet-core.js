@@ -774,9 +774,9 @@ export function createPet(els, opts) {
       case 'bow': if (!seated) setMode('idle'); pulse('bow', 1.6); holdFace('bowing', 1.5); sfx.tick(); break;
       case 'shiver': pulse('shiver', 1.8); sfx.shiver(); break;
       case 'flap': setMode('crouch', { jumpV: 540, jumpVx: 0 }); pulse('flap', 1.4); holdFace('happy', 1.6); sfx.chirps(); break;
-      // a hooray: a little hop (none while seated), arms up for a figure that has them, a couple of glints
       // hands made into a heart for a figure that has hands; hearts float up from the love face either way
       case 'heart': pulse('heart', 2.2); holdFace('love', 2.4); sfx.love(); break;
+      // a hooray: a little hop (none while seated), arms up for a figure that has them, a couple of glints
       case 'cheer': if (!seated) setMode('crouch', { jumpV: 420, jumpVx: 0 }); pulse('cheer', 1.8); holdFace('happy', 2); emitGlint(2); sfx.chirps(); break;
       case 'dance': setMode('dance', { dur: 3.2 }); holdFace('happy', 3.4); sfx.dance(); break;
       case 'flinch': {

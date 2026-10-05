@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
 const model = JSON.parse(readFileSync(new URL('model.json', WHALE), 'utf8'));
@@ -17,8 +17,8 @@ function png(url) {
 }
 const inside = ([x, y], [x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
 
-/** The alpha channel of an 8-bit RGBA, non-interlaced PNG: { w, h, a }. */
-function alphaOf(url) {
+/** The pixels of an 8-bit RGBA, non-interlaced PNG: { w, h, px } (4 bytes a pixel). */
+function rgbaOf(url) {
   const b = readFileSync(url), w = b.readUInt32BE(16), h = b.readUInt32BE(20);
   expect(b[24] === 8 && b[25] === 6 && b[28] === 0, 'an 8-bit RGBA PNG, not interlaced').toBe(true);
   const idat = [];
@@ -32,9 +32,34 @@ function alphaOf(url) {
       px[dst + i] = (raw[src + i] + [0, l, u, (l + u) >> 1, pa <= pb && pa <= pc ? l : pb <= pc ? u : ul][f]) & 255;
     }
   }
+  return { w, h, px };
+}
+/** The alpha channel of an 8-bit RGBA, non-interlaced PNG: { w, h, a }. */
+function alphaOf(url) {
+  const { w, h, px } = rgbaOf(url), a = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) a[i] = px[i * 4 + 3];
   return { w, h, a };
 }
+/** A pose part's file in a scheme is there, RGBA (an opaque background would cover her) and sized to its box. */
+function expectFile(id, p) {
+  const { w, h, colorType } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
+  expect(colorType, `${id} ${p.tex} is RGBA`).toBe(6);
+  expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
+  expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
+}
+/** Where a pose part's hand is drawn, in rig units: the centre of its skin pixels (the sleeves are dark, the cuffs white). */
+function skinOf(id, p) {
+  const { w, h, px } = rgbaOf(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)), [bx, by, bw, bh] = p.box;
+  let n = 0, sx = 0, sy = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const [r, g, b, a] = px.subarray((y * w + x) * 4, (y * w + x) * 4 + 4);
+    if (a > 128 && r > 170 && g > 120 && r - b > 25) { n++; sx += x + .5; sy += y + .5; }
+  }
+  expect(n, `${id} ${p.tex} has a hand`).toBeGreaterThan(150);
+  return [bx + sx / n * bw / w, by + sy / n * bh / h];
+}
+/** The direction from a shoulder to a point, as the near arm's rotation that points there (0 hanging down, + out to the front). */
+const armDir = ([sx, sy], [x, y]) => Math.atan2(-(x - sx), y - sy) * 180 / Math.PI;
 const BODY = LIE.required.find(p => p.id === 'lie_body');
 const bodyAlpha = alphaOf(new URL('tex/lie_body.png', WHALE));
 /** The rest grid of lie_body as the rig builds it, and whether each cell has any of the drawing in it. */
@@ -78,12 +103,7 @@ describe('lying down, as the whale draws it', () => {
     for (const p of [...LIE.required, ...LIE.overlays]) {
       const have = SCHEMES.filter(id => existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)));
       expect(have.length === 0 || have.length === SCHEMES.length, `${p.tex} only in ${have}`).toBe(true);
-      for (const id of have) {
-        const { w, h, colorType } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
-        expect(colorType, `${id} ${p.tex} is RGBA`).toBe(6);
-        expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
-        expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
-      }
+      for (const id of have) expectFile(id, p);
     }
   });
 
@@ -192,12 +212,7 @@ describe('waving with an open hand, as the whale draws it', () => {
       const have = SCHEMES.filter(id => existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)));
       // model.json declares the pose, so a file left out of a commit must fail here, not fall back to the fist wave unnoticed
       expect(have, p.tex).toEqual(SCHEMES);
-      for (const id of have) {
-        const { w, h, colorType } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
-        expect(colorType, `${id} ${p.tex} is RGBA`).toBe(6);
-        expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
-        expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
-      }
+      for (const id of have) expectFile(id, p);
     }
   });
 
@@ -217,8 +232,7 @@ describe('waving with an open hand, as the whale draws it', () => {
     const [sx, sy] = WAVE.pivots.armWave, [px, py] = model.pivots.armNear, [wx, wy] = WAVE.wrist;
     expect(Math.hypot(sx - px, sy - py)).toBeLessThan(12);
     // the drawn forearm's direction equals the near arm (hanging straight down at rotation 0, a few degrees out) turned by `rest`
-    const drawn = Math.atan2(-(wx - sx), wy - sy) * 180 / Math.PI;
-    expect(Math.abs(drawn - WAVE.rest)).toBeLessThan(12);
+    expect(Math.abs(armDir([sx, sy], [wx, wy]) - WAVE.rest)).toBeLessThan(12);
     // past the fist wave's 108° and within the arm's reach, so the hand goes on rising after the handover and gets there
     expect(WAVE.rest).toBeGreaterThan(108);
     expect(WAVE.rest).toBeLessThanOrEqual(ARM_LIMIT);
@@ -259,11 +273,7 @@ describe('resting her chin on her hand while thinking, as the whale draws it', (
     for (const p of CHIN.required) {
       const have = SCHEMES.filter(id => existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)));
       expect(have, p.tex).toEqual(SCHEMES);
-      for (const id of have) {
-        const { w, h } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
-        expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
-        expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
-      }
+      for (const id of have) expectFile(id, p);
     }
   });
 
@@ -277,8 +287,27 @@ describe('resting her chin on her hand while thinking, as the whale draws it', (
     expect(arm.z).toBeGreaterThan(Math.max(z('face'), z('eye_creases'), z('brows')));
     expect(arm.z).toBeLessThan(z('bangs'));
     expect(model.parts.some(q => q.id === arm.id)).toBe(false);
-    // the hand (the wrist and past it) is up at the chin, above the elbow
-    expect(CHIN.wrist[1]).toBeLessThan(ey);
+  });
+
+  it('draws the hand up at the chin, above the elbow, in every scheme', () => {
+    const [arm] = CHIN.required, [, ey] = CHIN.pivots.armChin;
+    for (const id of SCHEMES) {
+      const [hx, hy] = skinOf(id, arm);
+      expect(hy, `${id} hand above the elbow`).toBeLessThan(ey - 20);
+      expect(Math.hypot(hx - CHIN.wrist[0], hy - CHIN.wrist[1]), `${id} hand at \`wrist\``).toBeLessThan(10);
+    }
+  });
+
+  it('takes her chin off her hand for a gesture that poses the far arm', () => {
+    expect(chinWanted('thinking', 'idle', 0, null)).toBe(true);
+    expect(chinWanted('thinking', 'sit', 0, { kind: 'nod', k: .5 })).toBe(true);
+    expect(chinWanted('thinking', 'walk', 0, null)).toBe(false);
+    expect(chinWanted('thinking', 'idle', .2, null)).toBe(false);
+    for (const kind of ['cheer', 'heart', 'shiver']) {
+      expect(FAR_ARM_GESTURES, kind).toContain(kind);
+      // shiver keeps the thinking face, and a gesture's first frame still may: the chin pose goes all the same
+      expect(chinWanted('thinking', 'idle', 0, { kind, k: 0 }), kind).toBe(false);
+    }
   });
 });
 
@@ -290,11 +319,7 @@ describe('cheering with both arms up, as the whale draws it', () => {
     for (const arm of Object.values(ARMS)) for (const p of arm.required) {
       const have = SCHEMES.filter(id => existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)));
       expect(have, p.tex).toEqual(SCHEMES);
-      for (const id of have) {
-        const { w, h } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
-        expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
-        expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
-      }
+      for (const id of have) expectFile(id, p);
     }
   });
 
@@ -305,10 +330,59 @@ describe('cheering with both arms up, as the whale draws it', () => {
       expect(Math.hypot(pivot[0] - px, pivot[1] - py), slot).toBeLessThan(5);
       const [root, top] = arm.required;
       expect(root.z, slot).toBe(z(slot === 'near' ? 'arm_near' : 'arm_far'));
-      expect(top.z, slot).toBeGreaterThan(Math.max(z('sidelocks'), z('fin_near'), z('face')));
-      // raised: the hand is above the shoulder
-      expect(arm.wrist[1], slot).toBeLessThan(pivot[1] - 20);
+      expect(top.z, slot).toBeGreaterThan(Math.max(z('sidelocks'), z('fin_near'), z('face'), z('headdress'), z('bangs')));
       for (const p of arm.required) expect(model.parts.some(q => q.id === p.id), p.id).toBe(false);
+    }
+    // the near hand, beside her face, goes over every part of the head; the far one stays under the bow and ahoge
+    expect(ARMS.near.required[1].z).toBeGreaterThan(Math.max(z('bow'), z('ahoge')));
+  });
+
+  it('draws each hand raised where `rest` says the arm points, in every scheme', () => {
+    for (const [slot, arm] of Object.entries(ARMS)) {
+      const [pivot] = Object.values(arm.pivots);
+      expect(Math.abs(armDir(pivot, arm.wrist) - arm.rest), slot).toBeLessThan(12);
+      for (const id of SCHEMES) {
+        const hand = skinOf(id, arm.required[0]);
+        expect(hand[1], `${id} ${slot} hand above the shoulder`).toBeLessThan(pivot[1] - 20);
+        expect(Math.abs(armDir(pivot, hand) - arm.rest), `${id} ${slot} hand's direction`).toBeLessThan(12);
+      }
+    }
+  });
+
+  it('trades arms pointing the same way, on the way up and back down', () => {
+    // the cheer as figure.js runs it: the envelope, the plain arm's spring, a happy face's resting arms
+    const smooth = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+    const env = gk => smooth(0, CHEER_ENV[0], gk) * (1 - smooth(CHEER_ENV[1], 1, gk));
+    for (const [slot, arm] of Object.entries(ARMS)) {
+      const s = Math.sign(arm.rest), to = CHEER_TO[slot], lim = slot === 'near' ? ARM_LIMIT : 95, rest0 = slot === 'near' ? 16 : -10;
+      expect(to, slot).toBeLessThan(Math.abs(arm.rest));
+      expect(to, slot).toBeLessThan(lim);
+      let x = rest0, v = 0, full = false, swapped = false, last = 0;
+      // pet-core's pulse('cheer', 1.8); the gesture's last frame comes before k reaches 1
+      const dt = 1 / 60, T = 1.8;
+      for (let t = 0; t < T - 1e-9; t += dt) {
+        const gk = t / T, on = env(gk), target = rest0 + (s * to - rest0) * on;
+        v += ((target - x) * ARM_SPRING.k - v * ARM_SPRING.c) * dt; x += v * dt;
+        if (Math.abs(x) > lim) { x = Math.sign(x) * lim; v = 0; }
+        const { swap, lift, dir } = cheerHandover(on, x, to, arm.rest);
+        // mid-trade both arms are seen: the drawn one points where the fist one does
+        if (swap > 0 && swap < 1) { expect(lift, `${slot} at ${gk}`).toBe(0); expect(dir).toBe(x); }
+        if (swap > 0) swapped = true;
+        if (gk > .3 && gk < .6) { expect(swap, `${slot} at ${gk}`).toBe(1); full ||= Math.abs(dir - arm.rest) < 8; }
+        last = swap;
+      }
+      expect(swapped && full, slot).toBe(true);
+      // and it is the fist arm again before the gesture ends, so nothing pops when it does
+      expect(last, slot).toBeLessThan(.01);
+    }
+    expect(cheerHandover(0, 70, CHEER_TO.near, ARMS.near.rest)).toEqual({ swap: 0, lift: 0, dir: 70 });
+  });
+
+  it('keeps each drawn hand off the floor where the trade starts', () => {
+    for (const [slot, arm] of Object.entries(ARMS)) {
+      const [[sx, sy]] = Object.values(arm.pivots), [wx, wy] = arm.wrist;
+      const a = (Math.sign(arm.rest) * (CHEER_TO[slot] - 40) - arm.rest) * Math.PI / 180;
+      expect(sy + (wx - sx) * Math.sin(a) + (wy - sy) * Math.cos(a), slot).toBeLessThan(220);
     }
   });
 });
@@ -321,15 +395,11 @@ describe('a heart made with both hands, as the whale draws it', () => {
     for (const p of HEART.required) {
       const have = SCHEMES.filter(id => existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)));
       expect(have, p.tex).toEqual(SCHEMES);
-      for (const id of have) {
-        const { w, h } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
-        expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
-        expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
-      }
+      for (const id of have) expectFile(id, p);
     }
   });
 
-  it('sits in front of her chest, between the shoulders, over the bodice and under her hair and face', () => {
+  it('sits in front of her chest, between the shoulders, over the bodice and face, under the fringe', () => {
     const [arm] = HEART.required, [x, y, w, h] = arm.box;
     expect(arm.parent).toBe('armHeart');
     expect(x).toBeLessThan(model.pivots.armNear[0]);
@@ -338,5 +408,14 @@ describe('a heart made with both hands, as the whale draws it', () => {
     expect(arm.z).toBeGreaterThan(Math.max(z('torso_up'), z('arm_near'), z('face')));
     expect(arm.z).toBeLessThan(z('bangs'));
     expect(model.parts.some(q => q.id === arm.id)).toBe(false);
+  });
+
+  it('draws the hands at `wrist`, above the forearms\' pivot, in every scheme', () => {
+    const [arm] = HEART.required, [, py] = HEART.pivots.armHeart;
+    for (const id of SCHEMES) {
+      const [hx, hy] = skinOf(id, arm);
+      expect(hy, id).toBeLessThan(py - 10);
+      expect(Math.hypot(hx - HEART.wrist[0], hy - HEART.wrist[1]), id).toBeLessThan(8);
+    }
   });
 });

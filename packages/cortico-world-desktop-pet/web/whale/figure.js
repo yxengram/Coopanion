@@ -41,6 +41,34 @@ export function waveHandover(wave, armBase, lieK, ok) {
   const openHand = ok && lieK < 1e-3 ? wave : 0;
   return { openHand, swap: openHand > 0 ? smooth(70, 95, armBase) : 0 };
 }
+/** The plain arms' spring (stiffness, damping), exported so tests run the same motion. */
+export const ARM_SPRING = { k: 60, c: 9 };
+
+/** How far up (°) the fist arms go for a cheer with the drawn arms, which take over on the way. */
+export const CHEER_TO = { near: 80, far: 60 };
+/** The cheer's envelope (rise, fall): the arms come down early enough for the springs to get back below the trade. */
+export const CHEER_ENV = [.12, .6];
+/**
+ * A drawn cheer arm's handover, the wave's way: with the drawing shown (`on` > 0) the fist arm goes up toward `to`°
+ * (sign of `rest`) and `swap` (0..1) moves to the drawing as the fist arm's own rotation `ang` passes 40..25° short of
+ * it, on the way up and back down; `dir` is where the drawn arm points, the fist arm's angle until the swap is done,
+ * then on up to its own angle `rest` over the fist arm's last stretch (`lift`), so they always point the same way
+ * while they trade.
+ */
+export function cheerHandover(on, ang, to, rest) {
+  if (!(on > 0)) return { swap: 0, lift: 0, dir: ang };
+  // high up (the drawn arm is longer than the fist one, and turned lower it would hang beside her legs), and almost a cut:
+  // the arm sweeps about 10° a frame there, so a wider crossfade shows a half-seen second arm for a few frames
+  const m = Math.sign(rest) * ang, lift = smooth(to - 10, to - 3, m);
+  return { swap: smooth(to - 16, to - 13, m), lift, dir: lerp(ang, rest, lift) };
+}
+
+/** Gestures that pose the far arm themselves: she takes her chin off her hand for them. */
+export const FAR_ARM_GESTURES = ['cheer', 'heart', 'shiver', 'flap', 'flinch', 'peek'];
+/** Whether she props her chin on her far hand: thinking, standing or sitting still, the far arm free. */
+export function chinWanted(face, mode, lieK, gesture) {
+  return face === 'thinking' && !lieK && (mode === 'idle' || mode === 'sit' || mode === 'wake') && !FAR_ARM_GESTURES.includes(gesture?.kind);
+}
 
 export function poseMix(lieK) {
   const poseA = smooth(.2, .45, lieK), standA = poseA >= 1 ? 0 : 1;
@@ -515,7 +543,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const sp = {
     hair: spring(55, 7, 1.8), hairY: spring(50, 8, 1.2), bangs: spring(110, 10, 1.6),
     skirt: spring(100, 9, 1.6), skirtY: spring(90, 10, 1.1), tail: spring(40, 5, 32), fins: spring(90, 9, 30),
-    ahoge: spring(140, 6, 38), head: spring(70, 10, 16), armN: spring(60, 9, ARM_LIMIT), armF: spring(60, 9, 95),
+    ahoge: spring(140, 6, 38), head: spring(70, 10, 16), armN: spring(ARM_SPRING.k, ARM_SPRING.c, ARM_LIMIT), armF: spring(ARM_SPRING.k, ARM_SPRING.c, 95),
   };
   let lastT = null, prevTilt = 0, prevYaw = 0, prevLow = 0, headTilt = 0, fx = '';
   const fxTurn = [0, 0]; // this frame's head turn (angleX, angleY), for effects drawn over the face
@@ -581,8 +609,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (lieK < 1e-3) lieK = 0;  // the easing alone never reaches zero
     const { poseA, hide } = poseMix(lieK);
     poseShown = poseA;
-    // thinking, standing or sitting still, she props her chin on her hand
-    chinK = lerp(chinK, CHIN && chinOK() && face === 'thinking' && !lieK && (mode === 'idle' || mode === 'sit' || mode === 'wake') ? 1 : 0, ease(5, dt));
+    // thinking, standing or sitting still, she props her chin on her hand; a gesture that needs the far arm takes it down at once
+    const chinTaken = FAR_ARM_GESTURES.includes(o.gesture?.kind);
+    chinK = lerp(chinK, CHIN && chinOK() && chinWanted(face, mode, lieK, o.gesture) ? 1 : 0, ease(chinTaken ? 16 : 5, dt));
     if (chinK < 1e-3) chinK = 0;
 
     /* head: tilt toward what it looks at, nod with sleep, wobble with dizzy */
@@ -607,9 +636,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const wave = g?.kind === 'wave' ? env(.15, .8) : 0;      // the near arm up beside her head, waving
     const bow = g?.kind === 'bow' ? env(.25, .7) : 0;        // the upper body tips forward about the waist
     const shiver = g?.kind === 'shiver' ? env(.08, .85) : 0; // arms hugged in, trembling, fins down
-    const flap = g?.kind === 'flap' ? env(.05, .75) : 0;
-    const cheer = g?.kind === 'cheer' ? env(.12, .8) : 0;
-    const heart = g?.kind === 'heart' ? env(.1, .85) : 0;   // both hands make a heart in front of her chest   // both arms up, open hands, a happy bounce     // fins, tail, ahoge and arms all flutter
+    const flap = g?.kind === 'flap' ? env(.05, .75) : 0;     // fins, tail, ahoge and arms all flutter
+    const cheer = g?.kind === 'cheer' ? env(...CHEER_ENV) : 0; // both arms up, open hands, a happy bounce
+    const heart = g?.kind === 'heart' ? env(.1, .85) : 0;    // both hands make a heart in front of her chest
     const flinch = g?.kind === 'flinch' ? env(.04, .45) : 0; // head and upper body jerk back, arms hugged in
     const peek = g?.kind === 'peek' ? env(.2, .8) : 0;       // the upper body leans in, the head cranes forward
     const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)), gYaw = shake * 1.1;
@@ -669,9 +698,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // with the open-hand drawing she raises the arm on toward the drawing's own angle, and it takes over halfway up
     const { openHand } = waveHandover(wave, 0, lieK, !!WAVE && waveOK());
     if (wave) aN = lerp(aN, openHand ? WAVE.rest : 108, wave);
-    // with the drawn arms the fist arms only start up before they hand over; without them she flings them up and out
+    // with the drawn arms the fist arms go part way up and hand over (see cheerHandover); without them she flings them up and out
     const cheerOn = CHEER && cheerOK() && !lieK ? cheer : 0;
-    if (cheer) { aN = lerp(aN, cheerOn ? 80 : 100, cheer); aF = lerp(aF, cheerOn ? -60 : -80, cheer); }
+    if (cheer) { aN = lerp(aN, cheerOn ? CHEER_TO.near : 100, cheer); aF = lerp(aF, cheerOn ? -CHEER_TO.far : -80, cheer); }
     // the fist arms start in toward her chest; with the drawing they hand over to it, without it they stay there
     const heartOn = HEART && heartOK() && !lieK ? heart : 0;
     if (heart) { aN = lerp(aN, 30, heart); aF = lerp(aF, -22, heart); }
@@ -683,7 +712,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const armBase = sp.armN.step(aN, dt);
     const armN = armBase + (openHand ? 0 : wave * 13 * Math.sin(t * 15)) + shiver * 1.4 * Math.sin(t * 47) + flap * 9 * Math.sin(t * 24)
       + (fc.shake && face === 'nervous' ? Math.sin(t * 47) : 0);
-    const armF = sp.armF.step(aF, dt) - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1);
+    const armFBase = sp.armF.step(aF, dt);
+    const armF = armFBase - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1);
 
     /* deformer states */
     // pet-core sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
@@ -723,23 +753,26 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       for (const p of WAVE.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
     }
     st.armFar = { a: armF };
+    // how much of the far arm the drawn gesture arms leave free: the chin-rest forearm shows only there
+    let farFree = 1;
     if (CHEER) {
-      // the drawn arms swing up into place from where the fist arms hand over, then bob with the cheer
-      // (only on the way up: coming down they fade where they are, rather than swinging out half seen)
-      const swap = smooth(.08, .3, cheerOn), up = gk < .5 ? smooth(.15, .6, cheerOn) : 1, bob = 4 * Math.sin(t * 11) * smooth(.3, .6, cheerOn);
+      // each drawn arm takes over from its fist arm pointing the same way, rises on into place, then bobs with the cheer;
+      // coming down it follows the fist arm back to the same angle and hands over there
+      const bob = 4 * Math.sin(t * 11);
       for (const [slot, arm] of Object.entries(CHEER)) {
-        const sgn = slot === 'far' ? -1 : 1;
-        st[Object.keys(arm.pivots)[0]] = { a: -sgn * 70 * (1 - up) + sgn * bob };
+        const far = slot === 'far', { swap, lift, dir } = cheerHandover(cheerOn, far ? armFBase : armBase, CHEER_TO[slot], arm.rest);
+        st[Object.keys(arm.pivots)[0]] = { a: dir - arm.rest + (far ? -bob : bob) * lift };
         for (const p of arm.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
+        if (far) { st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap; farFree *= 1 - swap; }
+        else st.alpha.arm_near *= 1 - swap;
       }
-      st.alpha.arm_near *= 1 - swap; st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap;
     }
     if (HEART) {
       // the hands come up from a little lower into place, then bob gently with the beat
       // (letting go, the drawing hands back over a shorter stretch, so the two pairs of arms barely show at once)
       const swap = gk < .5 ? smooth(.05, .3, heartOn) : smooth(.4, .55, heartOn), up = smooth(.1, .5, heartOn), b = .025 * Math.sin(t * 8) * up;
       st.armHeart = { ty: 7 * (1 - up), sx: 1 + b, sy: 1 + b };
-      st.alpha.arm_near *= 1 - swap; st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap;
+      st.alpha.arm_near *= 1 - swap; st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap; farFree *= 1 - swap;
       for (const p of HEART.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
     }
     if (CHIN) {
@@ -747,7 +780,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       const k = smooth(0, 1, chinK), swap = smooth(.15, .55, chinK);
       st.armChin = { a: -60 * (1 - k) + .8 * Math.sin(t * 1.3) * k };
       st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap;
-      for (const p of CHIN.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
+      for (const p of CHIN.required) st.alpha[p.id] = tex[p.tex] ? swap * farFree : 0;
     }
     st.legBack = { a: lerp(legA[0], -55, sitK), ty: -lift[0] * .9 * (1 - sitK) };
     st.legFront = { a: lerp(legA[1], -60, sitK), ty: -lift[1] * .9 * (1 - sitK) };

@@ -271,7 +271,9 @@ describe('resting her chin on her hand while thinking, as the whale draws it', (
     const [arm] = CHIN.required;
     expect(arm.parent).toBe('armChin');
     const [ex, ey] = CHIN.pivots.armChin, [fx, fy] = model.pivots.armFar;
-    expect(Math.hypot(ex - fx, ey - fy)).toBeLessThan(15);
+    // the elbow hangs from the far shoulder: below it, within an upper arm's length
+    expect(Math.hypot(ex - fx, ey - fy)).toBeLessThan(25);
+    expect(ey).toBeGreaterThanOrEqual(fy);
     expect(arm.z).toBeGreaterThan(Math.max(z('face'), z('eye_creases'), z('brows')));
     expect(arm.z).toBeLessThan(z('bangs'));
     expect(model.parts.some(q => q.id === arm.id)).toBe(false);

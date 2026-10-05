@@ -140,7 +140,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const LIE_PARTS = LIE ? [...LIE.required, ...LIE.overlays] : [];
   // waving with an open hand is a drawing of the near arm raised (model.poses.wave), optional the same way
   const WAVE = model.poses?.wave;
-  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : [])];
+  // thinking, she rests her chin on her far hand: a drawing of the far forearm raised (model.poses.chin)
+  const CHIN = model.poses?.chin;
+  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : [])];
   // the scheme's accent colours the listening arcs, thought bubbles and sleep z's
   const accent = () => schemeInfo(scheme).accent || '#4d6bfe';
   const loaded = {}, ready = {};
@@ -156,6 +158,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     ]).then(() => {
       set.lie = !!LIE && LIE.required.every(p => set.tex[p.tex]);
       set.wave = !!WAVE && WAVE.required.every(p => set.tex[p.tex]);
+      set.chin = !!CHIN && CHIN.required.every(p => set.tex[p.tex]);
       if (LIE && !set.lie && LIE.required.some(p => set.tex[p.tex])) console.warn(`whale: scheme ${id} lacks some lying-pose files; she sits instead`);
       return (ready[id] = set);
     });
@@ -225,6 +228,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of WAVE.required) { parts.push({ ...p, alpha: 0 }); STANDING[p.id] = true; }
   }
   const waveOK = () => !!(cur.wave && (!fade || fade.set.wave));
+  // the chin-rest forearm turns about its elbow and rides the neck, so the hand stays under the chin as the head moves
+  if (CHIN) {
+    deformers.armChin = { kind: 'rot', parent: 'neck', pivot: CHIN.pivots.armChin };
+    for (const p of CHIN.required) { parts.push({ ...p, alpha: 0 }); STANDING[p.id] = true; }
+  }
+  const chinOK = () => !!(cur.chin && (!fade || fade.set.chin));
 
   /* ---------- face painting (master pixels) ---------- */
   const faceCv = document.createElement('canvas');
@@ -495,7 +504,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const GROUP = { air: [1, 1], drag: [1, 1], crouch: [1, 1], land: [1, 1], walk: [1, .5], run: [1, .5], dance: [.6, 0] };
   let wTilt = 0, wLean = 0;
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
-  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0;
+  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0;
   const st = { z: {}, alpha: {} };
 
   // fins and tail by face: fins up (+) or drooping (-), tail wag size, and how far the tail droops (1 = 12°)
@@ -550,11 +559,15 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (lieK < 1e-3) lieK = 0;  // the easing alone never reaches zero
     const { poseA, hide } = poseMix(lieK);
     poseShown = poseA;
+    // thinking, standing or sitting still, she props her chin on her hand
+    chinK = lerp(chinK, CHIN && chinOK() && face === 'thinking' && !lieK && (mode === 'idle' || mode === 'sit' || mode === 'wake') ? 1 : 0, ease(5, dt));
+    if (chinK < 1e-3) chinK = 0;
 
     /* head: tilt toward what it looks at, nod with sleep, wobble with dizzy */
-    let tiltT = o.look[0] * .7 + Math.sin(t * .9) * 1.2 + o.look[1] * .4;
+    // (with her chin on her hand the head keeps nearly still)
+    let tiltT = (o.look[0] * .7 + o.look[1] * .4) * (1 - .6 * chinK) + Math.sin(t * .9) * 1.2;
     if (mode === 'sleep') tiltT += 6;
-    tiltT += HEAD_TILT[face] || 0;
+    tiltT += (HEAD_TILT[face] || 0) * (1 - .7 * chinK);
     if (face === 'dizzy') tiltT += 3 * Math.sin(t * 4.5);
     if (held) tiltT += o.swing * .25;
     headTilt = sp.head.step(tiltT, dt);
@@ -678,6 +691,13 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       for (const p of WAVE.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
     }
     st.armFar = { a: armF };
+    if (CHIN) {
+      // the forearm swings up from its elbow to the chin, taking over from the far arm on the way
+      const k = smooth(0, 1, chinK), swap = smooth(.15, .55, chinK);
+      st.armChin = { a: -60 * (1 - k) + .8 * Math.sin(t * 1.3) * k };
+      st.alpha.arm_far = st.alpha.arm_far_end_front = 1 - swap;
+      for (const p of CHIN.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
+    }
     st.legBack = { a: lerp(legA[0], -55, sitK), ty: -lift[0] * .9 * (1 - sitK) };
     st.legFront = { a: lerp(legA[1], -60, sitK), ty: -lift[1] * .9 * (1 - sitK) };
     st.tail = { a: tail - 10 * sitK };
@@ -877,7 +897,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

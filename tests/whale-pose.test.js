@@ -250,3 +250,32 @@ describe('the lying and waving drawings inside the pack sandbox', () => {
     expect(sandbox).toMatch(/get poses\(\)/);
   });
 });
+
+describe('resting her chin on her hand while thinking, as the whale draws it', () => {
+  const CHIN = model.poses.chin;
+  const z = id => model.parts.find(p => p.id === id).z;
+
+  it('has its file in every scheme, sized to its box', () => {
+    for (const p of CHIN.required) {
+      const have = SCHEMES.filter(id => existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)));
+      expect(have, p.tex).toEqual(SCHEMES);
+      for (const id of have) {
+        const { w, h } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
+        expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
+        expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it('is the far forearm: its elbow by the far shoulder, the hand in front of the face and under the fringe', () => {
+    const [arm] = CHIN.required;
+    expect(arm.parent).toBe('armChin');
+    const [ex, ey] = CHIN.pivots.armChin, [fx, fy] = model.pivots.armFar;
+    expect(Math.hypot(ex - fx, ey - fy)).toBeLessThan(15);
+    expect(arm.z).toBeGreaterThan(Math.max(z('face'), z('eye_creases'), z('brows')));
+    expect(arm.z).toBeLessThan(z('bangs'));
+    expect(model.parts.some(q => q.id === arm.id)).toBe(false);
+    // the hand (the wrist and past it) is up at the chin, above the elbow
+    expect(CHIN.wrist[1]).toBeLessThan(ey);
+  });
+});

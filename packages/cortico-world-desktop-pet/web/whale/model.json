@@ -920,6 +920,38 @@
    ],
    "rest": 131,
    "source": "flux2-klein-4b edit of the standing rig render: wave_edit seed 4"
+  },
+  "chin": {
+   "required": [
+    {
+     "id": "arm_chin",
+     "tex": "arm_chin",
+     "z": 9.5,
+     "parent": "armChin",
+     "grid": [
+      8,
+      8
+     ],
+     "box": [
+      126.83,
+      139.33,
+      42.67,
+      42.17
+     ]
+    }
+   ],
+   "pivots": {
+    "armChin": [
+     161.17,
+     177.33
+    ]
+   },
+   "wrist": [
+    143.67,
+    159.67
+   ],
+   "rest": 0,
+   "source": "flux2-klein-4b edit of the standing rig render: chin_edit seed 1"
   }
  }
 }

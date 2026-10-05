@@ -60,6 +60,7 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'dance', kind: 'motion', zh: ['跳舞', '摇摆'], note: '原地踩着节拍摇摆三秒,冒音符' },
   { id: 'flinch', kind: 'motion', zh: ['后缩', '吓一跳'], note: '吓得往后一缩,马上恢复' },
   { id: 'peek', kind: 'motion', zh: ['探头', '瞅瞅'], note: '身子往前探,盯着前方看两秒' },
+  { id: 'away', kind: 'motion', zh: ['背过身', '不理你', '扭头'], note: '背过身去不理人,过一会儿再转回来' },
 ];
 
 const BY_WORD = new Map<string, VocabEntry>();

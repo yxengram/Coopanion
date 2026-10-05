@@ -6,14 +6,16 @@ import { VOCAB } from '../packages/cortico-world-desktop-pet/src/script.ts';
 function barePet(onEvent) {
   const el = () => ({ setAttribute() {}, innerHTML: '' });
   const sfx = new Proxy({}, { get: () => () => {} });
-  const fxG = el();
-  const pet = createPet({ petG: el(), shadowEl: el(), fxG }, { sfx, onEvent, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+  const fxG = el(), petG = el();
+  const pet = createPet({ petG, shadowEl: el(), fxG }, { sfx, onEvent, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
   pet.resize();
-  // the particles' markup, as last drawn
+  // the particles' and Coo's markup, as last drawn
   pet.fxHtml = () => fxG.innerHTML;
+  pet.petHtml = () => petG.innerHTML;
   return pet;
 }
 const run = (pet, seconds) => { for (let i = 0; i < seconds * 60; i++) { pet.step(1 / 60); pet.render(); } };
+const eyesIn = html => (html.match(/class="eye"/g) || []).length;
 
 describe('the words the model can use', () => {
   it('match what the body knows, both ways', () => {
@@ -55,7 +57,7 @@ describe('the words the model can use', () => {
   });
 
   it('a motion that stops an ordered walk reports the walk as interrupted', () => {
-    for (const m of ['bow', 'turn', 'spin', 'flinch', 'peek']) {
+    for (const m of ['bow', 'turn', 'spin', 'flinch', 'peek', 'away']) {
       const events = [];
       const pet = barePet((kind, d) => events.push([kind, d.walkId]));
       run(pet, 1);
@@ -80,17 +82,18 @@ describe('the words the model can use', () => {
   });
 
   it('each motion sound can be silenced with the motion kind', () => {
-    for (const n of ['look', 'peek', 'flinch', 'shiver', 'dance']) expect(SOUND_KINDS.move, n).toContain(n);
-    // look and peek borrow the 'hmm' tone, which belongs to no kind: watch it to see whether they played
+    for (const n of ['look', 'peek', 'flinch', 'shiver', 'dance', 'away']) expect(SOUND_KINDS.move, n).toContain(n);
+    // look and peek borrow the 'hmm' tone and away the 'huff', which belong to no kind: watch them to see whether they played
     const played = [];
     const sfx = createSfx({ storageKey: 'test.sfx' });
     sfx.hmm = () => played.push('hmm');
+    sfx.huff = () => played.push('huff');
     sfx.configure({ kinds: { move: false } });
-    sfx.look(); sfx.peek();
+    sfx.look(); sfx.peek(); sfx.away();
     expect(played).toEqual([]);
     sfx.configure({ kinds: { move: true } });
-    sfx.look(); sfx.peek();
-    expect(played).toEqual(['hmm', 'hmm']);
+    sfx.look(); sfx.peek(); sfx.away();
+    expect(played).toEqual(['hmm', 'hmm', 'huff']);
   });
 
   it('a figure that draws a gesture itself takes it whole from the frame, and the body leaves it out', () => {
@@ -105,6 +108,162 @@ describe('the words the model can use', () => {
     expect(Math.abs(o.lean)).toBeLessThan(.01);
     run(pet, 1);
     expect(frames.at(-1).gesture).toBeNull();
+  });
+
+  it('turning away pouts with its back turned for a while, then comes round to its own face', () => {
+    const pet = barePet();
+    run(pet, 1);
+    const facing = pet.pet.facing;
+    expect(pet.act('away')).toBe(true);
+    run(pet, 1.6);
+    expect(pet.pet._fname).toBe('pout');
+    expect(pet.pet.facing).toBe(facing);
+    run(pet, 2.2);
+    expect(pet.pet.mode).toBe('idle');
+    expect(pet.pet.pulse).toBeNull();
+    expect(pet.pet._fname).toBe('neutral');
+  });
+
+  it("Coo hides her face while her back is turned, and shows it again after", () => {
+    const pet = barePet();
+    pet.setSkin({ ...defaultSkin(), glasses: 'round' });
+    run(pet, 1);
+    const eyes = () => (pet.petHtml().match(/class="eye"/g) || []).length;
+    expect(eyes()).toBeGreaterThan(0);
+    expect(pet.petHtml()).toContain('c-glasses-main');
+    pet.act('away');
+    run(pet, 1.6);
+    expect(eyes()).toBe(0);
+    expect(pet.petHtml()).not.toContain('class="blush"');
+    expect(pet.petHtml()).not.toContain('c-glasses-main');
+    // the ring is still drawn
+    expect(pet.petHtml()).toContain(`stroke-width="36"`);
+    run(pet, 2);
+    expect(eyes()).toBeGreaterThan(0);
+    expect(pet.petHtml()).toContain('c-glasses-main');
+  });
+
+  it('lying, turning away only pouts', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 2);
+    pet.act('away');
+    run(pet, 1);
+    expect(pet.pet.mode).toBe('lie');
+    expect(pet.pet.pulse?.kind).not.toBe('away');
+    expect(pet.pet._fname).toBe('pout');
+    expect(pet.petHtml()).toContain('class="eye"');
+  });
+
+  it('a figure with its own back view is never squeezed thin turning round; one without still is', () => {
+    const narrowest = poses => {
+      const pet = barePet();
+      pet.setFigure({ poses, draw() {} });
+      run(pet, 1);
+      pet.act('turn');
+      let most = Infinity;
+      for (let i = 0; i < 60; i++) { run(pet, 1 / 60); most = Math.min(most, Math.abs(pet.pet.xf.kx)); }
+      expect(pet.pet.xf.kx * pet.pet.facing).toBeGreaterThan(0);
+      return most / .42;
+    };
+    expect(narrowest({ back: true })).toBeGreaterThan(.85 * .98);
+    expect(narrowest({})).toBeLessThan(.1);
+  });
+
+  it("a figure with its own back view gets the turn's progress in its frame, and its points follow the drawn width", () => {
+    const pet = barePet(), frames = [];
+    pet.setFigure({ poses: { back: true }, anchors: { bubble: [200, 18] }, draw: (g, face, o) => frames.push(o.facing) });
+    run(pet, 1);
+    pet.act('turn');
+    run(pet, 4 / 60);
+    const mid = frames.at(-1);
+    expect(Math.abs(mid)).toBeLessThan(.85);
+    // the bubble's spot stays out where the group is drawn, not squeezed in with the turn
+    expect(Math.abs(pet.anchor().x - pet.pet.x)).toBeGreaterThan(.85 * 72 * .42 * .98);
+  });
+
+  it("Coo's mouth rests while her back is turned: no pout, no talking from behind", () => {
+    const ring = (gap, gesture) => {
+      const o = { look: [0, 0], legs: [], low: 0, t: 0, acc: defaultSkin(), gesture };
+      return figure({ gap, eyes: [{ shape: 'up' }, { shape: 'up' }] }, o).match(/stroke-width="36"[^>]*d="([^"]+)"/)[1];
+    };
+    const back = { kind: 'away', k: .5 };
+    expect(ring([28, 28], back)).toBe(ring([50, 50], back));
+    expect(ring([62, 62], back)).toBe(ring([50, 50], back));
+    // facing you, the gap is the mouth as ever
+    expect(ring([28, 28], null)).not.toBe(ring([50, 50], null));
+  });
+
+  it('turning away while getting up from lying turns away once up, not just a pout', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 3);
+    pet.act('stand');
+    run(pet, .2);
+    expect(pet.pet.mode).toBe('wake');
+    pet.act('away');
+    run(pet, 1.4);
+    expect(pet.pet.pulse?.kind).toBe('away');
+    expect(eyesIn(pet.petHtml())).toBe(0);
+  });
+
+  it('a back turned while the lying pose could not show is over once it can', () => {
+    let lie = false;
+    const pet = barePet(), gestures = [];
+    pet.setFigure({ get poses() { return { lie }; }, anchors: { lie: {} }, gestures: ['away'], draw: (g, face, o) => gestures.push(o.gesture?.kind) });
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 2);
+    pet.act('away');
+    run(pet, .5);
+    expect(pet.pet.pulse?.kind).toBe('away');
+    lie = true;
+    pet.act('sleep');
+    gestures.length = 0;
+    run(pet, .5);
+    expect(pet.pet.pulse).toBeNull();
+    expect(gestures).not.toContain('away');
+  });
+
+  it('a figure that draws no turning away of its own looks the other way for a while, then comes round', () => {
+    const facings = gestures => {
+      const pet = barePet(), seen = [];
+      pet.setFigure({ gestures, draw: (g, face, o) => seen.push(o.facing) });
+      run(pet, 1);
+      const facing = pet.pet.facing;
+      pet.act('away');
+      seen.length = 0;
+      run(pet, 1.6);
+      const mid = seen.at(-1);
+      run(pet, 2);
+      expect(pet.pet.facing).toBe(facing);
+      return [mid * facing, seen.at(-1) * facing];
+    };
+    const [mid, end] = facings(undefined);
+    expect(mid).toBeLessThan(-.95);
+    expect(end).toBeGreaterThan(.95);
+    // one that draws it keeps facing the way it did
+    expect(facings(['away'])[0]).toBeGreaterThan(.95);
+  });
+
+  it("a figure's back view coming in mid-turn (standing up) eases in, the turn's width not jumping out", () => {
+    let sit = 0;
+    const pet = barePet();
+    // like the whale: a back to show only when not sitting
+    pet.setFigure({ get poses() { return { back: sit < .5 }; }, draw: (g, face, o) => { sit = o.sit; } });
+    run(pet, 1);
+    pet.act('sit');
+    run(pet, 2);
+    pet.act('stand');
+    run(pet, 1);
+    pet.act('turn');
+    const w = [];
+    for (let i = 0; i < 40; i++) { run(pet, 1 / 60); w.push(pet.pet.xf.kx / .42); }
+    // past the middle the width comes back out by ever smaller steps
+    const after = w.slice(w.findIndex(v => v * w[0] < 0)).map(Math.abs);
+    for (let i = 2; i < after.length; i++) expect(after[i] - after[i - 1], `frame ${i}`).toBeLessThan(after[i - 1] - after[i - 2] + .02);
   });
 
   it("a figure that names no glint spots gets its glints by its own bubble, not at Coo's head", () => {

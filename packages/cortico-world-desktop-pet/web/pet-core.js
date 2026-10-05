@@ -272,6 +272,11 @@ export const GALLERY = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 
 export function figure(fc, o) {
   const t = o.t, lx = o.look[0], ly = o.look[1], acc = o.acc, sw = o.swing || 0;
   const L = o.lie || 0, g = o.gesture, gs = g ? Math.sin(Math.PI * g.k) : 0;
+  // back turned (away): Coo has no back to draw, so the face goes, out over the turn and in again on the way back
+  const fa = g?.kind === 'away' ? 1 - envelope(g.k, .25, .8) : 1;
+  const faceG = m => (fa > .99 ? m : fa > .01 ? `<g opacity="${f(fa)}">${m}</g>` : '');
+  // ...and with it the mouth, the ring's gap, rests: no pout or talking from the back
+  const gap = fa > .99 ? fc.gap : fc.gap.map(v => lerp(50, v, fa));
   let s = `<g class="ink" fill="none" stroke-width="${LEG_W}" stroke-linecap="round">`;
   for (const l of o.legs) s += `<path d="M${f(l[0])} ${f(l[1])}L${f(l[2])} ${f(l[3])}"/>`;
   s += '</g>';
@@ -280,10 +285,11 @@ export function figure(fc, o) {
   s += `<g transform="translate(0 ${f(o.low)})">`;
   s += sideBack(acc.side, sw);
   s += headBack(acc.head, sw);
-  s += `<path class="ink" fill="none" stroke-width="${BODY_W}" stroke-linecap="round" d="${cPath(fc.gap[0], fc.gap[1])}"/>`;
+  s += `<path class="ink" fill="none" stroke-width="${BODY_W}" stroke-linecap="round" d="${cPath(gap[0], gap[1])}"/>`;
   s += neckD(acc.neck, sw);
+  let fs = '';
   if (fc.blush > .02) {
-    s += `<g class="blush" opacity="${f(fc.blush * .8)}"><ellipse cx="${f(99 + lx)}" cy="146" rx="11" ry="5.5"/><ellipse cx="${f(167 + lx)}" cy="146" rx="11" ry="5.5"/></g>`;
+    fs += `<g class="blush" opacity="${f(fc.blush * .8)}"><ellipse cx="${f(99 + lx)}" cy="146" rx="11" ry="5.5"/><ellipse cx="${f(167 + lx)}" cy="146" rx="11" ry="5.5"/></g>`;
   }
   const close = o.eyeClose || 0;
   fc.eyes.forEach((e, i) => {
@@ -291,16 +297,17 @@ export function figure(fc, o) {
     if ((ee.shape === 'ring' || ee.shape === 'lid') && o.blink) ee.ry *= (1 - o.blink);
     const cx = EYES[i][0] + lx, cy = EYES[i][1] + ly;
     const tr = close > .01 ? ` transform="translate(0 ${f(cy)}) scale(1 ${f(Math.max(.08, 1 - close) * 100) / 100}) translate(0 ${f(-cy)})"` : '';
-    s += `<path class="eye" fill="none" stroke-width="${e.sw || 12}" stroke-linecap="round" stroke-linejoin="round"${tr} d="${eyePath(ee, cx, cy)}"/>`;
+    fs += `<path class="eye" fill="none" stroke-width="${e.sw || 12}" stroke-linecap="round" stroke-linejoin="round"${tr} d="${eyePath(ee, cx, cy)}"/>`;
   });
-  s += glassesD(acc.glasses, lx * .4, ly * .3);
+  fs += glassesD(acc.glasses, lx * .4, ly * .3);
   if (fc.brows) {
     const bx = lx * .5, by = ly * .4;
     const d = fc.brows === 'angry'
       ? `M${f(98 + bx)} ${f(88 + by)}L${f(124 + bx)} ${f(97 + by)}M${f(152 + bx)} ${f(97 + by)}L${f(178 + bx)} ${f(88 + by)}`
       : `M${f(98 + bx)} ${f(96 + by)}L${f(123 + bx)} ${f(88 + by)}M${f(153 + bx)} ${f(88 + by)}L${f(178 + bx)} ${f(96 + by)}`;
-    s += `<path class="ink" fill="none" stroke-width="9" stroke-linecap="round" d="${d}"/>`;
+    fs += `<path class="ink" fill="none" stroke-width="9" stroke-linecap="round" d="${d}"/>`;
   }
+  s += faceG(fs);
   s += sideFront(acc.side, sw);
   s += headFront(acc.head, sw, t);
   if (fc.orbit) {
@@ -330,25 +337,28 @@ export function figure(fc, o) {
     s += `<g class="angry" transform="translate(210 44) scale(${f(k * 10) / 10})" fill="none" stroke-width="7" stroke-linecap="round"><path d="M-13 -4Q-4 -4 -4 -13M4 -13Q4 -4 13 -4M13 4Q4 4 4 13M-4 13Q-4 4 -13 4"/></g>`;
   }
   if (fc.bang) s += `<g transform="translate(222 30)"><path class="ink" fill="none" stroke-width="11" stroke-linecap="round" d="M0 -18V4"/><circle class="inkf" cx="0" cy="18" r="5.5"/></g>`;
+  if (fc.question) s += `<g transform="translate(222 30)"><path class="ink" fill="none" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" d="M-10 -12Q-10 -24 0 -24Q11 -24 11 -13Q11 -5 0 -1V5"/><circle class="inkf" cx="0" cy="18" r="5.5"/></g>`;
+  // what sits on the face goes with it
+  let fx = '';
   if (fc.gloom) {
     // three short downward strokes under the top of the ring: 无语
-    s += `<g class="ink" fill="none" stroke-width="5" stroke-linecap="round" opacity=".55">${[[118, 84], [134, 90], [150, 84]].map(([x, y1]) => `<path d="M${f(x + lx * .5)} 70V${y1}"/>`).join('')}</g>`;
+    fx += `<g class="ink" fill="none" stroke-width="5" stroke-linecap="round" opacity=".55">${[[118, 84], [134, 90], [150, 84]].map(([x, y1]) => `<path d="M${f(x + lx * .5)} 70V${y1}"/>`).join('')}</g>`;
   }
-  if (fc.question) s += `<g transform="translate(222 30)"><path class="ink" fill="none" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" d="M-10 -12Q-10 -24 0 -24Q11 -24 11 -13Q11 -5 0 -1V5"/><circle class="inkf" cx="0" cy="18" r="5.5"/></g>`;
   if (fc.sparkle) {
     // a twinkling four-point glint inside each eye ring
     EYES.forEach(([ex, ey], i) => {
       const k = .8 + .3 * Math.sin(t * 7 + i * 2);
-      s += `<path class="eye" fill="none" stroke-width="4" stroke-linecap="round" transform="translate(${f(ex + lx)} ${f(ey + ly - 1)}) scale(${f(k)})" d="M0 -8V8M-8 0H8"/>`;
+      fx += `<path class="eye" fill="none" stroke-width="4" stroke-linecap="round" transform="translate(${f(ex + lx)} ${f(ey + ly - 1)}) scale(${f(k)})" d="M0 -8V8M-8 0H8"/>`;
     });
   }
   if (fc.streams) {
     // tears running from each eye down the cheek
     EYES.forEach(([ex, ey], i) => {
       const w = 2 * Math.sin(t * 6 + i);
-      s += `<path class="tearf" opacity=".75" d="M${f(ex + lx - 5)} ${f(ey + 6)}Q${f(ex + lx - 7 + w)} ${f(ey + 30)} ${f(ex + lx - 3)} ${f(ey + 52)}L${f(ex + lx + 5)} ${f(ey + 52)}Q${f(ex + lx + 3 + w)} ${f(ey + 30)} ${f(ex + lx + 5)} ${f(ey + 6)}Z"/>`;
+      fx += `<path class="tearf" opacity=".75" d="M${f(ex + lx - 5)} ${f(ey + 6)}Q${f(ex + lx - 7 + w)} ${f(ey + 30)} ${f(ex + lx - 3)} ${f(ey + 52)}L${f(ex + lx + 5)} ${f(ey + 52)}Q${f(ex + lx + 3 + w)} ${f(ey + 30)} ${f(ex + lx + 5)} ${f(ey + 6)}Z"/>`;
     });
   }
+  s += faceG(fx);
   if (o.zmark) s += '<path class="eye" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" d="M204 22H220L204 42H220M226 4H236L226 16H236"/>';
   s += '</g>';
   if (L > .02) {
@@ -462,7 +472,7 @@ export function applyTheme(theme, button) {
 /* ---------- sound: synthesized with Web Audio, no files ---------- */
 /** Which kind each sound belongs to; a kind can be silenced on its own (`sfx.configure`). */
 export const SOUND_KINDS = {
-  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek'],
+  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
   face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn'],
   snore: ['snore'],
@@ -564,6 +574,9 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
     // looking about and peeking hum like the thinking 'hmm', but count as motion sounds
     look() { api.hmm(); },
     peek() { api.hmm(); },
+    // turning away in a huff: a soft swish, the whoosh's voice turned down
+    huff() { noise({ f0: 1400, f1: 500, q: 1.2, dur: .26, vol: .09, attack: .06 }); },
+    away() { api.huff(); },
     flinch() { tone({ type: 'triangle', f0: 900, f1: 1400, dur: .09, vol: .12 }); noise({ type: 'highpass', f0: 2400, f1: 1200, dur: .12, vol: .05 }); },
     dance() { [523, 659, 784, 659, 880].forEach((fr, i) => tone({ type: 'triangle', f0: fr, dur: .13, vol: .09, at: i * .15 })); },
     nod() { tone({ type: 'triangle', f0: 520, f1: 440, dur: .07, vol: .08 }); tone({ type: 'triangle', f0: 520, f1: 440, dur: .07, vol: .08, at: .2 }); },
@@ -611,7 +624,7 @@ export const EXPRESSIONS = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprise
   'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous'];
 /** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
-  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart'];
+  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
 /** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
@@ -637,9 +650,12 @@ const KICK = { happy: [1.6, 1.6], love: [1.6, 1.6], excited: [1.6, 1.8], angry: 
  * `figure.colors.z`, if present, colours the sleep z's (otherwise they take the skin's eye colour).
  * `figure.gestures`, if present, names the short gestures (nod, shake) the figure draws itself: the body then
  * leaves them out, and the frame's `gesture` ({ kind, k: 0..1 }, or null) says which one is playing and how far.
+ * A figure that does not list `away` turns to face the other way for it instead (the frame's `facing` going round).
  * While lying, the fidgets in `FIDGETS` come as gestures too; the body itself does nothing with them.
  * `figure.anchors.lie`, if present, holds the same points (plus `hit`: [cx, cy, rx, ry] and `halfW`) for the lying pose,
  * in logo units with the hips' sink already in; `figure.poses.lie === false` says the pose cannot show right now.
+ * `figure.poses.back === true` says the figure draws its own back view: turning round, the group is then never squeezed
+ * below 85% of its width (it flips at the middle) and the figure shows the turn from the frame's `facing` (-1..1).
  */
 export function createPet(els, opts) {
   const { petG, shadowEl, fxG } = els;
@@ -660,7 +676,7 @@ export function createPet(els, opts) {
     eyeSig: '', eyeCur: null, eyePrev: null, eyeDims: [[16, 16, 0, 0], [16, 16, 0, 0]], swapAge: 9,
     glance: [0, 0], glanceAt: 0, swing: 0, swingV: 0, prevA: null, velX: 0, talkK: 0, sfxAt: 0, skid: false, cue: 0,
     pulse: null, walkId: 0, listening: false, thinking: false, placed: false, noteAt: 0, tearN: 0, exprAt: 0,
-    lieK: 0, prone: false, fidgetAt: 0, kickPh: 0,
+    lieK: 0, prone: false, fidgetAt: 0, kickPh: 0, backK: 0,
   };
   const pointer = { x: -1e4, y: -1e4, inside: false, vx: 0, samples: [] };
   let press = null, strokeAcc = 0, petCool = 0;
@@ -731,6 +747,8 @@ export function createPet(els, opts) {
     }
     // a flinch's step back is over once anything but standing takes over (a walk, a drag, a fall)
     if (pet.pulse?.kind === 'flinch' && m !== 'idle') pet.pulse.dx = 0;
+    // a back turned in a huff lasts through standing and sitting about; anything else turns her round again
+    if (pet.pulse?.kind === 'away' && m !== 'idle' && m !== 'sit' && m !== 'sleep') pet.pulse = null;
     pet.mode = m; pet.modeT = 0; pet.turned = false; pet.startle = false; pet.skid = false; pet.cue = 0;
     // a lying rest stays lying through its sleep and the getting up; anything else ends it
     // ...and getting up goes back through lying only if she got that far down
@@ -792,6 +810,13 @@ export function createPet(els, opts) {
         if (!seated) setMode('idle');
         if (pointer.inside && (pointer.x - pet.x) * pet.facing < -40) pet.facing *= -1;
         pulse('peek', 2.4); holdFace('peeking', 2.4); sfx.peek(); break;
+      // back turned in a huff for a while, then round again (Coo hides her face, a figure with a back view shows it,
+      // any other figure looks the other way);
+      // lying on her front, only the pout
+      case 'away':
+        if (pet.prone && lieSet() && pet.mode !== 'wake') { holdFace('pout', 3.2); sfx.away(); break; }
+        if (!seated) setMode('idle');
+        pulse('away', 3.2); holdFace('pout', 3.2); sfx.away(); break;
       default: return false;
     }
     return true;
@@ -907,7 +932,8 @@ export function createPet(els, opts) {
     switch (m) {
       case 'idle': {
         lookT = track();
-        if (pointer.inside && !press && pdx * pet.facing < -50 && pm < 600) {
+        // (not while she has her back turned on purpose)
+        if (pointer.inside && !press && pet.pulse?.kind !== 'away' && pdx * pet.facing < -50 && pm < 600) {
           pet.turnAcc += dt;
           if (pet.turnAcc > .9) { pet.facing *= -1; pet.turnAcc = 0; }
         } else pet.turnAcc = 0;
@@ -1075,8 +1101,10 @@ export function createPet(els, opts) {
     // (a custom figure that lists a gesture in `figure.gestures` draws it itself, from the frame's `gesture`)
     if (pet.pulse) {
       const k = (T - pet.pulse.t0) / pet.pulse.dur;
-      if (k >= 1) pet.pulse = null;
+      // (a back turned while lying could not be drawn: once she lies down it is over)
+      if (k >= 1 || (pet.pulse.kind === 'away' && pet.prone && lieSet())) pet.pulse = null;
       else if (custom?.gestures?.includes(pet.pulse.kind)) { /* the figure's own */ }
+      else if (pet.pulse.kind === 'away' && custom) { /* looks the other way for a while: see faceVis below */ }
       else if (pet.pulse.kind === 'nod') leanT += 9 * Math.abs(Math.sin(k * Math.PI * 2));
       else if (pet.pulse.kind === 'shake') tiltT += 10 * Math.sin(k * Math.PI * 6) * (1 - k);
       else if (pet.pulse.kind === 'wave') tiltT += 6 * Math.sin(k * Math.PI * 6) * Math.sin(k * Math.PI);
@@ -1084,6 +1112,11 @@ export function createPet(els, opts) {
       else if (pet.pulse.kind === 'flinch') { const e = envelope(k, .04, .45); leanT -= 12 * e; sqT += .1 * e; }
       else if (pet.pulse.kind === 'peek') { const e = envelope(k, .2, .8); leanT += (10 + 1.5 * Math.sin(k * Math.PI * 6)) * e; sqT -= .07 * e; }
       else if (pet.pulse.kind === 'heart') { const e = envelope(k, .15, .8); leanT += 6 * e; tiltT += 4 * Math.sin(k * Math.PI * 4) * e; }
+      else if (pet.pulse.kind === 'away') {
+        // narrowing a little at each turn, and leaning away while her back is turned
+        const turn = Math.sin(Math.PI * clamp(k / .25, 0, 1)) + Math.sin(Math.PI * clamp((k - .8) / .2, 0, 1));
+        sqT -= .12 * turn; leanT -= 5 * envelope(k, .25, .8);
+      }
       else if (pet.pulse.kind === 'cheer') { const e = envelope(k, .1, .75); sqT -= .08 * e; tiltT += 5 * Math.sin(k * Math.PI * 6) * e; }
       else if (pet.pulse.kind === 'flap') { tiltT += 7 * Math.sin(k * Math.PI * 8) * (1 - k); sqT -= .06 * Math.abs(Math.sin(k * Math.PI * 8)) * (1 - k); }
       else if (pet.pulse.kind === 'spin' && k > .5 && !pet.pulse.flipped) { pet.pulse.flipped = true; pet.facing *= -1; }
@@ -1133,7 +1166,13 @@ export function createPet(els, opts) {
     pet.gap[0] = lerp(pet.gap[0], fc.gap[0], ease(8, dt));
     pet.gap[1] = lerp(pet.gap[1], fc.gap[1], ease(8, dt));
     // turning reads as a quick card flip rather than a mirror snap
-    pet.faceVis = lerp(pet.faceVis, pet.facing, ease(15, dt));
+    // (a custom figure that draws no back turned of its own turns away by looking the other way for a while;
+    // only the drawing turns, so whatever ends the gesture early brings it round again)
+    const ak = pet.pulse?.kind === 'away' && custom && !custom.gestures?.includes('away') ? (T - pet.pulse.t0) / pet.pulse.dur : -1;
+    pet.faceVis = lerp(pet.faceVis, ak > .05 && ak < .85 ? -pet.facing : pet.facing, ease(15, dt));
+    // a figure's back view coming or going mid-turn (sitting down, a scheme fading) eases the width floor in or out
+    const backT = custom?.poses?.back === true ? 1 : 0;
+    pet.backK = Math.abs(pet.faceVis - pet.facing) < .05 ? backT : lerp(pet.backK, backT, ease(6, dt));
     if (m !== 'walk' && m !== 'run' && m !== 'dance') pet.phase = lerp(pet.phase, Math.round(pet.phase / Math.PI) * Math.PI, ease(6, dt));
     pointer.vx *= Math.exp(-dt * 6);
 
@@ -1220,7 +1259,9 @@ export function createPet(els, opts) {
     else if (pet.pulse?.kind === 'shiver') AX += Math.sin(T * 75) * 1.1 * envelope((T - pet.pulse.t0) / pet.pulse.dur, .08, .85);
     // a custom figure may keep tilt and lean off the whole group and bend its own parts instead;
     // a body lying flat does not rock about its feet (gestures show in its face and squash)
-    const kx = S * pet.faceVis * sx, ky = S * sy, lean = pet.lean * pet.faceVis;
+    // a figure with its own back view turns without going thin: it flips at the middle and draws the rest
+    const fv = pet.backK > 0 ? (pet.faceVis < 0 ? -1 : 1) * Math.max(Math.abs(pet.faceVis), .85 * pet.backK) : pet.faceVis;
+    const kx = S * fv * sx, ky = S * sy, lean = pet.lean * pet.faceVis;
     const rot = custom?.groupTilt ? custom.groupTilt(pet.mode, pet.tilt, lean) : (pet.tilt + lean) * (1 - proneK());
     pet.xf = { AX, AY, ax, ay, kx, ky, rot };
     petG.setAttribute('transform', `translate(${f(AX)} ${f(AY)}) rotate(${f(rot)}) scale(${kx.toFixed(4)} ${ky.toFixed(4)}) translate(${-ax} ${-ay})`);

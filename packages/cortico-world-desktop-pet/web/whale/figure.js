@@ -175,7 +175,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const CHEER_PARTS = CHEER ? Object.values(CHEER).flatMap(a => a.required) : [];
   // a heart made with both hands in front of her chest: one drawing of both forearms (model.poses.heart)
   const HEART = model.poses?.heart;
-  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : [])];
+  // her back, for the middle of a turn and for turning her back on you (model.poses.back): one drawing, the tail flicks on its mesh
+  const BACK = model.poses?.back;
+  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...(BACK ? BACK.required : [])];
   // the scheme's accent colours the listening arcs, thought bubbles and sleep z's
   const accent = () => schemeInfo(scheme).accent || '#4d6bfe';
   const loaded = {}, ready = {};
@@ -194,6 +196,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       set.chin = !!CHIN && CHIN.required.every(p => set.tex[p.tex]);
       set.cheer = !!CHEER && CHEER_PARTS.every(p => set.tex[p.tex]);
       set.heart = !!HEART && HEART.required.every(p => set.tex[p.tex]);
+      set.back = !!BACK && BACK.required.every(p => set.tex[p.tex]);
       if (LIE && !set.lie && LIE.required.some(p => set.tex[p.tex])) console.warn(`whale: scheme ${id} lacks some lying-pose files; she sits instead`);
       return (ready[id] = set);
     });
@@ -284,6 +287,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of HEART.required) { parts.push({ ...p, alpha: 0 }); STANDING[p.id] = true; }
   }
   const heartOK = () => !!(cur.heart && (!fade || fade.set.heart));
+  // the back drawing stands on the body (its sway, breath and squash), with its own warp for the tail's fluke
+  if (BACK) {
+    deformers.backTail = { kind: 'warp', parent: 'body', rect: BACK.tail };
+    for (const p of BACK.required) parts.push({ ...p, alpha: 0 });
+  }
+  const backOK = () => !!(cur.back && (!fade || fade.set.back));
+  /** Whether her back can show now: she has the drawing and is standing (seated or lying she turns as before). */
+  const backable = () => !!BACK && backOK() && sitK < .5 && !lieK;
 
   /* ---------- face painting (master pixels) ---------- */
   const faceCv = document.createElement('canvas');
@@ -554,7 +565,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const GROUP = { air: [1, 1], drag: [1, 1], crouch: [1, 1], land: [1, 1], walk: [1, .5], run: [1, .5], dance: [.6, 0] };
   let wTilt = 0, wLean = 0;
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
-  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0;
+  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0, backA = 0;
   const st = { z: {}, alpha: {} };
 
   // fins and tail by face: fins up (+) or drooping (-), tail wag size, and how far the tail droops (1 = 12°)
@@ -638,10 +649,13 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const shiver = g?.kind === 'shiver' ? env(.08, .85) : 0; // arms hugged in, trembling, fins down
     const flap = g?.kind === 'flap' ? env(.05, .75) : 0;     // fins, tail, ahoge and arms all flutter
     const cheer = g?.kind === 'cheer' ? env(...CHEER_ENV) : 0; // both arms up, open hands, a happy bounce
+    const away = g?.kind === 'away' ? env(.12, .88) : 0;        // her back turned on you (or, without the drawing, her face)
     const heart = g?.kind === 'heart' ? env(.1, .85) : 0;    // both hands make a heart in front of her chest
     const flinch = g?.kind === 'flinch' ? env(.04, .45) : 0; // head and upper body jerk back, arms hugged in
     const peek = g?.kind === 'peek' ? env(.2, .8) : 0;       // the upper body leans in, the head cranes forward
-    const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)), gYaw = shake * 1.1;
+    // (turning away without her back drawing, seated say, she turns her face away and drops her chin a little)
+    const awayFace = backable() ? 0 : away;
+    const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3, gYaw = shake * 1.1 - awayFace * 1.3;
     const headA = headTilt + gNeck;
     const tiltVel = (headA - prevTilt) / Math.max(dt, 1e-3); prevTilt = headA;
     const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
@@ -832,11 +846,26 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.finFar = { a: -fins * .8 - finF - Math.sin(t * 1.4 + .8) * 1.2 };
 
     if (LIE) lying(o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap }, g, gk);
+    // her back shows through the middle of a turn (pet-core keeps her at least 85% wide then) and while she turns away;
+    // it fades in over the front, which only goes once the back is opaque
+    const canBack = backable();
+    // (turning away, front and back trade at the narrowest moment of the squeeze, almost a cut)
+    const awayBack = g?.kind === 'away' ? smooth(.05, .07, gk) * (1 - smooth(.93, .95, gk)) : 0;
+    const backK = canBack ? Math.max(1 - smooth(.3, .6, Math.abs(o.facing ?? 1)), awayBack) : 0;
+    backA = smooth(0, .5, backK);
+    if (BACK) {
+      const [rx, ry] = BACK.pivots.backTail, a = (3 * Math.sin(t * 1.6) + wagAmp * 6 * Math.sin(t * (3 + 4 * wagAmp))) * Math.PI / 180;
+      st.backTail = { fn: (u, v, x, y) => { const w = smooth(158, 200, x) * a; return [-w * (y - ry), w * (x - rx)]; } };
+      for (const p of BACK.required) st.alpha[p.id] = tex[p.tex] ? backA : 0;
+      // turning away she squeezes through the turn
+      if (away && canBack) st.body.sx *= 1 - .3 * Math.sin(Math.PI * smooth(0, .12, gk)) - .3 * Math.sin(Math.PI * smooth(.88, 1, gk));
+    }
+    const hideFront = hide || backA >= 1;
 
     st.mix = 0;
     if (fade) { if (fade.t0 == null) fade.t0 = t; st.mix = smooth(0, 1, (t - fade.t0) / fade.dur); }
-    // once the lying drawing covers her, the standing rig (face included) is neither painted nor drawn
-    if (!hide) {
+    // once the lying drawing (or her back) covers her, the standing rig (face included) is neither painted nor drawn
+    if (!hideFront) {
       paintFace(fc, face, o, t);
       rig.upload('faceFx', faceCv);
       if (fade) {
@@ -847,7 +876,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
         rig.upload('faceFx@mix', faceCv2);
       }
     }
-    rig.render(st, hide ? { hidden: STANDING } : undefined);
+    rig.render(st, hideFront ? { hidden: STANDING } : undefined);
     if (opts.raster) { fo.setAttribute('href', canvas.toDataURL('image/png')); decoded = fo.decode ? fo.decode().catch(() => {}) : null; }
     if (fade && st.mix >= 1) endFade();
     drawFx(fc, t);
@@ -953,7 +982,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     draw,
     groupTilt,
     /** The gestures she draws herself, from the frame's `gesture` (pet-core leaves them off the body). */
-    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart'],
+    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**
@@ -981,7 +1010,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),
@@ -990,7 +1019,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     get painted() { return decoded || Promise.resolve(); },
     get colors() { return { z: accent() }; },
     /** Which poses of her own she can show now (the current scheme has their files): pet-core keeps her seated otherwise. */
-    get poses() { return { lie: !!LIE && poseOK() }; },
+    get poses() { return { lie: !!LIE && poseOK(), back: backable() }; },
     schemes: SCHEMES,
     // points pet-core uses: eye tracking, a tear and one under each eye (where the streams run), sleep z's, hearts [x from, x to, y], bubble
     anchors: {

@@ -419,3 +419,25 @@ describe('a heart made with both hands, as the whale draws it', () => {
     }
   });
 });
+
+describe('her back, as the whale draws it', () => {
+  const BACK = model.poses.back;
+
+  it('has its file in every scheme, sized to its box', () => {
+    for (const p of BACK.required) for (const id of SCHEMES) expectFile(id, p);
+  });
+
+  it('stands where she stands: inside the view, feet on the floor, about as tall and as centred as the front', () => {
+    const [vx0, vy0, vx1, vy1] = model.view, [p] = BACK.required, [x, y, w, h] = p.box;
+    expect(x >= vx0 && y >= vy0 && x + w <= vx1 && y + h <= vy1).toBe(true);
+    expect(Math.abs(y + h - 256)).toBeLessThan(3);
+    const front = model.parts.filter(q => ['bangs', 'headdress', 'ahoge'].includes(q.id)).map(q => q.box[1]);
+    expect(Math.abs(y - Math.min(...front))).toBeLessThan(12);
+    expect(Math.abs(x + w / 2 - 128)).toBeLessThan(15);
+    // it rides the body, under its tail warp, drawn over every standing part
+    expect(p.parent).toBe('backTail');
+    expect(p.z).toBeGreaterThan(Math.max(...model.parts.map(q => q.z)));
+    const [tx0, ty0, tx1, ty1] = BACK.tail, [rx, ry] = BACK.pivots.backTail;
+    expect(rx >= tx0 && rx <= tx1 && ry >= ty0 && ry <= ty1).toBe(true);
+  });
+});

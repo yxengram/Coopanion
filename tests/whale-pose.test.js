@@ -312,3 +312,31 @@ describe('cheering with both arms up, as the whale draws it', () => {
     }
   });
 });
+
+describe('a heart made with both hands, as the whale draws it', () => {
+  const HEART = model.poses.heart;
+  const z = id => model.parts.find(p => p.id === id).z;
+
+  it('has its file in every scheme, sized to its box', () => {
+    for (const p of HEART.required) {
+      const have = SCHEMES.filter(id => existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)));
+      expect(have, p.tex).toEqual(SCHEMES);
+      for (const id of have) {
+        const { w, h } = png(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
+        expect(Math.abs(w - p.box[2] * TEX_PER_UNIT), `${id} ${p.tex} width`).toBeLessThanOrEqual(2);
+        expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it('sits in front of her chest, between the shoulders, over the bodice and under her hair and face', () => {
+    const [arm] = HEART.required, [x, y, w, h] = arm.box;
+    expect(arm.parent).toBe('armHeart');
+    expect(x).toBeLessThan(model.pivots.armNear[0]);
+    expect(x + w).toBeGreaterThan(model.pivots.armFar[0]);
+    expect(y + h).toBeGreaterThan(model.pivots.armNear[1]);
+    expect(arm.z).toBeGreaterThan(Math.max(z('torso_up'), z('arm_near'), z('face')));
+    expect(arm.z).toBeLessThan(z('bangs'));
+    expect(model.parts.some(q => q.id === arm.id)).toBe(false);
+  });
+});

@@ -1052,6 +1052,38 @@
      "source": "gpt-image-2.5 edit of the standing rig render: cheer_gpt 2"
     }
    }
+  },
+  "heart": {
+   "required": [
+    {
+     "id": "arm_heart",
+     "tex": "arm_heart",
+     "z": 9.6,
+     "parent": "armHeart",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      110.67,
+      148.67,
+      58.17,
+      35.83
+     ]
+    }
+   ],
+   "pivots": {
+    "armHeart": [
+     140.33,
+     179.33
+    ]
+   },
+   "wrist": [
+    140.33,
+    156.0
+   ],
+   "rest": 0,
+   "source": "gpt-image-2.5 edit of the standing rig render: heart_gpt 3"
   }
  }
 }

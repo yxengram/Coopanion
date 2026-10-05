@@ -711,5 +711,215 @@
   -8,
   268,
   272
- ]
+ ],
+ "poses": {
+  "lie": {
+   "required": [
+    {
+     "id": "lie_tail",
+     "tex": "lie_tail",
+     "z": 20.5,
+     "parent": "lieTailBend",
+     "grid": [
+      8,
+      8
+     ],
+     "box": [
+      9.72,
+      179.43,
+      33.25,
+      42.94
+     ]
+    },
+    {
+     "id": "lie_body",
+     "tex": "lie_body",
+     "z": 21,
+     "parent": "lieLegs",
+     "grid": [
+      32,
+      20
+     ],
+     "box": [
+      38.03,
+      119.39,
+      208.43,
+      136.8
+     ]
+    }
+   ],
+   "overlays": [
+    {
+     "id": "lie_shut",
+     "tex": "lie_shut",
+     "z": 21.1,
+     "parent": "lieLegs",
+     "grid": [
+      8,
+      6
+     ],
+     "box": [
+      161.53,
+      176.01,
+      60.42,
+      44.84
+     ],
+     "use": "shut"
+    }
+   ],
+   "pivots": {
+    "lie": [
+     96,
+     254
+    ],
+    "lieTail": [
+     38.8,
+     217.43
+    ],
+    "lieChin": [
+     188.32,
+     219.33
+    ]
+   },
+   "rects": {
+    "head": [
+     108.14,
+     119.58,
+     246.84,
+     224.08
+    ],
+    "back": [
+     73.0,
+     191.78,
+     171.8,
+     255.43
+    ],
+    "legs": [
+     36.89,
+     132.88,
+     88.19,
+     248.78
+    ],
+    "tail": [
+     8.39,
+     177.53,
+     42.59,
+     224.08
+    ]
+   },
+   "legAxis": {
+    "knee": [
+     46.39,
+     221.23
+    ],
+    "shoe": [
+     63.5,
+     144.28
+    ],
+    "far": -29,
+    "gap": -9
+   },
+   "anchors": {
+    "gaze": [
+     192,
+     196
+    ],
+    "tear": [
+     176,
+     208
+    ],
+    "z": [
+     238,
+     112
+    ],
+    "hearts": [
+     120,
+     230,
+     118
+    ],
+    "bubble": [
+     190,
+     114
+    ],
+    "glints": [
+     [
+      150,
+      138
+     ],
+     [
+      246,
+      164
+     ]
+    ],
+    "hit": [
+     128,
+     190,
+     124,
+     72
+    ],
+    "halfW": 120
+   },
+   "fx": {
+    "from": [
+     140,
+     95
+    ],
+    "to": [
+     196,
+     180
+    ],
+    "s": 0.9
+   },
+   "k": 0.19,
+   "source": "flux2-klein-4b edit of the standing rig render: prone3 seed 35, eyes closed seed 2"
+  },
+  "wave": {
+   "required": [
+    {
+     "id": "arm_wave",
+     "tex": "arm_wave",
+     "z": 6,
+     "parent": "armWave",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      34.33,
+      65.83,
+      65.67,
+      104.0
+     ]
+    },
+    {
+     "id": "arm_wave_top",
+     "tex": "arm_wave_top",
+     "z": 14.2,
+     "parent": "armWave",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      34.33,
+      65.83,
+      65.67,
+      104.0
+     ]
+    }
+   ],
+   "pivots": {
+    "armWave": [
+     105.33,
+     162.67
+    ]
+   },
+   "wrist": [
+    65.33,
+    119.33
+   ],
+   "rest": 131,
+   "source": "flux2-klein-4b edit of the standing rig render: wave_edit seed 4"
+  }
+ }
 }

@@ -19,6 +19,8 @@
   .p-dust { stroke: #9aa3c0; }
   .eye { stroke: var(--accent); }
   .tearf { fill: #8fd0ff; }
+  /* Coo (?figure=coo) */
+  .ink { stroke: var(--ink); } .inkf { fill: var(--ink); } .blush { fill: #ff8fa8; } .angry { stroke: #e5484d; }
   .bubble { position: absolute; z-index: 3; max-width: 260px; padding: 8px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(20, 30, 70, .12); transform: translate(-50%, -100%); pointer-events: none; white-space: pre-wrap; }
   .panel { background: var(--panel); border-top: 1px solid var(--line); padding: 10px 16px 14px; display: grid; gap: 8px; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -60,7 +62,9 @@ const stage = $('#stage'), bubble = $('#bubble');
 const sfx = createSfx({ storageKey: 'whale-demo.sound' });
 ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => sfx.unlock(), { capture: true }));
 let scale = +$('#scale').value;
-const figure = await createWhaleFigure(undefined, { scheme: new URLSearchParams(location.search).get('scheme') || undefined });
+const q = new URLSearchParams(location.search);
+// ?figure=coo shows the built-in Coo instead, for comparing the same motions
+const figure = q.get('figure') === 'coo' ? null : await createWhaleFigure(undefined, { scheme: q.get('scheme') || undefined });
 const ctl = createPet({ petG: $('#pet'), shadowEl: $('#shadow'), fxG: $('#fx') }, {
   sfx, figure, roam: 'free', enter: 'drop',
   bounds: () => { const r = stage.getBoundingClientRect(); return { W: r.width, H: r.height, floorY: r.height - 22, S: .42 * scale * Math.min(1.4, r.height / 420) }; },
@@ -68,7 +72,7 @@ const ctl = createPet({ petG: $('#pet'), shadowEl: $('#shadow'), fxG: $('#fx') }
 new ResizeObserver(() => ctl.resize()).observe(stage);
 $('#scale').oninput = e => { scale = +e.target.value; ctl.resize(); };
 
-const labels = { stand: '站立', jump: '跳', hop: '小跳', look: '张望', turn: '转身', nod: '点头', shake: '摇头', spin: '转圈', sit: '坐下', sleep: '睡觉', dizzy: '晕', walk: '走', run: '跑', wave: '招手', bow: '鞠躬', shiver: '发抖', flap: '扑腾', dance: '跳舞', flinch: '后缩', peek: '探头' };
+const labels = { stand: '站立', jump: '跳', hop: '小跳', look: '张望', turn: '转身', nod: '点头', shake: '摇头', spin: '转圈', sit: '坐下', sleep: '睡觉', lie: '趴下', dizzy: '晕', walk: '走', run: '跑', wave: '招手', bow: '鞠躬', shiver: '发抖', flap: '扑腾', dance: '跳舞', flinch: '后缩', peek: '探头' };
 for (const e of [...EXPRESSIONS, 'love', 'dragged']) {
   if (e === 'dragged' ) continue;
   const b = document.createElement('button'); b.textContent = FACES[e]?.label || e;
@@ -76,7 +80,7 @@ for (const e of [...EXPRESSIONS, 'love', 'dragged']) {
   $('#exprs').append(b);
 }
 { const b = document.createElement('button'); b.textContent = '抛起来'; b.onclick = () => ctl.setExpr('dragged'); $('#exprs').append(b); }
-const schemeBtns = figure.schemes.map(sc => {
+const schemeBtns = (figure?.schemes || []).map(sc => {
   const b = document.createElement('button'); b.textContent = sc.brand;
   b.onclick = async () => { await figure.setScheme(sc.id, { fade: .45 }); schemeBtns.forEach((x, i) => x.classList.toggle('on', figure.schemes[i].id === sc.id)); ctl.pet.sqv += 1.4; ctl.setExpr('happy', 1.2); };
   b.classList.toggle('on', sc.id === figure.scheme);

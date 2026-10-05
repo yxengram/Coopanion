@@ -21,7 +21,7 @@ bot 在屏幕底边有一个小身体:内置的 Coo(C 形的身体,两只 0 形�
 | `pet_say(script)` | 冒气泡说话;`【词】` 先做动作再换新气泡,`<词>` 打字到那里时做 | 立即返回,报约显示多久、前面排了多久 |
 | `pet_ask(question, options, allowOwnAnswer)` | 提问气泡,最多 3 个选项,默认再加一格自己写 | 立即返回;回答以 `[回答]` 事件送达 |
 | `pet_walk_to(to, run)` | 走(跑)到桌宠所在屏幕横向 0–1 处,或 `left` `center` `right` `cursor` | 走到或被打断才返回,最多 30 秒 |
-| `pet_act(actions)` | 不说话,依次做一串表情或动作 | 立即返回;`sit` `sleep` 保持到下个动作 |
+| `pet_act(actions)` | 不说话,依次做一串表情或动作 | 立即返回;`sit` `sleep` `lie` 保持到下个动作 |
 | `pet_set(…)` | 改自己的外观和习惯,见「自己调整」 | 自己能改的立即返回;要问的等对方回答 |
 | `pet_quiet(minutes, sound, roam)` | 临时安静:默认关音效、站着不动,到点恢复,设置不变 | 立即返回 |
 
@@ -151,8 +151,8 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 
 `skin.scheme` 是一个预设的 id,或者各维的选项 id 按维度顺序用 `-` 连起来(所以选项 id 里不能有 `-`)。
 
-工厂按 `factory(base, { model, scheme, createRig, loadImage, asset })` 调用,返回 `{ draw(petG, face, frame), anchors?, gestures?, colors?, groupTilt?, setScheme? }`,
-和 `createPet` 的 `opts.figure` 相同;`createRig` 是 `web/rig/rig.js`,`loadImage` 载入能交给 WebGL 的图片(沙箱里直接 `new Image()` 的图 WebGL 读不了)。
+工厂按 `factory(base, { model, scheme, createRig, loadImage, asset })` 调用,返回 `{ draw(petG, face, frame), anchors?, gestures?, colors?, groupTilt?, setScheme?, poses? }`,
+和 `createPet` 的 `opts.figure` 相同;`poses` 是形象此刻能画的自带姿势(如 `{ lie: true }`,当前配色缺图时为 false),每画一帧随回执带回;`createRig` 是 `web/rig/rig.js`,`loadImage` 载入能交给 WebGL 的图片(沙箱里直接 `new Image()` 的图 WebGL 读不了)。
 20 秒内没准备好、或者画的时候抛错,桌宠换回 Coo,并告诉 bot。
 
 ## 自己调整

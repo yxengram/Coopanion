@@ -24,6 +24,14 @@ const BODY_W = 36, LEG_W = 30;
 // a foot's round cap touches the ground
 const FOOT_Y = 256 - LEG_W / 2;
 export const STAND = HIPS.map(h => [h[0], h[1], h[0], FOOT_Y]);
+// lying on her front: hips at the back of the ring, one foot flat behind, the other up in the air
+const LIE_HIPS = [[62, 200], [78, 206]], LIE_FEET = [[8, 240], [18, 178]];
+// ...and the ring with its face tips forward and flattens about the point on the ground under it (by lie 0..1)
+const lieXf = (L, dip = 0) => `translate(128 256) rotate(${f(9 * L + dip)}) scale(${(1 + .08 * L).toFixed(3)} ${(1 - .13 * L).toFixed(3)}) translate(-128 -256)`;
+function liePt(x, y, L) {
+  const a = 9 * L * Math.PI / 180, dx = (x - 128) * (1 + .08 * L), dy = (y - 256) * (1 - .13 * L);
+  return [128 + dx * Math.cos(a) - dy * Math.sin(a), 256 + dx * Math.sin(a) + dy * Math.cos(a)];
+}
 const DROP = 'M0 -9C4 -3 6 0 6 3.5A6 6 0 0 1 -6 3.5C-6 0 -4 -3 0 -9Z';
 const pol = (a, r) => [128 + r * Math.cos(a * Math.PI / 180), 128 - r * Math.sin(a * Math.PI / 180)];
 const pt = p => `${f(p[0])} ${f(p[1])}`;
@@ -263,9 +271,13 @@ export const GALLERY = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 
 /** One frame of the figure as SVG markup, in logo units. */
 export function figure(fc, o) {
   const t = o.t, lx = o.look[0], ly = o.look[1], acc = o.acc, sw = o.swing || 0;
+  const L = o.lie || 0, g = o.gesture, gs = g ? Math.sin(Math.PI * g.k) : 0;
   let s = `<g class="ink" fill="none" stroke-width="${LEG_W}" stroke-linecap="round">`;
   for (const l of o.legs) s += `<path d="M${f(l[0])} ${f(l[1])}L${f(l[2])} ${f(l[3])}"/>`;
-  s += `</g><g transform="translate(0 ${f(o.low)})">`;
+  s += '</g>';
+  // lying: the chin fidget dips the ring a little more
+  if (L > .02) s += `<g transform="${lieXf(L, g?.kind === 'chin' ? 3 * gs * L : 0)}">`;
+  s += `<g transform="translate(0 ${f(o.low)})">`;
   s += sideBack(acc.side, sw);
   s += headBack(acc.head, sw);
   s += `<path class="ink" fill="none" stroke-width="${BODY_W}" stroke-linecap="round" d="${cPath(fc.gap[0], fc.gap[1])}"/>`;
@@ -338,7 +350,14 @@ export function figure(fc, o) {
     });
   }
   if (o.zmark) s += '<path class="eye" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" d="M204 22H220L204 42H220M226 4H236L226 16H236"/>';
-  return s + '</g>';
+  s += '</g>';
+  if (L > .02) {
+    // two round paws on the floor in front, the chin (the lower tip) on the first; bobbing as she talks and slapping
+    // down for the thump fidget
+    const py = -1.5 * (o.talk || 0) - (g?.kind === 'thump' ? 5 * gs : 0);
+    s += `</g><path class="ink" fill="none" stroke-width="24" stroke-linecap="round" opacity="${f(clamp((L - .02) * 4, 0, 1))}" d="M196 ${f(244 + py)}h${f(16 * L)}M222 ${f(244 + py)}h${f(16 * L)}"/>`;
+  }
+  return s;
 }
 
 /** A static figure for previews and tiles. */
@@ -590,11 +609,17 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
 /** Expressions: a face held for a few seconds. */
 export const EXPRESSIONS = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 'angry', 'sad', 'sleepy', 'thinking',
   'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous'];
-/** Motions: things the body does. `sit` and `sleep` last until something else happens. */
-export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'dizzy', 'walk', 'run',
+/** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
+export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
   'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
+/** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
+const REST = new Set(['sit', 'sleep', 'lie']);
+/** Small idle movements while lying, as short gestures (kind → seconds): a kick of the feet, the chin dipped, a tail thump. */
+const FIDGETS = { kick: 1.2, chin: 1.6, thump: .5 };
+/** Lying, the raised foot kicks slowly, by face [size, pace]: livelier when happy, quick when angry, hardly when sad, still asleep. */
+const KICK = { happy: [1.6, 1.6], love: [1.6, 1.6], excited: [1.6, 1.8], angry: [1, 2.6], sad: [.3, .7], cry: [.3, .7], sleep: [0, 1] };
 
 /* ---------- the live pet: simulation, rendering, pointer ---------- */
 /**
@@ -604,12 +629,17 @@ const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'd
  * `opts.enter: 'drop'` starts the pet above the top edge, falling to the floor.
  * `opts.figure`, when given, draws the body instead of the built-in one: `figure.draw(petG, face, frame)` keeps
  * its own elements inside `petG` (same logo space, feet at y=256). Its frame adds the face's name, the mode,
- * how long the mode has run, the talk level, drowsiness and how far the body sits.
+ * how long the mode has run, the talk level, drowsiness and how far the body sits; `lie` (0..1) is how far it lies
+ * on its front (always over a full sit, so a figure that cannot lie just stays seated) and `prone` says the rest it is
+ * in (lying, or a sleep begun lying, until it is up) is a lying one.
  * `figure.groupTilt(mode, tilt, lean)`, if present, returns the rotation (degrees) the whole group gets
  * instead of tilt + lean; the frame carries tilt, lean and that rotation (groupRot) so the figure can bend the rest.
  * `figure.colors.z`, if present, colours the sleep z's (otherwise they take the skin's eye colour).
  * `figure.gestures`, if present, names the short gestures (nod, shake) the figure draws itself: the body then
  * leaves them out, and the frame's `gesture` ({ kind, k: 0..1 }, or null) says which one is playing and how far.
+ * While lying, the fidgets in `FIDGETS` come as gestures too; the body itself does nothing with them.
+ * `figure.anchors.lie`, if present, holds the same points (plus `hit`: [cx, cy, rx, ry] and `halfW`) for the lying pose,
+ * in logo units with the hips' sink already in; `figure.poses.lie === false` says the pose cannot show right now.
  */
 export function createPet(els, opts) {
   const { petG, shadowEl, fxG } = els;
@@ -630,16 +660,39 @@ export function createPet(els, opts) {
     eyeSig: '', eyeCur: null, eyePrev: null, eyeDims: [[16, 16, 0, 0], [16, 16, 0, 0]], swapAge: 9,
     glance: [0, 0], glanceAt: 0, swing: 0, swingV: 0, prevA: null, velX: 0, talkK: 0, sfxAt: 0, skid: false, cue: 0,
     pulse: null, walkId: 0, listening: false, thinking: false, placed: false, noteAt: 0, tearN: 0, exprAt: 0,
+    lieK: 0, prone: false, fidgetAt: 0, kickPh: 0,
   };
   const pointer = { x: -1e4, y: -1e4, inside: false, vx: 0, samples: [] };
   let press = null, strokeAcc = 0, petCool = 0;
   const P = [];
 
   // points on the body in logo units: where the eyes look from, where a tear starts (and under each eye, for crying),
-  // where z's and hearts start, the bubble's spot, where a glint flashes
-  const COO_ANCHORS = { gaze: [140, 117], tear: [166, 136], tears: [[116, 136], [166, 136]], z: [196, 40], hearts: [90, 175, 34], bubble: [146, 0], glints: [[50, 30], [210, 30]] };
-  let A = { ...COO_ANCHORS, ...custom?.anchors };
-  const minX = () => 104 * S + 8, maxX = () => W - 104 * S - 8;
+  // where z's and hearts start, the bubble's spot, where a glint flashes;
+  // `lie` is the same points carried through Coo's lying pose (lieXf at lie 1, hips sunk 29), with the lying body's
+  // hit ellipse and half width (the raised foot reaches furthest)
+  const COO_ANCHORS = {
+    gaze: [140, 117], tear: [166, 136], tears: [[116, 136], [166, 136]], z: [196, 40], hearts: [90, 175, 34], bubble: [146, 0], glints: [[50, 30], [210, 30]],
+    lie: { gaze: [156, 164], tear: [181, 184], z: [226, 107], hearts: [114, 204, 90], bubble: [176, 64], glints: [[72, 74], [242, 101]], hit: [138, 172, 114, 90], halfW: 132 },
+  };
+  // a figure's anchors replace Coo's; its lying points are its own or none
+  const anchorsOf = fig => (fig ? { ...COO_ANCHORS, lie: undefined, ...fig.anchors } : COO_ANCHORS);
+  let A = anchorsOf(custom);
+  /** The lying points, while the figure can show the pose. */
+  const lieSet = () => (custom?.poses && !custom.poses.lie ? null : A.lie);
+  /** How far the body lies, for where it is: 0 for a figure that has no lying points (it stays seated). */
+  const proneK = () => (lieSet() ? pet.lieK : 0);
+  const lerpPt = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+  /** Anchor `k` blended into its lying point; upright it sinks with the hips by `low`. */
+  const ancPt = (k, low = pet.low) => {
+    const up = [A[k][0], A[k][1] + low], lp = lieSet()?.[k];
+    return lp ? lerpPt(up, lp, pet.lieK) : up;
+  };
+  /** Hip `i` in logo units, between standing and lying, sunk with the body. */
+  const hip = i => { const h = lerpPt(HIPS[i], LIE_HIPS[i], proneK()); return [h[0], h[1] + pet.low]; };
+  /** Half the body's width in logo units, `k` of the way to lying (where it lies now unless given). */
+  const halfW = (k = proneK()) => lerp(104, lieSet()?.halfW ?? 104, k);
+  // the stage x range the body fits in; minX(0), maxX(0) for where it will stand
+  const minX = k => halfW(k) * S + 8, maxX = k => W - halfW(k) * S - 8;
 
   function resize() {
     const b = opts.bounds();
@@ -660,6 +713,11 @@ export function createPet(els, opts) {
     return { x: c.AX + x * Math.cos(r) - y * Math.sin(r), y: c.AY + x * Math.sin(r) + y * Math.cos(r) };
   }
   function hitPet(p) {
+    const hit = lieSet()?.hit;
+    if (hit && proneK() > .5) {
+      const c = toStage(hit[0], hit[1]);
+      return ((p.x - c.x) / (hit[2] * S)) ** 2 + ((p.y - c.y) / (hit[3] * S)) ** 2 < 1;
+    }
     const c = toStage(128, 128);
     return Math.hypot(p.x - c.x, p.y - c.y) < 108 * S;
   }
@@ -674,27 +732,32 @@ export function createPet(els, opts) {
     // a flinch's step back is over once anything but standing takes over (a walk, a drag, a fall)
     if (pet.pulse?.kind === 'flinch' && m !== 'idle') pet.pulse.dx = 0;
     pet.mode = m; pet.modeT = 0; pet.turned = false; pet.startle = false; pet.skid = false; pet.cue = 0;
+    // a lying rest stays lying through its sleep and the getting up; anything else ends it
+    // ...and getting up goes back through lying only if she got that far down
+    if ((!REST.has(m) && m !== 'wake') || (m === 'wake' && pet.lieK < .5)) pet.prone = false;
+    // a lying fidget is over once she is not lying
+    if (FIDGETS[pet.pulse?.kind] && m !== 'lie') pet.pulse = null;
     Object.assign(pet, o);
     if (prev !== m) onEvent('mode', { mode: m });
   }
   const busy = () => pet.mode === 'drag' || pet.mode === 'air' || pet.mode === 'crouch';
   function pickTarget(minDist) {
     for (let i = 0; i < 12; i++) {
-      const x = rnd(minX(), maxX());
+      const x = rnd(minX(0), maxX(0));
       if (Math.abs(x - pet.x) > minDist) return x;
     }
-    return pet.x - minX() > maxX() - pet.x ? minX() : maxX();
+    return pet.x - minX(0) > maxX(0) - pet.x ? minX(0) : maxX(0);
   }
 
   /** Runs a motion. Returns false when the body cannot take it now (in the air, being dragged). */
   function act(a) {
     if (busy()) return false;
     pet.expr = null; pet.lastAct = a;
-    const seated = pet.mode === 'sleep' || pet.mode === 'sit';
+    const seated = REST.has(pet.mode);
     switch (a) {
       case 'stand': setMode(seated ? 'wake' : 'idle', seated ? { startle: false } : {}); pet.nextAt = T + 3; break;
       case 'walk': setMode('walk', { target: pickTarget(160) }); break;
-      case 'run': setMode('run', { target: pet.x < W / 2 ? maxX() - rnd(0, 30) : minX() + rnd(0, 30) }); break;
+      case 'run': setMode('run', { target: pet.x < W / 2 ? maxX(0) - rnd(0, 30) : minX(0) + rnd(0, 30) }); break;
       case 'jump': setMode('crouch', { jumpV: 720, jumpVx: pet.facing * 40 }); break;
       case 'hop': setMode('crouch', { jumpV: 480, jumpVx: 0 }); break;
       case 'look': setMode('look'); break;
@@ -702,8 +765,10 @@ export function createPet(els, opts) {
       case 'nod': pulse('nod', .7); sfx.nod(); break;
       case 'shake': pulse('shake', .7); sfx.shake(); break;
       case 'spin': if (!seated) setMode('idle'); pulse('spin', .6); sfx.spin(); break;
-      case 'sit': setMode('sit', { dur: 1e9 }); break;
-      case 'sleep': setMode('sleep', { dur: 1e9 }); break;
+      case 'sit': pet.prone = false; setMode('sit', { dur: 1e9 }); break;
+      // asked to sleep while lying, she sleeps lying down
+      case 'sleep': pet.prone = pet.mode === 'lie' || (pet.mode === 'sleep' && pet.prone); setMode('sleep', { dur: 1e9 }); break;
+      case 'lie': pet.prone = true; setMode('lie', { dur: 1e9, fidgetAt: T + rnd(4, 8) }); break;
       case 'dizzy': setMode('dizzy'); break;
       case 'wave': pulse('wave', 1.6); holdFace('happy', 1.8); break;
       case 'bow': if (!seated) setMode('idle'); pulse('bow', 1.6); holdFace('bowing', 1.5); sfx.tick(); break;
@@ -753,8 +818,8 @@ export function createPet(els, opts) {
   /** Walks (or runs) to stage x. Resolves the walk through onEvent('arrived' | 'interrupted'). */
   function walkTo(x, run, walkId) {
     if (busy()) return false;
-    if (pet.mode === 'sleep' || pet.mode === 'sit') setMode('wake', { startle: true });
-    const target = clamp(x, minX(), maxX());
+    if (REST.has(pet.mode)) setMode('wake', { startle: true });
+    const target = clamp(x, minX(0), maxX(0));
     pet.expr = null;
     if (Math.abs(target - pet.x) < 2) { onEvent('arrived', { walkId, x: Math.round(pet.x) }); return true; }
     setMode(run ? 'run' : 'walk', { target, walkId });
@@ -772,20 +837,21 @@ export function createPet(els, opts) {
     if (m === 'sleep') return 'sleep';
     if (pet.expr && T < pet.exprUntil) return pet.expr;
     if (pet.thinking) return 'thinking';
-    if (m === 'sit') return 'content';
+    if (m === 'sit' || m === 'lie') return 'content';
     if (m === 'run') return 'run';
     return 'neutral';
   }
 
   function decide() {
     const calm = roam === 'calm';
-    const opts2 = [['walk', calm ? 10 : 28], ['run', calm ? 0 : 12], ['look', 14], ['jump', calm ? 2 : 8], ['sit', 16], ['expr', 12], ['wait', calm ? 30 : 10]]
+    const opts2 = [['walk', calm ? 10 : 28], ['run', calm ? 0 : 12], ['look', 14], ['jump', calm ? 2 : 8], ['sit', 16], ['lie', 8], ['expr', 12], ['wait', calm ? 30 : 10]]
       .filter(o => o[1] > 0 && (o[0] !== pet.lastAct || o[0] === 'wait'));
     let r = Math.random() * opts2.reduce((a, o) => a + o[1], 0), pick = 'wait';
     for (const o of opts2) { if ((r -= o[1]) < 0) { pick = o[0]; break; } }
     if (pick === 'look') { setMode('look'); pet.lastAct = 'look'; }
     else if (pick === 'expr') { setExpr(['happy', 'wink', 'love', 'sleepy', 'surprised', 'shy'][Math.floor(Math.random() * 6)]); pet.lastAct = 'expr'; }
     else if (pick === 'sit') { setMode('sit', { dur: rnd(6, 9) }); pet.lastAct = 'sit'; }
+    else if (pick === 'lie') { pet.prone = true; setMode('lie', { dur: rnd(6, 10), fidgetAt: T + rnd(4, 8) }); pet.lastAct = 'lie'; }
     else if (pick !== 'wait') act(pick);
     if (pet.mode === 'idle' && T >= pet.nextAt) pet.nextAt = T + rnd(2, 4);
   }
@@ -793,16 +859,18 @@ export function createPet(els, opts) {
   /* particles */
   function emit(type, p, o = {}) { P.push({ type, x: p.x, y: p.y, vx: 0, vy: 0, age: 0, life: 1, ...o }); }
   function emitHeart() {
-    emit('heart', toStage(rnd(A.hearts[0], A.hearts[1]), A.hearts[2] + pet.low), { vx: rnd(-20, 20), vy: rnd(-70, -45), life: 1.6 });
+    const lh = proneK() > .5 && lieSet().hearts, h = lh || A.hearts;
+    emit('heart', toStage(rnd(h[0], h[1]), h[2] + (lh ? 0 : pet.low)), { vx: rnd(-20, 20), vy: rnd(-70, -45), life: 1.6 });
   }
   /** A glint or two popping by the head (a happy or smug face); never more than three at once. */
   function emitGlint(n) {
     const live = P.filter(p => p.type === 'glint').length;
-    // a figure that names no glint spots gets them either side of its own bubble spot, not at Coo's head
-    const [bx, by] = A.bubble, pts = custom && !custom.anchors?.glints ? [[bx - 50, by + 25], [bx + 50, by + 25]] : A.glints;
+    // lying, from the lying spots; a figure that names no glint spots gets them either side of its own bubble spot, not at Coo's head
+    const lg = proneK() > .5 && lieSet().glints, [bx, by] = A.bubble;
+    const gl = lg || (custom && !custom.anchors?.glints ? [[bx - 50, by + 25], [bx + 50, by + 25]] : A.glints);
     for (let i = 0; i < Math.min(n, 3 - live); i++) {
-      const [x, y] = pts[Math.floor(Math.random() * pts.length)];
-      emit('glint', toStage(x + rnd(-8, 8), y + rnd(-8, 8) + pet.low), { vx: rnd(-8, 8), vy: rnd(-18, -8), life: rnd(.5, .7) });
+      const [x, y] = gl[Math.floor(Math.random() * gl.length)];
+      emit('glint', toStage(x + rnd(-8, 8), y + rnd(-8, 8) + (lg ? 0 : pet.low)), { vx: rnd(-8, 8), vy: rnd(-18, -8), life: rnd(.5, .7) });
     }
   }
   function dustAt(lx, n, spread) {
@@ -814,14 +882,14 @@ export function createPet(els, opts) {
   function step(dt) {
     T += dt; pet.modeT += dt;
     const m = pet.mode, mt = pet.modeT;
-    let sqT = 0, strideT = 0, liftT = 0, leanT = 0, sitT = 0, bobT = 0, rate = 0, lookT = [0, 0], tiltT = 0;
+    let sqT = 0, strideT = 0, liftT = 0, leanT = 0, sitT = 0, lieT = 0, bobT = 0, rate = 0, lookT = [0, 0], tiltT = 0;
     let tk = 160, tc = 12, drowseT = 0;
     const free = roam !== 'off' && T > hold && !opts.dialogOpen?.();
 
     pet.blinkT -= dt; pet.blinkAge += dt;
     if (pet.blinkT <= 0) { pet.blinkAge = 0; pet.blinkT = Math.random() < .2 ? .28 : rnd(2.2, 5.2); }
 
-    const head = toStage(A.gaze[0], A.gaze[1]);
+    const head = toStage(...ancPt('gaze', 0));
     const pdx = pointer.x - head.x, pdy = pointer.y - head.y, pm = Math.hypot(pdx, pdy) || 1;
     const track = () => {
       if (!pointer.inside) {
@@ -892,8 +960,31 @@ export function createPet(els, opts) {
         }
         break;
       }
+      case 'lie': {
+        // down through sitting (the plop) onto her front, chin on her hands; already down, she stays down
+        sitT = 1;
+        if (mt >= .35 || pet.lieK > .5) lieT = 1;
+        if (lieT && !pet.cue) { pet.cue = 1; if (pet.lieK < .5) sfx.land(false); }
+        lookT = track().map(v => v * (1 - pet.drowse));
+        if (pet.listening) { lookT = [3, -4]; tiltT = -7; }
+        drowseT = clamp((mt - 1.5) / Math.max(1, Math.min(pet.dur, 60) - 1.5), 0, free ? 1 : .45);
+        // a figure that cannot lie nods off as it does sitting
+        if (!lieSet() && pet.drowse > .5) leanT = 7 * pet.drowse * Math.pow(Math.max(0, Math.sin(T * 1.3)), 6);
+        if (T > pet.fidgetAt) {
+          pet.fidgetAt = T + rnd(4, 8);
+          const kinds = Object.keys(FIDGETS), k = kinds[Math.floor(Math.random() * kinds.length)];
+          if (!pet.listening && pet.talkK < .1 && !pet.pulse && Math.abs(pet.faceVis - pet.facing) < .05) pulse(k, FIDGETS[k]);
+        }
+        if (free && mt > pet.dur) {
+          if (Math.random() < .5) setMode('sleep', { dur: rnd(8, 12) });
+          else setMode('wake', { startle: false });
+        }
+        break;
+      }
       case 'sleep': {
         sitT = 1; drowseT = 1; leanT = 5;
+        // lying, she dozes flat on the floor
+        if (pet.prone) { lieT = 1; if (lieSet()) leanT = 0; }
         if (free && mt > pet.dur) setMode('wake');
         break;
       }
@@ -902,10 +993,12 @@ export function createPet(els, opts) {
           sitT = 0; lookT = [3, -2];
           if (mt > .9) { setMode('idle'); pet.nextAt = T + rnd(1.5, 3); }
         } else {
+          // from lying: pushes up to sitting first, then stands as from a sit
           sitT = mt < 1.1 ? 1 : 0;
+          if (pet.prone && mt < .45) lieT = 1;
           if (mt > .5 && !pet.cue) { pet.cue = 1; sfx.yawn(); }
           sqT = mt > .5 && mt < 1.3 ? -.1 : 0;
-          leanT = mt < .5 ? 5 : mt < 1.2 ? -5 : 0;
+          leanT = (mt < .5 ? 5 : mt < 1.2 ? -5 : 0) * (1 - proneK());
           lookT = mt > 1.2 ? track() : [0, 0];
           if (mt > 1.8) { setMode('idle'); pet.nextAt = T + rnd(1, 2); }
         }
@@ -957,7 +1050,7 @@ export function createPet(els, opts) {
         const half = Math.floor(pet.phase / Math.PI);
         if (half !== pet.lastHalf) sfx.step(false, half & 1);
         pet.lastHalf = half;
-        if (T > pet.noteAt) { emit('note', toStage(A.z[0], A.z[1] + pet.low), { vx: pet.facing * rnd(10, 30), vy: -34, life: 1.8 }); pet.noteAt = T + .6; }
+        if (T > pet.noteAt) { emit('note', toStage(...ancPt('z')), { vx: pet.facing * rnd(10, 30), vy: -34, life: 1.8 }); pet.noteAt = T + .6; }
         if (mt > pet.dur) { setMode('idle'); pet.nextAt = T + rnd(1.5, 3); }
         break;
       }
@@ -994,7 +1087,7 @@ export function createPet(els, opts) {
     const fname = faceName(), fc = FACES[fname].f(T, pet);
     if (fc.lookLock || pet.mode === 'sleep' || pet.mode === 'drag') lookT = [0, 0];
     else if (fc.lookAt) lookT = fc.lookAt;
-    if (fc.lean && (m === 'idle' || m === 'sit')) leanT += fc.lean;
+    if (fc.lean && (m === 'idle' || m === 'sit' || (m === 'lie' && !lieSet()))) leanT += fc.lean;
     if (fc.sag && !custom) sqT += fc.sag;
 
     // eye shape changes hide under a quick blink; same-shape changes (ring size) ease
@@ -1020,7 +1113,11 @@ export function createPet(els, opts) {
     pet.tilt += pet.tiltV * dt;
     pet.lean = lerp(pet.lean, leanT, ease(7, dt));
     pet.sitK = lerp(pet.sitK, sitT, ease(m === 'land' ? 18 : 6, dt));
-    pet.drowse = lerp(pet.drowse, drowseT, ease(m === 'sit' || m === 'sleep' ? 1.5 : 6, dt));
+    // getting up from lying is quick once anything moves her (no sliding along while still flat)
+    pet.lieK = lerp(pet.lieK, lieT, ease(lieT > pet.lieK ? 6 : REST.has(m) || m === 'wake' ? 7 : 16, dt));
+    // on the floor, the body keeps clear of the screen edge as it widens (lying down, or a figure swapped in that lies)
+    if (REST.has(m) || m === 'wake') pet.x = clamp(pet.x, minX(), maxX());
+    pet.drowse = lerp(pet.drowse, drowseT, ease(REST.has(m) ? 1.5 : 6, dt));
     pet.stretch = lerp(pet.stretch, m === 'drag' ? 1 : 0, ease(8, dt));
     pet.stride = lerp(pet.stride, strideT, ease(10, dt));
     pet.lift = lerp(pet.lift, liftT, ease(10, dt));
@@ -1044,8 +1141,13 @@ export function createPet(els, opts) {
     pet.swing = clamp(pet.swing + pet.swingV * dt, -40, 40);
 
     pet.low = pet.sitK * 29 + pet.bob * Math.abs(Math.sin(pet.phase));
+    // the kick fidget is a burst of the lying kick
+    let [kAmp, kRate] = pet.listening ? [0, 1] : KICK[fname] || [1, 1];
+    if (pet.pulse?.kind === 'kick') { const e = envelope((T - pet.pulse.t0) / pet.pulse.dur, .15, .6); kAmp += 2 * e; kRate += 1.5 * e; }
+    pet.kickPh += dt * 2.1 * kRate;
+    const kick = 10 * kAmp * Math.sin(pet.kickPh) * proneK();
     pet.feet.forEach((ft, i) => {
-      const hx = HIPS[i][0], hy = HIPS[i][1] + pet.low;
+      const [hx, hy] = hip(i);
       let tx, ty;
       if (m === 'drag') { tx = hx + 7 * Math.sin(T * 11 + i * 2.2); ty = hy + 36; }
       else if (m === 'air') { tx = hx + (i ? 9 : -9); ty = hy + 33; }
@@ -1053,19 +1155,24 @@ export function createPet(els, opts) {
         const ph = pet.phase + i * Math.PI;
         const sx = hx + pet.stride * Math.sin(ph), sy = FOOT_Y - pet.lift * Math.max(0, Math.cos(ph));
         tx = lerp(sx, hx + 26, pet.sitK); ty = lerp(sy, FOOT_Y, pet.sitK);
+        // the flat foot lifts a little as the raised one comes down
+        const lf = LIE_FEET[i];
+        tx = lerp(tx, lf[0], proneK()); ty = lerp(ty, i ? lf[1] + kick : lf[1] - .4 * Math.max(0, kick), proneK());
       }
       const r = m === 'drag' || m === 'air' ? 14 : 40;
       ft[0] = lerp(ft[0], tx, ease(r, dt)); ft[1] = lerp(ft[1], ty, ease(r, dt));
     });
 
     if (fc.emit && T > pet.emitAt) {
+      const z = ancPt('z'), tear = ancPt('tear');
       if (fc.emit === 'heart') { emitHeart(); pet.emitAt = T + .45; }
-      if (fc.emit === 'z') { emit('z', toStage(A.z[0], A.z[1] + pet.low), { vx: pet.facing * 16, vy: -26, life: 2.4 }); pet.emitAt = T + 1.3; sfx.snore(pet.modeT); }
-      if (fc.emit === 'tear') { emit('drop', toStage(A.tear[0] + pet.look[0], A.tear[1] + pet.low), { vx: pet.facing * rnd(10, 30), vy: -20, life: 3 }); pet.emitAt = T + .8; }
+      if (fc.emit === 'z') { emit('z', toStage(...z), { vx: pet.facing * 16, vy: -26, life: 2.4 }); pet.emitAt = T + 1.3; sfx.snore(pet.modeT); }
+      if (fc.emit === 'tear') { emit('drop', toStage(tear[0] + pet.look[0], tear[1]), { vx: pet.facing * rnd(10, 30), vy: -20, life: 3 }); pet.emitAt = T + .8; }
       if (fc.emit === 'tears') {
-        // both eyes cry, taking turns; a figure that names only its one tear spot cries from there
-        const eyes = custom && !custom.anchors?.tears ? [A.tear] : A.tears, [ex, ey] = eyes[pet.tearN++ % eyes.length];
-        emit('drop', toStage(ex + pet.look[0] + rnd(-6, 6), ey + pet.low), { vx: pet.facing * rnd(-20, 50), vy: rnd(-60, -20), life: 3 }); pet.emitAt = T + .22;
+        // both eyes cry, taking turns; a figure that names only its one tear spot cries from there, and lying from the lying one
+        const eyes = proneK() > .5 ? [tear] : (custom && !custom.anchors?.tears ? [A.tear] : A.tears).map(([x, y]) => [x, y + pet.low]);
+        const [ex, ey] = eyes[pet.tearN++ % eyes.length];
+        emit('drop', toStage(ex + pet.look[0] + rnd(-6, 6), ey), { vx: pet.facing * rnd(-20, 50), vy: rnd(-60, -20), life: 3 }); pet.emitAt = T + .22;
       }
     }
     strokeAcc *= Math.exp(-dt * 1.5);
@@ -1105,27 +1212,28 @@ export function createPet(els, opts) {
     let AX = drag ? pet.dx : pet.x, AY = drag ? pet.dy : pet.fy;
     if (fc.shake) AX += Math.sin(T * 60) * (fc.shake === true ? 1.4 : fc.shake);
     else if (pet.pulse?.kind === 'shiver') AX += Math.sin(T * 75) * 1.1 * envelope((T - pet.pulse.t0) / pet.pulse.dur, .08, .85);
-    // a custom figure may keep tilt and lean off the whole group and bend its own parts instead
+    // a custom figure may keep tilt and lean off the whole group and bend its own parts instead;
+    // a body lying flat does not rock about its feet (gestures show in its face and squash)
     const kx = S * pet.faceVis * sx, ky = S * sy, lean = pet.lean * pet.faceVis;
-    const rot = custom?.groupTilt ? custom.groupTilt(pet.mode, pet.tilt, lean) : pet.tilt + lean;
+    const rot = custom?.groupTilt ? custom.groupTilt(pet.mode, pet.tilt, lean) : (pet.tilt + lean) * (1 - proneK());
     pet.xf = { AX, AY, ax, ay, kx, ky, rot };
     petG.setAttribute('transform', `translate(${f(AX)} ${f(AY)}) rotate(${f(rot)}) scale(${kx.toFixed(4)} ${ky.toFixed(4)}) translate(${-ax} ${-ay})`);
 
-    const legs = pet.feet.map((ft, i) => [HIPS[i][0], HIPS[i][1] + pet.low, ft[0], ft[1]]);
+    const legs = pet.feet.map((ft, i) => [...hip(i), ft[0], ft[1]]);
     const blink = pet.blinkAge < .16 ? Math.sin(Math.PI * pet.blinkAge / .16) : 0;
     let eyes = pet.eyeCur || fc.eyes, eyeClose = 0;
     if (pet.swapAge < .07 && pet.eyePrev) { eyes = pet.eyePrev; eyeClose = pet.swapAge / .07; }
     else if (pet.swapAge < .16) eyeClose = 1 - (pet.swapAge - .07) / .09;
     const face = { ...fc, eyes, gap: pet.gap.map(g => Math.min(64, g + pet.talkK * 12)), blush: pet.blushK };
-    const frame = { look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing };
     const gesture = pet.pulse ? { kind: pet.pulse.kind, k: clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1) } : null;
-    if (custom) custom.draw(petG, face, { ...frame, face: fname, mode: pet.mode, modeT: pet.modeT, talk: pet.talkK, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot, gesture });
+    const frame = { look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing, lie: pet.lieK, prone: pet.prone, talk: pet.talkK, gesture };
+    if (custom) custom.draw(petG, face, { ...frame, face: fname, mode: pet.mode, modeT: pet.modeT, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot });
     else petG.innerHTML = figure(face, frame);
 
     const footY = drag ? pet.dy + 220 * S * 1.09 : pet.fy;
     const k = clamp(1 - (floorY - footY) / 420, .3, 1);
     shadowEl.setAttribute('cx', f(AX)); shadowEl.setAttribute('cy', f(floorY - 2));
-    shadowEl.setAttribute('rx', f(72 * S * k * (1 + pet.sq * .5))); shadowEl.setAttribute('ry', f(10 * S * k + 1));
+    shadowEl.setAttribute('rx', f(72 * S * k * (1 + pet.sq * .5) * lerp(1, 1.35, proneK()))); shadowEl.setAttribute('ry', f(10 * S * k + 1));
     shadowEl.setAttribute('opacity', f(k));
 
     let s = '';
@@ -1189,7 +1297,7 @@ export function createPet(els, opts) {
     }
     if (press) return 'grabbing';
     const over = hitPet(p);
-    if (over && ['idle', 'look', 'sit', 'sleep'].includes(pet.mode)) {
+    if (over && (pet.mode === 'idle' || pet.mode === 'look' || REST.has(pet.mode))) {
       strokeAcc += Math.hypot(ddx, ddy);
       if (strokeAcc > 320 && petCool <= 0) {
         strokeAcc = 0; petCool = 2.5;
@@ -1216,7 +1324,7 @@ export function createPet(els, opts) {
       setMode('air');
       onEvent('touch', { kind: speed > 700 ? 'throw' : 'drop', x: Math.round(pet.x) });
     } else if (performance.now() - press.t < 400) {
-      if (pet.mode === 'sleep' || pet.mode === 'sit') {
+      if (REST.has(pet.mode)) {
         const wasAsleep = pet.mode === 'sleep';
         setMode('wake', { startle: true }); pet.sqv -= 2.2; pet.nextAt = T + 2.4;
         sfx.surprised();
@@ -1265,9 +1373,9 @@ export function createPet(els, opts) {
     pet, step, render, resize, act, setExpr, walkTo, toStage, hitPet, busy,
     pointerDown, pointerMove, pointerUp, pointerLeave, dropAt, shiftDrag,
     get pressing() { return !!press; },
-    /** Pressed, carried, airborne, walking, running, dancing, turning round, or in a short gesture (nod, wave, bow…): motion that frames far apart show as jumps. */
+    /** Pressed, carried, airborne, walking, running, dancing, turning round, or in a short gesture (nod, wave, bow…; not a lying fidget): motion that frames far apart show as jumps. */
     get moving() {
-      return !!press || MOVING_MODES.has(pet.mode) || !!pet.pulse || Math.abs(pet.faceVis - pet.facing) > .05;
+      return !!press || MOVING_MODES.has(pet.mode) || (!!pet.pulse && !FIDGETS[pet.pulse.kind]) || Math.abs(pet.faceVis - pet.facing) > .05;
     },
     get time() { return T; },
     get bounds() { return { W, H, floorY, S, minX: minX(), maxX: maxX() }; },
@@ -1278,7 +1386,7 @@ export function createPet(els, opts) {
       // a swapped-out figure may hold a WebGL context; release it now instead of waiting for GC
       custom?.dispose?.();
       custom = fig || null;
-      A = { ...COO_ANCHORS, ...custom?.anchors };
+      A = anchorsOf(custom);
       petG.textContent = '';
       render();
     },
@@ -1292,7 +1400,22 @@ export function createPet(els, opts) {
     setListening(on) { pet.listening = on; if (on && (pet.mode === 'walk' || pet.mode === 'run')) setMode('idle'); },
     setThinking(on) { pet.thinking = on; },
     /** Head top in stage pixels, for placing a speech bubble. */
-    anchor() { return toStage(A.bubble[0], (custom ? A.bubble[1] : (HEAD_TOP[skin.head] ?? 12) - 8) + pet.low); },
+    anchor() {
+      // Coo's head top depends on the hat: lying, it is carried through her lying pose
+      if (!custom) return toStage(...liePt(A.bubble[0], (HEAD_TOP[skin.head] ?? 12) - 8 + pet.low, pet.lieK));
+      return toStage(...ancPt('bubble'));
+    },
+    /** How far the body is seen lying (0..1): 0 throughout for a figure that cannot show the pose (it stays seated). */
+    get lying() { return proneK(); },
+    /** The body's box [x0, y0, x1, y1] in logo units, standing, sitting or lying: for placing what goes beside it. */
+    bodyBox() {
+      const up = [20, Math.min(20, HEAD_TOP[skin.head] ?? 12), 236, 256], L = lieSet();
+      if (!L?.hit) return up;
+      const w = L.halfW ?? 108, k = proneK();
+      // Coo's hat top carried through her lying pose, as it is in her bubble's spot
+      const top = custom ? L.hit[1] - L.hit[3] : Math.min(L.hit[1] - L.hit[3], liePt(128, up[1] + 29, 1)[1]);
+      return [128 - w, top, 128 + w, 256].map((v, i) => lerp(up[i], v, k));
+    },
     emitHeart,
   };
 }

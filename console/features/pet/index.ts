@@ -56,7 +56,7 @@ const S = pick({
     themeLight: '白天(深色身体)',
     scale: '大小',
     lockFps: '锁定 60 帧',
-    lockFpsHint: '关着时 Coo 站着、坐着、睡着每秒画 30 帧,走动、被拎着、跳起时 60 帧,占用的 CPU 更少;打开后一直 60 帧。',
+    lockFpsHint: '关着时 Coo 站着、坐着、趴着、睡着每秒画 30 帧,走动、被拎着、跳起时 60 帧,占用的 CPU 更少;打开后一直 60 帧。',
     soundTitle: '音效',
     sound: '播放音效',
     soundHint: 'Coo 菜单里的音效按钮切的也是这个。',

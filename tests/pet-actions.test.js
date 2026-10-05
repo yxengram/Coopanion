@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { createPet, createSfx, EXPRESSIONS, FACES, figure, MOTIONS, SOUND_KINDS, STAND, defaultSkin } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
+import { createPet, createSfx, EXPRESSIONS, FACES, figure, MOTIONS, SOUND_KINDS, STAND, defaultSkin, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
 import { VOCAB } from '../packages/cortico-world-desktop-pet/src/script.ts';
 
 /** A pet with no page under it: the elements and the sound only take calls. */
 function barePet(onEvent) {
   const el = () => ({ setAttribute() {}, innerHTML: '' });
   const sfx = new Proxy({}, { get: () => () => {} });
-  const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx, onEvent, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+  const fxG = el();
+  const pet = createPet({ petG: el(), shadowEl: el(), fxG }, { sfx, onEvent, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
   pet.resize();
+  // the particles' markup, as last drawn
+  pet.fxHtml = () => fxG.innerHTML;
   return pet;
 }
 const run = (pet, seconds) => { for (let i = 0; i < seconds * 60; i++) { pet.step(1 / 60); pet.render(); } };
@@ -33,8 +36,21 @@ describe('the words the model can use', () => {
       run(pet, 1);
       if (m !== 'walk' && m !== 'run') expect(pet.act(m), m).toBe(true);
       run(pet, 5);
-      // everything but sitting and sleeping ends back on its feet
-      if (m !== 'sit' && m !== 'sleep' && m !== 'walk' && m !== 'run') expect(pet.pet.mode, m).toBe('idle');
+      // everything but sitting, sleeping and lying ends back on its feet
+      if (m !== 'sit' && m !== 'sleep' && m !== 'lie' && m !== 'walk' && m !== 'run') expect(pet.pet.mode, m).toBe('idle');
+    }
+  });
+
+  it('sitting, sleeping and lying last until asked to stand, then end on its feet', () => {
+    for (const m of ['sit', 'sleep', 'lie']) {
+      const pet = barePet();
+      run(pet, 1);
+      pet.act(m);
+      run(pet, 6);
+      expect(pet.pet.mode, m).toBe(m);
+      pet.act('stand');
+      run(pet, 2.5);
+      expect(pet.pet.mode, m).toBe('idle');
     }
   });
 
@@ -106,5 +122,298 @@ describe('the words the model can use', () => {
     };
     // a short body whose head (and bubble) sits far below Coo's ring top
     expect(glintY({ bubble: [128, 170] })).toBeGreaterThan(glintY({ bubble: [128, 170], glints: [[50, 30], [210, 30]] }) + 40);
+  });
+});
+
+describe('lying down', () => {
+  /** A pet that has lain down and settled. */
+  function lying(onEvent) {
+    const pet = barePet(onEvent);
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 2);
+    return pet;
+  }
+  // a press at logo point (x, y), in stage pixels
+  const at = (pet, x, y) => pet.toStage(x, y);
+
+  it('goes down through sitting, then onto its front', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, .3);
+    expect(pet.pet.lieK).toBeLessThan(.1);
+    expect(pet.pet.sitK).toBeGreaterThan(.7);
+    run(pet, 1.7);
+    expect(pet.pet.lieK).toBeGreaterThan(.95);
+    expect(pet.pet.sitK).toBeGreaterThan(.95);
+    expect(pet.pet.mode).toBe('lie');
+    expect(pet.pet._fname).toBe('content');
+  });
+
+  it('gets up the way it went down: pushes up to sitting, then stands', () => {
+    const pet = lying();
+    pet.act('stand');
+    expect(pet.pet.mode).toBe('wake');
+    run(pet, .6);
+    expect(pet.pet.lieK).toBeLessThan(.5);
+    run(pet, .2);
+    expect(pet.pet.sitK).toBeGreaterThan(.5);
+    run(pet, 1.2);
+    expect(pet.pet.mode).toBe('idle');
+    expect(pet.pet.prone).toBe(false);
+  });
+
+  it('turns round where it lies', () => {
+    const pet = lying(), facing = pet.pet.facing;
+    pet.act('turn');
+    run(pet, .5);
+    expect(pet.pet.mode).toBe('lie');
+    expect(pet.pet.facing).toBe(-facing);
+    expect(pet.pet.lieK).toBeGreaterThan(.95);
+  });
+
+  it('is hit over its lying body, not where its head was standing', () => {
+    const events = [];
+    const pet = lying((kind, d) => events.push([kind, d]));
+    // inside the standing circle (radius 108 about 128,128), above the lying body
+    expect(pet.hitPet(at(pet, 128, 40))).toBe(false);
+    expect(pet.pointerDown(at(pet, 138, 172))).toBe(true);
+    pet.pointerUp();
+    expect(pet.pet.mode).toBe('wake');
+    // lying is not sleeping: the poke did not wake her from sleep
+    expect(events).toContainEqual(['touch', { kind: 'poke', woke: false }]);
+  });
+
+  it('can be picked up off the floor', () => {
+    const pet = lying();
+    const p = at(pet, 138, 172);
+    expect(pet.pointerDown(p)).toBe(true);
+    pet.pointerMove({ x: p.x + 20, y: p.y - 20 });
+    expect(pet.pet.mode).toBe('drag');
+    run(pet, .3);
+    expect(pet.pet.lieK).toBeLessThan(.1);
+    pet.pointerUp();
+  });
+
+  it('asked to sleep while lying, sleeps lying down, and gets up through sitting', () => {
+    const pet = lying();
+    pet.act('sleep');
+    run(pet, 2);
+    expect(pet.pet.mode).toBe('sleep');
+    expect(pet.pet.prone).toBe(true);
+    expect(pet.pet.lieK).toBeGreaterThan(.95);
+    expect(pet.pet._fname).toBe('sleep');
+    pet.act('stand');
+    run(pet, .3);
+    expect(pet.pet.lieK).toBeGreaterThan(.9);
+    run(pet, 2);
+    expect(pet.pet.mode).toBe('idle');
+  });
+
+  it('sleep from sitting stays seated, and sitting from lying sits up', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('sit');
+    run(pet, 1);
+    pet.act('sleep');
+    run(pet, 2);
+    expect(pet.pet.prone).toBe(false);
+    expect(pet.pet.lieK).toBeLessThan(.01);
+    pet.act('lie');
+    run(pet, 2);
+    pet.act('sit');
+    run(pet, 1.5);
+    expect(pet.pet.mode).toBe('sit');
+    expect(pet.pet.lieK).toBeLessThan(.05);
+    expect(pet.pet.sitK).toBeGreaterThan(.95);
+  });
+
+  it('a walk gets up at once and arrives', () => {
+    const events = [];
+    const pet = lying((kind, d) => events.push([kind, d.walkId]));
+    pet.walkTo(pet.pet.x - 150, false, 'w1');
+    run(pet, .3);
+    expect(pet.pet.lieK).toBeLessThan(.1);
+    run(pet, 4);
+    expect(events).toContainEqual(['arrived', 'w1']);
+  });
+
+  it('roaming free, gets bored of lying: dozes off where it lies or gets up', () => {
+    const pet = lying();
+    pet.pet.dur = .5;
+    pet.setRoam('free');
+    run(pet, .2);
+    expect(['sleep', 'wake']).toContain(pet.pet.mode);
+    if (pet.pet.mode === 'sleep') expect(pet.pet.prone).toBe(true);
+  });
+
+  it('fidgets now and then, as gestures the body leaves alone', () => {
+    const pet = barePet(), frames = [];
+    pet.setFigure({ draw: (g, face, o) => frames.push(o) });
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 20);
+    const kinds = new Set(frames.map(o => o.gesture?.kind).filter(Boolean));
+    expect([...kinds].every(k => ['kick', 'chin', 'thump'].includes(k))).toBe(true);
+    expect(kinds.size).toBeGreaterThan(0);
+    // still lying, and a fidget is not motion that needs the full frame rate
+    expect(pet.pet.mode).toBe('lie');
+    expect(frames.at(-1).lie).toBeGreaterThan(.95);
+    expect(frames.at(-1).prone).toBe(true);
+    expect(pet.moving).toBe(false);
+  });
+
+  it('a figure without a lying pose stays seated, with its usual points and hit circle', () => {
+    const pet = barePet(), frames = [];
+    const anchors = { gaze: [140, 117], tear: [166, 136], z: [196, 40], hearts: [90, 175, 34], bubble: [128, 18], glints: [[50, 30]] };
+    pet.setFigure({ draw: (g, face, o) => frames.push(o), anchors });
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 2);
+    const sits = frames.slice(-60).map(o => o.sit);
+    expect(Math.min(...sits)).toBeGreaterThan(.95);
+    expect(pet.lying).toBe(0);
+    expect(pet.hitPet(at(pet, 128, 40))).toBe(true);
+    const b = pet.anchor(), want = at(pet, 128, 18 + pet.pet.low);
+    expect(Math.hypot(b.x - want.x, b.y - want.y)).toBeLessThan(1);
+    expect(pet.bodyBox()).toEqual([20, 12, 236, 256]);
+  });
+
+  it('a figure with lying points uses them once down, unless it says the pose cannot show', () => {
+    const lie = { z: [230, 100], bubble: [180, 60], hit: [128, 190, 120, 66], halfW: 124 };
+    const fig = { draw() {}, anchors: { lie }, poses: { lie: true } };
+    const pet = barePet();
+    pet.setFigure(fig);
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 2.5);
+    const b = pet.anchor(), want = at(pet, ...lie.bubble);
+    expect(Math.hypot(b.x - want.x, b.y - want.y)).toBeLessThan(1);
+    expect(pet.lying).toBeGreaterThan(.95);
+    expect(pet.bodyBox().map(Math.round)).toEqual([4, 124, 252, 256]);
+    expect(pet.hitPet(at(pet, 128, 40))).toBe(false);
+    expect(pet.hitPet(at(pet, 30, 200))).toBe(true);
+    // sleeping there, the z's start from the lying point (the newest one has hardly moved yet)
+    pet.act('sleep');
+    run(pet, 1.35);
+    const z = pet.toStage(...lie.z);
+    const m = [...pet.fxHtml().matchAll(/translate\(([-\d.]+) ([-\d.]+)\)/g)].at(-1);
+    expect(m).toBeTruthy();
+    expect(Math.hypot(+m[1] - z.x, +m[2] - z.y)).toBeLessThan(3);
+    fig.poses.lie = false;
+    expect(pet.lying).toBe(0);
+    expect(pet.hitPet(at(pet, 128, 40))).toBe(true);
+  });
+
+  it('Coo lies flat and draws its paws', () => {
+    const svg = figure(FACES.content.f(0, null), { look: [0, 0], legs: STAND, low: 29, t: 0, blink: 0, acc: defaultSkin(), lie: 1 });
+    expect(svg).toContain('rotate(9)');
+    expect(svg).toContain('stroke-width="24"');
+    // the paws rest on the floor in front of the lower tip (about x 190), not hidden under the ring
+    const paws = [...svg.match(/stroke-width="24"[^>]*d="([^"]+)"/)[1].matchAll(/M([\d.]+) ([\d.]+)/g)].map(m => [+m[1], +m[2]]);
+    expect(paws).toHaveLength(2);
+    for (const [x, y] of paws) { expect(x).toBeGreaterThan(190); expect(y + 12).toBe(256); }
+    expect(figure(FACES.content.f(0, null), { look: [0, 0], legs: STAND, low: 29, t: 0, blink: 0, acc: defaultSkin() })).not.toContain('rotate(9)');
+  });
+
+  it('Coo lying does not rock about her feet for gestures or listening', () => {
+    for (const a of ['bow', 'nod', 'peek', 'flinch', 'shake', 'wave', 'listen']) {
+      const pet = lying();
+      run(pet, 1);
+      if (a === 'listen') pet.setListening(true); else pet.act(a);
+      let most = 0;
+      for (let i = 0; i < 60; i++) { run(pet, 1 / 60); most = Math.max(most, Math.abs(pet.pet.xf.rot)); }
+      expect(pet.pet.mode, a).toBe('lie');
+      expect(most, a).toBeLessThan(1);
+    }
+  });
+
+  it('told to stand before it got down, gets up without lying down first', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, .2);
+    pet.act('stand');
+    let most = 0;
+    for (let i = 0; i < 60; i++) { run(pet, 1 / 60); most = Math.max(most, pet.pet.lieK); }
+    expect(most).toBeLessThan(.1);
+    run(pet, 2);
+    expect(pet.pet.mode).toBe('idle');
+  });
+
+  it('a fidget ends when she stops lying', () => {
+    const pet = barePet(), frames = [];
+    pet.setFigure({ draw: (g, face, o) => frames.push(o) });
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 2);
+    pet.pet.fidgetAt = 0;
+    run(pet, 1 / 60);
+    expect(['kick', 'chin', 'thump']).toContain(pet.pet.pulse?.kind);
+    pet.act('sleep');
+    expect(pet.pet.pulse).toBeNull();
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 1);
+    pet.pet.fidgetAt = 0;
+    run(pet, 1 / 60);
+    pet.act('walk');
+    run(pet, .2);
+    expect(frames.at(-1).gesture).toBeNull();
+  });
+
+  it('keeps the wider lying body on screen at the edge, also dozing off as it goes down', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.pet.x = pet.bounds.minX;
+    pet.act('lie');
+    run(pet, .2);
+    pet.act('sleep');
+    run(pet, 2);
+    expect(pet.pet.lieK).toBeGreaterThan(.95);
+    expect(pet.pet.x).toBeGreaterThanOrEqual(pet.bounds.minX - .01);
+  });
+
+  it('a walk from lying to the screen edge goes as far as one from standing', () => {
+    const arrive = (lie) => {
+      const events = [];
+      const pet = barePet((kind, d) => events.push([kind, d.x]));
+      run(pet, 1);
+      if (lie) { pet.act('lie'); run(pet, 2); }
+      pet.walkTo(0, false, 'w');
+      run(pet, 12);
+      return events.find(e => e[0] === 'arrived')?.[1];
+    };
+    expect(arrive(true)).toBe(arrive(false));
+  });
+
+  it('a figure without a lying pose moves through lie exactly as through sit', () => {
+    const trace = (m) => {
+      const pet = barePet(), out = [];
+      const anchors = { gaze: [140, 117], tear: [166, 136], z: [196, 40], hearts: [90, 175, 34], bubble: [128, 18], glints: [[50, 30]] };
+      pet.setFigure({ draw: (g, face, o) => out.push([o.legs.flat(), o.lean, o.sit, o.low].flat().map(v => Math.round(v * 100) / 100)), anchors });
+      run(pet, 1);
+      pet.act(m); run(pet, 3);
+      pet.act('sleep'); run(pet, 2);
+      pet.act('stand'); run(pet, 2);
+      pet.act(m); run(pet, 2);
+      // a poke gets it up with a start
+      const p = pet.toStage(128, 128);
+      pet.pointerDown(p); pet.pointerUp(); run(pet, 1);
+      return out;
+    };
+    expect(trace('lie')).toEqual(trace('sit'));
+  });
+
+  it("Coo's box lying down keeps her hat in", () => {
+    const pet = barePet();
+    pet.setSkin({ ...defaultSkin(), head: 'bunny' });
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 3);
+    expect(HEAD_TOP.bunny).toBeLessThan(0);
+    // the ear tips lying reach about y 39
+    expect(pet.bodyBox()[1]).toBeLessThan(39);
   });
 });

@@ -14,7 +14,7 @@
  *   arguments of `draw`.
  * - `scheme { id, fade, at, seq }`: switches the dress-up pick.
  *
- * It answers `loaded`, `ready { anchors, gestures, z, tilt }`, `drawn { rot, z }` after each frame
+ * It answers `loaded`, `ready { anchors, gestures, z, tilt }`, `drawn { rot, z, poses }` after each frame
  * (the group rotation the figure asks for, used by the next frame), `scheme { seq, z }`, and
  * `error { message }` once, after which it stops.
  */
@@ -57,10 +57,10 @@ addEventListener('message', async (e) => {
       petG.setAttribute('transform', m.transform);
       fig.draw(petG, m.face, m.frame);
       const f = m.frame;
-      post({ t: 'drawn', rot: fig.groupTilt ? fig.groupTilt(f.mode, f.tilt, f.lean) : null, z: fig.colors?.z ?? null });
+      post({ t: 'drawn', rot: fig.groupTilt ? fig.groupTilt(f.mode, f.tilt, f.lean) : null, z: fig.colors?.z ?? null, poses: fig.poses ?? null });
     } else if (m.t === 'scheme' && fig) {
       await fig.setScheme?.(m.id, { fade: m.fade, at: m.at });
-      post({ t: 'scheme', seq: m.seq, z: fig.colors?.z ?? null });
+      post({ t: 'scheme', seq: m.seq, z: fig.colors?.z ?? null, poses: fig.poses ?? null });
     }
   } catch (err) {
     fail(err);

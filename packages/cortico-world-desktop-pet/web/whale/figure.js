@@ -24,6 +24,74 @@ const bump = u => Math.sin(Math.PI * clamp(u, 0, 1));
 const smooth = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
 const SVGNS = 'http://www.w3.org/2000/svg';
 
+/**
+ * Lying down (pet-core's `lie`, 0..1) as an over-dissolve: the lying drawing fades in over the seated rig, which
+ * stays fully drawn until the drawing is opaque and goes in one step then; getting up runs it backwards. The rig is
+ * many layers, so fading it would show them through each other where the drawing does not cover it (her head and
+ * headdress, seated, reach above the lying drawing). `poseA` is the drawing's alpha, `standA` the rig's (0 or 1);
+ * `hide` drops the rig entirely.
+ */
+/**
+ * The open-hand wave's handover: `openHand` is the wave's strength when the drawn arm may show (the scheme has it,
+ * she is not lying); `swap` (0..1) moves from the fist arm to the drawn one as the arm's own rotation `armBase` passes
+ * 70..95°, on the way up and back down, so the two point about the same way when they trade.
+ */
+export const ARM_LIMIT = 135;
+export function waveHandover(wave, armBase, lieK, ok) {
+  const openHand = ok && lieK < 1e-3 ? wave : 0;
+  return { openHand, swap: openHand > 0 ? smooth(70, 95, armBase) : 0 };
+}
+
+export function poseMix(lieK) {
+  const poseA = smooth(.2, .45, lieK), standA = poseA >= 1 ? 0 : 1;
+  return { poseA, standA, hide: standA <= 0 };
+}
+
+/** The lying drawing's deformers (model.poses.lie), from the floor up and outside the standing tree. */
+export function lieDeformers(LIE) {
+  const r = LIE.rects, pv = LIE.pivots;
+  return {
+    lie: { kind: 'rot', pivot: pv.lie },
+    lieBack: { kind: 'warp', parent: 'lie', rect: r.back },
+    lieHead: { kind: 'warp', parent: 'lieBack', rect: r.head },
+    lieLegs: { kind: 'warp', parent: 'lieHead', rect: r.legs },
+    lieTail: { kind: 'rot', parent: 'lie', pivot: pv.lieTail },
+    lieTailBend: { kind: 'warp', parent: 'lieTail', rect: r.tail },
+  };
+}
+
+/**
+ * The lying pose's kick, as lieLegs' warp field: the raised shins turn about the knee (`ax` = poses.lie.legAxis),
+ * the near one by kc + kd radians and the far one by kc - kd, bending more toward the shoes. Nothing is beside the near
+ * shin; beyond the far one the field dies out (ax.far: how far that shin reaches from the knee→shoe line, rig units, -
+ * on the far side), and below mid-shin, where the far shin is behind the skirt, already at ax.gap, the seam where the
+ * two shins meet. So the head and body never move with it. The two turns blend across that seam; it is one mesh,
+ * so keep kd small (see KICK).
+ */
+export function kickField(ax, kc, kd) {
+  const [kx, ky] = ax.knee, lx = ax.shoe[0] - kx, ly = ax.shoe[1] - ky, len2 = lx * lx + ly * ly, len = Math.sqrt(len2);
+  return (u, v, x, y) => {
+    const dx = x - kx, dy = y - ky, along = clamp((dx * lx + dy * ly) / len2, 0, 1), side = (dx * ly - dy * lx) / len;
+    const hi = smooth(.4, .6, along), edge = lerp(ax.gap - 4, ax.far, hi), fall = lerp(6, 14, hi);
+    const w = along * along * smooth(edge - fall, edge, side);
+    const a = (kc + kd * (2 * smooth(ax.gap - 8, ax.gap + 8, side) - 1)) * w;
+    return [-a * dy, a * dx];
+  };
+}
+// the kick's limits (degrees): the swing of both shins, and how far apart they go (kd), which the seam between them takes
+export const KICK = { amp: 10, apart: 1.25 };
+
+/**
+ * How far the lying drawing's eyes are shut (0..1), for its eyes-shut overlay: blinks, sleep and dozing (o.drowse), the
+ * shut-eye shapes (up, down), and lid eyes that are nearly closed (cry, squeeze, a yawn, waking). The drawing has no
+ * half-lids, so a half-lidded face (smug, disgusted) keeps its eyes open.
+ */
+export function eyesShut(o, eyes, mode) {
+  const e = eyes?.[0] || {};
+  return Math.max(o.blink || 0, o.eyeClose || 0, mode === 'sleep' ? 1 : 0, smooth(.6, 1, o.drowse || 0),
+    e.shape === 'up' || e.shape === 'down' ? 1 : 0, e.shape === 'lid' ? 1 - smooth(1.5, 4, e.ry ?? 16) : 0);
+}
+
 // the face texture covers this rect of the master drawing, one texel per master pixel
 const FACE = { x: 520, y: 578, w: 390, h: 252 };
 // the head's parallax warps act over this rect (rig units); the long hair below it stays put
@@ -67,6 +135,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // a scheme is a set of textures over the same geometry; the original's are at tex/ and feat/
   const SCHEMES = (model.schemes || [{ id: 'deepseek' }]).filter(sc => sc.ready !== false);
   const schemeInfo = id => SCHEMES.find(sc => sc.id === id) || SCHEMES[0];
+  // lying on her front is a drawing of its own (model.poses.lie): its files are optional, scheme by scheme
+  const LIE = model.poses?.lie;
+  const LIE_PARTS = LIE ? [...LIE.required, ...LIE.overlays] : [];
+  // waving with an open hand is a drawing of the near arm raised (model.poses.wave), optional the same way
+  const WAVE = model.poses?.wave;
+  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : [])];
   // the scheme's accent colours the listening arcs, thought bubbles and sleep z's
   const accent = () => schemeInfo(scheme).accent || '#4d6bfe';
   const loaded = {}, ready = {};
@@ -77,11 +151,19 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     loaded[id] = Promise.all([
       ...model.parts.map(async p => { set.tex[p.tex] = await load(asset(`${dir}tex/${p.tex}.png`)); }),
       ...featNames.map(async n => { set.img[n] = await load(asset(`${dir}feat/${n}.png`)); }),
-    ]).then(() => (ready[id] = set));
+      // a missing pose file only takes that pose (or overlay) away from this scheme
+      ...POSE_PARTS.map(async p => { const im = await load(asset(`${dir}tex/${p.tex}.png`)).catch(() => null); if (im) set.tex[p.tex] = im; }),
+    ]).then(() => {
+      set.lie = !!LIE && LIE.required.every(p => set.tex[p.tex]);
+      set.wave = !!WAVE && WAVE.required.every(p => set.tex[p.tex]);
+      if (LIE && !set.lie && LIE.required.some(p => set.tex[p.tex])) console.warn(`whale: scheme ${id} lacks some lying-pose files; she sits instead`);
+      return (ready[id] = set);
+    });
     return loaded[id];
   }
   let scheme = schemeInfo(opts.scheme).id;
-  let { tex, img } = await loadScheme(scheme);
+  let cur = await loadScheme(scheme);  // the set whose textures are drawn (until a fade ends, the outgoing one)
+  let { tex, img } = cur;
   const box = Object.fromEntries(model.parts.map(p => [p.id, p.box]));
   const rectOf = id => { const [x, y, w, h] = box[id]; return [x, y, x + w, y + h]; };
 
@@ -126,6 +208,23 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     deformers.creases = { kind: 'warp', parent: 'headFeat', rect: rectOf('eye_creases') };
     creases.parent = 'creases';
   }
+
+  /* the lying drawing: on its own deformers from the floor, outside the standing tree. The body piece rides
+     every warp (legs inside head inside back), and so does each overlay, which keeps them registered */
+  const STANDING = Object.fromEntries(parts.map(p => [p.id, true]));
+  if (LIE) {
+    Object.assign(deformers, lieDeformers(LIE));
+    for (const p of LIE_PARTS) parts.push({ ...p, alpha: 0 });
+  }
+  const poseOK = () => !!(cur.lie && (!fade || fade.set.lie));
+  // the raised arm turns about its shoulder with the upper body; its hand waves about the wrist
+  if (WAVE) {
+    const [wx, wy, ww, wh] = WAVE.required[0].box;
+    deformers.armWave = { kind: 'rot', parent: 'waist', pivot: WAVE.pivots.armWave };
+    deformers.armWaveHand = { kind: 'warp', parent: 'armWave', rect: [wx, wy, wx + ww, wy + wh] };
+    for (const p of WAVE.required) { parts.push({ ...p, alpha: 0 }); STANDING[p.id] = true; }
+  }
+  const waveOK = () => !!(cur.wave && (!fade || fade.set.wave));
 
   /* ---------- face painting (master pixels) ---------- */
   const faceCv = document.createElement('canvas');
@@ -341,7 +440,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   let fade = null;
   function endFade() {
     if (!fade) return;
-    tex = fade.set.tex; img = fade.set.img; fade = null;
+    cur = fade.set; tex = cur.tex; img = cur.img; fade = null;
     if (rig) for (const n in tex) rig.upload(n, tex[n]);
   }
   /**
@@ -358,9 +457,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       if (o.fade > 0 && rig) {
         fade = { set, dur: o.fade, t0: o.at ?? null };
         for (const n in set.tex) rig.upload(n + '@mix', set.tex[n]);
+        // a lying file the incoming scheme lacks fades to the outgoing one's, not to what an earlier fade left there
+        for (const p of POSE_PARTS) if (!set.tex[p.tex] && tex[p.tex]) rig.upload(p.tex + '@mix', tex[p.tex]);
         return;
       }
-      tex = set.tex; img = set.img;
+      cur = set; tex = set.tex; img = set.img;
       if (rig) for (const n in tex) rig.upload(n, tex[n]);
     };
     if (ready[next]) { apply(ready[next]); return Promise.resolve(); }
@@ -383,7 +484,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const sp = {
     hair: spring(55, 7, 1.8), hairY: spring(50, 8, 1.2), bangs: spring(110, 10, 1.6),
     skirt: spring(100, 9, 1.6), skirtY: spring(90, 10, 1.1), tail: spring(40, 5, 32), fins: spring(90, 9, 30),
-    ahoge: spring(140, 6, 38), head: spring(70, 10, 16), armN: spring(60, 9, 125), armF: spring(60, 9, 95),
+    ahoge: spring(140, 6, 38), head: spring(70, 10, 16), armN: spring(60, 9, ARM_LIMIT), armF: spring(60, 9, 95),
   };
   let lastT = null, prevTilt = 0, prevYaw = 0, prevLow = 0, headTilt = 0, fx = '';
   const fxTurn = [0, 0]; // this frame's head turn (angleX, angleY), for effects drawn over the face
@@ -394,7 +495,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const GROUP = { air: [1, 1], drag: [1, 1], crouch: [1, 1], land: [1, 1], walk: [1, .5], run: [1, .5], dance: [.6, 0] };
   let wTilt = 0, wLean = 0;
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
-  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0;
+  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0;
   const st = { z: {}, alpha: {} };
 
   // fins and tail by face: fins up (+) or drooping (-), tail wag size, and how far the tail droops (1 = 12°)
@@ -444,6 +545,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const low = o.low || 0;
     const lowV = (low - prevLow) / Math.max(dt, 1e-3); prevLow = low;
     const breath = Math.sin(t * (mode === 'sleep' ? 1.7 : 2.4));
+    // a scheme without the lying files drops her to sitting at once: its textures are not in the rig to ease out with
+    lieK = LIE && poseOK() ? lerp(lieK, clamp(o.lie ?? 0, 0, 1), ease(14, dt)) : 0;
+    if (lieK < 1e-3) lieK = 0;  // the easing alone never reaches zero
+    const { poseA, hide } = poseMix(lieK);
+    poseShown = poseA;
 
     /* head: tilt toward what it looks at, nod with sleep, wobble with dizzy */
     let tiltT = o.look[0] * .7 + Math.sin(t * .9) * 1.2 + o.look[1] * .4;
@@ -523,19 +629,23 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (face === 'determined') { aN = 14; aF = -10; }
     if (face === 'excited') { aN += 18; aF -= 12; }
     if (mode === 'dance') { const b = Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1); aN = 16 + 24 * Math.max(0, b); aF = -8 - 22 * Math.max(0, -b); }
-    if (wave) aN = lerp(aN, 108, wave);
+    // with the open-hand drawing she raises the arm on toward the drawing's own angle, and it takes over halfway up
+    const { openHand } = waveHandover(wave, 0, lieK, !!WAVE && waveOK());
+    if (wave) aN = lerp(aN, openHand ? WAVE.rest : 108, wave);
     if (shiver) { aN = lerp(aN, -10, shiver); aF = lerp(aF, 8, shiver); }
     if (face === 'nervous') { aN = -7 + 2.5 * Math.sin(t * 5); aF = 6; }
     // a flinch hugs the arms in tight; a peek holds them a little back and out, out of the way
     if (flinch) { aN = lerp(aN, -16, flinch); aF = lerp(aF, 14, flinch); }
     if (peek) { aN = lerp(aN, 14, peek); aF = lerp(aF, -6, peek); }
-    const armN = sp.armN.step(aN, dt) + wave * 13 * Math.sin(t * 15) + shiver * 1.4 * Math.sin(t * 47) + flap * 9 * Math.sin(t * 24)
+    const armBase = sp.armN.step(aN, dt);
+    const armN = armBase + (openHand ? 0 : wave * 13 * Math.sin(t * 15)) + shiver * 1.4 * Math.sin(t * 47) + flap * 9 * Math.sin(t * 24)
       + (fc.shake && face === 'nervous' ? Math.sin(t * 47) : 0);
     const armF = sp.armF.step(aF, dt) - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1);
 
     /* deformer states */
     // pet-core sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
-    st.body = { a: -sway * 1.2 + (held ? o.swing * .15 : 0), ty: low - 9.6 * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
+    // going down to lie she tips forward off the seat before the lying drawing takes over
+    st.body = { a: -sway * 1.2 + (held ? o.swing * .15 : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA), ty: low - 9.6 * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
     st.waist = { a: bow * 20 - flinch * 6 + peek * 9 };
     st.skirt = {
       fn: (u, v) => {
@@ -550,6 +660,23 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.alpha.leg_back = st.alpha.leg_front = 1 - smooth(.42, .52, sitK);
     st.alpha.skirt_sit = st.alpha.waist_bow_sit_front = sitIn;
     st.armNear = { a: armN };
+    if (WAVE) {
+      // the fist arm hands over to the drawn one in a couple of frames, the two pointing the same way at that moment;
+      // the drawn arm keeps the fist arm's rotation (less its own angle), so it goes on rising into place, then the hand waves
+      const { swap } = waveHandover(wave, armBase, lieK, waveOK()), [qx, qy] = WAVE.wrist, [sx0, sy0] = WAVE.pivots.armWave;
+      const ux = qx - sx0, uy = qy - sy0, ul = Math.hypot(ux, uy);
+      const hand = openHand * (16 * Math.sin(t * 13)) * Math.PI / 180;
+      st.armWave = { a: armBase - WAVE.rest + openHand * 3 * Math.sin(t * 13 - .8) };
+      st.armWaveHand = {
+        fn: (u, v, x, y) => {
+          // past the wrist (along shoulder→wrist) the hand turns about the wrist; the sleeve stays
+          const w = smooth(-2, 4, ((x - qx) * ux + (y - qy) * uy) / ul);
+          return [-hand * w * (y - qy), hand * w * (x - qx)];
+        },
+      };
+      st.alpha.arm_near = 1 - swap;
+      for (const p of WAVE.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
+    }
     st.armFar = { a: armF };
     st.legBack = { a: lerp(legA[0], -55, sitK), ty: -lift[0] * .9 * (1 - sitK) };
     st.legFront = { a: lerp(legA[1], -60, sitK), ty: -lift[1] * .9 * (1 - sitK) };
@@ -600,26 +727,73 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.finNear = { a: fins + finN + Math.sin(t * 1.4) * 1.5 };
     st.finFar = { a: -fins * .8 - finF - Math.sin(t * 1.4 + .8) * 1.2 };
 
-    paintFace(fc, face, o, t);
-    rig.upload('faceFx', faceCv);
+    if (LIE) lying(o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap }, g, gk);
+
     st.mix = 0;
-    if (fade) {
-      if (fade.t0 == null) fade.t0 = t;
-      st.mix = smooth(0, 1, (t - fade.t0) / fade.dur);
-      const own = img;
-      img = fade.set.img; fg = fg2;
+    if (fade) { if (fade.t0 == null) fade.t0 = t; st.mix = smooth(0, 1, (t - fade.t0) / fade.dur); }
+    // once the lying drawing covers her, the standing rig (face included) is neither painted nor drawn
+    if (!hide) {
       paintFace(fc, face, o, t);
-      img = own; fg = fg1;
-      rig.upload('faceFx@mix', faceCv2);
+      rig.upload('faceFx', faceCv);
+      if (fade) {
+        const own = img;
+        img = fade.set.img; fg = fg2;
+        paintFace(fc, face, o, t);
+        img = own; fg = fg1;
+        rig.upload('faceFx@mix', faceCv2);
+      }
     }
-    rig.render(st);
+    rig.render(st, hide ? { hidden: STANDING } : undefined);
     if (opts.raster) { fo.setAttribute('href', canvas.toDataURL('image/png')); decoded = fo.decode ? fo.decode().catch(() => {}) : null; }
     if (fade && st.mix >= 1) endFade();
     drawFx(fc, t);
   }
 
+  /**
+   * The lying drawing's deformer states and the dissolve's alphas. Its face is drawn in: the eyes close (blink, doze,
+   * sleep, and the faces with shut eyes) by the eyes-shut overlay; the rest of a mood shows in the head, legs and tail.
+   */
+  const MOOD_KICK = { happy: [1.6, 1.4], love: [1.6, 1.2], excited: [1.9, 1.7], wink: [1.3, 1.2], angry: [1.2, 2], sad: [.3, .6], cry: [.2, .6], sleepy: [.4, .7], scared: [.2, 1], worried: [.5, .8] };
+  function lying(o, fc, face, mode, t, dt, breath, poseA, gs, g, gk) {
+    const { nod, shake, bow, flinch, peek, flap } = gs;
+    const pv = LIE.pivots, still = mode === 'sleep' || fc.listen;
+    // a fidget from pet-core (kick, chin, thump) is a short gesture
+    const fid = kind => (g?.kind === kind ? Math.sin(Math.PI * gk) : 0);
+    const flopUp = 1 - smooth(.2, .6, lieK);  // tipped up off the floor until she is down
+    st.lie = { a: -14 * flopUp, sx: 1 + .006 * breath, sy: (1 - .012 * breath) * (1 - .04 * flinch) };
+    st.lieBack = { fn: (u, v) => [0, -.8 * (.5 + .5 * breath) * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)] };
+    // the head turns about the chin on her hands (degrees, + tips it forward), shifts sideways for a shake or peek
+    const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look[0], -6, 6) * .3 + (mode === 'sleep' ? 3 : 0)
+      + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + fid('chin') * 6) * Math.PI / 180;
+    const hx = shake * 2.5 + peek * 3, [cx, cy] = pv.lieChin;
+    st.lieHead = {
+      fn: (u, v, x, y) => {
+        const w = smooth(0, .35, u) * (1 - smooth(.7, 1, v));
+        return [(-th * (y - cy) + hx) * w, th * (x - cx) * w];
+      },
+    };
+    // the raised feet kick about the knee by mood, still while she sleeps or listens; the two swing together, a little
+    // out of step (the shoes touch, and the one mesh between them would fold)
+    const [mk, mr] = MOOD_KICK[face] || [1, 1];
+    const amp = Math.min(KICK.amp, (still ? 0 : 5 * mk) + 9 * fid('kick') + 8 * flap), rad = Math.PI / 180;
+    kickPh += dt * (2.1 * mr + 3 * fid('kick'));
+    st.lieLegs = { fn: kickField(LIE.legAxis, amp * Math.sin(kickPh) * rad, Math.min(KICK.apart, amp * .35) * Math.sin(kickPh + 1.6) * rad) };
+    // the tail lies on the floor behind her: a slow sway, the mood's wag, a droop when low, a thump (- swings the fluke down)
+    const tw = 4 * Math.sin(t * 1.6) + wagAmp * 7 * Math.sin(t * (3 + 4 * wagAmp)) + flap * 10 * Math.sin(t * 17);
+    st.lieTail = { a: tw + tailMood * 5 - 14 * fid('thump') };
+    st.lieTailBend = { fn: u => [0, -tw * .3 * (1 - u) * (1 - u)] };
+
+    const shut = eyesShut(o, fc.eyes, mode);
+    for (const p of LIE.required) st.alpha[p.id] = tex[p.tex] ? poseA : 0;
+    for (const p of LIE.overlays) st.alpha[p.id] = tex[p.tex] && p.use === 'shut' ? poseA * shut : 0;
+  }
+
   /* ---------- effects over the figure (SVG, like the built-in figure's) ---------- */
-  const at = (x, y) => rig.point('neck', st, x, y);
+  // drawn for the standing head; once she lies, the same points move onto the lying head
+  const FXL = LIE?.fx;
+  const at = (x, y) => (FXL && poseShown > .5
+    ? rig.point('lieHead', st, FXL.to[0] + FXL.s * (x - FXL.from[0]), FXL.to[1] + FXL.s * (y - FXL.from[1]))
+    : rig.point('neck', st, x, y));
   function drawFx(fc, t) {
     let s = '';
     const ac = accent();
@@ -703,7 +877,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),
@@ -711,11 +885,15 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     /** Raster mode: a promise that settles once the last drawn frame is ready to be painted. */
     get painted() { return decoded || Promise.resolve(); },
     get colors() { return { z: accent() }; },
+    /** Which poses of her own she can show now (the current scheme has their files): pet-core keeps her seated otherwise. */
+    get poses() { return { lie: !!LIE && poseOK() }; },
     schemes: SCHEMES,
     // points pet-core uses: eye tracking, a tear and one under each eye (where the streams run), sleep z's, hearts [x from, x to, y], bubble
     anchors: {
       gaze: [U(745), V(690)], tear: [U(640), V(752)], tears: [[U(654), V(752)], [U(852), V(750)]], z: [196, 44],
       hearts: [96, 176, 62], bubble: [128, 18], glints: [[48, 32], [208, 46]],
+      // the same, plus the hit ellipse [cx, cy, rx, ry] and half width, lying on her front
+      ...(LIE ? { lie: LIE.anchors } : {}),
     },
     model,
   };

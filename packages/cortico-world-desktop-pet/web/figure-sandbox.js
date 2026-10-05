@@ -23,7 +23,7 @@ export function loadPackFigure({ layer, pack, scheme, onError }) {
     frame.tabIndex = -1;
     frame.className = 'figure-frame';
     frame.src = '/figure-frame';
-    let ready = false, gone = false, rot = 0, z = null, seq = 0;
+    let ready = false, gone = false, rot = 0, z = null, seq = 0, poses = null;
     const waits = new Map();
     const post = (m) => frame.contentWindow?.postMessage(m, '*');
     const timer = setTimeout(() => fail(new Error(`形象 ${READY_MS / 1000} 秒内没有准备好`)), READY_MS);
@@ -48,6 +48,8 @@ export function loadPackFigure({ layer, pack, scheme, onError }) {
       draw(petG, face, f) { if (!gone) post({ t: 'frame', transform: petG.getAttribute('transform') || '', face, frame: f }); },
       gestures: [],
       get colors() { return z ? { z } : undefined; },
+      /** The pack's own poses it can show now (e.g. `{ lie }`), from its last frame; absent until it says. */
+      get poses() { return poses ?? undefined; },
       setScheme(id, o = {}) {
         if (gone) return Promise.resolve();
         const s = ++seq;
@@ -81,8 +83,10 @@ export function loadPackFigure({ layer, pack, scheme, onError }) {
       } else if (m.t === 'drawn') {
         if (typeof m.rot === 'number') rot = m.rot;
         z = m.z;
+        if (m.poses && typeof m.poses === 'object') poses = m.poses;
       } else if (m.t === 'scheme') {
         z = m.z;
+        if (m.poses && typeof m.poses === 'object') poses = m.poses;
         waits.get(m.seq)?.();
         waits.delete(m.seq);
       } else if (m.t === 'error') {

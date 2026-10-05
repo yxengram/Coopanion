@@ -150,6 +150,15 @@ describe('with a pet page', () => {
     expect(out.text).toContain('fly');
   });
 
+  it('pet_act says lying down lasts until the next action', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const out = await tool(world, 'pet_act').handler({ actions: ['趴下'] }, ctx) as { text: string };
+    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['lie']);
+    expect(out.text).toContain('lie 会一直保持到下一个动作');
+  });
+
   it('merges repeated pokes into one touch event', async () => {
     const { world, host } = await mounted();
     const page = await FakePage.open(origin(world));

@@ -40,6 +40,11 @@ describe('vocabulary', () => {
     }
   });
 
+  it('knows lying down by its Chinese names', () => {
+    for (const z of ['趴下', '躺平', '趴着']) expect(parseActions([z]).actions).toEqual(['lie']);
+    expect(parseScript('【趴下】歇会儿').beats[0].actions).toEqual(['lie']);
+  });
+
   it('parseActions separates known from unknown words', () => {
     expect(parseActions(['跳', 'happy', 'fly', 3])).toEqual({ actions: ['jump', 'happy'], dropped: ['fly', '3'] });
   });

@@ -8,7 +8,7 @@
  * window ignores the mouse except over the figure, a bubble, the menu or the hover buttons.
  * Colors follow the World's `theme` through `data-theme` on the root element.
  */
-import { applyTheme, createPet, createSfx, clamp, f, mini, normalizeSkin, skinCss, EXPRESSIONS, HEAD_TOP, ICONS } from './pet-core.js';
+import { applyTheme, createPet, createSfx, clamp, f, mini, normalizeSkin, skinCss, EXPRESSIONS, ICONS } from './pet-core.js';
 import { loadPackFigure } from './figure-sandbox.js';
 
 const $ = (s) => document.querySelector(s);
@@ -202,7 +202,7 @@ function walk(m) {
 
 /* ---------- actions ---------- */
 const DUR = {
-  stand: 1.2, jump: 1.2, hop: .9, look: 2.7, turn: .4, nod: .8, shake: .8, spin: .8, sit: .8, sleep: .8, dizzy: 3.2,
+  stand: 1.2, jump: 1.2, hop: .9, look: 2.7, turn: .4, nod: .8, shake: .8, spin: .8, sit: .8, sleep: .8, lie: .8, dizzy: 3.2,
   wave: 1.7, bow: 1.7, shiver: 1.9, flap: 1.5, dance: 3.4, flinch: 1, peek: 2.5,
 };
 const acts = [];
@@ -1172,7 +1172,9 @@ function placeTalk(it, a) {
 
 /** Beside the body, on the right unless that runs off the screen. */
 function placeTools() {
-  const c = ctl.toStage(128, 128 + ctl.pet.low), reach = 104 * ctl.bounds.S + 10;
+  // level with the middle of the ring standing or seated, with the middle of the body lying down (and clear of it)
+  const [x0, y0, x1, y1] = ctl.bodyBox(), up = 128 + ctl.pet.low, k = ctl.lying;
+  const c = ctl.toStage((x0 + x1) / 2, up + ((y0 + y1) / 2 - up) * k), reach = (104 + ((x1 - x0) / 2 - 104) * k) * ctl.bounds.S + 10;
   const w = tools.offsetWidth, h = tools.offsetHeight;
   const left = c.x + reach + w <= innerWidth - 8 ? c.x + reach : c.x - reach - w;
   tools.style.left = f(clamp(left, 8, innerWidth - w - 8)) + 'px';
@@ -1228,8 +1230,8 @@ function inkRgb() {
 }
 /** The figure's box in page pixels, from its geometry: the halo filter would widen its client rect. */
 function bodyRect() {
-  const top = Math.min(20, HEAD_TOP[ctl.skin.head] ?? 12);
-  const pts = [[20, top], [236, top], [20, 256], [236, 256]].map(([x, y]) => ctl.toStage(x, y));
+  const [x0, y0, x1, y1] = ctl.bodyBox();
+  const pts = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([x, y]) => ctl.toStage(x, y));
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   const x = Math.min(...xs), y = Math.min(...ys);
   return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };

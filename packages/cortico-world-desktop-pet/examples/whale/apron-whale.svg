@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 124 96">
+  <!-- a round little whale facing left, its tail curling up behind into a two-lobed fluke, a three-drop spout;
+       one flat colour (currentColor) with white details -->
+  <g fill="currentColor">
+    <!-- body, from the big round head on the left to the tail stock curling up on the right -->
+    <path d="M12 61C12 43 29 33 50 33C68 33 80 41 88 49C91 52 95 51 97 47C99 43 100 39 100 36L106 37C107 43 106 50 102 56C97 66 86 76 70 79C64 80 58 81 52 81C28 81 12 75 12 61Z"/>
+    <!-- fluke: two lobes spread from the top of the stock -->
+    <path d="M103 37C99 31 93 27 86 27C90 24 96 24 101 27C102 28 103 29 103 30C104 24 109 18 117 16C115 23 111 30 106 37Z"/>
+    <!-- spout: a stem from the blowhole and three drops fanning out -->
+    <path d="M44 33C44 28 45 24 46 21C47 24 48 28 48 33Z"/>
+    <path d="M46 22C42 16 36 15 32 18C37 18 41 19 44 23Z"/>
+    <path d="M46 22C50 16 56 15 60 18C55 18 51 19 48 23Z"/>
+    <path d="M46 6C49 10 50 12 50 14A4 4 0 0 1 42 14C42 12 43 10 46 6Z"/>
+    <path d="M32 8C34 11 35 12.5 35 14A3 3 0 0 1 29 14C29 12.5 30 11 32 8Z"/>
+    <path d="M60 8C62 11 63 12.5 63 14A3 3 0 0 1 57 14C57 12.5 58 11 60 8Z"/>
+  </g>
+  <!-- belly: a pale band along the underside; the eye and a small smile -->
+  <path fill="#fff" opacity=".9" d="M19 66C29 72 43 75 57 74C72 73 85 68 94 61C88 72 74 78 56 78C37 78 24 74 19 66Z"/>
+  <circle fill="#fff" cx="32" cy="54" r="5.2"/>
+  <circle fill="currentColor" cx="31" cy="54.6" r="2.5"/>
+  <path fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" d="M21 62Q25.5 65.5 30 63"/>
+</svg>

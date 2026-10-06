@@ -947,6 +947,28 @@ describe('coaxing, a song, serving tea, a salute and a V sign', () => {
     pet.setListening(false);
   });
 
+  it('a song ends once she walks off, lies down or is picked up, and is not sung asleep; its tune is hushed', () => {
+    const hushed = [];
+    const el = () => ({ setAttribute() {}, innerHTML: '' });
+    const sfx = new Proxy({}, { get: (o, k) => (k === 'hush' ? n => hushed.push(n) : () => {}) });
+    const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    pet.resize();
+    run(pet, 1);
+    pet.act('song');
+    run(pet, .5);
+    pet.walkTo(100, false, 'w');
+    run(pet, .1);
+    expect(pet.pet.pulse).toBeNull();
+    expect(hushed).toEqual(['song']);
+    run(pet, 4);
+    pet.act('sleep');
+    run(pet, 1);
+    expect(pet.act('song')).toBe(false);
+    pet.act('sit');
+    run(pet, 1);
+    expect(pet.act('song')).toBe(true);
+  });
+
   it('a salute looks serious with the hand up and winks as it comes down', () => {
     const pet = barePet();
     run(pet, 1);

@@ -220,8 +220,8 @@ function runAction(a) {
     if (ctl.walkTo(x, a === 'run', id)) { actWait = { walkId: id }; walkTargets.set(id, true); }
     return 12;
   }
-  ctl.act(a);
-  return DUR[a] ?? 1;
+  // (a motion she cannot take now holds the queue only a moment)
+  return ctl.act(a) === false ? .3 : DUR[a] ?? 1;
 }
 function stepActs() {
   const now = ctl.time;

@@ -612,7 +612,11 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
     if (filter) { const bq = c.createBiquadFilter(); bq.type = 'lowpass'; bq.frequency.value = filter; o.connect(bq); node = bq; }
     node.connect(g); g.connect(master);
     o.start(t0); o.stop(t0 + dur + .03);
+    if (tagged) tagged.push({ o, g });
   }
+  // the tones of a sound that can be hushed before it ends (a song), while it is being scheduled
+  let tagged = null;
+  const held = {};
   function noise({ type = 'bandpass', f0 = 1000, f1 = f0, q = 1, dur = .2, vol = .15, at = 0, attack = .01 }) {
     const c = ready(); if (!c) return;
     if (!noiseBuf) {
@@ -687,10 +691,21 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
     },
     // a whale's song: a soft, low call sliding up and back down, twice, quiet enough not to startle anyone
     song() {
+      held.song = tagged = [];
       for (let i = 0; i < 2; i++) {
         tone({ type: 'sine', f0: 220, f1: 330, dur: .9, vol: .045, vib: 6, vibRate: 5, attack: .3, at: .3 + i * 1.6 });
         tone({ type: 'sine', f0: 330, f1: 247, dur: .7, vol: .035, vib: 5, vibRate: 4, attack: .2, at: 1.2 + i * 1.6 });
       }
+      tagged = null;
+    },
+    /** Fades out what is left of a sound that can be cut short (`song`). */
+    hush(name) {
+      const c = ctx, list = held[name];
+      if (!c || !list) return;
+      for (const { o, g } of list) {
+        try { g.gain.cancelScheduledValues(c.currentTime); g.gain.setTargetAtTime(.0001, c.currentTime, .05); o.stop(c.currentTime + .3); } catch (e) { /* already stopped */ }
+      }
+      held[name] = null;
     },
     // a cup set down on its saucer; a crisp heel-click; a bright little "cheese!"
     clink() { tone({ f0: 2400, f1: 2300, dur: .12, vol: .05 }); tone({ f0: 3100, f1: 3000, dur: .1, vol: .035, at: .09 }); },
@@ -894,8 +909,9 @@ export function createPet(els, opts) {
     }
     // a flinch's step back is over once anything but standing takes over (a walk, a drag, a fall)
     if (pet.pulse?.kind === 'flinch' && m !== 'idle') pet.pulse.dx = 0;
-    // ...and a roll is over (picked up mid-roll, say)
+    // ...and a roll is over (picked up mid-roll, say); a song ends once she does anything but stand or sit
     if (pet.pulse?.kind === 'roll' && m !== 'idle') pet.pulse = null;
+    if (pet.pulse?.kind === 'song' && m !== 'idle' && m !== 'sit') endSong();
     // a back turned in a huff lasts through standing and sitting about; anything else turns her round again
     if (pet.pulse?.kind === 'away' && m !== 'idle' && m !== 'sit' && m !== 'sleep') pet.pulse = null;
     pet.mode = m; pet.modeT = 0; pet.turned = false; pet.startle = false; pet.skid = false; pet.cue = 0;
@@ -920,6 +936,8 @@ export function createPet(els, opts) {
   /** Runs a motion. Returns false when the body cannot take it now (in the air, being dragged). */
   function act(a) {
     if (busy()) return false;
+    // (a song needs her standing or sitting, awake and not being talked to)
+    if (a === 'song' && (pet.listening || (pet.mode !== 'idle' && pet.mode !== 'sit'))) return false;
     // (an asked-for expression still showing, not a motion's own face: hands on hips keeps it)
     const prevExpr = pet.exprOwn ? null : pet.expr, prevUntil = pet.exprUntil;
     pet.expr = null; pet.lastAct = a;
@@ -982,7 +1000,7 @@ export function createPet(els, opts) {
       // hands pressed together, pleading (also thanks or sorry); a sheepish scratch at the head when praised;
       // a finger up as an idea lands, a bulb lighting over her head; open arms for a hug
       // a whale's song: eyes shut, swaying, rings of sound spreading out and notes rising (not while someone is talking to her)
-      case 'song': if (pet.listening) return false; pulse('song', 4); holdFace('singing', 4.1); sfx.song(); break;
+      case 'song': pulse('song', 4); holdFace('singing', 4.1); sfx.song(); break;
       // a cup of tea on a tray offered to you; a crisp salute (yes ma'am); a V sign by her cheek, with a wink and a glint
       case 'serve': pulse('serve', 2.6); holdFace('gentle', 2.7); sfx.clink(); break;
       case 'salute': pulse('salute', 1.8); holdFace('saluting', 1.9); sfx.snap(); break;
@@ -1011,7 +1029,9 @@ export function createPet(els, opts) {
     }
     return true;
   }
-  function pulse(kind, dur) { pet.pulse = { kind, t0: T, dur }; }
+  function pulse(kind, dur) { if (pet.pulse?.kind === 'song' && kind !== 'song') sfx.hush?.('song'); pet.pulse = { kind, t0: T, dur }; }
+  /** Stops a song: its rings and notes, its face, and what is left of its tune. */
+  function endSong() { pet.pulse = null; if (pet.expr === 'singing') pet.expr = null; sfx.hush?.('song'); }
   /** A motion's own face, without the expression's sound and bounce (act() has just cleared any held face). */
   function holdFace(n, seconds) { pet.expr = n; pet.exprAt = T; pet.exprUntil = T + seconds; pet.exprOwn = true; pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); }
 
@@ -1305,7 +1325,7 @@ export function createPet(els, opts) {
     }
     // a song: someone starting to talk to her ends it; while it lasts, rings of sound spread from her and notes rise
     if (pet.pulse?.kind === 'song') {
-      if (pet.listening) { pet.pulse = null; pet.expr = null; }
+      if (pet.listening) endSong();
       else if (T > pet.noteAt) {
         const [x, y] = ancPt('gaze'), e = envelope((T - pet.pulse.t0) / pet.pulse.dur, .08, .9);
         if (e > .3) {

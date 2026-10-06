@@ -494,7 +494,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const a0 = o.a ?? .95, len = o.len ?? 1, wk = o.w ?? 1;
     fg.save();
     EYES.forEach((k, i) => {
-      const e = EYE[k], [bx0, , bx1, by1] = e.ball, w = (bx1 - bx0) * (k === 'eyeL' ? .22 : .2);
+      const e = EYE[k], [bx0, , bx1, by1] = e.ball, w = (bx1 - bx0) * (k === 'eyeL' ? .22 : .2) * wk;
       // from just under the shut lid, narrow where it wells up and widening as it runs down
       // (painted before the eyes, so the shut lid's lashes lie over its top; it stops above the jaw under each eye)
       const x = bx0 + (bx1 - bx0) * (k === 'eyeL' ? .55 : .5) - FACE.x, y0 = by1 - 6 - FACE.y;
@@ -542,13 +542,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       }
     });
     // mouth: talking opens the happy mouth about its middle, which stays on the mouth line; otherwise the face's own
-    const talk = o.talk || 0;
+    // (stone does not talk)
+    const talk = face === 'petrify' ? 0 : o.talk || 0;
     const gapOpen = clamp((Math.max(fc.gap[0], fc.gap[1]) - 50) / 14, 0, 1);
     const m = MOUTH[face] ?? 'neutral_mouth';
     const open = Math.max(talk * (.45 + .45 * Math.abs(Math.sin(t * 17))), face === 'sleepy' || face === 'waking' ? gapOpen : 0);
     if (open > .12) sprite(face === 'surprised' ? 'surprised_mouth' : 'happy_mouth', { sy: .35 + .65 * open, sx: .85 + .15 * open });
     // breathing out a sigh, a small round "ha"
-    else if (fc.puff > .1) sprite('surprised_mouth', { s: .3 + .15 * fc.puff });
+    else if (fc.puff > .1) sprite('surprised_mouth', { s: .55 + .25 * fc.puff });
     else if (typeof m === 'number') lineMouth(m);
     else if (Array.isArray(m) && typeof m[0] === 'number') lineMouth(m[0], m[1]);
     else if (Array.isArray(m)) sprite(m[0], { s: m[1] });
@@ -644,8 +645,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   let steam = 0, steamAt = null;
   // how far a sigh's breath has gone out (0..1), for its little clouds
   let puffK = 0;
-  // whether a frame has been drawn yet, and whether it hid the standing rig (a frozen frame draws it again as it was)
-  let drewOnce = false, lastHidden = false;
+  // whether the last frame may be held as stone, whether it hid the standing rig (a frozen frame draws it again as it was),
+  // and how grey she is
+  let frozenOK = false, lastHidden = false, stoneK = 0;
   let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0, backA = 0, awayA = 0;
   const st = { z: {}, alpha: {} };
 
@@ -692,8 +694,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     lastT = t;
     // turned to stone (petrify's `freeze`) she holds still: the last pose is drawn again, face and all, and only the
     // grey and the crack change; the springs and clocks pick up where they were once she thaws
-    if (fc.freeze && drewOnce) {
-      st.stone = fc.stone || 0;
+    if (fc.freeze && frozenOK) {
+      stoneK = fc.stone || 0; st.stone = stoneK;
+      // (a dress picked meanwhile waits: its crossfade starts once she thaws)
+      if (fade && fade.t0 != null) fade.t0 += dt;
       rig.render(st, lastHidden ? { hidden: STANDING } : undefined);
       if (opts.raster) { fo.setAttribute('href', canvas.toDataURL('image/png')); decoded = fo.decode ? fo.decode().catch(() => {}) : null; }
       drawFx(fc, t);
@@ -1013,8 +1017,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
         rig.upload('faceFx@mix', faceCv2);
       }
     }
-    st.stone = fc.stone || 0;
-    lastHidden = hideFront; drewOnce = true;
+    // the grey follows the face, but going back to colour takes at least .4 s (a petrify cut short does not snap back)
+    stoneK = Math.max(fc.stone || 0, stoneK - dt / .4); st.stone = stoneK;
+    // a frame fit to hold as stone: the petrify face itself, eyes open, not talking
+    lastHidden = hideFront; frozenOK = face === 'petrify' && !(o.blink > .02) && !(o.eyeClose > .02) && !(o.talk > .05);
     rig.render(st, hideFront ? { hidden: STANDING } : undefined);
     if (opts.raster) { fo.setAttribute('href', canvas.toDataURL('image/png')); decoded = fo.decode ? fo.decode().catch(() => {}) : null; }
     if (fade && st.mix >= 1) endFade();
@@ -1094,8 +1100,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       // the breath of a sigh: two little clouds drifting out from the mouth, forward and down, fading
       const m = rig.point('headFeat', st, U(780), V(790));
       for (let i = 0; i < 2; i++) {
-        const q = clamp(puffK * 1.3 - i * .3, 0, 1), x = m[0] + 6 + 16 * q, y = m[1] + 2 + 7 * q, r = 2.5 + 2.5 * q;
-        if (q > 0) s += `<g opacity="${f1(.8 * Math.sin(Math.PI * q))}" fill="#fff" stroke="#9aa6c4" stroke-width=".8"><circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(r)}"/><circle cx="${f1(x + r * .9)}" cy="${f1(y + r * .3)}" r="${f1(r * .7)}"/></g>`;
+        const q = clamp(puffK * 1.3 - i * .3, 0, 1), x = m[0] + 8 + 20 * q, y = m[1] + 3 + 9 * q, r = 5 + 5 * q;
+        if (q > 0) s += `<g opacity="${f1(.9 * Math.sin(Math.PI * q))}" fill="#fff" stroke="#8a93b0" stroke-width="1.8"><circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(r)}"/><circle cx="${f1(x + r * .9)}" cy="${f1(y + r * .3)}" r="${f1(r * .7)}"/></g>`;
       }
     }
     const top = at(124, 34), side = at(204, 52);
@@ -1178,7 +1184,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; drewOnce = false;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

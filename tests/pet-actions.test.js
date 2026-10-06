@@ -808,6 +808,18 @@ describe('a sigh, happy tears and turning to stone', () => {
     expect(op(moved.html)).toBeLessThan(op(cry.html));
   });
 
+  it('turned to stone does not turn round to the pointer behind it', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.pet.facing = 1;
+    pet.setExpr('petrify');
+    run(pet, .4);
+    const p = pet.toStage(128, 128);
+    pet.pointerMove({ x: p.x - 200, y: p.y });
+    run(pet, 1.5);
+    expect(pet.pet.facing).toBe(1);
+  });
+
   it('turned to stone holds still without blinking, cracks once, and thaws before the face ends', () => {
     const pet = barePet();
     run(pet, 1);
@@ -829,9 +841,14 @@ describe('a sigh, happy tears and turning to stone', () => {
       pet.step(1 / 60); pet.render(); blinks.push(pet.pet.blinkAge);
       chips = Math.max(chips, (pet.fxHtml().match(/fill="#c9ccd4"/g) || []).length);
     }
-    expect(new Set(blinks).size).toBe(1);
+    // (no new blink starts: the blink clock only runs on)
+    for (let i = 1; i < blinks.length; i++) expect(blinks[i]).toBeGreaterThan(blinks[i - 1]);
     expect(pet.pet.look).toEqual(look);
     expect(chips).toBe(5);
+    // asked again while stone, she stays as she is: no colour flash, no second crack
+    const at0 = pet.pet.exprAt;
+    pet.setExpr('petrify');
+    expect(pet.pet.exprAt).toBe(at0);
     run(pet, 3);
     expect(pet.fxHtml()).not.toContain('#c9ccd4');
     expect(SOUND_KINDS.face).toContain('crack');

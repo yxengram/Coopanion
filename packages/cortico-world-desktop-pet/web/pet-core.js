@@ -284,7 +284,7 @@ export const FACES = {
     const s = t - (p ? p.exprAt : 0), left = p ? p.exprUntil - t : 9, crack = smooth(clamp((s - 1.1) / .4, 0, 1));
     return {
       gap: [40, 40], eyes: [ring({ rx: 17, ry: 18 }), ring({ rx: 17, ry: 18 })], wide: true, gloom: true,
-      stone: smooth(clamp((s - .15) / .35, 0, 1)) * smooth(clamp(left / .5, 0, 1)), freeze: s > .3 && left > .6, crack: left > .6 ? crack : 0,
+      stone: smooth(clamp((s - .15) / .35, 0, 1)) * smooth(clamp(left / .5, 0, 1)), freeze: s > .3 && left > .6, crack: crack * smooth(clamp(left / .5, 0, 1)),
       shake: s > 1.1 && s < 1.35 ? 1.6 : 0,
     };
   } },
@@ -403,13 +403,20 @@ export function figure(fc, o) {
   s += faceG(fx);
   if (o.zmark) s += '<path class="eye" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" d="M204 22H220L204 42H220M226 4H236L226 16H236"/>';
   s += propD(g, t);
+  if (fc.crack > .01) {
+    // turned to stone: a crack splitting the top of the ring, running down as it goes
+    s += `<path fill="none" stroke="#f2f3f6" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" pathLength="1" stroke-dasharray="${f(fc.crack)} 1" d="M120 18L135 32L121 45L137 58L127 70"/>`;
+  }
   s += '</g>';
+  // ...and gone grey
+  if (fc.stone > .01) s = `<g style="filter:grayscale(${f(fc.stone)}) brightness(${f(1 + .5 * fc.stone)})">${s}`;
   if (L > .02) {
     // two round paws on the floor in front, the chin (the lower tip) on the first; bobbing as she talks and slapping
     // down for the thump fidget
     const py = -1.5 * (o.talk || 0) - (g?.kind === 'thump' ? 5 * gs : 0);
     s += `</g><path class="ink" fill="none" stroke-width="24" stroke-linecap="round" opacity="${f(clamp((L - .02) * 4, 0, 1))}" d="M196 ${f(244 + py)}h${f(16 * L)}M222 ${f(244 + py)}h${f(16 * L)}"/>`;
   }
+  if (fc.stone > .01) s += '</g>';
   return s;
 }
 
@@ -784,7 +791,7 @@ export function createPet(els, opts) {
     eyeSig: '', eyeCur: null, eyePrev: null, eyeDims: [[16, 16, 0, 0], [16, 16, 0, 0]], swapAge: 9,
     glance: [0, 0], glanceAt: 0, swing: 0, swingV: 0, prevA: null, velX: 0, talkK: 0, sfxAt: 0, skid: false, cue: 0,
     pulse: null, walkId: 0, listening: false, thinking: false, placed: false, noteAt: 0, tearN: 0, exprAt: 0,
-    lieK: 0, prone: false, fidgetAt: 0, kickPh: 0, backK: 0, awayK: 0,
+    lieK: 0, prone: false, fidgetAt: 0, kickPh: 0, backK: 0, awayK: 0, breathK: 1,
   };
   const pointer = { x: -1e4, y: -1e4, inside: false, vx: 0, samples: [] };
   let press = null, strokeAcc = 0, petCool = 0;
@@ -939,12 +946,12 @@ export function createPet(els, opts) {
         Object.assign(pet.pulse, { x0: pet.x, dx: pet.facing * clamp(room(pet.facing), 0, far) });
         holdFace('happy', 1.9); sfx.roll(); break;
       }
-      // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
-      // (a figure with hands draws them; Coo holds a little one of its own)
-      // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       // a sigh: drawing a breath, then sagging as it goes out
       case 'sigh': pulse('sigh', 2); holdFace('sighing', 2.1); sfx.sigh(); break;
+      // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9); sfx.spout(); break;
+      // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
+      // (a figure with hands draws them; Coo holds a little one of its own)
       case 'sip': pulse('sip', 3.6); holdFace('sipping', 3.7); sfx.sip(); break;
       case 'read': pulse('read', 4.4); holdFace('reading', 4.4); sfx.page(); break;
       default: return false;
@@ -966,6 +973,8 @@ export function createPet(els, opts) {
     }
     if (n === 'dizzy') { pet.expr = null; setMode('dizzy'); return; }
     if (pet.mode === 'look' || pet.mode === 'land') setMode('idle');
+    // asked again while already stone, she stays as she is (starting over would flash her colour back)
+    if (n === 'petrify' && pet.expr === 'petrify' && T < pet.exprUntil) return;
     // turned to stone she stops where she is
     if (n === 'petrify' && (pet.mode === 'walk' || pet.mode === 'run' || pet.mode === 'dance')) setMode('idle');
     pet.expr = n; pet.exprAt = T; pet.exprUntil = T + (seconds ?? (n === 'sleepy' ? 4.4 : 3.2));
@@ -1056,8 +1065,9 @@ export function createPet(els, opts) {
     let tk = 160, tc = 12, drowseT = 0;
     const free = roam !== 'off' && T > hold && !opts.dialogOpen?.();
 
-    // (stone does not blink)
-    if (!pet._fc?.freeze) { pet.blinkT -= dt; pet.blinkAge += dt; }
+    // (stone starts no new blink; one already under way finishes)
+    pet.blinkAge += dt;
+    if (!pet._fc?.freeze) pet.blinkT -= dt;
     if (pet.blinkT <= 0) { pet.blinkAge = 0; pet.blinkT = Math.random() < .2 ? .28 : rnd(2.2, 5.2); }
 
     const head = toStage(...ancPt('gaze', 0));
@@ -1075,7 +1085,7 @@ export function createPet(els, opts) {
       case 'idle': {
         lookT = track();
         // (not while she has her back turned on purpose)
-        if (pointer.inside && !press && pet.pulse?.kind !== 'away' && pet.pulse?.kind !== 'roll' && pdx * pet.facing < -50 && pm < 600) {
+        if (pointer.inside && !press && pet.pulse?.kind !== 'away' && pet.pulse?.kind !== 'roll' && !pet._fc?.freeze && pdx * pet.facing < -50 && pm < 600) {
           pet.turnAcc += dt;
           if (pet.turnAcc > .9) { pet.facing *= -1; pet.turnAcc = 0; }
         } else pet.turnAcc = 0;
@@ -1246,7 +1256,8 @@ export function createPet(els, opts) {
       if (k > .3 && k < .55 && T >= (pet.pulse.sprayAt ?? 0)) {
         pet.pulse.sprayAt = T + 1 / 30;
         const [x, y] = spoutPt(), g = SPRAY_G * S, h = rnd(55, 95) * S;
-        emit('spray', toStage(x, y - 80 * spoutCol(k).h), { vx: rnd(-1, 1) * 110 * S, vy: -Math.sqrt(2 * g * h) * .5, life: 1.4, r: rnd(.7, 1.2) });
+        // fanning out to either side, so the beads fall beside her like a fountain's, not down her face
+        emit('spray', toStage(x, y - 80 * spoutCol(k).h), { vx: (Math.random() < .5 ? -1 : 1) * rnd(80, 160) * S, vy: -Math.sqrt(2 * g * h) * .5, life: 1.4, r: rnd(.7, 1.2) });
       }
     }
     // a roll carries the body along the floor as it turns, whatever figure draws it
@@ -1277,11 +1288,12 @@ export function createPet(els, opts) {
       else if (pet.pulse.kind === 'roll') sqT += .22 * Math.sin(Math.PI * clamp(k / .22, 0, 1)) - .12 * Math.sin(Math.PI * clamp((k - .8) / .2, 0, 1));
       else if (pet.pulse.kind === 'sip') { const e = envelope(k, .1, .9); leanT += 3 * e + 4 * envelope(clamp((k - .38) / .26, 0, 1), .3, .6); }
       else if (pet.pulse.kind === 'read') leanT += 4 * envelope(k, .1, .9);
-      // crouching to gather it, springing up as it goes
+      // a breath drawn in (taller), then let out (sagging, leaning in)
       else if (pet.pulse.kind === 'sigh') {
         const inh = envelope(clamp(k / .45, 0, 1), .5, .7), exh = envelope(clamp((k - .35) / .6, 0, 1), .3, .7);
         sqT += -.05 * inh + .07 * exh; leanT += 6 * exh;
       }
+      // crouching to gather a spout, springing up as it goes
       else if (pet.pulse.kind === 'spout') sqT += .16 * Math.sin(Math.PI * clamp(k / .25, 0, 1)) - .1 * Math.sin(Math.PI * clamp((k - .25) / .15, 0, 1));
       else if (pet.pulse.kind === 'flap') { tiltT += 7 * Math.sin(k * Math.PI * 8) * (1 - k); sqT -= .06 * Math.abs(Math.sin(k * Math.PI * 8)) * (1 - k); }
       else if (pet.pulse.kind === 'spin' && k > .5 && !pet.pulse.flipped) { pet.pulse.flipped = true; pet.facing *= -1; }
@@ -1312,6 +1324,8 @@ export function createPet(els, opts) {
       return { ...e, rx: d[0], ry: d[1], dx: d[2], dy: d[3] };
     });
     pet.blushK = lerp(pet.blushK, fc.blush || 0, ease(6, dt));
+    // breathing stops (and starts again) smoothly around being turned to stone
+    pet.breathK = lerp(pet.breathK, fc.freeze ? 0 : 1, ease(8, dt));
 
     // springs & easing
     pet.sqv += ((sqT - pet.sq) * 280 - pet.sqv * 14) * dt;
@@ -1432,7 +1446,7 @@ export function createPet(els, opts) {
   function render() {
     const fc = pet._fc || FACES.neutral.f(0), fname = pet._fname || 'neutral';
     const drag = pet.mode === 'drag';
-    const br = fc.freeze ? 0 : Math.sin(T * (pet.mode === 'sleep' ? 1.7 : 2.4));
+    const br = Math.sin(T * (pet.mode === 'sleep' ? 1.7 : 2.4)) * pet.breathK;
     const sx = (1 + pet.sq * .7) * (1 - .05 * pet.stretch) * (1 - .009 * br);
     const sy = (1 - pet.sq) * (1 + .09 * pet.stretch) * (1 + .016 * br);
     const ax = 128, ay = drag ? 36 : 256;
@@ -1500,7 +1514,7 @@ export function createPet(els, opts) {
         s += `<path class="tearf" transform="translate(${f(p.x)} ${f(p.y)}) scale(${f(.9 * sc)})" d="${DROP}"/>`;
       } else if (p.type === 'chip') {
         // a small grey shard of stone, tumbling
-        s += `<path fill="#c9ccd4" stroke="#6b7080" stroke-width="${f(1 * sc)}" stroke-linejoin="round" opacity="${f(1 - a * a)}" transform="translate(${f(p.x)} ${f(p.y)}) rotate(${f(p.r * 60 + p.age * 400)}) scale(${f(sc)})" d="M-4 -3L3 -4L5 2L-1 4Z"/>`;
+        s += `<path fill="#c9ccd4" stroke="#6b7080" stroke-width="1" stroke-linejoin="round" opacity="${f(1 - a * a)}" transform="translate(${f(p.x)} ${f(p.y)}) rotate(${f(p.r * 60 + p.age * 400)}) scale(${f(sc)})" d="M-4 -3L3 -4L5 2L-1 4Z"/>`;
       } else if (p.type === 'spray') {
         // a round bead of water with a highlight: not a tear's drop shape, so a spout does not read as crying
         const r = 3.2 * p.r * sc;

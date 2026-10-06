@@ -211,7 +211,8 @@ function runAction(a) {
   if (EXPRESSIONS.includes(a)) {
     if (a === 'neutral') ctl.setExpr('neutral', .1);
     else ctl.setExpr(a);
-    return .9;
+    // (being turned to stone plays out whole, crack and thaw, before the next action takes the body)
+    return a === 'petrify' ? 3.2 : .9;
   }
   if (a === 'walk' || a === 'run') {
     const id = 'act' + Math.random().toString(36).slice(2);

@@ -88,6 +88,10 @@ pet-core 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎
 喷水（`spout`，约 1.6 秒）由 pet-core 画，任何模型都一样：先蹲一下，`k` 约 0.25 起从 `anchors.spout`（没给就在 `bubble` 下面一点；趴着用 `anchors.lie.spout`）
 往上喷出一根水柱，到 0.45 前后散开，水珠（`spray` 粒子，圆珠带高光，和眼泪的形状分开）按重力落回地面；水用固定的蓝白色，不跟配色走。
 大肥鱼自己画蹲和弹起、鲸鳍张开扑动、呆毛被顶起来、尾巴一甩；她的喷水点在呆毛后面的头顶，趴着时在趴姿头顶。
+拜托（`pray`）、叉腰（`hips`）、抱抱（`hug`）和喝茶、看书一样，是一张两条前臂一起画的图（`poses.pray` / `.hips` / `.hug`），按比心的方式交接：
+拜托时合十的手跟着节奏一下一下往上拜，脸是 `pleading`（亮晶晶地往上看）；叉腰沿用她当时的表情（生气、得意、认真），没有就一脸认真；抱抱时双臂微微摆开，脸是温柔。
+挠头（`scratch`）和有了（`idea`）举起的是近侧手臂，按欢呼的方式交接：握拳手臂先抬到 80°，差约 15° 时换成画的那张，画的手臂再抬到自己的角度（`rest`），
+同样画两份（整条手臂在原手臂的层、手和小臂再画一份在头部之上）。挠头时手在头侧一下一下地挠；有了时食指往上一戳，pet-core 在头顶冒一个亮起来的灯泡（`bulb` 粒子，任何模型都有）。
 叹气（`sigh`，约 2 秒）：前 0.35 先吸一口气（眼睛睁大往上看，上身挺一点），之后长长呼出来：半闭眼、八字眉、嘴是小小的「哈」（脸的 `puff`），
 上身和头往前一塌，鲸鳍和尾巴垂下，嘴前飘出两小团白气。脸 `sighing` 按 pet-core 的 `pulse` 计时，叹气被别的动作打断就回到平常的脸。
 转身和转圈转到侧对你的那一下（`facing` 绝对值小于约 0.45），以及背过身（`away`）时，换成背面那张画；站着时才有（坐着、趴着照旧），
@@ -113,7 +117,7 @@ pet-core 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎
 程序按「编辑图 = Logo × α + 空白布面 × (1 − α)」把 Logo 抠出来，贴到站姿裙子上，再按两张图里鲸鱼的位置换算贴到坐姿下半身上。
 Harness 的黑鲸是原鲸鱼的形状改成黑灰色。
 
-新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
+新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
 `model.json` 的 `poses`）也来自 ChatGPT 的图像模型（gpt-image-2.5，经本地代理用 ChatGPT 订阅调用），和原来的贴图同源：
 把站姿渲染成一张参考图，对它做编辑。先试过本地的 FLUX.2-klein-4B，画风和比例都不如它（手画得太大，趴姿的头发变短）。
 - 手臂：编辑只改手臂（举到头边张开手掌、托着下巴、双手举到头两侧、双手在胸前比心）。输出比参考图大约 1%，缩放回参考图尺寸再配准；

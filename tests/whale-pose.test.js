@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, RAISE_TO, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -578,5 +578,46 @@ describe('a roll, as the whale draws it', () => {
     expect(rollTurn(.835)).toBe(1);
     expect(ballLift(ROLL.support, 360)).toBeCloseTo(ROLL.support[0], 5);
     expect(ballLift(ROLL.support, -5)).toBeCloseTo(ROLL.support[71], 5);
+  });
+});
+
+describe('hands pressed together, on the hips and held out; a hand at the head and a finger up, as the whale draws them', () => {
+  const z = id => model.parts.find(p => p.id === id).z;
+
+  it('has every file in every scheme, sized to its box', () => {
+    for (const pose of [...Object.values(BOTH_HANDS), ...Object.values(NEAR_RAISES)]) {
+      for (const p of model.poses[pose].required) for (const id of SCHEMES) expectFile(id, p);
+    }
+  });
+
+  it('draws both-hand poses over the bodice and face, under the fringe, riding the upper body', () => {
+    for (const pose of ['pray', 'hips', 'hug']) {
+      const P = model.poses[pose], [arm] = P.required, [x, , w] = arm.box;
+      expect(arm.parent, pose).toBe(Object.keys(P.pivots)[0]);
+      // across her middle (pressed hands are narrower than the shoulders; hips and a hug reach past them)
+      expect(x, pose).toBeLessThan(128);
+      expect(x + w, pose).toBeGreaterThan(128);
+      if (pose !== 'pray') { expect(x, pose).toBeLessThan(model.pivots.armNear[0]); expect(x + w, pose).toBeGreaterThan(model.pivots.armFar[0]); }
+      expect(arm.z, pose).toBeGreaterThan(Math.max(z('torso_up'), z('arm_near'), z('face')));
+      expect(arm.z, pose).toBeLessThan(z('bangs'));
+    }
+  });
+
+  it('raises the near arm from its shoulder to the drawn hand: `rest` points the fist arm the same way, the hand is at `wrist`', () => {
+    for (const pose of Object.values(NEAR_RAISES)) {
+      const P = model.poses[pose], [sx, sy] = Object.values(P.pivots)[0], [wx, wy] = P.wrist;
+      // the fist arm hangs straight down at 0°; turned by `rest` it points from the shoulder at the drawn wrist
+      const a = P.rest * Math.PI / 180;
+      expect(Math.hypot(-Math.sin(a) - (wx - sx) / Math.hypot(wx - sx, wy - sy), Math.cos(a) - (wy - sy) / Math.hypot(wx - sx, wy - sy)), pose).toBeLessThan(.03);
+      expect(P.rest, pose).toBeGreaterThan(RAISE_TO);
+      // two copies: the whole arm with the plain arms, the hand again over the head
+      const [whole, top] = P.required;
+      expect(top.z, pose).toBeGreaterThan(z('bangs'));
+      expect(whole.z, pose).toBeLessThan(z('face'));
+      for (const id of SCHEMES) {
+        const [hx, hy] = skinOf(id, whole);
+        expect(Math.hypot(hx - wx, hy - wy), `${pose} ${id}`).toBeLessThan(14);
+      }
+    }
   });
 });

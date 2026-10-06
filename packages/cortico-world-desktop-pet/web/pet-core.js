@@ -302,6 +302,8 @@ export const FACES = {
     const r = 14 - 8 * smooth(clamp((k - .35) / .25, 0, 1));
     return { gap: [46, 46], eyes: [{ shape: 'lid', ry: r }, { shape: 'lid', ry: r }], brows: 'sad', lookAt: [0, 2], puff: Math.sin(Math.PI * clamp((k - .38) / .4, 0, 1)) };
   } },
+  // ...pleading with hands pressed together: big shining eyes looking up at you
+  pleading:  { label: '拜托', f: () => ({ gap: [44, 44], eyes: [ring({ rx: 17, ry: 18 }), ring({ rx: 17, ry: 18 })], sparkle: true, blush: .4, lookAt: [0, -2] }) },
   // ...reading: eyes down on the page, running along a line and back to the start of the next
   reading:   { label: '看书', f: t => ({ gap: [48, 48], eyes: [{ shape: 'lid', ry: 11 }, { shape: 'lid', ry: 11 }], lookAt: [-3.5 + 7 * ((t * .55) % 1), 3.5] }) },
   confused:  { label: '疑惑', kao: '(0 o ?', f: () => ({ gap: [44, 40], eyes: [ring(), ring({ rx: 14, ry: 11 })], question: true }) },
@@ -553,7 +555,7 @@ export function applyTheme(theme, button) {
 /* ---------- sound: synthesized with Web Audio, no files ---------- */
 /** Which kind each sound belongs to; a kind can be silenced on its own (`sfx.configure`). */
 export const SOUND_KINDS = {
-  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout', 'sigh'],
+  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout', 'sigh', 'ding'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
   face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe', 'crack'],
   snore: ['snore'],
@@ -668,6 +670,8 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
       noise({ f0: 700, f1: 1500, q: 3, dur: .3, vol: .05, at: 1.55 });
       tone({ type: 'triangle', f0: 440, f1: 392, dur: .35, vol: .07, at: 2.1 });
     },
+    // an idea: a bright little two-note ding
+    ding() { tone({ type: 'triangle', f0: 1320, dur: .12, vol: .1 }); tone({ type: 'triangle', f0: 1760, dur: .25, vol: .09, at: .1 }); },
     // a sigh: a short breath in, then a long, soft breath out
     sigh() {
       noise({ type: 'lowpass', f0: 400, f1: 900, dur: .35, vol: .035, attack: .12 });
@@ -739,7 +743,8 @@ export const rollTurn = k => smooth(clamp((k - .2) / .6, 0, 1));
 export const ROLL_D = 2 * Math.PI * 100;
 /** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
-  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh'];
+  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh',
+  'pray', 'scratch', 'idea', 'hips', 'hug'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
 /** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
@@ -889,6 +894,7 @@ export function createPet(els, opts) {
   /** Runs a motion. Returns false when the body cannot take it now (in the air, being dragged). */
   function act(a) {
     if (busy()) return false;
+    const prevExpr = pet.expr, prevUntil = pet.exprUntil;
     pet.expr = null; pet.lastAct = a;
     const seated = REST.has(pet.mode);
     switch (a) {
@@ -945,6 +951,17 @@ export function createPet(els, opts) {
         pulse('roll', 1.5);
         Object.assign(pet.pulse, { x0: pet.x, dx: pet.facing * clamp(room(pet.facing), 0, far) });
         holdFace('happy', 1.9); sfx.roll(); break;
+      }
+      // hands pressed together, pleading (also thanks or sorry); a sheepish scratch at the head when praised;
+      // a finger up as an idea lands, a bulb lighting over her head; open arms for a hug
+      case 'pray': pulse('pray', 2.2); holdFace('pleading', 2.3); sfx.shy(); break;
+      case 'scratch': pulse('scratch', 2.1); holdFace('happy', 2.2); sfx.hehe(); break;
+      case 'idea': pulse('idea', 1.8); holdFace('excited', 1.9); break;
+      case 'hug': pulse('hug', 2.6); holdFace('gentle', 2.7); sfx.soft(); break;
+      // hands on hips goes with whatever face she had (cross, smug, determined), or a determined one
+      case 'hips': {
+        const keep = prevExpr && T < prevUntil ? prevExpr : 'determined';
+        pulse('hips', 2.5); holdFace(keep, Math.max(2.6, keep === prevExpr ? prevUntil - T : 0)); sfx.huff(); break;
       }
       // a sigh: drawing a breath, then sagging as it goes out
       case 'sigh': pulse('sigh', 2); holdFace('sighing', 2.1); sfx.sigh(); break;
@@ -1250,6 +1267,12 @@ export function createPet(els, opts) {
     if (pet.pulse?.kind === 'flinch' && pet.pulse.dx && m === 'idle') {
       pet.x = clamp(pet.pulse.x0 + pet.pulse.dx * smooth(clamp((T - pet.pulse.t0) / (pet.pulse.dur * .22), 0, 1)), minX(), maxX());
     }
+    // an idea lights a bulb over the head as the finger goes up
+    if (pet.pulse?.kind === 'idea' && !pet.pulse.lit && (T - pet.pulse.t0) / pet.pulse.dur > .25) {
+      pet.pulse.lit = true; sfx.ding();
+      const [bx, by] = proneK() > .5 ? lieSet().bubble : [A.bubble[0], A.bubble[1] + pet.low];
+      emit('bulb', toStage(bx, by + 10), { vy: -12, life: 1.2 });
+    }
     // a spout throws spray up out of the column as it breaks, whatever figure draws it (it falls back under gravity)
     if (pet.pulse?.kind === 'spout') {
       const k = (T - pet.pulse.t0) / pet.pulse.dur;
@@ -1293,6 +1316,12 @@ export function createPet(els, opts) {
         const inh = envelope(clamp(k / .45, 0, 1), .5, .7), exh = envelope(clamp((k - .35) / .6, 0, 1), .3, .7);
         sqT += -.05 * inh + .07 * exh; leanT += 6 * exh;
       }
+      // pleading bows twice; a scratch tips the head; an idea pops up; hands on hips leans back, chest out; a hug leans in
+      else if (pet.pulse.kind === 'pray') leanT += 5 * envelope(k, .15, .85) * (.6 + .4 * Math.sin(k * Math.PI * 8));
+      else if (pet.pulse.kind === 'scratch') tiltT += 6 * envelope(k, .15, .85);
+      else if (pet.pulse.kind === 'idea') sqT -= .1 * Math.sin(Math.PI * clamp((k - .2) / .2, 0, 1));
+      else if (pet.pulse.kind === 'hips') leanT -= 4 * envelope(k, .1, .85);
+      else if (pet.pulse.kind === 'hug') leanT += 5 * envelope(k, .15, .85);
       // crouching to gather a spout, springing up as it goes
       else if (pet.pulse.kind === 'spout') sqT += .16 * Math.sin(Math.PI * clamp(k / .25, 0, 1)) - .1 * Math.sin(Math.PI * clamp((k - .25) / .15, 0, 1));
       else if (pet.pulse.kind === 'flap') { tiltT += 7 * Math.sin(k * Math.PI * 8) * (1 - k); sqT -= .06 * Math.abs(Math.sin(k * Math.PI * 8)) * (1 - k); }
@@ -1512,6 +1541,12 @@ export function createPet(els, opts) {
         s += `<g opacity="${f(op)}" transform="translate(${f(p.x + Math.sin(p.age * 3) * 8)} ${f(p.y)}) scale(${f(z)})"><path ${zPaint} fill="none" stroke-width="2.4" stroke-linecap="round" d="M3 4V-9L9 -6"/><circle ${zPaint} fill="none" stroke-width="3.6" cx="0" cy="4.5" r="1.8"/></g>`;
       } else if (p.type === 'drop') {
         s += `<path class="tearf" transform="translate(${f(p.x)} ${f(p.y)}) scale(${f(.9 * sc)})" d="${DROP}"/>`;
+      } else if (p.type === 'bulb') {
+        // a light bulb popping on over the head, its rays flashing out, then fading
+        const k = (a < .15 ? smooth(a / .15) * 1.15 : 1 + .15 * (1 - smooth(clamp((a - .15) / .15, 0, 1)))) * sc, op = 1 - smooth(clamp((a - .7) / .3, 0, 1));
+        const rays = [0, 1, 2, 3, 4].map(i => { const t = -Math.PI / 2 + (i - 2) * .55; return `M${f(14 * Math.cos(t))} ${f(-3 + 14 * Math.sin(t))}L${f(20 * Math.cos(t))} ${f(-3 + 20 * Math.sin(t))}`; }).join('');
+        s += `<g opacity="${f(op)}" transform="translate(${f(p.x)} ${f(p.y)}) scale(${f(k)})"><path fill="none" stroke="#e0a100" stroke-width="2.4" stroke-linecap="round" d="${rays}"/>`
+          + `<path fill="#ffe14d" stroke="#8a6a00" stroke-width="1.6" d="M0 -12A9 9 0 0 1 5 4V8H-5V4A9 9 0 0 1 0 -12Z"/><path fill="none" stroke="#8a6a00" stroke-width="1.6" stroke-linecap="round" d="M-4 11H4"/></g>`;
       } else if (p.type === 'chip') {
         // a small grey shard of stone, tumbling
         s += `<path fill="#c9ccd4" stroke="#6b7080" stroke-width="1" stroke-linejoin="round" opacity="${f(1 - a * a)}" transform="translate(${f(p.x)} ${f(p.y)}) rotate(${f(p.r * 60 + p.age * 400)}) scale(${f(sc)})" d="M-4 -3L3 -4L5 2L-1 4Z"/>`;

@@ -854,3 +854,42 @@ describe('a sigh, happy tears and turning to stone', () => {
     expect(SOUND_KINDS.face).toContain('crack');
   });
 });
+
+describe('pleading, a scratch at the head, an idea, hands on hips and a hug', () => {
+  it('hands on hips keeps the face she already had, or looks determined', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.setExpr('angry');
+    run(pet, .3);
+    pet.act('hips');
+    run(pet, .5);
+    expect(pet.pet._fname).toBe('angry');
+    run(pet, 4);
+    pet.act('hips');
+    run(pet, .3);
+    expect(pet.pet._fname).toBe('determined');
+  });
+
+  it('an idea lights one bulb over the head, which fades', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('idea');
+    let most = 0;
+    for (let i = 0; i < 90; i++) { pet.step(1 / 60); pet.render(); most = Math.max(most, (pet.fxHtml().match(/fill="#ffe14d"/g) || []).length); }
+    expect(most).toBe(1);
+    expect(SOUND_KINDS.move).toContain('ding');
+    run(pet, 1.5);
+    expect(pet.fxHtml()).not.toContain('#ffe14d');
+  });
+
+  it('each plays out and ends with the body free again', () => {
+    for (const m of ['pray', 'scratch', 'idea', 'hips', 'hug']) {
+      const pet = barePet();
+      run(pet, 1);
+      expect(pet.act(m), m).toBe(true);
+      expect(pet.pet.pulse.kind, m).toBe(m);
+      run(pet, 3);
+      expect(pet.pet.pulse, m).toBeNull();
+    }
+  });
+});

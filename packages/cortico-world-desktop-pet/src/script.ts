@@ -70,6 +70,11 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'sip', kind: 'motion', zh: ['喝茶', '抱杯子', '喝口水'], note: '双手捧着杯子喝一口' },
   { id: 'read', kind: 'motion', zh: ['看书', '读书', '拿书'], note: '捧着一本书看一会儿' },
   { id: 'sigh', kind: 'motion', zh: ['叹气', '唉', '无奈'], note: '吸一口气再长长呼出来,身子一塌,轻度无奈时偶尔用' },
+  { id: 'pray', kind: 'motion', zh: ['拜托', '求求你', '合十'], note: '双手合十拜托你(也可以是道谢、道歉),眼睛亮晶晶地看着你' },
+  { id: 'scratch', kind: 'motion', zh: ['挠头', '过奖了', '嘿嘿'], note: '被夸时不好意思地挠挠头' },
+  { id: 'idea', kind: 'motion', zh: ['有了', '想到了', '灵光一闪'], note: '竖起食指,头顶亮起一个小灯泡' },
+  { id: 'hips', kind: 'motion', zh: ['叉腰'], note: '双手叉腰,配合当时的表情(生气、得意、认真),没有就一脸认真' },
+  { id: 'hug', kind: 'motion', zh: ['抱抱', '求抱抱', '抱一下'], note: '张开双臂要抱抱,一脸温柔' },
   { id: 'spout', kind: 'motion', zh: ['喷水', '鲸鱼喷水'], note: '像鲸鱼一样从头顶喷出一束水花,适合完成任务、被夸、松一口气时' },
 ];
 

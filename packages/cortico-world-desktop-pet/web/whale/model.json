@@ -1287,6 +1287,195 @@
     96.46
    ],
    "source": "gpt-image-2.5 edit of the standing rig render into a curled-up ball: tuck_gpt 4"
+  },
+  "pray": {
+   "required": [
+    {
+     "id": "arm_pray",
+     "tex": "arm_pray",
+     "z": 9.6,
+     "parent": "armPray",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      117.83,
+      151.0,
+      44.67,
+      36.83
+     ]
+    }
+   ],
+   "pivots": {
+    "armPray": [
+     142.0,
+     186.0
+    ]
+   },
+   "wrist": [
+    143.67,
+    152.67
+   ],
+   "source": "gpt-image-2.5 edit of the standing rig render: pray_gpt 3"
+  },
+  "hips": {
+   "required": [
+    {
+     "id": "arm_hips",
+     "tex": "arm_hips",
+     "z": 9.6,
+     "parent": "armHips",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      88.0,
+      164.17,
+      85.17,
+      29.0
+     ]
+    }
+   ],
+   "pivots": {
+    "armHips": [
+     133.67,
+     186.0
+    ]
+   },
+   "wrist": [
+    133.67,
+    176.0
+   ],
+   "source": "gpt-image-2.5 edit of the standing rig render: hips_gpt 1"
+  },
+  "hug": {
+   "required": [
+    {
+     "id": "arm_hug",
+     "tex": "arm_hug",
+     "z": 9.6,
+     "parent": "armHug",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      76.83,
+      150.83,
+      117.83,
+      27.83
+     ]
+    }
+   ],
+   "pivots": {
+    "armHug": [
+     133.67,
+     186.0
+    ]
+   },
+   "wrist": [
+    133.67,
+    162.67
+   ],
+   "source": "gpt-image-2.5 edit of the standing rig render: hug_gpt 3"
+  },
+  "scratch": {
+   "required": [
+    {
+     "id": "arm_scratch",
+     "tex": "arm_scratch",
+     "z": 6,
+     "parent": "armScratch",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      81.83,
+      103.83,
+      24.83,
+      61.83
+     ]
+    },
+    {
+     "id": "arm_scratch_top",
+     "tex": "arm_scratch_top",
+     "z": 14.2,
+     "parent": "armScratch",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      81.83,
+      103.83,
+      24.83,
+      61.83
+     ]
+    }
+   ],
+   "pivots": {
+    "armScratch": [
+     107.0,
+     166.0
+    ]
+   },
+   "wrist": [
+    93.67,
+    124.33
+   ],
+   "rest": 162,
+   "source": "gpt-image-2.5 edit of the standing rig render: scratch_gpt 2"
+  },
+  "idea": {
+   "required": [
+    {
+     "id": "arm_idea",
+     "tex": "arm_idea",
+     "z": 6,
+     "parent": "armIdea",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      92.67,
+      137.83,
+      28.83,
+      45.0
+     ]
+    },
+    {
+     "id": "arm_idea_top",
+     "tex": "arm_idea_top",
+     "z": 14.2,
+     "parent": "armIdea",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      92.67,
+      137.83,
+      28.83,
+      45.0
+     ]
+    }
+   ],
+   "pivots": {
+    "armIdea": [
+     113.17,
+     166.17
+    ]
+   },
+   "wrist": [
+    100.33,
+    152.67
+   ],
+   "rest": 136,
+   "source": "gpt-image-2.5 edit of the standing rig render: idea_gpt 2"
   }
  }
 }

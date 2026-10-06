@@ -483,22 +483,24 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     scared: ['drag_mouth', .8], excited: 'happy_mouth', cry: ['surprised_mouth', .8], confused: -.35,
     disgusted: ['drag_mouth', .6], nervous: -.2,
     // [form, width]: a drawn mouth wider (or narrower) than the usual
-    gentle: .45, awkward: [.05, 1.6], giggle: .6,
+    gentle: .45, awkward: [.05, 1.6], giggle: .6, moved: ['happy_mouth', .7], petrify: ['surprised_mouth', .5],
   };
 
   // where the face's outline is under each eye's tear (master y), with room for the stream's rounded end
   const TEAR_END = { eyeL: 816, eyeR: 786 };
   /** Tears running from each eye's lower lid down the cheek (master pixels), wavering with `t`. */
-  function paintStreams(t) {
+  function paintStreams(t, o = {}) {
+    // (`o`: { a, len, w } for fainter, shorter, thinner tracks, happy tears)
+    const a0 = o.a ?? .95, len = o.len ?? 1, wk = o.w ?? 1;
     fg.save();
     EYES.forEach((k, i) => {
       const e = EYE[k], [bx0, , bx1, by1] = e.ball, w = (bx1 - bx0) * (k === 'eyeL' ? .22 : .2);
       // from just under the shut lid, narrow where it wells up and widening as it runs down
       // (painted before the eyes, so the shut lid's lashes lie over its top; it stops above the jaw under each eye)
       const x = bx0 + (bx1 - bx0) * (k === 'eyeL' ? .55 : .5) - FACE.x, y0 = by1 - 6 - FACE.y;
-      const y1 = Math.min(FACE.h - 4, TEAR_END[k] - FACE.y, y0 + 110), wob = 4 * Math.sin(t * 6 + i);
+      const y1 = Math.min(FACE.h - 4, TEAR_END[k] - FACE.y, y0 + 110 * len), wob = 4 * Math.sin(t * 6 + i) * wk;
       const gr = fg.createLinearGradient(0, y0, 0, y1);
-      gr.addColorStop(0, 'rgba(120,195,255,.95)'); gr.addColorStop(1, 'rgba(120,195,255,.3)');
+      gr.addColorStop(0, `rgba(120,195,255,${f1(a0)})`); gr.addColorStop(1, `rgba(120,195,255,${f1(a0 * .3 / .95)})`);
       fg.fillStyle = gr;
       fg.beginPath();
       fg.moveTo(x - w * .15, y0);
@@ -514,7 +516,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     fg.setTransform(1, 0, 0, 1, 0, 0);
     fg.clearRect(0, 0, FACE.w, FACE.h);
     paintBlush(fc.blush || 0);
-    if (fc.streams) paintStreams(t);
+    if (fc.streams) paintStreams(t, fc.streams === true ? {} : fc.streams);
     const shut = Math.max(o.blink || 0, o.eyeClose || 0);
     const lx = clamp(o.look[0], -6, 6), ly = clamp(o.look[1], -5, 5);
     const tilt = fc.brows === 'angry' ? .2 : fc.brows === 'sad' ? -.16 : 0;
@@ -545,6 +547,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const m = MOUTH[face] ?? 'neutral_mouth';
     const open = Math.max(talk * (.45 + .45 * Math.abs(Math.sin(t * 17))), face === 'sleepy' || face === 'waking' ? gapOpen : 0);
     if (open > .12) sprite(face === 'surprised' ? 'surprised_mouth' : 'happy_mouth', { sy: .35 + .65 * open, sx: .85 + .15 * open });
+    // breathing out a sigh, a small round "ha"
+    else if (fc.puff > .1) sprite('surprised_mouth', { s: .3 + .15 * fc.puff });
     else if (typeof m === 'number') lineMouth(m);
     else if (Array.isArray(m) && typeof m[0] === 'number') lineMouth(m[0], m[1]);
     else if (Array.isArray(m)) sprite(m[0], { s: m[1] });
@@ -638,6 +642,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
   // the cup's steam: how much, and where (deformer and point at the cup's rim)
   let steam = 0, steamAt = null;
+  // how far a sigh's breath has gone out (0..1), for its little clouds
+  let puffK = 0;
+  // whether a frame has been drawn yet, and whether it hid the standing rig (a frozen frame draws it again as it was)
+  let drewOnce = false, lastHidden = false;
   let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0, backA = 0, awayA = 0;
   const st = { z: {}, alpha: {} };
 
@@ -649,7 +657,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [.5, .6], pout: [.3, 0], worried: [-.3, .1], determined: [.9, .3], flustered: [.4, .8], scared: [-1, 0, -1],
     excited: [1, 1], cry: [-1, 0, -1], confused: [.2, .1], bowing: [-.2, .2],
     disgusted: [-.4, 0], nervous: [-.4, 0], peeking: [.6, .5],
-    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5],
+    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], moved: [.4, .5], sighing: [-.3, 0], petrify: [.6, 0],
   };
   // brows by face, in master pixels: [lift of the whole brow, lift of its inner end (by the nose), extra lift of
   // the far brow]; a negative inner lift is the frown
@@ -660,7 +668,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [1, -1], pout: [-1, -3], worried: [2, 4.5], determined: [0, -3], flustered: [2, 3.5], scared: [3, 4],
     excited: [3, 0], cry: [1, 5], confused: [1, 0, 5],
     disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
-    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1],
+    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1],
   };
   // the head by face: tilt (degrees, forward +) and pitch (angleY, down +)
   const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: -4, giggle: 5 };
@@ -682,6 +690,15 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (frameN++ % 20 === 0) fitCanvas();
     const t = o.t, dt = lastT == null ? 1 / 60 : clamp(t - lastT, 0, .05);
     lastT = t;
+    // turned to stone (petrify's `freeze`) she holds still: the last pose is drawn again, face and all, and only the
+    // grey and the crack change; the springs and clocks pick up where they were once she thaws
+    if (fc.freeze && drewOnce) {
+      st.stone = fc.stone || 0;
+      rig.render(st, lastHidden ? { hidden: STANDING } : undefined);
+      if (opts.raster) { fo.setAttribute('href', canvas.toDataURL('image/png')); decoded = fo.decode ? fo.decode().catch(() => {}) : null; }
+      drawFx(fc, t);
+      return;
+    }
     const mode = o.mode || 'idle', face = o.face || 'neutral';
     const walking = mode === 'walk' || mode === 'run', held = mode === 'drag', airborne = mode === 'air';
 
@@ -732,17 +749,21 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const spoutC = g?.kind === 'spout' ? Math.sin(Math.PI * clamp(gk / .25, 0, 1)) : 0;
     const spoutP = g?.kind === 'spout' ? Math.sin(Math.PI * clamp((gk - .25) / .2, 0, 1)) : 0;
     const spoutOn = g?.kind === 'spout' ? env(.1, .7) : 0;
+    // a sigh: drawing a breath (inh), then sagging as it goes out (exh)
+    const inh = g?.kind === 'sigh' ? Math.sin(Math.PI * clamp(gk / .45, 0, 1)) : 0;
+    const exh = g?.kind === 'sigh' ? smooth(.35, .55, gk) * (1 - smooth(.8, 1, gk)) : 0;
+    puffK = g?.kind === 'sigh' ? clamp((gk - .38) / .45, 0, 1) : 0;
     const propG = PROPS[g?.kind] ? g.kind : null;              // a cup or a book held up in both hands
     const hold = propG ? env(.1, .88) : 0, sip = propG === 'sip' ? sipLift(gk) * hold : 0;
     // (turning away without her back drawing, seated say, she turns her face away and drops her chin a little)
     const awayFace = backable() ? 0 : away;
-    const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3 + sip * 4 + (propG === 'read' ? 5 * hold : 0), gYaw = shake * 1.1 - awayFace * 1.3;
+    const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3 + sip * 4 + (propG === 'read' ? 5 * hold : 0) - 2 * inh + 6 * exh, gYaw = shake * 1.1 - awayFace * 1.3;
     const headA = headTilt + gNeck;
     const tiltVel = (headA - prevTilt) / Math.max(dt, 1e-3); prevTilt = headA;
     const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
     const angleX = clamp(clamp(o.look[0] / 5, -1, 1) * .9 + gYaw, -1.4, 1.4);
     // angleY + pitches the face down (the features slide down, more crown shows), as a gaze down (look[1] +) does
-    const angleY = clamp(clamp(o.look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + bow * .5 - flinch * .3 - peek * .1, -1.4, 1.4);
+    const angleY = clamp(clamp(o.look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + bow * .5 - flinch * .3 - peek * .1 - .1 * inh + .3 * exh, -1.4, 1.4);
 
     /* springs */
     const sway = clamp(o.swing / 26, -1.6, 1.6);
@@ -754,10 +775,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     danceK = lerp(danceK, mode === 'dance' ? 1 : 0, ease(4, dt));
     const flare = sp.skirtY.step(up * .8 + sitK * .6 + clamp(-lowV * .01, -.3, .6), dt);
     const [fm, wg, droop = 0] = MOOD[face] || MOOD.neutral;
-    finMood = lerp(finMood, lerp(fm, -.6, shiver), ease(6, dt));
+    finMood = lerp(finMood, lerp(fm, -.6, Math.max(shiver, exh)), ease(6, dt));
     wagAmp = lerp(wagAmp, wg, ease(3, dt));
     // the tail sinks slowly (over about a second) and comes back up briskly
-    const droopT = mode === 'sleep' ? -1 : droop;
+    const droopT = mode === 'sleep' ? -1 : Math.min(droop, -exh);
     tailMood = lerp(tailMood, droopT, ease(droopT < tailMood ? 1.1 : 3, dt));
     // fast flutters go on after the springs, which would smooth them away
     const fins = sp.fins.step(finMood * 14 + sway * 10, dt);
@@ -827,7 +848,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st.body.sy *= 1 - .16 * c + .07 * pop; st.body.sx *= 1 + .08 * c - .03 * pop;
       if (!(ROLL && rollOK())) st.body.ty -= 46 * Math.sin(Math.PI * rollTurn(gk));
     }
-    st.waist = { a: bow * 20 - flinch * 6 + peek * 9 + 3 * titter, sy: 1 - .07 * titter };
+    st.waist = { a: bow * 20 - flinch * 6 + peek * 9 + 3 * titter - 3 * inh + 6 * exh, sy: (1 - .07 * titter) * (1 + .03 * inh - .03 * exh) };
     st.skirt = {
       fn: (u, v) => {
         const k = v * v;
@@ -992,6 +1013,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
         rig.upload('faceFx@mix', faceCv2);
       }
     }
+    st.stone = fc.stone || 0;
+    lastHidden = hideFront; drewOnce = true;
     rig.render(st, hideFront ? { hidden: STANDING } : undefined);
     if (opts.raster) { fo.setAttribute('href', canvas.toDataURL('image/png')); decoded = fo.decode ? fo.decode().catch(() => {}) : null; }
     if (fade && st.mix >= 1) endFade();
@@ -1038,6 +1061,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   }
 
   /* ---------- effects over the figure (SVG, like the built-in figure's) ---------- */
+  // a petrified crack's path, standing (through the head, face and dress) and lying (across the head)
+  const CRACK = [[134, 24], [124, 48], [140, 70], [126, 96], [142, 120], [128, 148], [144, 176], [130, 204], [142, 236]];
+  const CRACK_LIE = [[196, 108], [184, 132], [202, 156], [186, 182], [200, 206], [190, 228]];
   // drawn for the standing head; once she lies, the same points move onto the lying head
   const FXL = LIE?.fx;
   const at = (x, y) => (FXL && poseShown > .5
@@ -1053,6 +1079,23 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
         const q = (t * .6 + i / 3) % 1, c = rig.point(steamAt[0], st, x - 7 + 7 * i + 2.5 * Math.sin(t * 2 + i * 2 + q * 5), y - 3 - 22 * q);
         const d = `M${f1(c[0])} ${f1(c[1] + 6)}q3 -3 0 -6t0 -6`, a = f1(.75 * Math.sin(Math.PI * q) * steam);
         s += `<path fill="none" stroke="#7d86a8" stroke-width="3.6" stroke-linecap="round" opacity="${f1(a * .35)}" d="${d}"/><path fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity="${a}" d="${d}"/>`;
+      }
+    }
+    if (fc.crack > 0) {
+      // a jagged crack down her, growing from the top of the head (stone cannot really split: it is drawn over her)
+      const pts = poseShown > .5 ? CRACK_LIE.map(([x, y]) => rig.point('lie', st, x, y))
+        : CRACK.map(([x, y]) => rig.point(y < 150 ? 'neck' : 'body', st, x, y));
+      const n = (pts.length - 1) * fc.crack, i = Math.floor(n), q = n - i;
+      const line = pts.slice(0, i + 1).concat(i < pts.length - 1 ? [[lerp(pts[i][0], pts[i + 1][0], q), lerp(pts[i][1], pts[i + 1][1], q)]] : []);
+      const d = 'M' + line.map(p => `${f1(p[0])} ${f1(p[1])}`).join('L');
+      s += `<path fill="none" stroke="#f2f3f6" stroke-width="4.4" stroke-linejoin="round" stroke-linecap="round" d="${d}"/><path fill="none" stroke="#3b3f4a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" d="${d}"/>`;
+    }
+    if (puffK > 0 && puffK < 1 && !poseShown) {
+      // the breath of a sigh: two little clouds drifting out from the mouth, forward and down, fading
+      const m = rig.point('headFeat', st, U(780), V(790));
+      for (let i = 0; i < 2; i++) {
+        const q = clamp(puffK * 1.3 - i * .3, 0, 1), x = m[0] + 6 + 16 * q, y = m[1] + 2 + 7 * q, r = 2.5 + 2.5 * q;
+        if (q > 0) s += `<g opacity="${f1(.8 * Math.sin(Math.PI * q))}" fill="#fff" stroke="#9aa6c4" stroke-width=".8"><circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(r)}"/><circle cx="${f1(x + r * .9)}" cy="${f1(y + r * .3)}" r="${f1(r * .7)}"/></g>`;
       }
     }
     const top = at(124, 34), side = at(204, 52);
@@ -1107,7 +1150,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     draw,
     groupTilt,
     /** The gestures she draws herself, from the frame's `gesture` (pet-core leaves them off the body). */
-    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout'],
+    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**
@@ -1135,7 +1178,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; drewOnce = false;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

@@ -276,11 +276,32 @@ export const FACES = {
     const s = t - (p ? p.exprAt : 0), u = s % 1.6;
     return { gap: [52, 52], eyes: [{ shape: 'up' }, { shape: 'up' }], blush: .35, lookAt: [2, 1.5], titter: Math.sin(Math.PI * clamp(u / .7, 0, 1)) * Math.abs(Math.sin(s * 18)) };
   } },
+  // happy tears: shining, brimming eyes under raised brows, a smile, two thin tracks and a tear now and then
+  moved:     { label: '感动', kao: '(;▽;)', f: () => ({ gap: [54, 54], eyes: [ring({ ry: 15, dy: 1 }), ring({ ry: 15, dy: 1 })], brows: 'sad', sparkle: true, blush: .6, streams: { a: .5, len: .5, w: .6 }, emit: 'tear', emitEvery: 1.5 }) },
+  // turned to stone (我裂开了): a shocked stare, then frozen still and greying (`freeze`, `stone` 0..1), a crack running
+  // down her (`crack` 0..1) with a shudder, and the colour flowing back before the face ends (timed by exprAt / exprUntil)
+  petrify:   { label: '石化', kao: '(° °|||', f: (t, p) => {
+    const s = t - (p ? p.exprAt : 0), left = p ? p.exprUntil - t : 9, crack = smooth(clamp((s - 1.1) / .4, 0, 1));
+    return {
+      gap: [40, 40], eyes: [ring({ rx: 17, ry: 18 }), ring({ rx: 17, ry: 18 })], wide: true, gloom: true,
+      stone: smooth(clamp((s - .15) / .35, 0, 1)) * smooth(clamp(left / .5, 0, 1)), freeze: s > .3 && left > .6, crack: left > .6 ? crack : 0,
+      shake: s > 1.1 && s < 1.35 ? 1.6 : 0,
+    };
+  } },
   // motions' own faces (not ones to ask for): eyes shut through a bow; wide, alert eyes held ahead for a peek
   bowing:    { label: '鞠躬', f: () => ({ gap: [48, 48], eyes: [{ shape: 'lid', ry: 0 }, { shape: 'lid', ry: 0 }] }) },
   peeking:   { label: '探头', f: () => ({ gap: [44, 44], eyes: [ring({ rx: 17, ry: 18 }), ring({ rx: 17, ry: 18 })], lookAt: [5, -1] }) },
   // ...a sip: eyes half shut over the cup, shut for the sip itself (1.4–2.3 s in), a little warm blush
   sipping:   { label: '喝茶', f: (t, p) => { const s = t - (p ? p.exprAt : 0), r = s > 1.4 && s < 2.3 ? 0 : 10; return { gap: [46, 46], eyes: [{ shape: 'lid', ry: r }, { shape: 'lid', ry: r }], blush: .3 }; } },
+  // ...a sigh (the `sigh` pulse's own beats): eyes up a little drawing breath, then drooping half shut as it goes out,
+  // the mouth open for the "ha" (`puff`, 0..1); once the sigh is over (or cut short) a plain face
+  sighing:   { label: '叹气', f: (t, p) => {
+    const g = p?.pulse?.kind === 'sigh' ? p.pulse : null, k = g ? (t - g.t0) / g.dur : 1;
+    if (!g || k >= 1) return { gap: [50, 50], eyes: [ring(), ring()] };
+    if (k < .35) return { gap: [50, 50], eyes: [ring({ ry: 17 }), ring({ ry: 17 })], lookAt: [0, -2] };
+    const r = 14 - 8 * smooth(clamp((k - .35) / .25, 0, 1));
+    return { gap: [46, 46], eyes: [{ shape: 'lid', ry: r }, { shape: 'lid', ry: r }], brows: 'sad', lookAt: [0, 2], puff: Math.sin(Math.PI * clamp((k - .38) / .4, 0, 1)) };
+  } },
   // ...reading: eyes down on the page, running along a line and back to the start of the next
   reading:   { label: '看书', f: t => ({ gap: [48, 48], eyes: [{ shape: 'lid', ry: 11 }, { shape: 'lid', ry: 11 }], lookAt: [-3.5 + 7 * ((t * .55) % 1), 3.5] }) },
   confused:  { label: '疑惑', kao: '(0 o ?', f: () => ({ gap: [44, 40], eyes: [ring(), ring({ rx: 14, ry: 11 })], question: true }) },
@@ -372,10 +393,11 @@ export function figure(fc, o) {
     });
   }
   if (fc.streams) {
-    // tears running from each eye down the cheek
+    // tears running from each eye down the cheek (`streams` may be { a, len, w }: fainter, shorter, thinner tracks)
+    const st = fc.streams === true ? {} : fc.streams, L = 46 * (st.len ?? 1), W = st.w ?? 1;
     EYES.forEach(([ex, ey], i) => {
-      const w = 2 * Math.sin(t * 6 + i);
-      fx += `<path class="tearf" opacity=".75" d="M${f(ex + lx - 5)} ${f(ey + 6)}Q${f(ex + lx - 7 + w)} ${f(ey + 30)} ${f(ex + lx - 3)} ${f(ey + 52)}L${f(ex + lx + 5)} ${f(ey + 52)}Q${f(ex + lx + 3 + w)} ${f(ey + 30)} ${f(ex + lx + 5)} ${f(ey + 6)}Z"/>`;
+      const w = 2 * Math.sin(t * 6 + i), x = ex + lx;
+      fx += `<path class="tearf" opacity="${f(.75 * (st.a ?? .95) / .95)}" d="M${f(x - 5 * W)} ${f(ey + 6)}Q${f(x - 7 * W + w)} ${f(ey + 6 + L * .52)} ${f(x - 3 * W)} ${f(ey + 6 + L)}L${f(x + 5 * W)} ${f(ey + 6 + L)}Q${f(x + 3 * W + w)} ${f(ey + 6 + L * .52)} ${f(x + 5 * W)} ${f(ey + 6)}Z"/>`;
     });
   }
   s += faceG(fx);
@@ -524,9 +546,9 @@ export function applyTheme(theme, button) {
 /* ---------- sound: synthesized with Web Audio, no files ---------- */
 /** Which kind each sound belongs to; a kind can be silenced on its own (`sfx.configure`). */
 export const SOUND_KINDS = {
-  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout'],
+  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout', 'sigh'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
-  face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe'],
+  face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe', 'crack'],
   snore: ['snore'],
   talk: ['babble', 'blub'],
   ui: ['tick', 'pop', 'sparkle', 'select', 'listenStart', 'listenEnd'],
@@ -639,6 +661,11 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
       noise({ f0: 700, f1: 1500, q: 3, dur: .3, vol: .05, at: 1.55 });
       tone({ type: 'triangle', f0: 440, f1: 392, dur: .35, vol: .07, at: 2.1 });
     },
+    // a sigh: a short breath in, then a long, soft breath out
+    sigh() {
+      noise({ type: 'lowpass', f0: 400, f1: 900, dur: .35, vol: .035, attack: .12 });
+      noise({ type: 'lowpass', f0: 900, f1: 250, dur: .9, vol: .07, attack: .25, at: .75 });
+    },
     // a whale's spout: a pop as it goes up, the hiss of the column, then the spray pattering down
     spout() {
       tone({ f0: 300, f1: 900, dur: .08, vol: .12, at: .36 });
@@ -661,12 +688,14 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
     // a warm, low two-note hum (gentle); a laugh running out of air (awkward); stifled little giggles
     soft() { tone({ type: 'triangle', f0: 523, f1: 540, dur: .2, vol: .07, attack: .05 }); tone({ type: 'triangle', f0: 659, f1: 640, dur: .3, vol: .06, at: .18, attack: .05 }); },
     wry() { [660, 600, 520].forEach((fr, i) => tone({ type: 'triangle', f0: fr, f1: fr * .93, dur: .08, vol: .07, at: i * .11 })); },
+    // stone cracking: a sharp snap and a crumble
+    crack() { tone({ type: 'square', f0: 1400, f1: 500, dur: .05, vol: .06, filter: 2600 }); noise({ type: 'highpass', f0: 2600, f1: 900, dur: .35, vol: .07, at: .04 }); },
     hehe() { for (let i = 0; i < 3; i++) tone({ type: 'triangle', f0: 620 - i * 30, f1: 520 - i * 30, dur: .06, vol: .07, at: i * .12, filter: 900 }); },
     expr(n) {
       const m = {
         happy: 'happy', wink: 'wink', love: 'love', surprised: 'surprised', angry: 'angry', sad: 'sad', shy: 'shy', sleepy: 'yawn',
         smug: 'wink', worried: 'hmm', determined: 'pop', flustered: 'shy', scared: 'surprised', excited: 'sparkle', cry: 'sad', confused: 'hmm',
-        disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe',
+        disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised',
       };
       // an expression's sound is a face sound, whichever tone it borrows
       if (m[n] && !muted.has('face')) api[m[n]]();
@@ -696,14 +725,14 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
 /** Expressions: a face held for a few seconds. */
 export const EXPRESSIONS = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 'angry', 'sad', 'sleepy', 'thinking',
   'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous',
-  'gentle', 'awkward', 'giggle'];
+  'gentle', 'awkward', 'giggle', 'moved', 'petrify'];
 /** A forward roll (`roll`) turns once, eased, over this part of the gesture; the body travels the same way. */
 export const rollTurn = k => smooth(clamp((k - .2) / .6, 0, 1));
 // how far one roll goes, in logo units: once round a ball of radius 100 (Coo's ring is 102 to its outer edge)
 export const ROLL_D = 2 * Math.PI * 100;
 /** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
-  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout'];
+  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
 /** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
@@ -913,6 +942,8 @@ export function createPet(els, opts) {
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
       // (a figure with hands draws them; Coo holds a little one of its own)
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
+      // a sigh: drawing a breath, then sagging as it goes out
+      case 'sigh': pulse('sigh', 2); holdFace('sighing', 2.1); sfx.sigh(); break;
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9); sfx.spout(); break;
       case 'sip': pulse('sip', 3.6); holdFace('sipping', 3.7); sfx.sip(); break;
       case 'read': pulse('read', 4.4); holdFace('reading', 4.4); sfx.page(); break;
@@ -935,6 +966,8 @@ export function createPet(els, opts) {
     }
     if (n === 'dizzy') { pet.expr = null; setMode('dizzy'); return; }
     if (pet.mode === 'look' || pet.mode === 'land') setMode('idle');
+    // turned to stone she stops where she is
+    if (n === 'petrify' && (pet.mode === 'walk' || pet.mode === 'run' || pet.mode === 'dance')) setMode('idle');
     pet.expr = n; pet.exprAt = T; pet.exprUntil = T + (seconds ?? (n === 'sleepy' ? 4.4 : 3.2));
     pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6);
     pet.sqv += n === 'surprised' ? -2.2 : .8;
@@ -1023,7 +1056,8 @@ export function createPet(els, opts) {
     let tk = 160, tc = 12, drowseT = 0;
     const free = roam !== 'off' && T > hold && !opts.dialogOpen?.();
 
-    pet.blinkT -= dt; pet.blinkAge += dt;
+    // (stone does not blink)
+    if (!pet._fc?.freeze) { pet.blinkT -= dt; pet.blinkAge += dt; }
     if (pet.blinkT <= 0) { pet.blinkAge = 0; pet.blinkT = Math.random() < .2 ? .28 : rnd(2.2, 5.2); }
 
     const head = toStage(...ancPt('gaze', 0));
@@ -1244,6 +1278,10 @@ export function createPet(els, opts) {
       else if (pet.pulse.kind === 'sip') { const e = envelope(k, .1, .9); leanT += 3 * e + 4 * envelope(clamp((k - .38) / .26, 0, 1), .3, .6); }
       else if (pet.pulse.kind === 'read') leanT += 4 * envelope(k, .1, .9);
       // crouching to gather it, springing up as it goes
+      else if (pet.pulse.kind === 'sigh') {
+        const inh = envelope(clamp(k / .45, 0, 1), .5, .7), exh = envelope(clamp((k - .35) / .6, 0, 1), .3, .7);
+        sqT += -.05 * inh + .07 * exh; leanT += 6 * exh;
+      }
       else if (pet.pulse.kind === 'spout') sqT += .16 * Math.sin(Math.PI * clamp(k / .25, 0, 1)) - .1 * Math.sin(Math.PI * clamp((k - .25) / .15, 0, 1));
       else if (pet.pulse.kind === 'flap') { tiltT += 7 * Math.sin(k * Math.PI * 8) * (1 - k); sqT -= .06 * Math.abs(Math.sin(k * Math.PI * 8)) * (1 - k); }
       else if (pet.pulse.kind === 'spin' && k > .5 && !pet.pulse.flipped) { pet.pulse.flipped = true; pet.facing *= -1; }
@@ -1251,7 +1289,8 @@ export function createPet(els, opts) {
     }
 
     const fname = faceName(), fc = FACES[fname].f(T, pet);
-    if (fc.lookLock || pet.mode === 'sleep' || pet.mode === 'drag') lookT = [0, 0];
+    if (fc.freeze) lookT = [...pet.look];
+    else if (fc.lookLock || pet.mode === 'sleep' || pet.mode === 'drag') lookT = [0, 0];
     else if (fc.lookAt) lookT = fc.lookAt;
     if (fc.lean && (m === 'idle' || m === 'sit' || (m === 'lie' && !lieSet()))) leanT += fc.lean;
     if (fc.sag && !custom) sqT += fc.sag;
@@ -1344,11 +1383,16 @@ export function createPet(els, opts) {
       ft[0] = lerp(ft[0], tx, ease(r, dt)); ft[1] = lerp(ft[1], ty, ease(r, dt));
     });
 
+    // the crack running down a petrified body knocks a few chips of stone off, once per petrify
+    if (fc.crack > .05 && pet.chipFor !== pet.exprAt) {
+      pet.chipFor = pet.exprAt; sfx.crack();
+      for (let i = 0; i < 5; i++) emit('chip', toStage(rnd(100, 160), rnd(60, 200) + pet.low), { vx: rnd(-60, 60), vy: rnd(-90, -30), life: 1.2, r: rnd(0, 6) });
+    }
     if (fc.emit && T > pet.emitAt) {
       const z = ancPt('z'), tear = ancPt('tear');
       if (fc.emit === 'heart') { emitHeart(); pet.emitAt = T + .45; }
       if (fc.emit === 'z') { emit('z', toStage(...z), { vx: pet.facing * 16, vy: -26, life: 2.4 }); pet.emitAt = T + 1.3; sfx.snore(pet.modeT); }
-      if (fc.emit === 'tear') { emit('drop', toStage(tear[0] + pet.look[0], tear[1]), { vx: pet.facing * rnd(10, 30), vy: -20, life: 3 }); pet.emitAt = T + .8; }
+      if (fc.emit === 'tear') { emit('drop', toStage(tear[0] + pet.look[0], tear[1]), { vx: pet.facing * rnd(10, 30), vy: -20, life: 3 }); pet.emitAt = T + (fc.emitEvery ?? .8); }
       if (fc.emit === 'tears') {
         // both eyes cry, taking turns; a figure that names only its one tear spot cries from there, and lying from the lying one
         const eyes = proneK() > .5 ? [tear] : (custom && !custom.anchors?.tears ? [A.tear] : A.tears).map(([x, y]) => [x, y + pet.low]);
@@ -1363,6 +1407,7 @@ export function createPet(els, opts) {
       const p = P[i];
       p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.type === 'drop') { p.vy += 900 * dt; if (p.y > floorY) p.age = p.life; }
+      if (p.type === 'chip') { p.vy += 900 * dt; if (p.y > floorY) p.age = p.life; }
       if (p.type === 'spray') { p.vy += SPRAY_G * S * dt; if (p.y > floorY) p.age = p.life; }
       if (p.type === 'dust') p.vx *= Math.exp(-dt * 4);
       if (p.age >= p.life) P.splice(i, 1);
@@ -1387,7 +1432,7 @@ export function createPet(els, opts) {
   function render() {
     const fc = pet._fc || FACES.neutral.f(0), fname = pet._fname || 'neutral';
     const drag = pet.mode === 'drag';
-    const br = Math.sin(T * (pet.mode === 'sleep' ? 1.7 : 2.4));
+    const br = fc.freeze ? 0 : Math.sin(T * (pet.mode === 'sleep' ? 1.7 : 2.4));
     const sx = (1 + pet.sq * .7) * (1 - .05 * pet.stretch) * (1 - .009 * br);
     const sy = (1 - pet.sq) * (1 + .09 * pet.stretch) * (1 + .016 * br);
     const ax = 128, ay = drag ? 36 : 256;
@@ -1419,7 +1464,7 @@ export function createPet(els, opts) {
     let eyes = pet.eyeCur || fc.eyes, eyeClose = 0;
     if (pet.swapAge < .07 && pet.eyePrev) { eyes = pet.eyePrev; eyeClose = pet.swapAge / .07; }
     else if (pet.swapAge < .16) eyeClose = 1 - (pet.swapAge - .07) / .09;
-    const face = { ...fc, eyes, gap: pet.gap.map(g => Math.min(64, g + pet.talkK * 12)), blush: pet.blushK };
+    const face = { ...fc, eyes, gap: pet.gap.map(g => Math.min(64, g + (fc.freeze ? 0 : pet.talkK) * 12)), blush: pet.blushK };
     const gesture = pet.pulse ? { kind: pet.pulse.kind, k: clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1) } : null;
     const frame = { look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing, lie: pet.lieK, prone: pet.prone, talk: pet.talkK, gesture };
     if (custom) custom.draw(petG, face, { ...frame, face: fname, mode: pet.mode, modeT: pet.modeT, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot });
@@ -1453,6 +1498,9 @@ export function createPet(els, opts) {
         s += `<g opacity="${f(op)}" transform="translate(${f(p.x + Math.sin(p.age * 3) * 8)} ${f(p.y)}) scale(${f(z)})"><path ${zPaint} fill="none" stroke-width="2.4" stroke-linecap="round" d="M3 4V-9L9 -6"/><circle ${zPaint} fill="none" stroke-width="3.6" cx="0" cy="4.5" r="1.8"/></g>`;
       } else if (p.type === 'drop') {
         s += `<path class="tearf" transform="translate(${f(p.x)} ${f(p.y)}) scale(${f(.9 * sc)})" d="${DROP}"/>`;
+      } else if (p.type === 'chip') {
+        // a small grey shard of stone, tumbling
+        s += `<path fill="#c9ccd4" stroke="#6b7080" stroke-width="${f(1 * sc)}" stroke-linejoin="round" opacity="${f(1 - a * a)}" transform="translate(${f(p.x)} ${f(p.y)}) rotate(${f(p.r * 60 + p.age * 400)}) scale(${f(sc)})" d="M-4 -3L3 -4L5 2L-1 4Z"/>`;
       } else if (p.type === 'spray') {
         // a round bead of water with a highlight: not a tear's drop shape, so a spout does not read as crying
         const r = 3.2 * p.r * sc;

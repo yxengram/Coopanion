@@ -39,6 +39,8 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'nervous', kind: 'expression', zh: ['紧张', '忐忑'], note: '眼神乱瞟,冒汗,身子绷紧,时不时抖一下' },
   { id: 'gentle', kind: 'expression', zh: ['温柔', '欣慰', '没事的'], note: '眼睛温柔地半眯着看你,淡淡脸红,时不时轻轻点头' },
   { id: 'awkward', kind: 'expression', zh: ['尴尬', '苦笑', '尬笑'], note: '笑眼配八字眉,挂一大滴汗,身子往后一缩' },
+  { id: 'moved', kind: 'expression', zh: ['感动', '泪目', '好感动'], note: '笑着含泪,眼里泪光闪闪,挂两道细泪痕' },
+  { id: 'petrify', kind: 'expression', zh: ['石化', '裂开', '我裂开了', '碎了'], note: '当场僵住变成灰白石像,裂开一道缝,几秒后恢复;只在坏消息、被吐槽时用' },
   { id: 'giggle', kind: 'expression', zh: ['偷笑', '嘻嘻', '憋笑', '窃笑'], note: '眯眼憋着笑,一阵一阵地抖' },
   { id: 'stand', kind: 'motion', zh: ['站起', '站'], note: '站起来(坐着、趴着、睡着时)' },
   { id: 'jump', kind: 'motion', zh: ['跳', '跳起来'], note: '原地起跳' },
@@ -67,6 +69,7 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'roll', kind: 'motion', zh: ['翻滚', '打滚', '前滚翻'], note: '在地上向前滚一圈再站起来' },
   { id: 'sip', kind: 'motion', zh: ['喝茶', '抱杯子', '喝口水'], note: '双手捧着杯子喝一口' },
   { id: 'read', kind: 'motion', zh: ['看书', '读书', '拿书'], note: '捧着一本书看一会儿' },
+  { id: 'sigh', kind: 'motion', zh: ['叹气', '唉', '无奈'], note: '吸一口气再长长呼出来,身子一塌,轻度无奈时偶尔用' },
   { id: 'spout', kind: 'motion', zh: ['喷水', '鲸鱼喷水'], note: '像鲸鱼一样从头顶喷出一束水花,适合完成任务、被夸、松一口气时' },
 ];
 

@@ -11,6 +11,7 @@
  *
  * A part may carry a second texture under `<tex>@mix` (same layout): `st.mix` (0..1) crossfades to it,
  * which is how a figure fades from one colour scheme to another.
+ * `st.stone` (0..1) turns the whole drawing to pale grey stone (contrast flattened), over every part at once.
  */
 
 const VS = `#version 300 es
@@ -30,10 +31,14 @@ uniform sampler2D uTex2;
 uniform float uMix;
 uniform float uAlpha;
 uniform vec4 uTint; // rgb multiply, a = mix toward it
+uniform float uStone;
 out vec4 o;
 void main() {
   vec4 c = mix(texture(uTex, vUv), texture(uTex2, vUv), uMix);
   c.rgb = mix(c.rgb, c.rgb * uTint.rgb, uTint.a);
+  // (premultiplied: the lift toward pale grey scales with alpha)
+  float l = dot(c.rgb, vec3(.299, .587, .114));
+  c.rgb = mix(c.rgb, (l * .7 + .24 * c.a) * vec3(.9, .91, .94), uStone);
   o = c * uAlpha;
 }`;
 
@@ -88,6 +93,7 @@ export function createRig(canvas, model) {
       uView: gl.getUniformLocation(prog, 'uView'), uTex: gl.getUniformLocation(prog, 'uTex'),
       uAlpha: gl.getUniformLocation(prog, 'uAlpha'), uTint: gl.getUniformLocation(prog, 'uTint'),
       uTex2: gl.getUniformLocation(prog, 'uTex2'), uMix: gl.getUniformLocation(prog, 'uMix'),
+      uStone: gl.getUniformLocation(prog, 'uStone'),
     };
     // parts: rest grid, uv, index buffer; `uvBox` picks a sub-rect of the texture (atlas), default whole
     meshes = model.parts.map(p => {
@@ -196,6 +202,7 @@ export function createRig(canvas, model) {
     gl.uniform1i(loc.uTex, 0);
     gl.uniform1i(loc.uTex2, 1);
     const mixK = Math.min(1, Math.max(0, st.mix || 0));
+    gl.uniform1f(loc.uStone, Math.min(1, Math.max(0, st.stone || 0)));
     const order = meshes.filter(m => !(opts.hidden && opts.hidden[m.part.id]))
       .map(m => ({ m, z: st.z?.[m.part.id] ?? m.part.z })).sort((a, b) => a.z - b.z);
     for (const { m } of order) {

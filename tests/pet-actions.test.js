@@ -773,3 +773,67 @@ describe("a whale's spout", () => {
     expect(Math.abs(beads(pet)[0][0] - lyingHead.x)).toBeLessThan(30);
   });
 });
+
+describe('a sigh, happy tears and turning to stone', () => {
+  it('a sigh draws a breath, then breathes out with drooping eyes and a "ha", and the face is plain once it is over', () => {
+    expect(SOUND_KINDS.move).toContain('sigh');
+    const pet = barePet();
+    run(pet, 1);
+    expect(pet.act('sigh')).toBe(true);
+    run(pet, .3);
+    let fc = FACES.sighing.f(pet.pet.pulse.t0 + .3, pet.pet);
+    expect(fc.eyes[0].shape).toBe('ring');
+    expect(fc.puff ?? 0).toBe(0);
+    fc = FACES.sighing.f(pet.pet.pulse.t0 + 1.2, pet.pet);
+    expect(fc.eyes[0].shape).toBe('lid');
+    expect(fc.puff).toBeGreaterThan(.5);
+    // something else cuts it short: no drooping face left over
+    pet.act('nod');
+    expect(FACES.sighing.f(pet.pet.pulse.t0 + .1, pet.pet).puff ?? 0).toBe(0);
+  });
+
+  it('happy tears drop slower than crying, with thin tracks on Coo', () => {
+    const tears = face => {
+      const pet = barePet();
+      run(pet, 1);
+      pet.setExpr(face, 6);
+      let n = 0;
+      for (let i = 0; i < 5 * 60; i++) { pet.step(1 / 60); pet.render(); n = Math.max(n, (pet.fxHtml().match(/class="tearf"/g) || []).length); }
+      return { n, html: pet.petHtml() };
+    };
+    const moved = tears('moved'), cry = tears('cry');
+    expect(moved.n).toBeGreaterThan(0);
+    expect(moved.n).toBeLessThan(cry.n);
+    const op = h => +h.match(/class="tearf" opacity="([\d.]+)"/)[1];
+    expect(op(moved.html)).toBeLessThan(op(cry.html));
+  });
+
+  it('turned to stone holds still without blinking, cracks once, and thaws before the face ends', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('walk');
+    run(pet, .3);
+    pet.setExpr('petrify');
+    expect(pet.pet.mode).toBe('idle');
+    run(pet, .5);
+    const at = s => FACES.petrify.f(pet.pet.exprAt + s, pet.pet);
+    expect(at(1).freeze).toBe(true);
+    expect(at(1).stone).toBeCloseTo(1, 5);
+    expect(at(.1).freeze).toBe(false);
+    expect(at(3.15).stone).toBeLessThan(.2);
+    expect(at(3.15).freeze).toBe(false);
+    // frozen: no blink, the gaze held; the crack knocks chips off as it starts (about 1.1 s in)
+    const look = [...pet.pet.look], blinks = [];
+    let chips = 0;
+    for (let i = 0; i < 90; i++) {
+      pet.step(1 / 60); pet.render(); blinks.push(pet.pet.blinkAge);
+      chips = Math.max(chips, (pet.fxHtml().match(/fill="#c9ccd4"/g) || []).length);
+    }
+    expect(new Set(blinks).size).toBe(1);
+    expect(pet.pet.look).toEqual(look);
+    expect(chips).toBe(5);
+    run(pet, 3);
+    expect(pet.fxHtml()).not.toContain('#c9ccd4');
+    expect(SOUND_KINDS.face).toContain('crack');
+  });
+});

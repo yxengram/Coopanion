@@ -868,6 +868,29 @@ describe('pleading, a scratch at the head, an idea, hands on hips and a hug', ()
     pet.act('hips');
     run(pet, .3);
     expect(pet.pet._fname).toBe('determined');
+    // a motion's own face still showing is not kept (a startled flinch), and a kept expression goes on, not restarted
+    pet.act('flinch');
+    run(pet, 1);
+    pet.act('hips');
+    run(pet, .2);
+    expect(pet.pet._fname).toBe('determined');
+    run(pet, 3);
+    pet.setExpr('nervous');
+    run(pet, 1);
+    const at = pet.pet.exprAt;
+    pet.act('hips');
+    expect(pet.pet.exprAt).toBe(at);
+    expect(pet.pet.expr).toBe('nervous');
+  });
+
+  it("hands on hips' swish is a motion sound, muted with them", () => {
+    expect(SOUND_KINDS.move).toContain('hips');
+    const played = [];
+    const sfx = createSfx({ storageKey: 'test.sfx' });
+    sfx.huff = () => played.push('huff');
+    sfx.configure({ kinds: { move: false } });
+    sfx.hips();
+    expect(played).toEqual([]);
   });
 
   it('an idea lights one bulb over the head, which fades', () => {

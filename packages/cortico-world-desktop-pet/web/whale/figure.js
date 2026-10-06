@@ -71,6 +71,8 @@ export const PROP_GESTURES = { sip: 'cup', read: 'book' };
 export const BOTH_HANDS = { ...PROP_GESTURES, pray: 'pray', hips: 'hips', hug: 'hug' };
 /** Gestures that raise the near arm into a drawing of its own, handed over the cheer's way: hand at her head, finger up. */
 export const NEAR_RAISES = { scratch: 'scratch', idea: 'idea' };
+/** Raises whose drawing is a bent arm (much shorter than the fist arm): they come in the heart's way, not by angle. */
+export const BENT_RAISES = ['idea'];
 /** How far up (°) the fist arm goes for a near-arm raise before the drawing takes it on to its own angle. */
 export const RAISE_TO = 80;
 /** A roll (`roll`) turns once, eased, over this part of the gesture (as pet-core's rollTurn; the body travels with it). */
@@ -498,7 +500,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     scared: ['drag_mouth', .8], excited: 'happy_mouth', cry: ['surprised_mouth', .8], confused: -.35,
     disgusted: ['drag_mouth', .6], nervous: -.2,
     // [form, width]: a drawn mouth wider (or narrower) than the usual
-    gentle: .45, awkward: [.05, 1.6], giggle: .6, moved: ['happy_mouth', .7], petrify: ['surprised_mouth', .5],
+    gentle: .45, awkward: [.05, 1.6], giggle: .6, pleading: .25, moved: ['happy_mouth', .7], petrify: ['surprised_mouth', .5],
   };
 
   // where the face's outline is under each eye's tear (master y), with room for the stream's rounded end
@@ -674,7 +676,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [.5, .6], pout: [.3, 0], worried: [-.3, .1], determined: [.9, .3], flustered: [.4, .8], scared: [-1, 0, -1],
     excited: [1, 1], cry: [-1, 0, -1], confused: [.2, .1], bowing: [-.2, .2],
     disgusted: [-.4, 0], nervous: [-.4, 0], peeking: [.6, .5],
-    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], moved: [.4, .5], sighing: [-.3, 0], petrify: [.6, 0],
+    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], pleading: [.2, .3], moved: [.4, .5], sighing: [-.3, 0], petrify: [.6, 0],
   };
   // brows by face, in master pixels: [lift of the whole brow, lift of its inner end (by the nose), extra lift of
   // the far brow]; a negative inner lift is the frown
@@ -685,10 +687,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [1, -1], pout: [-1, -3], worried: [2, 4.5], determined: [0, -3], flustered: [2, 3.5], scared: [3, 4],
     excited: [3, 0], cry: [1, 5], confused: [1, 0, 5],
     disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
-    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1],
+    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1],
   };
   // the head by face: tilt (degrees, forward +) and pitch (angleY, down +)
-  const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: -4, giggle: 5 };
+  const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: -4, giggle: 5, pleading: 4 };
   const HEAD_PITCH = { sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3, reading: .4, giggle: .2 };
   const BROW_SPLIT = U(765);  // the near brow is left of this, the far brow right of it
   let browLift = 0, browInner = 0, browSide = 0;
@@ -848,7 +850,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (hold) { aN = lerp(aN, 30, hold); aF = lerp(aF, -22, hold); }
     // a raise: the fist arm goes up part way, and the drawing takes over (see cheerHandover); without it the fist stays up
     const raiseOn = raiseG && propOK(raiseG) && !lieK ? raise : 0;
-    if (raise) aN = lerp(aN, raiseOn ? RAISE_TO : 100, raise);
+    if (raise) aN = lerp(aN, BENT_RAISES.includes(raiseG) ? 30 : raiseOn ? RAISE_TO : 100, raise);
     if (shiver) { aN = lerp(aN, -10, shiver); aF = lerp(aF, 8, shiver); }
     if (face === 'nervous') { aN = -7 + 2.5 * Math.sin(t * 5); aF = 6; }
     // a flinch hugs the arms in tight; a peek holds them a little back and out, out of the way
@@ -946,7 +948,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       // the drawn near arm takes over from the fist arm pointing the same way and rises on into place; the hand
       // scratches at her head, or the finger gives a little jab as the idea lands
       const id = Object.keys(pose.pivots)[0], on = rg === raiseG ? raiseOn : 0;
-      const { swap, lift, dir } = cheerHandover(on, armBase, RAISE_TO, pose.rest);
+      // (a bent arm: the fist arm comes in toward her chest and the drawing rises a little into place, as the heart's)
+      const { swap, lift, dir } = BENT_RAISES.includes(rg)
+        ? { swap: gk < .5 ? smooth(.05, .3, on) : smooth(.4, .55, on), lift: smooth(.1, .5, on), dir: pose.rest + 12 * (1 - smooth(.1, .5, on)) }
+        : cheerHandover(on, armBase, RAISE_TO, pose.rest);
       const wig = rg === 'scratch' ? 3 * Math.sin(t * 16) : -4 * Math.sin(Math.PI * smooth(.2, .45, gk));
       st[id] = { a: dir - pose.rest + wig * lift };
       for (const p of pose.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;

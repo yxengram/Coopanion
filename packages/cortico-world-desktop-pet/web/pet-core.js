@@ -555,7 +555,7 @@ export function applyTheme(theme, button) {
 /* ---------- sound: synthesized with Web Audio, no files ---------- */
 /** Which kind each sound belongs to; a kind can be silenced on its own (`sfx.configure`). */
 export const SOUND_KINDS = {
-  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout', 'sigh', 'ding'],
+  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout', 'sigh', 'ding', 'hips'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
   face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe', 'crack'],
   snore: ['snore'],
@@ -660,6 +660,8 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
     // turning away in a huff: a soft swish, the whoosh's voice turned down
     huff() { noise({ f0: 1400, f1: 500, q: 1.2, dur: .26, vol: .09, attack: .06 }); },
     away() { api.huff(); },
+    // hands on hips: the same huffy swish
+    hips() { api.huff(); },
     // a tumble: a low rumble along the floor, then a soft bump as she lands on her feet (timed to the roll's own beats)
     roll() {
       noise({ type: 'lowpass', f0: 260, f1: 900, dur: .7, vol: .1, attack: .2, at: .3 });
@@ -894,7 +896,8 @@ export function createPet(els, opts) {
   /** Runs a motion. Returns false when the body cannot take it now (in the air, being dragged). */
   function act(a) {
     if (busy()) return false;
-    const prevExpr = pet.expr, prevUntil = pet.exprUntil;
+    // (an asked-for expression still showing, not a motion's own face: hands on hips keeps it)
+    const prevExpr = pet.exprOwn ? null : pet.expr, prevUntil = pet.exprUntil;
     pet.expr = null; pet.lastAct = a;
     const seated = REST.has(pet.mode);
     switch (a) {
@@ -959,9 +962,12 @@ export function createPet(els, opts) {
       case 'idea': pulse('idea', 1.8); holdFace('excited', 1.9); break;
       case 'hug': pulse('hug', 2.6); holdFace('gentle', 2.7); sfx.soft(); break;
       // hands on hips goes with whatever face she had (cross, smug, determined), or a determined one
+      // (only an asked-for expression, not a motion's own face, and it goes on from where it was, not restarted)
       case 'hips': {
-        const keep = prevExpr && T < prevUntil ? prevExpr : 'determined';
-        pulse('hips', 2.5); holdFace(keep, Math.max(2.6, keep === prevExpr ? prevUntil - T : 0)); sfx.huff(); break;
+        pulse('hips', 2.5);
+        if (prevExpr && T < prevUntil && EXPRESSIONS.includes(prevExpr) && prevExpr !== 'petrify') { pet.expr = prevExpr; pet.exprOwn = false; pet.exprUntil = Math.max(prevUntil, T + 2.6); pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); }
+        else holdFace('determined', 2.6);
+        sfx.hips(); break;
       }
       // a sigh: drawing a breath, then sagging as it goes out
       case 'sigh': pulse('sigh', 2); holdFace('sighing', 2.1); sfx.sigh(); break;
@@ -977,7 +983,7 @@ export function createPet(els, opts) {
   }
   function pulse(kind, dur) { pet.pulse = { kind, t0: T, dur }; }
   /** A motion's own face, without the expression's sound and bounce (act() has just cleared any held face). */
-  function holdFace(n, seconds) { pet.expr = n; pet.exprAt = T; pet.exprUntil = T + seconds; pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); }
+  function holdFace(n, seconds) { pet.expr = n; pet.exprAt = T; pet.exprUntil = T + seconds; pet.exprOwn = true; pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); }
 
   function setExpr(n, seconds) {
     if (n === 'sleep') { act('sleep'); return; }
@@ -994,7 +1000,7 @@ export function createPet(els, opts) {
     if (n === 'petrify' && pet.expr === 'petrify' && T < pet.exprUntil) return;
     // turned to stone she stops where she is
     if (n === 'petrify' && (pet.mode === 'walk' || pet.mode === 'run' || pet.mode === 'dance')) setMode('idle');
-    pet.expr = n; pet.exprAt = T; pet.exprUntil = T + (seconds ?? (n === 'sleepy' ? 4.4 : 3.2));
+    pet.expr = n; pet.exprAt = T; pet.exprUntil = T + (seconds ?? (n === 'sleepy' ? 4.4 : 3.2)); pet.exprOwn = false;
     pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6);
     pet.sqv += n === 'surprised' ? -2.2 : .8;
     sfx.expr(n);
@@ -1270,8 +1276,9 @@ export function createPet(els, opts) {
     // an idea lights a bulb over the head as the finger goes up
     if (pet.pulse?.kind === 'idea' && !pet.pulse.lit && (T - pet.pulse.t0) / pet.pulse.dur > .25) {
       pet.pulse.lit = true; sfx.ding();
+      // (up beside the head, to the front, clear of the speech bubble over it)
       const [bx, by] = proneK() > .5 ? lieSet().bubble : [A.bubble[0], A.bubble[1] + pet.low];
-      emit('bulb', toStage(bx, by + 10), { vy: -12, life: 1.2 });
+      emit('bulb', toStage(bx + 62, by + 28), { vy: -12, life: 1.2 });
     }
     // a spout throws spray up out of the column as it breaks, whatever figure draws it (it falls back under gravity)
     if (pet.pulse?.kind === 'spout') {
@@ -1317,7 +1324,7 @@ export function createPet(els, opts) {
         sqT += -.05 * inh + .07 * exh; leanT += 6 * exh;
       }
       // pleading bows twice; a scratch tips the head; an idea pops up; hands on hips leans back, chest out; a hug leans in
-      else if (pet.pulse.kind === 'pray') leanT += 5 * envelope(k, .15, .85) * (.6 + .4 * Math.sin(k * Math.PI * 8));
+      else if (pet.pulse.kind === 'pray') leanT += 5 * envelope(k, .15, .85) * (.6 + .4 * Math.sin(k * Math.PI * 4));
       else if (pet.pulse.kind === 'scratch') tiltT += 6 * envelope(k, .15, .85);
       else if (pet.pulse.kind === 'idea') sqT -= .1 * Math.sin(Math.PI * clamp((k - .2) / .2, 0, 1));
       else if (pet.pulse.kind === 'hips') leanT -= 4 * envelope(k, .1, .85);
@@ -1467,8 +1474,8 @@ export function createPet(els, opts) {
     dustAt(128, impact > 900 ? 7 : 3, 70);
     if (kind === 'throw' && impact > 1000) { setMode('dizzy'); onEvent('touch', { kind: 'crash' }); return; }
     setMode('land');
-    if (kind === 'throw') { pet.expr = 'surprised'; pet.exprUntil = T + .9; pet.nextAt = T + 2; }
-    else if (kind === 'drop') { pet.expr = 'happy'; pet.exprUntil = T + 1.6; pet.nextAt = T + 2.6; }
+    if (kind === 'throw') { pet.expr = 'surprised'; pet.exprUntil = T + .9; pet.exprOwn = true; pet.nextAt = T + 2; }
+    else if (kind === 'drop') { pet.expr = 'happy'; pet.exprUntil = T + 1.6; pet.exprOwn = true; pet.nextAt = T + 2.6; }
     else pet.nextAt = T + rnd(.8, 2);
   }
 

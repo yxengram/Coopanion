@@ -916,3 +916,54 @@ describe('pleading, a scratch at the head, an idea, hands on hips and a hug', ()
     }
   });
 });
+
+describe('coaxing, a song, serving tea, a salute and a V sign', () => {
+  it('coaxing rocks side to side with a cat mouth and a heart every 1.2 s', () => {
+    const fc = FACES.coax.f(1);
+    expect(fc.cat).toBe(true);
+    expect(fc.emitEvery).toBeCloseTo(1.2);
+    const rocks = [0, .5, 1, 1.5].map(t => FACES.coax.f(t).rock);
+    expect(Math.max(...rocks) - Math.min(...rocks)).toBeGreaterThan(1);
+    const pet = barePet();
+    run(pet, 1);
+    pet.setExpr('coax');
+    const tilts = [];
+    for (let i = 0; i < 90; i++) { pet.step(1 / 60); pet.render(); tilts.push(pet.pet.tilt); }
+    expect(Math.max(...tilts) - Math.min(...tilts)).toBeGreaterThan(4);
+  });
+
+  it('a song spreads rings and notes, and stops when someone starts talking to her', () => {
+    expect(SOUND_KINDS.move).toContain('song');
+    const pet = barePet();
+    run(pet, 1);
+    expect(pet.act('song')).toBe(true);
+    let rings = 0;
+    for (let i = 0; i < 90; i++) { pet.step(1 / 60); pet.render(); rings = Math.max(rings, (pet.fxHtml().match(/A[\d.]+ [\d.]+ 0 0 [01]/g) || []).length); }
+    expect(rings).toBeGreaterThan(0);
+    pet.setListening(true);
+    run(pet, .1);
+    expect(pet.pet.pulse).toBeNull();
+    expect(pet.act('song')).toBe(false);
+    pet.setListening(false);
+  });
+
+  it('a salute looks serious with the hand up and winks as it comes down', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('salute');
+    const at = k => FACES.saluting.f(pet.pet.pulse.t0 + k * pet.pet.pulse.dur, pet.pet);
+    expect(at(.4).brows).toBe('angry');
+    expect(at(.9).eyes[1].shape).toBe('up');
+  });
+
+  it('each plays out and ends with the body free again, with its own motion sound', () => {
+    for (const [m, sound] of [['serve', 'clink'], ['salute', 'snap'], ['vsign', 'cheese']]) {
+      expect(SOUND_KINDS.move, m).toContain(sound);
+      const pet = barePet();
+      run(pet, 1);
+      expect(pet.act(m), m).toBe(true);
+      run(pet, 3);
+      expect(pet.pet.pulse, m).toBeNull();
+    }
+  });
+});

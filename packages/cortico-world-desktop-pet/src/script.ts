@@ -41,6 +41,7 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'awkward', kind: 'expression', zh: ['尴尬', '苦笑', '尬笑'], note: '笑眼配八字眉,挂一大滴汗,身子往后一缩' },
   { id: 'moved', kind: 'expression', zh: ['感动', '泪目', '好感动'], note: '笑着含泪,眼里泪光闪闪,挂两道细泪痕' },
   { id: 'petrify', kind: 'expression', zh: ['石化', '裂开', '我裂开了', '碎了'], note: '当场僵住变成灰白石像,裂开一道缝,几秒后恢复;只在坏消息、被吐槽时用' },
+  { id: 'coax', kind: 'expression', zh: ['撒娇', '卖萌', '好不好嘛'], note: '笑眯眯地撒娇,脸通红,猫咪 ω 嘴,左右晃,冒小心心' },
   { id: 'giggle', kind: 'expression', zh: ['偷笑', '嘻嘻', '憋笑', '窃笑'], note: '眯眼憋着笑,一阵一阵地抖' },
   { id: 'stand', kind: 'motion', zh: ['站起', '站'], note: '站起来(坐着、趴着、睡着时)' },
   { id: 'jump', kind: 'motion', zh: ['跳', '跳起来'], note: '原地起跳' },
@@ -75,6 +76,10 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'idea', kind: 'motion', zh: ['有了', '想到了', '灵光一闪'], note: '竖起食指,头顶亮起一个小灯泡' },
   { id: 'hips', kind: 'motion', zh: ['叉腰'], note: '双手叉腰,配合当时的表情(生气、得意、认真),没有就一脸认真' },
   { id: 'hug', kind: 'motion', zh: ['抱抱', '求抱抱', '抱一下'], note: '张开双臂要抱抱,一脸温柔' },
+  { id: 'song', kind: 'motion', zh: ['唱歌', '哼歌', '鲸歌'], note: '闭着眼轻轻唱一首鲸歌四秒左右,声波一圈圈散开、飘音符;有人说话时会停' },
+  { id: 'serve', kind: 'motion', zh: ['奉茶', '请用茶', '喝口水吧'], note: '双手端着托盘递上一杯热茶,适合提醒对方歇一歇、喝口水' },
+  { id: 'salute', kind: 'motion', zh: ['敬礼', '遵命', '收到'], note: '利落地敬个礼,一脸认真,放下时眨眨眼' },
+  { id: 'vsign', kind: 'motion', zh: ['比耶', '耶', '剪刀手'], note: '在脸边比个 V,眨眼歪头,闪一下星光' },
   { id: 'spout', kind: 'motion', zh: ['喷水', '鲸鱼喷水'], note: '像鲸鱼一样从头顶喷出一束水花,适合完成任务、被夸、松一口气时' },
 ];
 

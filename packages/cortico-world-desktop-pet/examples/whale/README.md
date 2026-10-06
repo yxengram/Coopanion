@@ -94,6 +94,13 @@ pet-core 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎
 拜托时合十的手跟着节奏一下一下往上拜，脸是 `pleading`（亮晶晶地往上看）；叉腰沿用她当时的表情（生气、得意、认真），没有就一脸认真；抱抱时双臂微微摆开，脸是温柔。
 挠头（`scratch`）和有了（`idea`）举起的是近侧手臂，按欢呼的方式交接：握拳手臂先抬到 80°，差约 15° 时换成画的那张，画的手臂再抬到自己的角度（`rest`），
 同样画两份（整条手臂在原手臂的层、手和小臂再画一份在头部之上）。挠头时手在头侧一下一下地挠；有了的那张是弯着的手臂（手比握拳手臂短得多），所以不按角度交接，而是像比心那样：握拳手臂往胸前收，画的手臂从稍低处升到位；食指往上一戳，pet-core 在头的前上方冒一个亮起来的灯泡（`bulb` 粒子，任何模型都有，避开头顶的对话气泡）。
+撒娇（`coax`）是表情：笑眼、满脸通红，嘴换成画出来的 ω 猫嘴（`cat`，说话时 ω 下面张开一个小口），整个人左右摇（`rock`，kit 给整组的倾斜，
+她自己的身体也绕脚底摇），双手收在身前，每 1.2 秒冒一颗小心心（`emitEvery`）。
+唱歌（`song`，约 4 秒）由 pet-core 画一圈圈往外扩的声波弧线（`wave` 粒子，倾听弧线反过来）和往上飘的音符，任何模型都有；
+脸 `singing` 是闭眼的笑眼、微微抬头，嘴按节拍开合（`sing`），大肥鱼的两只鳍跟着打拍子；有人开始说话（倾听）时歌就停，倾听中也不唱。
+奉茶（`serve`）和喝茶一样是一张两手托着托盘的画（`poses.tea`），托盘往前递时整张稍微放大一点，杯口冒热气。
+敬礼（`salute`）和比耶（`vsign`）举起的是近侧手臂，都是弯着的手臂，按有了的方式进来；敬礼是「啪」地一下到位，稍微冲过头再弹回，
+之后完全定住，放下也快；脸 `saluting` 举手时一脸认真，放下时眨眼。比耶时歪一下头、眨眼，头旁闪一下星光。
 叹气（`sigh`，约 2 秒）：前 0.35 先吸一口气（眼睛睁大往上看，上身挺一点），之后长长呼出来：半闭眼、八字眉、嘴是小小的「哈」（脸的 `puff`），
 上身和头往前一塌，鲸鳍和尾巴垂下，嘴前飘出两小团白气。脸 `sighing` 按 pet-core 的 `pulse` 计时，叹气被别的动作打断就回到平常的脸。
 转身和转圈转到侧对你的那一下（`facing` 绝对值小于约 0.45），以及背过身（`away`）时，换成背面那张画；站着时才有（坐着、趴着照旧），
@@ -118,7 +125,7 @@ pet-core 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎
 围裙上的喷水小鲸鱼是手写的矢量图（`examples/whale/apron-whale.svg`）：围裙抹成空白布面后，按这套裙子的深色印在右下角
 （白色的眼睛和肚皮保持白色，乘上布面的明暗），坐姿的围裙是俯视的，印得扁一些；团成球的那张也一样。
 
-新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
+新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
 `model.json` 的 `poses`）也来自 ChatGPT 的图像模型（gpt-image-2.5，经本地代理用 ChatGPT 订阅调用），和原来的贴图同源：
 把站姿渲染成一张参考图，对它做编辑。先试过本地的 FLUX.2-klein-4B，画风和比例都不如它（手画得太大，趴姿的头发变短）。
 - 手臂：编辑只改手臂（举到头边张开手掌、托着下巴、双手举到头两侧、双手在胸前比心）。输出比参考图大约 1%，缩放回参考图尺寸再配准；

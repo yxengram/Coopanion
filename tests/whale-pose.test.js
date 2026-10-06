@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, RAISE_TO, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, RAISE_TO, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -591,7 +591,7 @@ describe('hands pressed together, on the hips and held out; a hand at the head a
   });
 
   it('draws both-hand poses over the bodice and face, under the fringe, riding the upper body', () => {
-    for (const pose of ['pray', 'hips', 'hug']) {
+    for (const pose of ['pray', 'hips', 'hug', 'tea']) {
       const P = model.poses[pose], [arm] = P.required, [x, , w] = arm.box;
       expect(arm.parent, pose).toBe(Object.keys(P.pivots)[0]);
       // across her middle (pressed hands are narrower than the shoulders; hips and a hug reach past them)
@@ -609,7 +609,8 @@ describe('hands pressed together, on the hips and held out; a hand at the head a
       // the fist arm hangs straight down at 0°; turned by `rest` it points from the shoulder at the drawn wrist
       const a = P.rest * Math.PI / 180;
       expect(Math.hypot(-Math.sin(a) - (wx - sx) / Math.hypot(wx - sx, wy - sy), Math.cos(a) - (wy - sy) / Math.hypot(wx - sx, wy - sy)), pose).toBeLessThan(.03);
-      expect(P.rest, pose).toBeGreaterThan(RAISE_TO);
+      // (raised by angle, the drawing must sit past where the fist arm hands over; bent arms come in another way)
+      if (!BENT_RAISES.includes(Object.keys(NEAR_RAISES).find(g => NEAR_RAISES[g] === pose))) expect(P.rest, pose).toBeGreaterThan(RAISE_TO);
       // two copies: the whole arm with the plain arms, the hand again over the head
       const [whole, top] = P.required;
       expect(top.z, pose).toBeGreaterThan(z('bangs'));

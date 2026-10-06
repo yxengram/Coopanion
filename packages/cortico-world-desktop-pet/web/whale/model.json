@@ -1476,6 +1476,133 @@
    ],
    "rest": 136,
    "source": "gpt-image-2.5 edit of the standing rig render: idea_gpt 2"
+  },
+  "tea": {
+   "required": [
+    {
+     "id": "arm_tea",
+     "tex": "arm_tea",
+     "z": 9.6,
+     "parent": "armTea",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      105.5,
+      155.5,
+      72.17,
+      35.33
+     ]
+    }
+   ],
+   "pivots": {
+    "armTea": [
+     143.67,
+     186.0
+    ]
+   },
+   "wrist": [
+    150.33,
+    159.67
+   ],
+   "source": "gpt-image-2.5 edit of the standing rig render: tea_gpt 3"
+  },
+  "salute": {
+   "required": [
+    {
+     "id": "arm_salute",
+     "tex": "arm_salute",
+     "z": 6,
+     "parent": "armSalute",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      80.5,
+      112.33,
+      40.0,
+      51.0
+     ]
+    },
+    {
+     "id": "arm_salute_top",
+     "tex": "arm_salute_top",
+     "z": 14.2,
+     "parent": "armSalute",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      80.5,
+      112.33,
+      40.0,
+      51.0
+     ]
+    }
+   ],
+   "pivots": {
+    "armSalute": [
+     93.67,
+     168.5
+    ]
+   },
+   "wrist": [
+    100.33,
+    124.0
+   ],
+   "rest": -171,
+   "source": "gpt-image-2.5 edit of the standing rig render: salute_gpt 2"
+  },
+  "vsign": {
+   "required": [
+    {
+     "id": "arm_vsign",
+     "tex": "arm_vsign",
+     "z": 6,
+     "parent": "armVsign",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      90.0,
+      129.83,
+      23.33,
+      55.5
+     ]
+    },
+    {
+     "id": "arm_vsign_top",
+     "tex": "arm_vsign_top",
+     "z": 14.2,
+     "parent": "armVsign",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      90.0,
+      129.83,
+      23.33,
+      55.5
+     ]
+    }
+   ],
+   "pivots": {
+    "armVsign": [
+     103.67,
+     186.0
+    ]
+   },
+   "wrist": [
+    102.0,
+    156.0
+   ],
+   "rest": 177,
+   "source": "gpt-image-2.5 edit of the standing rig render: vsign_gpt 1"
   }
  }
 }

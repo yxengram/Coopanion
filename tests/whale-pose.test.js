@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { ROLL_D } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
+import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
 const model = JSON.parse(readFileSync(new URL('model.json', WHALE), 'utf8'));
@@ -572,6 +572,8 @@ describe('a roll, as the whale draws it', () => {
     expect(ballMix(.9)).toBe(0);
     expect(ballMix(.3)).toBe(1);
     expect(ballMix(.7)).toBe(1);
+    // the ball turns in step with pet-core carrying her along
+    for (let k = 0; k <= 1; k += .05) expect(rollTurn(k)).toBeCloseTo(coreRollTurn(k), 9);
     expect(rollTurn(.165)).toBe(0);
     expect(rollTurn(.835)).toBe(1);
     expect(ballLift(ROLL.support, 360)).toBeCloseTo(ROLL.support[0], 5);

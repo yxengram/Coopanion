@@ -671,11 +671,11 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
 /** Expressions: a face held for a few seconds. */
 export const EXPRESSIONS = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 'angry', 'sad', 'sleepy', 'thinking',
   'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous'];
-/** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
 /** A forward roll (`roll`) turns once, eased, over this part of the gesture; the body travels the same way. */
 export const rollTurn = k => smooth(clamp((k - .2) / .6, 0, 1));
 // how far one roll goes, in logo units: once round a ball of radius 100 (Coo's ring is 102 to its outer edge)
 export const ROLL_D = 2 * Math.PI * 100;
+/** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
   'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */

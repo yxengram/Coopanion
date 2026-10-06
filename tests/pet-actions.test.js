@@ -693,11 +693,19 @@ describe('a gentle smile, an awkward one and a giggle', () => {
     }
   });
 
-  it('gentle nods slowly at once and again every 4 s, and holds still between', () => {
+  it('gentle nods slowly soon after it comes in and again within the usual 3.2 s hold, still between', () => {
     const lean = s => FACES.gentle.f(10 + s, { exprAt: 10 }).lean;
-    expect(lean(.4)).toBeGreaterThan(5);
-    expect(Math.abs(lean(1.5))).toBeLessThan(1e-9);
-    expect(lean(4.4)).toBeCloseTo(lean(.4), 6);
+    expect(lean(.8)).toBeGreaterThan(5);
+    expect(Math.abs(lean(1.8))).toBeLessThan(1e-9);
+    expect(lean(3)).toBeGreaterThan(5);
+    // held the default time by the pet, both nods show
+    const pet = barePet();
+    run(pet, 1);
+    pet.setExpr('gentle');
+    const leans = [];
+    for (let i = 0; i < 3.2 * 60; i++) { pet.step(1 / 60); pet.render(); leans.push(pet.pet._fname === 'gentle' ? pet.pet.lean : 0); }
+    const peaks = leans.filter((v, i) => i > 0 && i < leans.length - 1 && v > 3 && v >= leans[i - 1] && v > leans[i + 1]);
+    expect(peaks.length).toBe(2);
   });
 
   it('a giggle shakes in fits: hard at first, then quiet until the next fit', () => {

@@ -663,7 +663,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1],
   };
   // the head by face: tilt (degrees, forward +) and pitch (angleY, down +)
-  const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: 5, giggle: 5 };
+  const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: -4, giggle: 5 };
   const HEAD_PITCH = { sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3, reading: .4, giggle: .2 };
   const BROW_SPLIT = U(765);  // the near brow is left of this, the far brow right of it
   let browLift = 0, browInner = 0, browSide = 0;

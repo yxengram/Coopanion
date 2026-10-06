@@ -250,18 +250,6 @@ export const FACES = {
   excited:   { label: '期待', kao: '(☆ ☆', f: () => ({ gap: [60, 60], eyes: [ring({ rx: 18, ry: 19, dy: -1 }), ring({ rx: 18, ry: 19, dy: -1 })], sparkle: true, blush: .4 }) },
   cry:       { label: '大哭', kao: '(T T', f: t => { const g = 36 + 6 * Math.abs(Math.sin(t * 9)); return { gap: [g, g], eyes: [{ shape: 'lid', ry: 0 }, { shape: 'lid', ry: 0 }], brows: 'sad', emit: 'tears', streams: true }; } },
   // `lean` tips the body back (-) or forward while standing or sitting; `gloom` draws the three lines of 无语
-  // a quiet, warm smile: eyes softly half shut on you, a little blush, a slow nod now and then (from when it began)
-  gentle:    { label: '温柔', kao: '(˘ ˘', f: (t, p) => {
-    const s = t - (p ? p.exprAt : 0), u = (s + 3.2) % 4;
-    return { gap: [48, 48], eyes: [{ shape: 'lid', ry: 10 }, { shape: 'lid', ry: 10 }], blush: .3, lean: 7 * Math.sin(Math.PI * clamp((u - 3.2) / .8, 0, 1)) };
-  } },
-  // a strained smile: smiling eyes under worried brows, a big drop of sweat, leaning back a little
-  awkward:   { label: '尴尬', kao: '(^ ^;', f: () => ({ gap: [54, 50], eyes: [{ shape: 'up' }, { shape: 'up' }], brows: 'sad', sweat: true, lean: -3 }) },
-  // trying not to laugh: smiling eyes looking a little away and down, shaking in fits (`titter`, 0..1) every 1.6 s
-  giggle:    { label: '偷笑', kao: '(^ ^)', f: (t, p) => {
-    const s = t - (p ? p.exprAt : 0), u = s % 1.6;
-    return { gap: [52, 52], eyes: [{ shape: 'up' }, { shape: 'up' }], blush: .35, lookAt: [2, 1.5], titter: Math.sin(Math.PI * clamp(u / .7, 0, 1)) * Math.abs(Math.sin(s * 18)) };
-  } },
   disgusted: { label: '嫌弃', kao: '(- -|||', f: () => ({ gap: [32, 30], eyes: [{ shape: 'lid', ry: 6.5, dx: 4 }, { shape: 'lid', ry: 6.5, dx: 4 }], lookAt: [-4, 0], lean: -5, gloom: true }) },
   // eyes darting off and back about twice a second, a short tremor every 1.7 s, the body held stiff;
   // timed from when the face began (p.exprAt), so the first glance and tremor come at once
@@ -272,6 +260,19 @@ export const FACES = {
       lookAt: away ? [Math.sin(n * 78.233) > 0 ? 5.5 : -5.5, 1.5 * Math.sin(n * 2.1)] : [0, 0],
       shake: s % 1.7 < .3 ? .9 : 0,
     };
+  } },
+  // a quiet, warm smile: eyes softly half shut on you, a little blush, a slow nod every 2.2 s (from when it began,
+  // the first just after the face comes in, so a held face of the usual 3.2 s nods twice)
+  gentle:    { label: '温柔', kao: '(˘ ˘', f: (t, p) => {
+    const u = (t - (p ? p.exprAt : 0)) % 2.2;
+    return { gap: [48, 48], eyes: [{ shape: 'lid', ry: 10 }, { shape: 'lid', ry: 10 }], blush: .3, lean: 7 * Math.sin(Math.PI * clamp((u - .4) / .8, 0, 1)) };
+  } },
+  // a strained smile: smiling eyes under worried brows, a big drop of sweat, leaning back a little
+  awkward:   { label: '尴尬', kao: '(^ ^;', f: () => ({ gap: [54, 50], eyes: [{ shape: 'up' }, { shape: 'up' }], brows: 'sad', sweat: true, lean: -3 }) },
+  // trying not to laugh: smiling eyes looking a little away and down, shaking in fits (`titter`, 0..1) every 1.6 s
+  giggle:    { label: '偷笑', kao: '(^ ^)', f: (t, p) => {
+    const s = t - (p ? p.exprAt : 0), u = s % 1.6;
+    return { gap: [52, 52], eyes: [{ shape: 'up' }, { shape: 'up' }], blush: .35, lookAt: [2, 1.5], titter: Math.sin(Math.PI * clamp(u / .7, 0, 1)) * Math.abs(Math.sin(s * 18)) };
   } },
   // motions' own faces (not ones to ask for): eyes shut through a bow; wide, alert eyes held ahead for a peek
   bowing:    { label: '鞠躬', f: () => ({ gap: [48, 48], eyes: [{ shape: 'lid', ry: 0 }, { shape: 'lid', ry: 0 }] }) },

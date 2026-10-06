@@ -729,3 +729,47 @@ describe('a gentle smile, an awkward one and a giggle', () => {
     expect(Math.max(...faces.map(f => f.titter || 0))).toBeGreaterThan(.5);
   });
 });
+
+describe("a whale's spout", () => {
+  /** The spray beads drawn now, as [x, y] on the stage. */
+  const beads = pet => [...pet.fxHtml().matchAll(/<circle fill="#cdeeff"[^>]*cx="([-\d.]+)" cy="([-\d.]+)"/g)].map(m => [+m[1], +m[2]]);
+
+  it('throws spray up from the top of the head, which falls back to the floor and is gone', () => {
+    const pet = barePet();
+    run(pet, 1);
+    expect(pet.act('spout')).toBe(true);
+    expect(SOUND_KINDS.move).toContain('spout');
+    run(pet, .2);
+    expect(pet.fxHtml()).not.toContain('#cdeeff');
+    run(pet, .55);
+    // the column and the first beads, above the head
+    const head = pet.toStage(...[128, 30]);
+    const b = beads(pet);
+    expect(b.length).toBeGreaterThan(3);
+    for (const [, y] of b) expect(y).toBeLessThan(head.y + 1);
+    run(pet, 2.5);
+    expect(beads(pet)).toEqual([]);
+    expect(pet.pet.pulse).toBeNull();
+  });
+
+  it("starts from a figure's own spout spot, under its bubble spot if it names none, and from the lying head when down", () => {
+    const firstX = anchors => {
+      const pet = barePet();
+      pet.setFigure({ anchors, draw() {} });
+      run(pet, 1);
+      pet.act('spout');
+      run(pet, .52);
+      return beads(pet)[0];
+    };
+    const own = firstX({ spout: [60, 100] }), none = firstX({ bubble: [200, 40] });
+    expect(own[0]).toBeLessThan(none[0] - 40);
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('lie');
+    run(pet, 3);
+    pet.act('spout');
+    run(pet, .52);
+    const lyingHead = pet.toStage(150, 88);
+    expect(Math.abs(beads(pet)[0][0] - lyingHead.x)).toBeLessThan(30);
+  });
+});

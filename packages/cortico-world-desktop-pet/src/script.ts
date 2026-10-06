@@ -67,6 +67,7 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'roll', kind: 'motion', zh: ['翻滚', '打滚', '前滚翻'], note: '在地上向前滚一圈再站起来' },
   { id: 'sip', kind: 'motion', zh: ['喝茶', '抱杯子', '喝口水'], note: '双手捧着杯子喝一口' },
   { id: 'read', kind: 'motion', zh: ['看书', '读书', '拿书'], note: '捧着一本书看一会儿' },
+  { id: 'spout', kind: 'motion', zh: ['喷水', '鲸鱼喷水'], note: '像鲸鱼一样从头顶喷出一束水花,适合完成任务、被夸、松一口气时' },
 ];
 
 const BY_WORD = new Map<string, VocabEntry>();

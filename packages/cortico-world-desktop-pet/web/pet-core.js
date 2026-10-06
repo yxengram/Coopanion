@@ -33,6 +33,8 @@ function liePt(x, y, L) {
   return [128 + dx * Math.cos(a) - dy * Math.sin(a), 256 + dx * Math.sin(a) + dy * Math.cos(a)];
 }
 const DROP = 'M0 -9C4 -3 6 0 6 3.5A6 6 0 0 1 -6 3.5C-6 0 -4 -3 0 -9Z';
+// a spout's water: its own fixed colours (any scheme, any desktop), and the spray's fall, per unit of the stage scale
+const WATER = '#2f7fd0', SPRAY_G = 2200;
 const pol = (a, r) => [128 + r * Math.cos(a * Math.PI / 180), 128 - r * Math.sin(a * Math.PI / 180)];
 const pt = p => `${f(p[0])} ${f(p[1])}`;
 
@@ -522,7 +524,7 @@ export function applyTheme(theme, button) {
 /* ---------- sound: synthesized with Web Audio, no files ---------- */
 /** Which kind each sound belongs to; a kind can be silenced on its own (`sfx.configure`). */
 export const SOUND_KINDS = {
-  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page'],
+  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
   face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe'],
   snore: ['snore'],
@@ -637,6 +639,12 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
       noise({ f0: 700, f1: 1500, q: 3, dur: .3, vol: .05, at: 1.55 });
       tone({ type: 'triangle', f0: 440, f1: 392, dur: .35, vol: .07, at: 2.1 });
     },
+    // a whale's spout: a pop as it goes up, the hiss of the column, then the spray pattering down
+    spout() {
+      tone({ f0: 300, f1: 900, dur: .08, vol: .12, at: .36 });
+      noise({ f0: 1200, f1: 2600, q: 1.2, dur: .45, vol: .09, attack: .03, at: .4 });
+      for (let i = 0; i < 4; i++) tone({ f0: R(1800, 2400), dur: .03, vol: .03, at: .95 + i * .08 });
+    },
     // the book opening: two papery rustles
     page() { noise({ type: 'highpass', f0: 3200, f1: 1600, dur: .16, vol: .05 }); noise({ type: 'highpass', f0: 2800, f1: 1400, dur: .2, vol: .04, at: .22 }); },
     flinch() { tone({ type: 'triangle', f0: 900, f1: 1400, dur: .09, vol: .12 }); noise({ type: 'highpass', f0: 2400, f1: 1200, dur: .12, vol: .05 }); },
@@ -695,7 +703,7 @@ export const rollTurn = k => smooth(clamp((k - .2) / .6, 0, 1));
 export const ROLL_D = 2 * Math.PI * 100;
 /** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
-  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read'];
+  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
 /** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
@@ -754,12 +762,13 @@ export function createPet(els, opts) {
   const P = [];
 
   // points on the body in logo units: where the eyes look from, where a tear starts (and under each eye, for crying),
-  // where z's and hearts start, the bubble's spot, where a glint flashes;
+  // where z's and hearts start, the bubble's spot, where a glint flashes, where a spout of water leaves the head;
   // `lie` is the same points carried through Coo's lying pose (lieXf at lie 1, hips sunk 29), with the lying body's
   // hit ellipse and half width (the raised foot reaches furthest)
   const COO_ANCHORS = {
     gaze: [140, 117], tear: [166, 136], tears: [[116, 136], [166, 136]], z: [196, 40], hearts: [90, 175, 34], bubble: [146, 0], glints: [[50, 30], [210, 30]],
-    lie: { gaze: [156, 164], tear: [181, 184], z: [226, 107], hearts: [114, 204, 90], bubble: [176, 64], glints: [[72, 74], [242, 101]], hit: [138, 172, 114, 90], halfW: 132 },
+    spout: [128, 30],
+    lie: { gaze: [156, 164], tear: [181, 184], z: [226, 107], hearts: [114, 204, 90], bubble: [176, 64], glints: [[72, 74], [242, 101]], spout: [150, 88], hit: [138, 172, 114, 90], halfW: 132 },
   };
   // a figure's anchors replace Coo's; its lying points are its own or none
   const anchorsOf = fig => (fig ? { ...COO_ANCHORS, lie: undefined, ...fig.anchors } : COO_ANCHORS);
@@ -903,6 +912,8 @@ export function createPet(els, opts) {
       }
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
       // (a figure with hands draws them; Coo holds a little one of its own)
+      // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
+      case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9); sfx.spout(); break;
       case 'sip': pulse('sip', 3.6); holdFace('sipping', 3.7); sfx.sip(); break;
       case 'read': pulse('read', 4.4); holdFace('reading', 4.4); sfx.page(); break;
       default: return false;
@@ -990,6 +1001,15 @@ export function createPet(els, opts) {
       emit('glint', toStage(x + rnd(-8, 8), y + rnd(-8, 8) + (lg ? 0 : pet.low)), { vx: rnd(-8, 8), vy: rnd(-18, -8), life: rnd(.5, .7) });
     }
   }
+  /** Where a spout leaves the head (logo units): lying, from the lying head; a figure that names no spout spot, just under its bubble spot. */
+  function spoutPt() {
+    const l = proneK() > .5 && lieSet();
+    if (l) return l.spout || [l.bubble[0], l.bubble[1] + 30];
+    const [x, y] = custom && !custom.anchors?.spout ? [A.bubble[0], A.bubble[1] + 30] : A.spout;
+    return [x, y + pet.low];
+  }
+  /** How tall the spout's column is (0..1) and how solid, at `k` of the gesture: it shoots up, holds, and breaks into spray. */
+  const spoutCol = k => ({ h: smooth(clamp((k - .25) / .1, 0, 1)), a: 1 - smooth(clamp((k - .45) / .12, 0, 1)) });
   function dustAt(lx, n, spread) {
     for (let i = 0; i < n; i++) {
       emit('dust', toStage(lx, 250), { vx: rnd(-spread, spread) - pet.facing * rnd(10, 40), vy: rnd(-30, -8), life: rnd(.4, .65) });
@@ -1186,6 +1206,15 @@ export function createPet(els, opts) {
     if (pet.pulse?.kind === 'flinch' && pet.pulse.dx && m === 'idle') {
       pet.x = clamp(pet.pulse.x0 + pet.pulse.dx * smooth(clamp((T - pet.pulse.t0) / (pet.pulse.dur * .22), 0, 1)), minX(), maxX());
     }
+    // a spout throws spray up out of the column as it breaks, whatever figure draws it (it falls back under gravity)
+    if (pet.pulse?.kind === 'spout') {
+      const k = (T - pet.pulse.t0) / pet.pulse.dur;
+      if (k > .3 && k < .55 && T >= (pet.pulse.sprayAt ?? 0)) {
+        pet.pulse.sprayAt = T + 1 / 30;
+        const [x, y] = spoutPt(), g = SPRAY_G * S, h = rnd(55, 95) * S;
+        emit('spray', toStage(x, y - 80 * spoutCol(k).h), { vx: rnd(-1, 1) * 110 * S, vy: -Math.sqrt(2 * g * h) * .5, life: 1.4, r: rnd(.7, 1.2) });
+      }
+    }
     // a roll carries the body along the floor as it turns, whatever figure draws it
     if (pet.pulse?.kind === 'roll' && m === 'idle') {
       pet.x = clamp(pet.pulse.x0 + pet.pulse.dx * rollTurn((T - pet.pulse.t0) / pet.pulse.dur), minX(), maxX());
@@ -1214,6 +1243,8 @@ export function createPet(els, opts) {
       else if (pet.pulse.kind === 'roll') sqT += .22 * Math.sin(Math.PI * clamp(k / .22, 0, 1)) - .12 * Math.sin(Math.PI * clamp((k - .8) / .2, 0, 1));
       else if (pet.pulse.kind === 'sip') { const e = envelope(k, .1, .9); leanT += 3 * e + 4 * envelope(clamp((k - .38) / .26, 0, 1), .3, .6); }
       else if (pet.pulse.kind === 'read') leanT += 4 * envelope(k, .1, .9);
+      // crouching to gather it, springing up as it goes
+      else if (pet.pulse.kind === 'spout') sqT += .16 * Math.sin(Math.PI * clamp(k / .25, 0, 1)) - .1 * Math.sin(Math.PI * clamp((k - .25) / .15, 0, 1));
       else if (pet.pulse.kind === 'flap') { tiltT += 7 * Math.sin(k * Math.PI * 8) * (1 - k); sqT -= .06 * Math.abs(Math.sin(k * Math.PI * 8)) * (1 - k); }
       else if (pet.pulse.kind === 'spin' && k > .5 && !pet.pulse.flipped) { pet.pulse.flipped = true; pet.facing *= -1; }
       else if (pet.pulse.kind === 'spin' && k < .5 && !pet.pulse.first) { pet.pulse.first = true; pet.facing *= -1; pet.sqv -= 1; }
@@ -1332,6 +1363,7 @@ export function createPet(els, opts) {
       const p = P[i];
       p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.type === 'drop') { p.vy += 900 * dt; if (p.y > floorY) p.age = p.life; }
+      if (p.type === 'spray') { p.vy += SPRAY_G * S * dt; if (p.y > floorY) p.age = p.life; }
       if (p.type === 'dust') p.vx *= Math.exp(-dt * 4);
       if (p.age >= p.life) P.splice(i, 1);
     }
@@ -1421,6 +1453,22 @@ export function createPet(els, opts) {
         s += `<g opacity="${f(op)}" transform="translate(${f(p.x + Math.sin(p.age * 3) * 8)} ${f(p.y)}) scale(${f(z)})"><path ${zPaint} fill="none" stroke-width="2.4" stroke-linecap="round" d="M3 4V-9L9 -6"/><circle ${zPaint} fill="none" stroke-width="3.6" cx="0" cy="4.5" r="1.8"/></g>`;
       } else if (p.type === 'drop') {
         s += `<path class="tearf" transform="translate(${f(p.x)} ${f(p.y)}) scale(${f(.9 * sc)})" d="${DROP}"/>`;
+      } else if (p.type === 'spray') {
+        // a round bead of water with a highlight: not a tear's drop shape, so a spout does not read as crying
+        const r = 3.2 * p.r * sc;
+        s += `<g opacity="${f(1 - a * a)}"><circle fill="#cdeeff" stroke="${WATER}" stroke-width="${f(1.1 * sc)}" cx="${f(p.x)}" cy="${f(p.y)}" r="${f(r)}"/><circle fill="#fff" cx="${f(p.x - r * .35)}" cy="${f(p.y - r * .35)}" r="${f(r * .3)}"/></g>`;
+      }
+    }
+    if (pet.pulse?.kind === 'spout') {
+      // the column: from the top of the head up to its crown of water, tapering in at the base, wobbling a little
+      const k = (T - pet.pulse.t0) / pet.pulse.dur, { h, a } = spoutCol(k);
+      if (h > .01 && a > .01) {
+        const [x, y] = spoutPt(), b = toStage(x, y), tp = toStage(x, y - 80 * h), w = sc * 5, wt = sc * 9, wob = sc * 2 * Math.sin(T * 30);
+        const d = `M${f(b.x - w * .5)} ${f(b.y)}Q${f(b.x - w + wob)} ${f((b.y + tp.y) / 2)} ${f(tp.x - wt)} ${f(tp.y)}`
+          + `Q${f(tp.x - wt * .6)} ${f(tp.y - wt * 1.2)} ${f(tp.x)} ${f(tp.y - wt * .6)}Q${f(tp.x + wt * .6)} ${f(tp.y - wt * 1.2)} ${f(tp.x + wt)} ${f(tp.y)}`
+          + `Q${f(b.x + w + wob)} ${f((b.y + tp.y) / 2)} ${f(b.x + w * .5)} ${f(b.y)}Z`;
+        s += `<g opacity="${f(a)}"><path fill="#cdeeff" stroke="${WATER}" stroke-width="${f(1.4 * sc)}" stroke-linejoin="round" d="${d}"/>`
+          + `<path fill="none" stroke="#fff" stroke-width="${f(1.6 * sc)}" stroke-linecap="round" d="M${f(b.x - w * .2)} ${f(b.y - 6 * sc)}Q${f(b.x - w * .5 + wob)} ${f((b.y + tp.y) / 2)} ${f(tp.x - wt * .4)} ${f(tp.y + 4 * sc)}"/></g>`;
       }
     }
     fxG.innerHTML = s;

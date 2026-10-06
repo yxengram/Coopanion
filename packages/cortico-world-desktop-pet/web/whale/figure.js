@@ -728,6 +728,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const heart = g?.kind === 'heart' ? env(.1, .85) : 0;    // both hands make a heart in front of her chest
     const flinch = g?.kind === 'flinch' ? env(.04, .45) : 0; // head and upper body jerk back, arms hugged in
     const peek = g?.kind === 'peek' ? env(.2, .8) : 0;       // the upper body leans in, the head cranes forward
+    // a spout: a crouch to gather it (spoutC), then the push as it goes up (spoutP), fins thrown open
+    const spoutC = g?.kind === 'spout' ? Math.sin(Math.PI * clamp(gk / .25, 0, 1)) : 0;
+    const spoutP = g?.kind === 'spout' ? Math.sin(Math.PI * clamp((gk - .25) / .2, 0, 1)) : 0;
+    const spoutOn = g?.kind === 'spout' ? env(.1, .7) : 0;
     const propG = PROPS[g?.kind] ? g.kind : null;              // a cup or a book held up in both hands
     const hold = propG ? env(.1, .88) : 0, sip = propG === 'sip' ? sipLift(gk) * hold : 0;
     // (turning away without her back drawing, seated say, she turns her face away and drops her chin a little)
@@ -762,12 +766,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // a fit of giggles (pet-core's `titter`, 0..1): the shoulders bob, the fins and ahoge twitch with them
     const titter = fc.titter || 0;
     const finN = (face === 'angry' ? 2.5 * Math.sin(t * 40) : 0) + (face === 'flustered' ? 1.6 * Math.sin(t * 31) + 1.2 * Math.sin(t * 17.3) : 0)
-      + (face === 'excited' ? 6 * burst(0) * Math.sin(t * 24) : 0) + flap * 13 * Math.sin(t * 26) + titter * 5;
+      + (face === 'excited' ? 6 * burst(0) * Math.sin(t * 24) : 0) + flap * 13 * Math.sin(t * 26) + titter * 5 + spoutOn * (14 + 6 * Math.sin(t * 26)) - spoutC * 8;
     const finF = (face === 'angry' ? 2.5 * Math.sin(t * 40) : 0) + (face === 'flustered' ? 1.4 * Math.sin(t * 27 + 1.9) + 1.1 * Math.sin(t * 13.1 + .4) : 0)
-      + (face === 'excited' ? 5 * burst(.6) * Math.sin(t * 21 + 1.1) : 0) + flap * 11 * Math.sin(t * 22 + .9) + titter * 4;
-    const ahoge = sp.ahoge.step(-tiltVel * .12 - yawVel * .5 + sway * 18 + (face === 'surprised' ? -16 : 0) + (face === 'confused' ? 20 : 0) + (mode === 'sleep' ? 22 : 0) - hairY * 12, dt)
+      + (face === 'excited' ? 5 * burst(.6) * Math.sin(t * 21 + 1.1) : 0) + flap * 11 * Math.sin(t * 22 + .9) + titter * 4 + spoutOn * (12 + 5 * Math.sin(t * 22 + .9)) - spoutC * 7;
+    const ahoge = sp.ahoge.step(-tiltVel * .12 - yawVel * .5 + sway * 18 - spoutP * 40 + (face === 'surprised' ? -16 : 0) + (face === 'confused' ? 20 : 0) + (mode === 'sleep' ? 22 : 0) - hairY * 12, dt)
       + flap * 12 * Math.sin(t * 19) - titter * 6;
-    const tail = sp.tail.step(sway * 14 + tailMood * 12, dt) + wagAmp * 13 * Math.sin(t * (4 + 5 * wagAmp)) + Math.sin(t * 1.3) * 3
+    const tail = sp.tail.step(sway * 14 + tailMood * 12 + spoutP * 18, dt) + wagAmp * 13 * Math.sin(t * (4 + 5 * wagAmp)) + Math.sin(t * 1.3) * 3
       + flap * 14 * Math.sin(t * 17);
 
     /* legs: pet-core hands hip→foot segments sized for Coo; keep their angle (forward = foot to the right) */
@@ -815,6 +819,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // pet-core sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
     // going down to lie she tips forward off the seat before the lying drawing takes over
     st.body = { a: -sway * 1.2 + (held ? o.swing * .15 : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA), ty: low - 9.6 * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
+    // gathering a spout she crouches; it goes up with a little spring of the whole body
+    if (spoutC || spoutP) { st.body.sy *= 1 - .1 * spoutC + .05 * spoutP; st.body.sx *= 1 + .05 * spoutC - .02 * spoutP; }
     if (g?.kind === 'roll') {
       // she crouches into the roll and springs up out of it; without the ball drawing she hops along instead
       const c = Math.sin(Math.PI * clamp(gk / .2, 0, 1)), pop = Math.sin(Math.PI * clamp((gk - .82) / .18, 0, 1));
@@ -1101,7 +1107,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     draw,
     groupTilt,
     /** The gestures she draws herself, from the frame's `gesture` (pet-core leaves them off the body). */
-    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll'],
+    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**
@@ -1144,8 +1150,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     anchors: {
       gaze: [U(745), V(690)], tear: [U(640), V(752)], tears: [[U(654), V(752)], [U(852), V(750)]], z: [196, 44],
       hearts: [96, 176, 62], bubble: [128, 18], glints: [[48, 32], [208, 46]],
-      // the same, plus the hit ellipse [cx, cy, rx, ry] and half width, lying on her front
-      ...(LIE ? { lie: LIE.anchors } : {}),
+      // a spout leaves the top of her head, just behind the ahoge
+      spout: [140, 42],
+      // the same, plus the hit ellipse [cx, cy, rx, ry] and half width, lying on her front (the spout from the lying head's crown)
+      ...(LIE ? { lie: { ...LIE.anchors, spout: [(LIE.rects.head[0] + LIE.rects.head[2]) / 2, LIE.rects.head[1] + 12] } } : {}),
     },
     model,
   };

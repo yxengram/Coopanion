@@ -64,7 +64,23 @@ export function cheerHandover(on, ang, to, rest) {
 }
 
 /** Gestures that pose the far arm themselves: she takes her chin off her hand for them. */
-export const FAR_ARM_GESTURES = ['cheer', 'heart', 'shiver', 'flap', 'flinch', 'peek'];
+export const FAR_ARM_GESTURES = ['cheer', 'heart', 'shiver', 'flap', 'flinch', 'peek', 'sip', 'read', 'roll'];
+/** The gestures that put something in her hands, and the pose (model.poses.<pose>) that draws it. */
+export const PROP_GESTURES = { sip: 'cup', read: 'book' };
+/** A roll (`roll`) turns once, eased, over this part of the gesture (as pet-core's rollTurn; the body travels with it). */
+export const rollTurn = k => smooth(.2, .8, k);
+/**
+ * The curled-up drawing's share of a roll: it covers her over the crouch, almost a cut (she is squashed low and
+ * moving then), and gives her back as she springs up. 1 hides the standing rig.
+ */
+export const ballMix = k => smooth(.13, .165, k) * (1 - smooth(.835, .87, k));
+/** How far the ball's middle sits above the floor turned by `deg` (model.poses.roll.support, every 5°), so it rolls on its edge. */
+export function ballLift(support, deg) {
+  const n = support.length, x = (((deg % 360) + 360) % 360) / 360 * n, i = Math.floor(x) % n;
+  return lerp(support[i], support[(i + 1) % n], x - Math.floor(x));
+}
+/** How far the cup comes up to her mouth (0..1) at `k` of the sip: over its middle, while pet-core shuts her eyes. */
+export const sipLift = k => smooth(.38, .5, k) * (1 - smooth(.56, .66, k));
 /** Whether she props her chin on her far hand: thinking, standing or sitting still, the far arm free. */
 export function chinWanted(face, mode, lieK, gesture) {
   return face === 'thinking' && !lieK && (mode === 'idle' || mode === 'sit' || mode === 'wake') && !FAR_ARM_GESTURES.includes(gesture?.kind);
@@ -204,9 +220,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const CHEER_PARTS = CHEER ? Object.values(CHEER).flatMap(a => a.required) : [];
   // a heart made with both hands in front of her chest: one drawing of both forearms (model.poses.heart)
   const HEART = model.poses?.heart;
+  // a cup held in both hands, a book held open: one drawing of both forearms and the thing they hold (model.poses.cup / .book)
+  const PROPS = Object.fromEntries(Object.entries(PROP_GESTURES).filter(([, k]) => model.poses?.[k]).map(([g, k]) => [g, model.poses[k]]));
+  const PROP_PARTS = Object.values(PROPS).flatMap(p => p.required);
   // her back, for the middle of a turn and for turning her back on you (model.poses.back): one drawing, the tail flicks on its mesh
   const BACK = model.poses?.back;
-  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...(BACK ? BACK.required : [])];
+  // a roll: one drawing of her curled up into a ball (model.poses.roll), turned whole about its middle
+  const ROLL = model.poses?.roll;
+  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...PROP_PARTS, ...(BACK ? BACK.required : []), ...(ROLL ? ROLL.required : [])];
   // the scheme's accent colours the listening arcs, thought bubbles and sleep z's
   const accent = () => schemeInfo(scheme).accent || '#4d6bfe';
   const loaded = {}, ready = {};
@@ -225,7 +246,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       set.chin = !!CHIN && CHIN.required.every(p => set.tex[p.tex]);
       set.cheer = !!CHEER && CHEER_PARTS.every(p => set.tex[p.tex]);
       set.heart = !!HEART && HEART.required.every(p => set.tex[p.tex]);
+      for (const [g, pose] of Object.entries(PROPS)) set[g] = pose.required.every(p => set.tex[p.tex]);
       set.back = !!BACK && BACK.required.every(p => set.tex[p.tex]);
+      set.roll = !!ROLL && ROLL.required.every(p => set.tex[p.tex]);
       if (LIE && !set.lie && LIE.required.some(p => set.tex[p.tex])) console.warn(`whale: scheme ${id} lacks some lying-pose files; she sits instead`);
       return (ready[id] = set);
     });
@@ -316,6 +339,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of HEART.required) { parts.push({ ...p, alpha: 0 }); STANDING[p.id] = true; }
   }
   const heartOK = () => !!(cur.heart && (!fade || fade.set.heart));
+  // each held thing rides the upper body like the heart; its top half (hands and cup) lifts on a warp for the sip
+  for (const [g, pose] of Object.entries(PROPS)) {
+    const [id, pivot] = Object.entries(pose.pivots)[0], [bx, by, bw, bh] = pose.required[0].box;
+    deformers[id] = { kind: 'rot', parent: 'waist', pivot };
+    deformers[id + 'Lift'] = { kind: 'warp', parent: id, rect: [bx, by, bx + bw, by + bh] };
+    for (const p of pose.required) { parts.push({ ...p, parent: id + 'Lift', alpha: 0 }); STANDING[p.id] = true; }
+  }
+  const propOK = g => !!(cur[g] && (!fade || fade.set[g]));
   // the back drawing stands on the body (its sway, breath and squash), mirrored about her middle mid-turn (backFlip),
   // with its own warp for the tail's fluke
   if (BACK) {
@@ -324,6 +355,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of BACK.required) parts.push({ ...p, alpha: 0 });
   }
   const backOK = () => !!(cur.back && (!fade || fade.set.back));
+  // the ball turns about its middle on the floor, outside the standing tree (only the stage's squash and facing reach it)
+  if (ROLL) {
+    deformers.rollBall = { kind: 'rot', pivot: ROLL.pivots.rollBall };
+    for (const p of ROLL.required) parts.push({ ...p, alpha: 0 });
+  }
+  const rollOK = () => !!(cur.roll && (!fade || fade.set.roll));
   /** Whether her back can show now: she has the drawing and is standing (seated or lying she turns as before). */
   const backable = () => !!BACK && backOK() && sitK < .5 && !lieK;
 
@@ -596,6 +633,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const GROUP = { air: [1, 1], drag: [1, 1], crouch: [1, 1], land: [1, 1], walk: [1, .5], run: [1, .5], dance: [.6, 0] };
   let wTilt = 0, wLean = 0;
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
+  // the cup's steam: how much, and where (deformer and point at the cup's rim)
+  let steam = 0, steamAt = null;
   let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0, backA = 0, awayA = 0;
   const st = { z: {}, alpha: {} };
 
@@ -620,7 +659,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   };
   // the head by face: tilt (degrees, forward +) and pitch (angleY, down +)
   const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7 };
-  const HEAD_PITCH = { sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3 };
+  const HEAD_PITCH = { sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3, reading: .4 };
   const BROW_SPLIT = U(765);  // the near brow is left of this, the far brow right of it
   let browLift = 0, browInner = 0, browSide = 0;
   // how far an eye's upper lid sits below its rest line (master pixels), and whether it is an open eye at all
@@ -684,9 +723,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const heart = g?.kind === 'heart' ? env(.1, .85) : 0;    // both hands make a heart in front of her chest
     const flinch = g?.kind === 'flinch' ? env(.04, .45) : 0; // head and upper body jerk back, arms hugged in
     const peek = g?.kind === 'peek' ? env(.2, .8) : 0;       // the upper body leans in, the head cranes forward
+    const propG = PROPS[g?.kind] ? g.kind : null;              // a cup or a book held up in both hands
+    const hold = propG ? env(.1, .88) : 0, sip = propG === 'sip' ? sipLift(gk) * hold : 0;
     // (turning away without her back drawing, seated say, she turns her face away and drops her chin a little)
     const awayFace = backable() ? 0 : away;
-    const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3, gYaw = shake * 1.1 - awayFace * 1.3;
+    const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3 + sip * 4 + (propG === 'read' ? 5 * hold : 0), gYaw = shake * 1.1 - awayFace * 1.3;
     const headA = headTilt + gNeck;
     const tiltVel = (headA - prevTilt) / Math.max(dt, 1e-3); prevTilt = headA;
     const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
@@ -749,6 +790,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // the fist arms start in toward her chest; with the drawing they hand over to it, without it they stay there
     const heartOn = HEART && heartOK() && !lieK ? heart : 0;
     if (heart) { aN = lerp(aN, 30, heart); aF = lerp(aF, -22, heart); }
+    // ...and for a cup or a book the same way
+    const holdOn = propG && propOK(propG) && !lieK ? hold : 0;
+    if (hold) { aN = lerp(aN, 30, hold); aF = lerp(aF, -22, hold); }
     if (shiver) { aN = lerp(aN, -10, shiver); aF = lerp(aF, 8, shiver); }
     if (face === 'nervous') { aN = -7 + 2.5 * Math.sin(t * 5); aF = 6; }
     // a flinch hugs the arms in tight; a peek holds them a little back and out, out of the way
@@ -764,6 +808,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // pet-core sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
     // going down to lie she tips forward off the seat before the lying drawing takes over
     st.body = { a: -sway * 1.2 + (held ? o.swing * .15 : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA), ty: low - 9.6 * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
+    if (g?.kind === 'roll') {
+      // she crouches into the roll and springs up out of it; without the ball drawing she hops along instead
+      const c = Math.sin(Math.PI * clamp(gk / .2, 0, 1)), pop = Math.sin(Math.PI * clamp((gk - .82) / .18, 0, 1));
+      st.body.sy *= 1 - .16 * c + .07 * pop; st.body.sx *= 1 + .08 * c - .03 * pop;
+      if (!(ROLL && rollOK())) st.body.ty -= 46 * Math.sin(Math.PI * rollTurn(gk));
+    }
     st.waist = { a: bow * 20 - flinch * 6 + peek * 9 };
     st.skirt = {
       fn: (u, v) => {
@@ -819,6 +869,18 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st.armHeart = { ty: 7 * (1 - up), sx: 1 + b, sy: 1 + b };
       st.alpha.arm_near *= 1 - swap; st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap; farFree *= 1 - swap;
       for (const p of HEART.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
+    }
+    steam = 0;
+    for (const [pg, pose] of Object.entries(PROPS)) {
+      // as the heart's: up from a little lower into place; the cup sways a little, the book less. For the sip the hands
+      // and the cup (the drawing's top half) come up toward her mouth, the sleeves stretching after them
+      const id = Object.keys(pose.pivots)[0], on = pg === propG ? holdOn : 0;
+      const swap = gk < .5 ? smooth(.05, .3, on) : smooth(.4, .55, on), up = smooth(.1, .5, on), lift = pg === propG ? 11 * sip : 0;
+      st[id] = { ty: 7 * (1 - up), a: (pg === 'sip' ? 1.2 : .6) * Math.sin(t * 1.3) * up - .4 * lift };
+      st[id + 'Lift'] = { fn: (u, v) => [0, -lift * (1 - smooth(.5, .95, v))] };
+      st.alpha.arm_near *= 1 - swap; st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap; farFree *= 1 - swap;
+      for (const p of pose.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
+      if (pg === 'sip') { steam = swap * up; steamAt = [id + 'Lift', pose.wrist]; }
     }
     if (CHIN) {
       // the forearm swings up from its elbow to the chin, taking over from the far arm on the way
@@ -894,7 +956,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       const sq = Math.max(away ? .3 * Math.sin(Math.PI * smooth(0, .12, gk)) + .3 * Math.sin(Math.PI * smooth(.88, 1, gk)) : 0, awayA > awayBack ? .3 * bump(awayA) : 0);
       if (canBack) st.body.sx *= 1 - sq;
     }
-    const hideFront = hide || backA >= 1;
+    // rolling, the ball takes over from her in the crouch, turns once rolling on its edge, and gives her back as she pops up
+    const ballA = g?.kind === 'roll' && ROLL && rollOK() ? ballMix(gk) : 0;
+    if (ROLL) {
+      const a = 360 * rollTurn(gk), land = Math.sin(Math.PI * clamp((gk - .12) / .12, 0, 1));
+      st.rollBall = { a, ty: ROLL.support[0] - ballLift(ROLL.support, a), sx: 1 + .05 * land, sy: 1 - .05 * land };
+      for (const p of ROLL.required) st.alpha[p.id] = tex[p.tex] ? ballA : 0;
+    }
+    const hideFront = hide || backA >= 1 || ballA >= 1;
 
     st.mix = 0;
     if (fade) { if (fade.t0 == null) fade.t0 = t; st.mix = smooth(0, 1, (t - fade.t0) / fade.dur); }
@@ -964,6 +1033,15 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   function drawFx(fc, t) {
     let s = '';
     const ac = accent();
+    if (steam > .02) {
+      // three wisps curling up off the cup, each fading as it rises
+      const [x, y] = steamAt[1];
+      for (let i = 0; i < 3; i++) {
+        const q = (t * .6 + i / 3) % 1, c = rig.point(steamAt[0], st, x - 7 + 7 * i + 2.5 * Math.sin(t * 2 + i * 2 + q * 5), y - 3 - 22 * q);
+        const d = `M${f1(c[0])} ${f1(c[1] + 6)}q3 -3 0 -6t0 -6`, a = f1(.75 * Math.sin(Math.PI * q) * steam);
+        s += `<path fill="none" stroke="#7d86a8" stroke-width="3.6" stroke-linecap="round" opacity="${f1(a * .35)}" d="${d}"/><path fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity="${a}" d="${d}"/>`;
+      }
+    }
     const top = at(124, 34), side = at(204, 52);
     if (fc.orbit) {
       for (let i = 0; i < 3; i++) {
@@ -1016,7 +1094,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     draw,
     groupTilt,
     /** The gestures she draws herself, from the frame's `gesture` (pet-core leaves them off the body). */
-    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away'],
+    gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**
@@ -1044,7 +1122,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

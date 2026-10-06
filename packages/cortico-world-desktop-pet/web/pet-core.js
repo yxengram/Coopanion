@@ -264,6 +264,10 @@ export const FACES = {
   // motions' own faces (not ones to ask for): eyes shut through a bow; wide, alert eyes held ahead for a peek
   bowing:    { label: '鞠躬', f: () => ({ gap: [48, 48], eyes: [{ shape: 'lid', ry: 0 }, { shape: 'lid', ry: 0 }] }) },
   peeking:   { label: '探头', f: () => ({ gap: [44, 44], eyes: [ring({ rx: 17, ry: 18 }), ring({ rx: 17, ry: 18 })], lookAt: [5, -1] }) },
+  // ...a sip: eyes half shut over the cup, shut for the sip itself (1.4–2.3 s in), a little warm blush
+  sipping:   { label: '喝茶', f: (t, p) => { const s = t - (p ? p.exprAt : 0), r = s > 1.4 && s < 2.3 ? 0 : 10; return { gap: [46, 46], eyes: [{ shape: 'lid', ry: r }, { shape: 'lid', ry: r }], blush: .3 }; } },
+  // ...reading: eyes down on the page, running along a line and back to the start of the next
+  reading:   { label: '看书', f: t => ({ gap: [48, 48], eyes: [{ shape: 'lid', ry: 11 }, { shape: 'lid', ry: 11 }], lookAt: [-3.5 + 7 * ((t * .55) % 1), 3.5] }) },
   confused:  { label: '疑惑', kao: '(0 o ?', f: () => ({ gap: [44, 40], eyes: [ring(), ring({ rx: 14, ry: 11 })], question: true }) },
 };
 export const GALLERY = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 'angry', 'sad', 'sleepy', 'sleep', 'dizzy', 'dragged'];
@@ -361,6 +365,7 @@ export function figure(fc, o) {
   }
   s += faceG(fx);
   if (o.zmark) s += '<path class="eye" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" d="M204 22H220L204 42H220M226 4H236L226 16H236"/>';
+  s += propD(g, t);
   s += '</g>';
   if (L > .02) {
     // two round paws on the floor in front, the chin (the lower tip) on the first; bobbing as she talks and slapping
@@ -369,6 +374,37 @@ export function figure(fc, o) {
     s += `</g><path class="ink" fill="none" stroke-width="24" stroke-linecap="round" opacity="${f(clamp((L - .02) * 4, 0, 1))}" d="M196 ${f(244 + py)}h${f(16 * L)}M222 ${f(244 + py)}h${f(16 * L)}"/>`;
   }
   return s;
+}
+
+/**
+ * Coo's cup or book (the `sip` and `read` gestures): held up in two round paws inside the ring, under the eyes.
+ * The cup steams and comes up for the sip; the book's pages turn now and then.
+ */
+function propD(g, t) {
+  const hold = g?.kind === 'sip' || g?.kind === 'read' ? envelope(g.k, .1, .88) : 0;
+  if (hold < .01) return '';
+  const up = (1 - hold) * 30, ink = 'class="ink" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+  let p = '';
+  if (g.kind === 'sip') {
+    // the mug's rim at y, the handle toward where it faces
+    const x = 126, y = 150 + up - 16 * envelope(clamp((g.k - .38) / .26, 0, 1), .3, .6);
+    p += `<path ${ink} stroke-width="11" d="M${x - 22} ${f(y)}V${f(y + 30)}Q${x - 22} ${f(y + 42)} ${x - 10} ${f(y + 42)}H${x + 10}Q${x + 22} ${f(y + 42)} ${x + 22} ${f(y + 30)}V${f(y)}ZM${x + 22} ${f(y + 9)}q15 0 15 12t-15 12"/>`;
+    for (let i = 0; i < 2; i++) {
+      const q = (t * .7 + i / 2) % 1, sx = x - 5 + 10 * i + 3 * Math.sin(t * 2 + i * 2 + q * 5), sy = y - 6 - 16 * q;
+      p += `<path ${ink} stroke-width="5" opacity="${f(.55 * Math.sin(Math.PI * q) * hold)}" d="M${f(sx)} ${f(sy)}q4 -4 0 -8t0 -8"/>`;
+    }
+    p += `<path ${ink} stroke-width="22" d="M${x - 30} ${f(y + 24)}h.1M${x + 32} ${f(y + 26)}h.1"/>`;
+  } else {
+    // an open book, its spine at the bottom middle; now and then a page lifts off the right and lays down on the left
+    const x = 128, y = 190 + up, q = ((g.k * 4.4) % 2.2) / .5;
+    p += `<path ${ink} stroke-width="9" d="M${x} ${f(y)}Q${x - 22} ${f(y - 10)} ${x - 44} ${f(y - 5)}V${f(y - 38)}Q${x - 22} ${f(y - 43)} ${x} ${f(y - 32)}Q${x + 22} ${f(y - 43)} ${x + 44} ${f(y - 38)}V${f(y - 5)}Q${x + 22} ${f(y - 10)} ${x} ${f(y)}ZM${x} ${f(y - 32)}V${f(y)}"/>`;
+    if (q < 1) {
+      const a = Math.PI * smooth(q), tx = x + 42 * Math.cos(a), ty = -14 * Math.sin(a);
+      p += `<path ${ink} stroke-width="7" d="M${x} ${f(y)}L${f(tx)} ${f(y - 6 + ty)}L${f(tx)} ${f(y - 38 + ty)}L${x} ${f(y - 32)}"/>`;
+    }
+    p += `<path ${ink} stroke-width="22" d="M${x - 46} ${f(y - 18)}h.1M${x + 46} ${f(y - 18)}h.1"/>`;
+  }
+  return hold < .99 ? `<g opacity="${f(clamp(hold * 3, 0, 1))}">${p}</g>` : p;
 }
 
 /** A static figure for previews and tiles. */
@@ -473,7 +509,7 @@ export function applyTheme(theme, button) {
 /* ---------- sound: synthesized with Web Audio, no files ---------- */
 /** Which kind each sound belongs to; a kind can be silenced on its own (`sfx.configure`). */
 export const SOUND_KINDS = {
-  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away'],
+  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
   face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn'],
   snore: ['snore'],
@@ -578,6 +614,18 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
     // turning away in a huff: a soft swish, the whoosh's voice turned down
     huff() { noise({ f0: 1400, f1: 500, q: 1.2, dur: .26, vol: .09, attack: .06 }); },
     away() { api.huff(); },
+    // a tumble: a low rumble along the floor, then a soft bump as she lands on her feet (timed to the roll's own beats)
+    roll() {
+      noise({ type: 'lowpass', f0: 260, f1: 900, dur: .7, vol: .1, attack: .2, at: .3 });
+      tone({ f0: 190, f1: 60, dur: .14, vol: .16, at: 1.2 });
+    },
+    // a sip at the top of the lift, then a contented little "ah"
+    sip() {
+      noise({ f0: 700, f1: 1500, q: 3, dur: .3, vol: .05, at: 1.55 });
+      tone({ type: 'triangle', f0: 440, f1: 392, dur: .35, vol: .07, at: 2.1 });
+    },
+    // the book opening: two papery rustles
+    page() { noise({ type: 'highpass', f0: 3200, f1: 1600, dur: .16, vol: .05 }); noise({ type: 'highpass', f0: 2800, f1: 1400, dur: .2, vol: .04, at: .22 }); },
     flinch() { tone({ type: 'triangle', f0: 900, f1: 1400, dur: .09, vol: .12 }); noise({ type: 'highpass', f0: 2400, f1: 1200, dur: .12, vol: .05 }); },
     dance() { [523, 659, 784, 659, 880].forEach((fr, i) => tone({ type: 'triangle', f0: fr, dur: .13, vol: .09, at: i * .15 })); },
     nod() { tone({ type: 'triangle', f0: 520, f1: 440, dur: .07, vol: .08 }); tone({ type: 'triangle', f0: 520, f1: 440, dur: .07, vol: .08, at: .2 }); },
@@ -624,8 +672,12 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
 export const EXPRESSIONS = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 'angry', 'sad', 'sleepy', 'thinking',
   'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous'];
 /** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
+/** A forward roll (`roll`) turns once, eased, over this part of the gesture; the body travels the same way. */
+export const rollTurn = k => smooth(clamp((k - .2) / .6, 0, 1));
+// how far one roll goes, in logo units: once round a ball of radius 100 (Coo's ring is 102 to its outer edge)
+export const ROLL_D = 2 * Math.PI * 100;
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
-  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away'];
+  'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
 /** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
@@ -748,6 +800,8 @@ export function createPet(els, opts) {
     }
     // a flinch's step back is over once anything but standing takes over (a walk, a drag, a fall)
     if (pet.pulse?.kind === 'flinch' && m !== 'idle') pet.pulse.dx = 0;
+    // ...and a roll is over (picked up mid-roll, say)
+    if (pet.pulse?.kind === 'roll' && m !== 'idle') pet.pulse = null;
     // a back turned in a huff lasts through standing and sitting about; anything else turns her round again
     if (pet.pulse?.kind === 'away' && m !== 'idle' && m !== 'sit' && m !== 'sleep') pet.pulse = null;
     pet.mode = m; pet.modeT = 0; pet.turned = false; pet.startle = false; pet.skid = false; pet.cue = 0;
@@ -759,7 +813,8 @@ export function createPet(els, opts) {
     Object.assign(pet, o);
     if (prev !== m) onEvent('mode', { mode: m });
   }
-  const busy = () => pet.mode === 'drag' || pet.mode === 'air' || pet.mode === 'crouch';
+  // (a roll is under way too: the next order waits for her to be up again)
+  const busy = () => pet.mode === 'drag' || pet.mode === 'air' || pet.mode === 'crouch' || pet.pulse?.kind === 'roll';
   function pickTarget(minDist) {
     for (let i = 0; i < 12; i++) {
       const x = rnd(minX(0), maxX(0));
@@ -818,6 +873,20 @@ export function createPet(els, opts) {
         if (pet.prone && lieSet() && pet.mode !== 'wake') { holdFace('pout', 3.2); sfx.away(); break; }
         if (!seated) setMode('idle');
         pulse('away', 3.2); holdFace('pout', 3.2); sfx.away(); break;
+      // a forward roll along the floor and up again (from sitting or lying she gets up into it);
+      // with little room ahead and more behind she turns round first
+      case 'roll': {
+        setMode('idle');
+        const room = d => (d > 0 ? maxX(0) - pet.x : pet.x - minX(0)), far = ROLL_D * S;
+        if (room(pet.facing) < far && room(-pet.facing) > room(pet.facing)) pet.facing *= -1;
+        pulse('roll', 1.5);
+        Object.assign(pet.pulse, { x0: pet.x, dx: pet.facing * clamp(room(pet.facing), 0, far) });
+        holdFace('happy', 1.9); sfx.roll(); break;
+      }
+      // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
+      // (a figure with hands draws them; Coo holds a little one of its own)
+      case 'sip': pulse('sip', 3.6); holdFace('sipping', 3.7); sfx.sip(); break;
+      case 'read': pulse('read', 4.4); holdFace('reading', 4.4); sfx.page(); break;
       default: return false;
     }
     return true;
@@ -934,7 +1003,7 @@ export function createPet(els, opts) {
       case 'idle': {
         lookT = track();
         // (not while she has her back turned on purpose)
-        if (pointer.inside && !press && pet.pulse?.kind !== 'away' && pdx * pet.facing < -50 && pm < 600) {
+        if (pointer.inside && !press && pet.pulse?.kind !== 'away' && pet.pulse?.kind !== 'roll' && pdx * pet.facing < -50 && pm < 600) {
           pet.turnAcc += dt;
           if (pet.turnAcc > .9) { pet.facing *= -1; pet.turnAcc = 0; }
         } else pet.turnAcc = 0;
@@ -1099,6 +1168,10 @@ export function createPet(els, opts) {
     if (pet.pulse?.kind === 'flinch' && pet.pulse.dx && m === 'idle') {
       pet.x = clamp(pet.pulse.x0 + pet.pulse.dx * smooth(clamp((T - pet.pulse.t0) / (pet.pulse.dur * .22), 0, 1)), minX(), maxX());
     }
+    // a roll carries the body along the floor as it turns, whatever figure draws it
+    if (pet.pulse?.kind === 'roll' && m === 'idle') {
+      pet.x = clamp(pet.pulse.x0 + pet.pulse.dx * rollTurn((T - pet.pulse.t0) / pet.pulse.dur), minX(), maxX());
+    }
     // (a custom figure that lists a gesture in `figure.gestures` draws it itself, from the frame's `gesture`)
     if (pet.pulse) {
       const k = (T - pet.pulse.t0) / pet.pulse.dur;
@@ -1119,6 +1192,10 @@ export function createPet(els, opts) {
         sqT -= .12 * turn; leanT -= 5 * envelope(k, .25, .8);
       }
       else if (pet.pulse.kind === 'cheer') { const e = envelope(k, .1, .75); sqT -= .08 * e; tiltT += 5 * Math.sin(k * Math.PI * 6) * e; }
+      // crouching into the roll, curled up through it (Coo: see render), springing up out of it
+      else if (pet.pulse.kind === 'roll') sqT += .22 * Math.sin(Math.PI * clamp(k / .22, 0, 1)) - .12 * Math.sin(Math.PI * clamp((k - .8) / .2, 0, 1));
+      else if (pet.pulse.kind === 'sip') { const e = envelope(k, .1, .9); leanT += 3 * e + 4 * envelope(clamp((k - .38) / .26, 0, 1), .3, .6); }
+      else if (pet.pulse.kind === 'read') leanT += 4 * envelope(k, .1, .9);
       else if (pet.pulse.kind === 'flap') { tiltT += 7 * Math.sin(k * Math.PI * 8) * (1 - k); sqT -= .06 * Math.abs(Math.sin(k * Math.PI * 8)) * (1 - k); }
       else if (pet.pulse.kind === 'spin' && k > .5 && !pet.pulse.flipped) { pet.pulse.flipped = true; pet.facing *= -1; }
       else if (pet.pulse.kind === 'spin' && k < .5 && !pet.pulse.first) { pet.pulse.first = true; pet.facing *= -1; pet.sqv -= 1; }
@@ -1195,6 +1272,8 @@ export function createPet(els, opts) {
     if (pet.pulse?.kind === 'kick') { const e = envelope((T - pet.pulse.t0) / pet.pulse.dur, .15, .6); kAmp += 2 * e; kRate += 1.5 * e; }
     pet.kickPh += dt * 2.1 * kRate;
     const kick = 10 * kAmp * Math.sin(pet.kickPh) * proneK();
+    // (Coo's own legs only: a figure reads the legs' angles and lengths for its own)
+    const rk = !custom && pet.pulse?.kind === 'roll' ? envelope((T - pet.pulse.t0) / pet.pulse.dur, .15, .85) : 0;
     pet.feet.forEach((ft, i) => {
       const [hx, hy] = hip(i);
       let tx, ty;
@@ -1207,6 +1286,8 @@ export function createPet(els, opts) {
         // the flat foot lifts a little as the raised one comes down
         const lf = LIE_FEET[i];
         tx = lerp(tx, lf[0], proneK()); ty = lerp(ty, i ? lf[1] + kick : lf[1] - .4 * Math.max(0, kick), proneK());
+        // curled up for a roll, the feet tuck in under the ring
+        if (rk) { tx = lerp(tx, hx, rk); ty = lerp(ty, hy + 8, rk); }
       }
       const r = m === 'drag' || m === 'air' ? 14 : 40;
       ft[0] = lerp(ft[0], tx, ease(r, dt)); ft[1] = lerp(ft[1], ty, ease(r, dt));
@@ -1259,6 +1340,17 @@ export function createPet(els, opts) {
     const sy = (1 - pet.sq) * (1 + .09 * pet.stretch) * (1 + .016 * br);
     const ax = 128, ay = drag ? 36 : 256;
     let AX = drag ? pet.dx : pet.x, AY = drag ? pet.dy : pet.fy;
+    // a roll: Coo curls up and turns over on the floor about the middle of its ring, dropping till the ring touches it;
+    // a figure that draws no roll of its own hops along instead
+    let rollXf = '';
+    if (pet.pulse?.kind === 'roll' && !custom?.gestures?.includes('roll')) {
+      const k = clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1);
+      if (custom) AY -= 46 * S * Math.sin(Math.PI * rollTurn(k));
+      else {
+        const drop = 26 * S * envelope(k, .18, .82), cy = AY - 128 * S * sy + drop;
+        rollXf = `rotate(${f(360 * rollTurn(k) * Math.sign(pet.facing))} ${f(AX)} ${f(cy)}) translate(0 ${f(drop)}) `;
+      }
+    }
     if (fc.shake) AX += Math.sin(T * 60) * (fc.shake === true ? 1.4 : fc.shake);
     else if (pet.pulse?.kind === 'shiver') AX += Math.sin(T * 75) * 1.1 * envelope((T - pet.pulse.t0) / pet.pulse.dur, .08, .85);
     // a custom figure may keep tilt and lean off the whole group and bend its own parts instead;
@@ -1268,7 +1360,7 @@ export function createPet(els, opts) {
     const kx = S * fv * sx, ky = S * sy, lean = pet.lean * pet.faceVis;
     const rot = custom?.groupTilt ? custom.groupTilt(pet.mode, pet.tilt, lean) : (pet.tilt + lean) * (1 - proneK());
     pet.xf = { AX, AY, ax, ay, kx, ky, rot };
-    petG.setAttribute('transform', `translate(${f(AX)} ${f(AY)}) rotate(${f(rot)}) scale(${kx.toFixed(4)} ${ky.toFixed(4)}) translate(${-ax} ${-ay})`);
+    petG.setAttribute('transform', `${rollXf}translate(${f(AX)} ${f(AY)}) rotate(${f(rot)}) scale(${kx.toFixed(4)} ${ky.toFixed(4)}) translate(${-ax} ${-ay})`);
 
     const legs = pet.feet.map((ft, i) => [...hip(i), ft[0], ft[1]]);
     const blink = pet.blinkAge < .16 ? Math.sin(Math.PI * pet.blinkAge / .16) : 0;

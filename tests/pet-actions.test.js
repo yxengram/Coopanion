@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createPet, createSfx, EXPRESSIONS, FACES, figure, MOTIONS, SOUND_KINDS, STAND, defaultSkin, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
+import { createPet, createSfx, EXPRESSIONS, FACES, figure, MOTIONS, SOUND_KINDS, STAND, defaultSkin, HEAD_TOP, ROLL_D } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
 import { VOCAB } from '../packages/cortico-world-desktop-pet/src/script.ts';
 
 /** A pet with no page under it: the elements and the sound only take calls. */
@@ -592,5 +592,85 @@ describe('lying down', () => {
     expect(HEAD_TOP.bunny).toBeLessThan(0);
     // the ear tips lying reach about y 39
     expect(pet.bodyBox()[1]).toBeLessThan(39);
+  });
+});
+
+describe('a roll, a cup and a book', () => {
+  /** A bare pet whose group transform is kept, to see the roll's turn. */
+  function rollPet(x = 300) {
+    const attrs = {}, sfx = new Proxy({}, { get: () => () => {} });
+    const petG = { setAttribute(k, v) { attrs[k] = v; }, innerHTML: '' }, el = () => ({ setAttribute() {}, innerHTML: '' });
+    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx, roam: 'off', startX: x, bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    pet.resize();
+    pet.turnOf = () => +(attrs.transform.match(/^rotate\(([-\d.]+) /)?.[1] ?? 0);
+    pet.petHtml = () => petG.innerHTML;
+    return pet;
+  }
+
+  it('rolls once round on the floor, one turn of the way along, and is up again where it stopped', () => {
+    const pet = rollPet(300);
+    run(pet, 1);
+    pet.pet.facing = 1;
+    expect(pet.act('roll')).toBe(true);
+    const x0 = pet.pet.x, turns = [];
+    for (let i = 0; i < 90; i++) { pet.step(1 / 60); pet.render(); turns.push(pet.turnOf()); }
+    expect(pet.pet.x - x0).toBeCloseTo(ROLL_D * .42, 0);
+    // turning the way it goes (clockwise, going right), all the way round and no further
+    for (let i = 1; i < turns.length; i++) expect(turns[i]).toBeGreaterThanOrEqual(turns[i - 1] - 1e-6);
+    expect(Math.max(...turns)).toBeGreaterThan(355);
+    run(pet, 1);
+    expect(pet.pet.mode).toBe('idle');
+    expect(pet.pet.pulse).toBeNull();
+    expect(pet.turnOf()).toBe(0);
+  });
+
+  it('turns round first when there is more room behind than ahead, and stays on screen', () => {
+    const pet = rollPet(1100);
+    run(pet, 1);
+    pet.pet.facing = 1;
+    pet.act('roll');
+    expect(pet.pet.facing).toBe(-1);
+    run(pet, 2);
+    expect(pet.pet.x).toBeLessThan(1100 - ROLL_D * .42 + 1);
+    expect(pet.pet.x).toBeGreaterThan(0);
+  });
+
+  it('takes no other order mid-roll, but a pick-up ends it', () => {
+    const pet = rollPet();
+    run(pet, 1);
+    pet.act('roll');
+    run(pet, .5);
+    expect(pet.busy()).toBe(true);
+    expect(pet.act('nod')).toBe(false);
+    expect(pet.pet.pulse.kind).toBe('roll');
+    const p = pet.toStage(128, 128);
+    expect(pet.pointerDown(p)).toBe(true);
+    pet.pointerMove({ x: p.x + 20, y: p.y - 20 });
+    expect(pet.pet.mode).toBe('drag');
+    expect(pet.pet.pulse).toBeNull();
+    pet.pointerUp();
+  });
+
+  it("Coo's paws hold a cup or a book for the gesture, and nothing after", () => {
+    for (const [m, sound] of [['sip', 'sip'], ['read', 'page']]) {
+      expect(SOUND_KINDS.move).toContain(sound);
+      const pet = barePet();
+      run(pet, 1);
+      const before = pet.petHtml().length;
+      pet.act(m);
+      run(pet, 1.5);
+      expect(pet.pet._fname, m).toBe(m === 'sip' ? 'sipping' : 'reading');
+      expect(pet.petHtml().length, m).toBeGreaterThan(before + 200);
+      run(pet, 4);
+      expect(pet.pet.pulse, m).toBeNull();
+      expect(Math.abs(pet.petHtml().length - before), m).toBeLessThan(200);
+    }
+  });
+
+  it('reading, the eyes run along a line and back, looking down', () => {
+    const xs = [], ys = [];
+    for (let t = 0; t < 3; t += .05) { const [x, y] = FACES.reading.f(t).lookAt; xs.push(x); ys.push(y); }
+    expect(Math.min(...ys)).toBeGreaterThan(2);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(5);
   });
 });

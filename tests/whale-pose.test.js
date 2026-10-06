@@ -1,7 +1,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { ROLL_D } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
 const model = JSON.parse(readFileSync(new URL('model.json', WHALE), 'utf8'));
@@ -483,5 +484,97 @@ describe('her back, as the whale draws it', () => {
     expect(awayStep(1, 0, { kind: 'away', k: 0 }, 1 / 60)).toBeGreaterThan(.9);
     expect(awayStep(1, 0, { kind: 'away', k: .96 }, 1 / 60)).toBe(0);
     expect(awayStep(.2, 1, { kind: 'away', k: .1 }, 1 / 60)).toBe(1);
+  });
+});
+
+describe('a cup and a book held in both hands, as the whale draws them', () => {
+  const z = id => model.parts.find(p => p.id === id).z;
+
+  for (const [g, pose] of Object.entries(PROP_GESTURES)) {
+    const P = model.poses[pose];
+    it(`${pose}: has its file in every scheme, in front of her chest with its hands below the rim, over the bodice and face, under the fringe`, () => {
+      const [arm] = P.required, [x, y, w, h] = arm.box, [, py] = Object.values(P.pivots)[0];
+      for (const id of SCHEMES) expectFile(id, arm);
+      expect(arm.parent).toBe(Object.keys(P.pivots)[0]);
+      expect(x).toBeLessThan(model.pivots.armNear[0]);
+      expect(x + w).toBeGreaterThan(model.pivots.armFar[0]);
+      expect(y + h).toBeGreaterThan(model.pivots.armNear[1]);
+      expect(arm.z).toBeGreaterThan(Math.max(z('torso_up'), z('arm_near'), z('face')));
+      expect(arm.z).toBeLessThan(z('bangs'));
+      // `wrist` is the top of the cup (where the steam rises) or of the book; the hands hold it lower down
+      for (const id of SCHEMES) {
+        const [, hy] = skinOf(id, arm);
+        expect(hy, id).toBeGreaterThan(P.wrist[1] + 5);
+        expect(hy, id).toBeLessThan(py);
+      }
+    });
+
+    it(`${pose}: keeps the thing held its own colour in every scheme`, () => {
+      // a point inside the cup's body or on the book's cover, below the rim
+      const [arm] = P.required, [bx, by, bw, bh] = arm.box, px = P.wrist[0] - 4, py = P.wrist[1] + 12;
+      const at = id => {
+        const { w, h, px: pix } = rgbaOf(new URL(`${dir(id)}tex/${arm.tex}.png`, WHALE));
+        const i = (Math.round((py - by) / bh * h) * w + Math.round((px - bx) / bw * w)) * 4;
+        return [...pix.subarray(i, i + 4)];
+      };
+      const ref = at(SCHEMES[0]);
+      expect(ref[3]).toBe(255);
+      for (const id of SCHEMES) expect(at(id), id).toEqual(ref);
+    });
+  }
+
+  it('lifts the cup to her mouth over the middle of the sip only', () => {
+    expect(sipLift(.2)).toBe(0);
+    expect(sipLift(.8)).toBe(0);
+    expect(sipLift(.53)).toBe(1);
+    for (const g of Object.keys(PROP_GESTURES)) expect(FAR_ARM_GESTURES).toContain(g);
+  });
+});
+
+describe('a roll, as the whale draws it', () => {
+  const ROLL = model.poses.roll;
+
+  it('has its file in every scheme, sized to its box, over every standing part', () => {
+    const [p] = ROLL.required;
+    for (const id of SCHEMES) expectFile(id, p);
+    expect(p.parent).toBe('rollBall');
+    expect(p.z).toBeGreaterThan(Math.max(...model.parts.map(q => q.z)));
+  });
+
+  it("goes as far in a turn as pet-core carries her, turning about the ball's middle, under her", () => {
+    expect(ROLL.around).toBeCloseTo(ROLL_D, 0);
+    const [p] = ROLL.required, [x, y, w, h] = p.box, [cx, cy] = ROLL.pivots.rollBall;
+    expect(cx).toBe(128);
+    expect(cx > x && cx < x + w && cy > y && cy < y + h).toBe(true);
+    expect(cy + ROLL.support[0]).toBeCloseTo(256, 1);
+  });
+
+  it('rolls on its edge: at every turn its lowest drawn point is on the floor', () => {
+    const [p] = ROLL.required, [bx, by, bw, bh] = p.box, [cx, cy] = ROLL.pivots.rollBall;
+    expect(ROLL.support).toHaveLength(72);
+    for (const id of SCHEMES.slice(0, 2)) {
+      const { w, h, a } = alphaOf(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE));
+      for (const deg of [0, 37, 90, 155, 200, 271, 333]) {
+        const t = deg * Math.PI / 180;
+        let low = -Infinity;
+        for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) {
+          if (a[y * w + x] < 128) continue;
+          const dx = bx + (x + .5) * bw / w - cx, dy = by + (y + .5) * bh / h - cy;
+          low = Math.max(low, dx * Math.sin(t) + dy * Math.cos(t));
+        }
+        expect(Math.abs(low - ballLift(ROLL.support, deg)), `${id} ${deg}°`).toBeLessThan(3);
+      }
+    }
+  });
+
+  it('covers her only between the crouch and the spring up, and turns once while it does', () => {
+    expect(ballMix(.1)).toBe(0);
+    expect(ballMix(.9)).toBe(0);
+    expect(ballMix(.3)).toBe(1);
+    expect(ballMix(.7)).toBe(1);
+    expect(rollTurn(.165)).toBe(0);
+    expect(rollTurn(.835)).toBe(1);
+    expect(ballLift(ROLL.support, 360)).toBeCloseTo(ROLL.support[0], 5);
+    expect(ballLift(ROLL.support, -5)).toBeCloseTo(ROLL.support[71], 5);
   });
 });

@@ -989,3 +989,30 @@ describe('coaxing, a song, serving tea, a salute and a V sign', () => {
     }
   });
 });
+
+describe('pointing, giggling behind a hand, arms crossed, a stretch and a curtsy', () => {
+  it('each plays out and ends with the body free again', () => {
+    for (const m of ['point', 'cover', 'cross', 'stretch', 'curtsy']) {
+      const pet = barePet();
+      run(pet, 1);
+      expect(pet.act(m), m).toBe(true);
+      expect(pet.pet.pulse.kind, m).toBe(m);
+      run(pet, 3);
+      expect(pet.pet.pulse, m).toBeNull();
+    }
+  });
+
+  it('arms crossed keeps an asked-for face, or pouts', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.setExpr('smug');
+    run(pet, .3);
+    pet.act('cross');
+    run(pet, .3);
+    expect(pet.pet._fname).toBe('smug');
+    run(pet, 4);
+    pet.act('cross');
+    run(pet, .3);
+    expect(pet.pet._fname).toBe('pout');
+  });
+});

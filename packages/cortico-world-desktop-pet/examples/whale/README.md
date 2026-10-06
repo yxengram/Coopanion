@@ -101,6 +101,11 @@ pet-core 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎
 奉茶（`serve`）和喝茶一样是一张两手托着托盘的画（`poses.tea`），托盘往前递时整张稍微放大一点，杯口冒热气。
 敬礼（`salute`）和比耶（`vsign`）举起的是近侧手臂，都是弯着的手臂，按有了的方式进来；敬礼是「啪」地一下到位，稍微冲过头再弹回，
 之后完全定住，放下也快；脸 `saluting` 举手时一脸认真，放下时眨眼。比耶时歪一下头、眨眼，头旁闪一下星光。
+指（`point`）举起的是远侧手臂（`FAR_RAISES`），朝她面向的方向伸直，按欢呼的方式按角度交接（远侧手臂转角为负）；脸 `pointing` 盯着前方。
+捂嘴笑（`cover`）是弯着的近侧手臂，挂在脖子上（`NECK_RAISES`），头一抖手也跟着，不会离开嘴；脸是偷笑。
+抱臂（`cross`）、伸懒腰（`stretch`）、屈膝礼（`curtsy`）都是两条前臂一起画的图：抱臂和叉腰一样沿用当时的表情，没有就嘟嘴；
+伸懒腰时握拳手臂先往上举再换成十指相扣举过头顶的那张（袖子盖在刘海上、往下渐隐），身子拉长、仰头、闭眼打哈欠；
+屈膝礼时双手捏着裙边，身子往下一沉、上身前倾低头、闭眼。
 叹气（`sigh`，约 2 秒）：前 0.35 先吸一口气（眼睛睁大往上看，上身挺一点），之后长长呼出来：半闭眼、八字眉、嘴是小小的「哈」（脸的 `puff`），
 上身和头往前一塌，鲸鳍和尾巴垂下，嘴前飘出两小团白气。脸 `sighing` 按 pet-core 的 `pulse` 计时，叹气被别的动作打断就回到平常的脸。
 转身和转圈转到侧对你的那一下（`facing` 绝对值小于约 0.45），以及背过身（`away`）时，换成背面那张画；站着时才有（坐着、趴着照旧），
@@ -125,7 +130,7 @@ pet-core 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎
 围裙上的喷水小鲸鱼是手写的矢量图（`examples/whale/apron-whale.svg`）：围裙抹成空白布面后，按这套裙子的深色印在右下角
 （白色的眼睛和肚皮保持白色，乘上布面的明暗），坐姿的围裙是俯视的，印得扁一些；团成球的那张也一样。
 
-新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
+新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、指、捂嘴笑、抱臂、伸懒腰、屈膝礼 `tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
 `model.json` 的 `poses`）也来自 ChatGPT 的图像模型（gpt-image-2.5，经本地代理用 ChatGPT 订阅调用），和原来的贴图同源：
 把站姿渲染成一张参考图，对它做编辑。先试过本地的 FLUX.2-klein-4B，画风和比例都不如它（手画得太大，趴姿的头发变短）。
 - 手臂：编辑只改手臂（举到头边张开手掌、托着下巴、双手举到头两侧、双手在胸前比心）。输出比参考图大约 1%，缩放回参考图尺寸再配准；

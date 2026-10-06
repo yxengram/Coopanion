@@ -1603,6 +1603,179 @@
    ],
    "rest": 177,
    "source": "gpt-image-2.5 edit of the standing rig render: vsign_gpt 1"
+  },
+  "point": {
+   "required": [
+    {
+     "id": "arm_point",
+     "tex": "arm_point",
+     "z": 9.6,
+     "parent": "armPoint",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      151.0,
+      151.83,
+      36.67,
+      11.83
+     ]
+    }
+   ],
+   "pivots": {
+    "armPoint": [
+     150.33,
+     160.17
+    ]
+   },
+   "wrist": [
+    173.67,
+    157.67
+   ],
+   "rest": -96,
+   "source": "gpt-image-2.5 edit of the standing rig render: point_gpt 4"
+  },
+  "cover": {
+   "required": [
+    {
+     "id": "arm_cover",
+     "tex": "arm_cover",
+     "z": 6,
+     "parent": "armCover",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      110.17,
+      140.0,
+      34.5,
+      43.83
+     ]
+    },
+    {
+     "id": "arm_cover_top",
+     "tex": "arm_cover_top",
+     "z": 14.2,
+     "parent": "armCover",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      110.17,
+      140.0,
+      34.5,
+      43.83
+     ]
+    }
+   ],
+   "pivots": {
+    "armCover": [
+     117.0,
+     182.67
+    ]
+   },
+   "wrist": [
+    135.33,
+    151.83
+   ],
+   "rest": -149,
+   "source": "gpt-image-2.5 edit of the standing rig render: cover_gpt 1"
+  },
+  "cross": {
+   "required": [
+    {
+     "id": "arm_cross",
+     "tex": "arm_cross",
+     "z": 9.6,
+     "parent": "armCross",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      104.33,
+      166.0,
+      54.67,
+      22.67
+     ]
+    }
+   ],
+   "pivots": {
+    "armCross": [
+     133.67,
+     186.0
+    ]
+   },
+   "wrist": [
+    133.67,
+    171.0
+   ],
+   "source": "gpt-image-2.5 edit of the standing rig render: cross_gpt 3"
+  },
+  "curtsy": {
+   "required": [
+    {
+     "id": "arm_curtsy",
+     "tex": "arm_curtsy",
+     "z": 9.6,
+     "parent": "armCurtsy",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      87.17,
+      165.0,
+      90.0,
+      33.5
+     ]
+    }
+   ],
+   "pivots": {
+    "armCurtsy": [
+     133.67,
+     169.33
+    ]
+   },
+   "wrist": [
+    133.67,
+    189.33
+   ],
+   "source": "gpt-image-2.5 edit of the standing rig render: curtsy_gpt 3"
+  },
+  "stretch": {
+   "required": [
+    {
+     "id": "arm_stretch",
+     "tex": "arm_stretch",
+     "z": 14.6,
+     "parent": "armStretch",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      104.83,
+      58.17,
+      52.17,
+      53.67
+     ]
+    }
+   ],
+   "pivots": {
+    "armStretch": [
+     130.33,
+     119.33
+    ]
+   },
+   "wrist": [
+    127.0,
+    67.67
+   ],
+   "source": "gpt-image-2.5 edit of the standing rig render: stretch_gpt 3"
   }
  }
 }

@@ -80,6 +80,11 @@ export const VOCAB: readonly VocabEntry[] = [
   { id: 'serve', kind: 'motion', zh: ['奉茶', '请用茶', '喝口水吧'], note: '双手端着托盘递上一杯热茶,适合提醒对方歇一歇、喝口水' },
   { id: 'salute', kind: 'motion', zh: ['敬礼', '遵命', '收到'], note: '利落地敬个礼,一脸认真,放下时眨眨眼' },
   { id: 'vsign', kind: 'motion', zh: ['比耶', '耶', '剪刀手'], note: '在脸边比个 V,眨眼歪头,闪一下星光' },
+  { id: 'point', kind: 'motion', zh: ['指', '指着', '看那边'], note: '伸手朝面前指过去,眼睛看着那边' },
+  { id: 'cover', kind: 'motion', zh: ['捂嘴笑', '掩嘴笑'], note: '手挡在嘴前,眯着眼偷偷笑' },
+  { id: 'cross', kind: 'motion', zh: ['抱臂', '抱着胳膊'], note: '双臂抱在胸前,配合当时的表情(生气、得意、认真),没有就嘟着嘴' },
+  { id: 'stretch', kind: 'motion', zh: ['伸懒腰'], note: '双手举过头顶伸个大懒腰,闭眼打哈欠' },
+  { id: 'curtsy', kind: 'motion', zh: ['屈膝礼', '提裙礼'], note: '双手轻轻提起裙边,身子一沉行个屈膝礼' },
   { id: 'spout', kind: 'motion', zh: ['喷水', '鲸鱼喷水'], note: '像鲸鱼一样从头顶喷出一束水花,适合完成任务、被夸、松一口气时' },
 ];
 

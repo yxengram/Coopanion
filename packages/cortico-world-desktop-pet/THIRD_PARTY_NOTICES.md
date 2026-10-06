@@ -27,7 +27,7 @@ Electron 44.4.4,从 [electron/electron releases](https://github.com/electron/ele
 `web/whale/` 的贴图由 ChatGPT(OpenAI 的图像模型)按参考图生成后拆件:角色原设为「溟月」(上善无形),
 DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项目自己画的图标(`examples/whale/apron-whale.svg`)。
 
-趴姿、招手和托腮的手臂、欢呼的双臂、比心的双手、捧着杯子和书的双手、合十、叉腰、张开的双手、挠头和竖起食指的手臂、端着茶的托盘、敬礼和比耶的手臂、背面、团成球的贴图(`tex/lie_*.png`、`tex/arm_wave*.png`、`tex/arm_chin.png`、`tex/arm_cheer_*.png`、`tex/arm_heart.png`、`tex/arm_cup.png`、`tex/arm_book.png`、`tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、`tex/arm_scratch*.png`、`tex/arm_idea*.png`、`tex/arm_tea.png`、`tex/arm_salute*.png`、`tex/arm_vsign*.png`、`tex/back_body.png`、`tex/roll_ball.png`
+趴姿、招手和托腮的手臂、欢呼的双臂、比心的双手、捧着杯子和书的双手、合十、叉腰、张开的双手、挠头和竖起食指的手臂、端着茶的托盘、敬礼和比耶的手臂、指、捂嘴、抱臂、伸懒腰、屈膝礼的手臂、背面、团成球的贴图(`tex/lie_*.png`、`tex/arm_wave*.png`、`tex/arm_chin.png`、`tex/arm_cheer_*.png`、`tex/arm_heart.png`、`tex/arm_cup.png`、`tex/arm_book.png`、`tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、`tex/arm_scratch*.png`、`tex/arm_idea*.png`、`tex/arm_tea.png`、`tex/arm_salute*.png`、`tex/arm_vsign*.png`、`tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、`tex/back_body.png`、`tex/roll_ball.png`
 及各配色下的同名文件)是按上面这些贴图渲染出的站姿编辑生成,再拆件、按区域换色得到的,属于同一形象的衍生图:
 用的是 ChatGPT 的图像模型(gpt-image-2.5)。
 

@@ -315,6 +315,9 @@ export const FACES = {
     const g = p?.pulse?.kind === 'salute' ? p.pulse : null, k = g ? (t - g.t0) / g.dur : 1;
     return k < .8 ? { gap: [46, 46], eyes: [ring({ ry: 14 }), ring({ ry: 14 })], brows: 'angry', lookAt: [2, 0] } : { gap: [56, 52], eyes: [ring(), { shape: 'up' }] };
   } },
+  // ...pointing ahead: alert eyes on what she points at; a big stretch: eyes squeezed shut, mouth open in a yawn
+  pointing:  { label: '指', f: () => ({ gap: [46, 46], eyes: [ring({ rx: 17, ry: 17 }), ring({ rx: 17, ry: 17 })], lookAt: [5.5, 0] }) },
+  stretching: { label: '伸懒腰', f: () => ({ gap: [64, 64], eyes: [{ shape: 'lid', ry: 0 }, { shape: 'lid', ry: 0 }] }) },
   // ...pleading with hands pressed together: big shining eyes looking up at you
   pleading:  { label: '拜托', f: () => ({ gap: [44, 44], eyes: [ring({ rx: 17, ry: 18 }), ring({ rx: 17, ry: 18 })], sparkle: true, blush: .4, lookAt: [0, -2] }) },
   // ...reading: eyes down on the page, running along a line and back to the start of the next
@@ -785,7 +788,7 @@ export const ROLL_D = 2 * Math.PI * 100;
 /** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
   'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh',
-  'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign'];
+  'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
 /** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
@@ -1005,6 +1008,18 @@ export function createPet(els, opts) {
       case 'serve': pulse('serve', 2.6); holdFace('gentle', 2.7); sfx.clink(); break;
       case 'salute': pulse('salute', 1.8); holdFace('saluting', 1.9); sfx.snap(); break;
       case 'vsign': pulse('vsign', 1.8); holdFace('wink', 1.9); emitGlint(1); sfx.cheese(); break;
+      // pointing ahead where she faces; giggling behind her hand; arms folded (keeping her face, or a pout);
+      // a big stretch with a yawn; a curtsy, holding out her skirt
+      case 'point': pulse('point', 2); holdFace('pointing', 2.1); sfx.tick(); break;
+      case 'cover': pulse('cover', 2.4); holdFace('giggle', 2.5); sfx.hehe(); break;
+      case 'cross': {
+        pulse('cross', 2.6);
+        if (prevExpr && T < prevUntil && EXPRESSIONS.includes(prevExpr) && prevExpr !== 'petrify') { pet.expr = prevExpr; pet.exprOwn = false; pet.exprUntil = Math.max(prevUntil, T + 2.7); pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); }
+        else holdFace('pout', 2.7);
+        sfx.hips(); break;
+      }
+      case 'stretch': pulse('stretch', 2.6); holdFace('stretching', 2.7); sfx.yawn(); break;
+      case 'curtsy': if (!seated) setMode('idle'); pulse('curtsy', 2.2); holdFace('bowing', 2); sfx.tick(); break;
       case 'pray': pulse('pray', 2.2); holdFace('pleading', 2.3); sfx.shy(); break;
       case 'scratch': pulse('scratch', 2.1); holdFace('happy', 2.2); sfx.hehe(); break;
       case 'idea': pulse('idea', 1.8); holdFace('excited', 1.9); break;
@@ -1391,6 +1406,12 @@ export function createPet(els, opts) {
       else if (pet.pulse.kind === 'idea') sqT -= .1 * Math.sin(Math.PI * clamp((k - .2) / .2, 0, 1));
       else if (pet.pulse.kind === 'hips') leanT -= 4 * envelope(k, .1, .85);
       else if (pet.pulse.kind === 'hug') leanT += 5 * envelope(k, .15, .85);
+      // pointing leans toward it; a hidden giggle bobs; arms folded leans back; a stretch rises tall; a curtsy sinks
+      else if (pet.pulse.kind === 'point') leanT += 4 * envelope(k, .15, .85);
+      else if (pet.pulse.kind === 'cover') sqT += .04 * Math.abs(Math.sin(k * Math.PI * 10)) * envelope(k, .1, .85);
+      else if (pet.pulse.kind === 'cross') leanT -= 3 * envelope(k, .1, .85);
+      else if (pet.pulse.kind === 'stretch') sqT -= .08 * envelope(k, .2, .8);
+      else if (pet.pulse.kind === 'curtsy') { const d = Math.sin(Math.PI * clamp((k - .15) / .7, 0, 1)); sqT += .1 * d; leanT += 6 * d; }
       // offering leans in toward you; a salute straightens up with a little hop of pride; a V sign tips the head
       else if (pet.pulse.kind === 'serve') leanT += 6 * envelope(k, .2, .85);
       else if (pet.pulse.kind === 'salute') { sqT -= .08 * Math.sin(Math.PI * clamp(k / .15, 0, 1)); leanT -= 3 * envelope(k, .05, .85); }

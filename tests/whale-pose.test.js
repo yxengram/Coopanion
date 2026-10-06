@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, RAISE_TO, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -49,14 +49,14 @@ function expectFile(id, p) {
   expect(Math.abs(h - p.box[3] * TEX_PER_UNIT), `${id} ${p.tex} height`).toBeLessThanOrEqual(2);
 }
 /** Where a pose part's hand is drawn, in rig units: the centre of its skin pixels (the sleeves are dark, the cuffs white). */
-function skinOf(id, p) {
+function skinOf(id, p, least = 150) {
   const { w, h, px } = rgbaOf(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)), [bx, by, bw, bh] = p.box;
   let n = 0, sx = 0, sy = 0;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const [r, g, b, a] = px.subarray((y * w + x) * 4, (y * w + x) * 4 + 4);
     if (a > 128 && r > 170 && g > 120 && r - b > 25) { n++; sx += x + .5; sy += y + .5; }
   }
-  expect(n, `${id} ${p.tex} has a hand`).toBeGreaterThan(150);
+  expect(n, `${id} ${p.tex} has a hand`).toBeGreaterThan(least);
   return [bx + sx / n * bw / w, by + sy / n * bh / h];
 }
 /** The direction from a shoulder to a point, as the near arm's rotation that points there (0 hanging down, + out to the front). */
@@ -610,13 +610,18 @@ describe('hands pressed together, on the hips and held out; a hand at the head a
       const a = P.rest * Math.PI / 180;
       expect(Math.hypot(-Math.sin(a) - (wx - sx) / Math.hypot(wx - sx, wy - sy), Math.cos(a) - (wy - sy) / Math.hypot(wx - sx, wy - sy)), pose).toBeLessThan(.03);
       // (raised by angle, the drawing must sit past where the fist arm hands over; bent arms come in another way)
-      if (!BENT_RAISES.includes(Object.keys(NEAR_RAISES).find(g => NEAR_RAISES[g] === pose))) expect(P.rest, pose).toBeGreaterThan(RAISE_TO);
+      const g = Object.keys(NEAR_RAISES).find(w => NEAR_RAISES[w] === pose);
+      if (!BENT_RAISES.includes(g)) expect(Math.abs(P.rest), pose).toBeGreaterThan(RAISE_TO);
+      // the far arm turns the other way (negative), the near one positive
+      if (!BENT_RAISES.includes(g)) expect(Math.sign(P.rest), pose).toBe(FAR_RAISES.includes(g) ? -1 : 1);
       // two copies: the whole arm with the plain arms, the hand again over the head
+      // (one held out in front of her, pointing, is a single copy over her body)
       const [whole, top] = P.required;
-      expect(top.z, pose).toBeGreaterThan(z('bangs'));
-      expect(whole.z, pose).toBeLessThan(z('face'));
+      if (top) { expect(top.z, pose).toBeGreaterThan(z('bangs')); expect(whole.z, pose).toBeLessThan(z('face')); }
+      else expect(whole.z, pose).toBeGreaterThan(z('torso_up'));
       for (const id of SCHEMES) {
-        const [hx, hy] = skinOf(id, whole);
+        // (a hand pointing ahead is seen edge-on: fewer skin pixels)
+        const [hx, hy] = skinOf(id, whole, top ? 150 : 60);
         expect(Math.hypot(hx - wx, hy - wy), `${pose} ${id}`).toBeLessThan(14);
       }
     }

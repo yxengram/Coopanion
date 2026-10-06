@@ -250,6 +250,18 @@ export const FACES = {
   excited:   { label: '期待', kao: '(☆ ☆', f: () => ({ gap: [60, 60], eyes: [ring({ rx: 18, ry: 19, dy: -1 }), ring({ rx: 18, ry: 19, dy: -1 })], sparkle: true, blush: .4 }) },
   cry:       { label: '大哭', kao: '(T T', f: t => { const g = 36 + 6 * Math.abs(Math.sin(t * 9)); return { gap: [g, g], eyes: [{ shape: 'lid', ry: 0 }, { shape: 'lid', ry: 0 }], brows: 'sad', emit: 'tears', streams: true }; } },
   // `lean` tips the body back (-) or forward while standing or sitting; `gloom` draws the three lines of 无语
+  // a quiet, warm smile: eyes softly half shut on you, a little blush, a slow nod now and then (from when it began)
+  gentle:    { label: '温柔', kao: '(˘ ˘', f: (t, p) => {
+    const s = t - (p ? p.exprAt : 0), u = (s + 3.2) % 4;
+    return { gap: [48, 48], eyes: [{ shape: 'lid', ry: 10 }, { shape: 'lid', ry: 10 }], blush: .3, lean: 7 * Math.sin(Math.PI * clamp((u - 3.2) / .8, 0, 1)) };
+  } },
+  // a strained smile: smiling eyes under worried brows, a big drop of sweat, leaning back a little
+  awkward:   { label: '尴尬', kao: '(^ ^;', f: () => ({ gap: [54, 50], eyes: [{ shape: 'up' }, { shape: 'up' }], brows: 'sad', sweat: true, lean: -3 }) },
+  // trying not to laugh: smiling eyes looking a little away and down, shaking in fits (`titter`, 0..1) every 1.6 s
+  giggle:    { label: '偷笑', kao: '(^ ^)', f: (t, p) => {
+    const s = t - (p ? p.exprAt : 0), u = s % 1.6;
+    return { gap: [52, 52], eyes: [{ shape: 'up' }, { shape: 'up' }], blush: .35, lookAt: [2, 1.5], titter: Math.sin(Math.PI * clamp(u / .7, 0, 1)) * Math.abs(Math.sin(s * 18)) };
+  } },
   disgusted: { label: '嫌弃', kao: '(- -|||', f: () => ({ gap: [32, 30], eyes: [{ shape: 'lid', ry: 6.5, dx: 4 }, { shape: 'lid', ry: 6.5, dx: 4 }], lookAt: [-4, 0], lean: -5, gloom: true }) },
   // eyes darting off and back about twice a second, a short tremor every 1.7 s, the body held stiff;
   // timed from when the face began (p.exprAt), so the first glance and tremor come at once
@@ -511,7 +523,7 @@ export function applyTheme(theme, button) {
 export const SOUND_KINDS = {
   move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
-  face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn'],
+  face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe'],
   snore: ['snore'],
   talk: ['babble', 'blub'],
   ui: ['tick', 'pop', 'sparkle', 'select', 'listenStart', 'listenEnd'],
@@ -637,11 +649,15 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
     angry() { tone({ type: 'sawtooth', f0: 120, f1: 95, dur: .5, vol: .12, vib: 12, vibRate: 14, filter: 700 }); },
     sad() { tone({ type: 'triangle', f0: 440, f1: 392, dur: .3, vol: .13, vib: 8, vibRate: 6 }); tone({ type: 'triangle', f0: 392, f1: 262, dur: .55, vol: .13, at: .3, vib: 10, vibRate: 5 }); },
     shy() { tone({ f0: 1300, f1: 1600, dur: .07, vol: .07 }); tone({ f0: 1450, f1: 1750, dur: .07, vol: .06, at: .1 }); },
+    // a warm, low two-note hum (gentle); a laugh running out of air (awkward); stifled little giggles
+    soft() { tone({ type: 'triangle', f0: 523, f1: 540, dur: .2, vol: .07, attack: .05 }); tone({ type: 'triangle', f0: 659, f1: 640, dur: .3, vol: .06, at: .18, attack: .05 }); },
+    wry() { [660, 600, 520].forEach((fr, i) => tone({ type: 'triangle', f0: fr, f1: fr * .93, dur: .08, vol: .07, at: i * .11 })); },
+    hehe() { for (let i = 0; i < 3; i++) tone({ type: 'triangle', f0: 620 - i * 30, f1: 520 - i * 30, dur: .06, vol: .07, at: i * .12, filter: 900 }); },
     expr(n) {
       const m = {
         happy: 'happy', wink: 'wink', love: 'love', surprised: 'surprised', angry: 'angry', sad: 'sad', shy: 'shy', sleepy: 'yawn',
         smug: 'wink', worried: 'hmm', determined: 'pop', flustered: 'shy', scared: 'surprised', excited: 'sparkle', cry: 'sad', confused: 'hmm',
-        disgusted: 'hmm', nervous: 'hmm',
+        disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe',
       };
       // an expression's sound is a face sound, whichever tone it borrows
       if (m[n] && !muted.has('face')) api[m[n]]();
@@ -670,7 +686,8 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
 /* ---------- actions the pet can be asked to do ---------- */
 /** Expressions: a face held for a few seconds. */
 export const EXPRESSIONS = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 'angry', 'sad', 'sleepy', 'thinking',
-  'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous'];
+  'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous',
+  'gentle', 'awkward', 'giggle'];
 /** A forward roll (`roll`) turns once, eased, over this part of the gesture; the body travels the same way. */
 export const rollTurn = k => smooth(clamp((k - .2) / .6, 0, 1));
 // how far one roll goes, in logo units: once round a ball of radius 100 (Coo's ring is 102 to its outer edge)
@@ -1206,6 +1223,8 @@ export function createPet(els, opts) {
     else if (fc.lookAt) lookT = fc.lookAt;
     if (fc.lean && (m === 'idle' || m === 'sit' || (m === 'lie' && !lieSet()))) leanT += fc.lean;
     if (fc.sag && !custom) sqT += fc.sag;
+    // a fit of giggles bobs Coo's ring (a figure shakes its own shoulders from the face's `titter`)
+    if (fc.titter && !custom) sqT += .05 * fc.titter;
 
     // eye shape changes hide under a quick blink; same-shape changes (ring size) ease
     const sig = fc.eyes.map(e => e.shape).join();

@@ -482,6 +482,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: .7, pout: ['surprised_mouth', .45], worried: ['drag_mouth', .6], determined: .15, flustered: ['drag_mouth', .8],
     scared: ['drag_mouth', .8], excited: 'happy_mouth', cry: ['surprised_mouth', .8], confused: -.35,
     disgusted: ['drag_mouth', .6], nervous: -.2,
+    // [form, width]: a drawn mouth wider (or narrower) than the usual
+    gentle: .45, awkward: [.05, 1.6], giggle: .6,
   };
 
   // where the face's outline is under each eye's tear (master y), with room for the stream's rounded end
@@ -544,6 +546,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const open = Math.max(talk * (.45 + .45 * Math.abs(Math.sin(t * 17))), face === 'sleepy' || face === 'waking' ? gapOpen : 0);
     if (open > .12) sprite(face === 'surprised' ? 'surprised_mouth' : 'happy_mouth', { sy: .35 + .65 * open, sx: .85 + .15 * open });
     else if (typeof m === 'number') lineMouth(m);
+    else if (Array.isArray(m) && typeof m[0] === 'number') lineMouth(m[0], m[1]);
     else if (Array.isArray(m)) sprite(m[0], { s: m[1] });
     else sprite(m);
   }
@@ -646,6 +649,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [.5, .6], pout: [.3, 0], worried: [-.3, .1], determined: [.9, .3], flustered: [.4, .8], scared: [-1, 0, -1],
     excited: [1, 1], cry: [-1, 0, -1], confused: [.2, .1], bowing: [-.2, .2],
     disgusted: [-.4, 0], nervous: [-.4, 0], peeking: [.6, .5],
+    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5],
   };
   // brows by face, in master pixels: [lift of the whole brow, lift of its inner end (by the nose), extra lift of
   // the far brow]; a negative inner lift is the frown
@@ -656,10 +660,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [1, -1], pout: [-1, -3], worried: [2, 4.5], determined: [0, -3], flustered: [2, 3.5], scared: [3, 4],
     excited: [3, 0], cry: [1, 5], confused: [1, 0, 5],
     disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
+    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1],
   };
   // the head by face: tilt (degrees, forward +) and pitch (angleY, down +)
-  const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7 };
-  const HEAD_PITCH = { sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3, reading: .4 };
+  const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: 5, giggle: 5 };
+  const HEAD_PITCH = { sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3, reading: .4, giggle: .2 };
   const BROW_SPLIT = U(765);  // the near brow is left of this, the far brow right of it
   let browLift = 0, browInner = 0, browSide = 0;
   // how far an eye's upper lid sits below its rest line (master pixels), and whether it is an open eye at all
@@ -754,12 +759,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const fins = sp.fins.step(finMood * 14 + sway * 10, dt);
     // each fin flutters on its own beat: a stiff buzz when angry, an uneven jitter when flustered, bursts when excited, a beat when flapping
     const burst = k => Math.max(0, Math.sin(t * 2.3 - k)) ** 2;
+    // a fit of giggles (pet-core's `titter`, 0..1): the shoulders bob, the fins and ahoge twitch with them
+    const titter = fc.titter || 0;
     const finN = (face === 'angry' ? 2.5 * Math.sin(t * 40) : 0) + (face === 'flustered' ? 1.6 * Math.sin(t * 31) + 1.2 * Math.sin(t * 17.3) : 0)
-      + (face === 'excited' ? 6 * burst(0) * Math.sin(t * 24) : 0) + flap * 13 * Math.sin(t * 26);
+      + (face === 'excited' ? 6 * burst(0) * Math.sin(t * 24) : 0) + flap * 13 * Math.sin(t * 26) + titter * 5;
     const finF = (face === 'angry' ? 2.5 * Math.sin(t * 40) : 0) + (face === 'flustered' ? 1.4 * Math.sin(t * 27 + 1.9) + 1.1 * Math.sin(t * 13.1 + .4) : 0)
-      + (face === 'excited' ? 5 * burst(.6) * Math.sin(t * 21 + 1.1) : 0) + flap * 11 * Math.sin(t * 22 + .9);
+      + (face === 'excited' ? 5 * burst(.6) * Math.sin(t * 21 + 1.1) : 0) + flap * 11 * Math.sin(t * 22 + .9) + titter * 4;
     const ahoge = sp.ahoge.step(-tiltVel * .12 - yawVel * .5 + sway * 18 + (face === 'surprised' ? -16 : 0) + (face === 'confused' ? 20 : 0) + (mode === 'sleep' ? 22 : 0) - hairY * 12, dt)
-      + flap * 12 * Math.sin(t * 19);
+      + flap * 12 * Math.sin(t * 19) - titter * 6;
     const tail = sp.tail.step(sway * 14 + tailMood * 12, dt) + wagAmp * 13 * Math.sin(t * (4 + 5 * wagAmp)) + Math.sin(t * 1.3) * 3
       + flap * 14 * Math.sin(t * 17);
 
@@ -814,7 +821,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st.body.sy *= 1 - .16 * c + .07 * pop; st.body.sx *= 1 + .08 * c - .03 * pop;
       if (!(ROLL && rollOK())) st.body.ty -= 46 * Math.sin(Math.PI * rollTurn(gk));
     }
-    st.waist = { a: bow * 20 - flinch * 6 + peek * 9 };
+    st.waist = { a: bow * 20 - flinch * 6 + peek * 9 + 3 * titter, sy: 1 - .07 * titter };
     st.skirt = {
       fn: (u, v) => {
         const k = v * v;
@@ -893,7 +900,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.legFront = { a: lerp(legA[1], -60, sitK), ty: -lift[1] * .9 * (1 - sitK) };
     st.tail = { a: tail - 10 * sitK };
     st.tailBend = { fn: u => [0, -tail * .5 * u * u] };
-    st.neck = { a: headA + clamp(bend * .8, -10, 12), ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 };
+    st.neck = { a: headA + clamp(bend * .8, -10, 12), ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 + 3 * titter };
     fxTurn[0] = angleX; fxTurn[1] = angleY;
     const parallax = (k, ky) => (u, v) => [angleX * k * bump(u) * (.4 + .6 * bump(v)), angleY * ky * bump(v) * (.4 + .6 * bump(u))];
     st.headFront = { fn: parallax(4.2, 2.8) };

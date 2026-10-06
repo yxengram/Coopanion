@@ -674,3 +674,50 @@ describe('a roll, a cup and a book', () => {
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(5);
   });
 });
+
+describe('a gentle smile, an awkward one and a giggle', () => {
+  it('each has its own face sound, silenced with the other face sounds', () => {
+    for (const [face, sound] of [['gentle', 'soft'], ['awkward', 'wry'], ['giggle', 'hehe']]) {
+      expect(SOUND_KINDS.face, face).toContain(sound);
+      const played = [];
+      const sfx = createSfx({ storageKey: 'test.sfx' });
+      sfx.configure({ kinds: { face: false } });
+      const orig = sfx[sound];
+      expect(typeof orig).toBe('function');
+      sfx[sound] = () => played.push(sound);
+      sfx.expr(face);
+      expect(played, face).toEqual([]);
+      sfx.configure({ kinds: { face: true } });
+      sfx.expr(face);
+      expect(played, face).toEqual([sound]);
+    }
+  });
+
+  it('gentle nods slowly at once and again every 4 s, and holds still between', () => {
+    const lean = s => FACES.gentle.f(10 + s, { exprAt: 10 }).lean;
+    expect(lean(.4)).toBeGreaterThan(5);
+    expect(Math.abs(lean(1.5))).toBeLessThan(1e-9);
+    expect(lean(4.4)).toBeCloseTo(lean(.4), 6);
+  });
+
+  it('a giggle shakes in fits: hard at first, then quiet until the next fit', () => {
+    const titter = s => FACES.giggle.f(10 + s, { exprAt: 10 }).titter;
+    const peak = (a, b) => { let m = 0; for (let s = a; s < b; s += .01) m = Math.max(m, titter(s)); return m; };
+    expect(peak(0, .7)).toBeGreaterThan(.8);
+    expect(peak(.71, 1.59)).toBeLessThan(1e-9);
+    expect(peak(1.6, 2.3)).toBeGreaterThan(.8);
+  });
+
+  it("hands a figure the giggle's shaking in its face, and bobs Coo's ring with it", () => {
+    const pet = barePet(), faces = [];
+    run(pet, 1);
+    pet.setExpr('giggle');
+    const sq = [];
+    for (let i = 0; i < 40; i++) { pet.step(1 / 60); pet.render(); sq.push(pet.pet.sq); }
+    expect(Math.max(...sq) - Math.min(...sq)).toBeGreaterThan(.01);
+    pet.setFigure({ draw: (g, face) => faces.push(face) });
+    pet.setExpr('giggle');
+    run(pet, .5);
+    expect(Math.max(...faces.map(f => f.titter || 0))).toBeGreaterThan(.5);
+  });
+});

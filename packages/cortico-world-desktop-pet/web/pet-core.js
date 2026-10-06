@@ -1009,7 +1009,7 @@ export function createPet(els, opts) {
       case 'salute': pulse('salute', 1.8); holdFace('saluting', 1.9); sfx.snap(); break;
       case 'vsign': pulse('vsign', 1.8); holdFace('wink', 1.9); emitGlint(1); sfx.cheese(); break;
       // pointing ahead where she faces; giggling behind her hand; arms folded (keeping her face, or a pout);
-      // a big stretch with a yawn; a curtsy, holding out her skirt
+      // a big stretch with a yawn; a curtsy, holding out her skirt (seated, she stands up for it)
       case 'point': pulse('point', 2); holdFace('pointing', 2.1); sfx.tick(); break;
       case 'cover': pulse('cover', 2.4); holdFace('giggle', 2.5); sfx.hehe(); break;
       case 'cross': {
@@ -1019,7 +1019,7 @@ export function createPet(els, opts) {
         sfx.hips(); break;
       }
       case 'stretch': pulse('stretch', 2.6); holdFace('stretching', 2.7); sfx.yawn(); break;
-      case 'curtsy': if (!seated) setMode('idle'); pulse('curtsy', 2.2); holdFace('bowing', 2); sfx.tick(); break;
+      case 'curtsy': setMode('idle'); pulse('curtsy', 2.2); holdFace('bowing', 2); sfx.tick(); break;
       case 'pray': pulse('pray', 2.2); holdFace('pleading', 2.3); sfx.shy(); break;
       case 'scratch': pulse('scratch', 2.1); holdFace('happy', 2.2); sfx.hehe(); break;
       case 'idea': pulse('idea', 1.8); holdFace('excited', 1.9); break;

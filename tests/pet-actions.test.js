@@ -1002,6 +1002,17 @@ describe('pointing, giggling behind a hand, arms crossed, a stretch and a curtsy
     }
   });
 
+  it('a curtsy from sitting stands up for it', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('sit');
+    run(pet, 1.5);
+    pet.act('curtsy');
+    expect(pet.pet.mode).toBe('idle');
+    run(pet, 1);
+    expect(pet.pet.sitK).toBeLessThan(.2);
+  });
+
   it('arms crossed keeps an asked-for face, or pouts', () => {
     const pet = barePet();
     run(pet, 1);

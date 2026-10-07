@@ -137,22 +137,23 @@ export function kickField(ax, kc, kd) {
 // the kick's limits (degrees): the swing of both shins, and how far apart they go (kd), which the seam between them takes
 export const KICK = { amp: 10, apart: 1.25 };
 
-/**
- * How far the lying drawing's eyes are shut (0..1), for its eyes-shut overlay: blinks, sleep and dozing (o.drowse), the
- * shut-eye shapes (up, down), and lid eyes that are nearly closed (cry, squeeze, a yawn, waking). The drawing has no
- * half-lids, so a half-lidded face (smug, disgusted) keeps its eyes open.
- */
-/** Faces that smile with an open mouth (the lying drawing's smile patch shows for them). */
+/** Faces that smile with an open mouth (the lying and kneeling drawings' smile patches show for them). */
 export const SMILING = ['happy', 'love', 'excited', 'wink', 'giggle', 'coax', 'moved', 'tongue', 'dragged'];
 /**
  * Which mouth patch the lying drawing shows (0..1 each): talking opens it on the beat, a smiling face smiles.
  * Asleep, both stay shut.
  */
 export function lyingMouth(o, face, mode) {
-  if (mode === 'sleep') return { talk: 0, smile: 0 };
-  const talk = smooth(.12, .3, o.talk || 0);
+  if (mode === 'sleep' || face === 'petrify') return { talk: 0, smile: 0 };
+  // (opening and closing on the beat as she talks, like the standing mouth)
+  const talk = smooth(.5, .75, (o.talk || 0) * (.45 + .45 * Math.abs(Math.sin((o.t || 0) * 17))));
   return { talk, smile: SMILING.includes(face) ? 1 - talk : 0 };
 }
+/**
+ * How far the lying drawing's eyes are shut (0..1), for its eyes-shut overlay: blinks, sleep and dozing (o.drowse), the
+ * shut-eye shapes (up, down), and lid eyes that are nearly closed (cry, squeeze, a yawn, waking). The drawing has no
+ * half-lids, so a half-lidded face (smug, disgusted) keeps its eyes open.
+ */
 export function eyesShut(o, eyes, mode) {
   const e = eyes?.[0] || {};
   return Math.max(o.blink || 0, o.eyeClose || 0, mode === 'sleep' ? 1 : 0, smooth(.6, 1, o.drowse || 0),
@@ -620,13 +621,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const open = Math.max(talk * (.45 + .45 * Math.abs(Math.sin(t * 17))), face === 'sleepy' || face === 'waking' ? gapOpen : 0);
     if (fc.cat) catMouth(open);
     else if (open > .12 && face === 'surprised') sprite('surprised_mouth', { sy: .35 + .65 * open, sx: .85 + .15 * open });
-    // talking, the open mouth takes one of four shapes by the character being said: open "a", wide "i", small round "u", round "o"
+    // talking, the open mouth takes one of four shapes, a different one per character said (all the same mouth about
+    // one centre, so it does not hop): open, wide and flat, narrow and round, small. A yawn is always the big open one.
     else if (open > .12) {
-      const k = o.talkShape || 0;
-      if (k === 0) sprite('happy_mouth', { sy: .35 + .65 * open, sx: .85 + .15 * open });
-      else if (k === 1) sprite('happy_mouth', { sy: .2 + .3 * open, sx: 1.05 + .1 * open });
-      else if (k === 2) sprite('surprised_mouth', { sx: .35 + .15 * open, sy: .3 + .3 * open });
-      else sprite('surprised_mouth', { sx: .45 + .25 * open, sy: .45 + .4 * open });
+      const k = talk > .05 ? o.talkShape || 0 : 0;
+      const [sx, sy] = [[.85 + .15 * open, .35 + .65 * open], [1.1 + .1 * open, .2 + .25 * open], [.55 + .1 * open, .45 + .45 * open], [.7, .25 + .3 * open]][k];
+      sprite('happy_mouth', { sx, sy });
     }
     // cheeky: a small smile with the tip of the tongue out under it
     else if (fc.tongue) { lineMouth(.5, 1.1); tongueTip(); }
@@ -1139,7 +1139,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
       const shutK = eyesShut(o, fc.eyes, mode);
       for (const p of KNEEL.required) st.alpha[p.id] = tex[p.tex] ? kneelA : 0;
-      for (const p of KNEEL.overlays || []) st.alpha[p.id] = tex[p.tex] ? kneelA * shutK : 0;
+      const km = lyingMouth(o, face, mode);
+      for (const p of KNEEL.overlays || []) st.alpha[p.id] = !tex[p.tex] ? 0 : kneelA * (p.use === 'shut' ? shutK : km[p.use] || 0);
     }
     const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
 
@@ -1342,6 +1343,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       hearts: [96, 176, 62], bubble: [128, 18], glints: [[48, 32], [208, 46]],
       // a spout leaves the top of her head, just behind the ahoge
       spout: [140, 42],
+      // kneeling, her head sits this much higher than the seated rig's (which the points otherwise follow down)
+      ...(KNEEL ? { kneelRaise: f1(29 - KNEEL.headDrop) } : {}),
       // the same, plus the hit ellipse [cx, cy, rx, ry] and half width, lying on her front (the spout from the lying head's crown)
       ...(LIE ? { lie: { ...LIE.anchors, spout: [(LIE.rects.head[0] + LIE.rects.head[2]) / 2, LIE.rects.head[1] + 12] } } : {}),
     },

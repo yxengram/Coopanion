@@ -868,7 +868,9 @@ export function createPet(els, opts) {
   const proneK = () => (lieSet() ? pet.lieK : 0);
   const lerpPt = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
   /** Anchor `k` blended into its lying point; upright it sinks with the hips by `low`. */
-  const ancPt = (k, low = pet.low) => {
+  /** How far the head's points sink: with the hips, less while kneeling if the figure says its kneeling head sits higher. */
+  const headLow = () => pet.low - (pet.kneel ? (A.kneelRaise || 0) * pet.sitK : 0);
+  const ancPt = (k, low = headLow()) => {
     const up = [A[k][0], A[k][1] + low], lp = lieSet()?.[k];
     return lp ? lerpPt(up, lp, pet.lieK) : up;
   };
@@ -949,6 +951,8 @@ export function createPet(els, opts) {
     if (a === 'song' && (pet.listening || (pet.mode !== 'idle' && pet.mode !== 'sit'))) return false;
     // (an asked-for expression still showing, not a motion's own face: hands on hips keeps it)
     const prevExpr = pet.exprOwn ? null : pet.expr, prevUntil = pet.exprUntil;
+    // kneeling lasts until the next motion: any other one (even one done seated) ends it, back to plain sitting
+    if (a !== 'kneel') pet.kneel = false;
     pet.expr = null; pet.lastAct = a;
     const seated = REST.has(pet.mode);
     switch (a) {
@@ -1126,7 +1130,7 @@ export function createPet(els, opts) {
   function emit(type, p, o = {}) { P.push({ type, x: p.x, y: p.y, vx: 0, vy: 0, age: 0, life: 1, ...o }); }
   function emitHeart() {
     const lh = proneK() > .5 && lieSet().hearts, h = lh || A.hearts;
-    emit('heart', toStage(rnd(h[0], h[1]), h[2] + (lh ? 0 : pet.low)), { vx: rnd(-20, 20), vy: rnd(-70, -45), life: 1.6 });
+    emit('heart', toStage(rnd(h[0], h[1]), h[2] + (lh ? 0 : headLow())), { vx: rnd(-20, 20), vy: rnd(-70, -45), life: 1.6 });
   }
   /** A glint or two popping by the head (a happy or smug face); never more than three at once. */
   function emitGlint(n) {
@@ -1136,7 +1140,7 @@ export function createPet(els, opts) {
     const gl = lg || (custom && !custom.anchors?.glints ? [[bx - 50, by + 25], [bx + 50, by + 25]] : A.glints);
     for (let i = 0; i < Math.min(n, 3 - live); i++) {
       const [x, y] = gl[Math.floor(Math.random() * gl.length)];
-      emit('glint', toStage(x + rnd(-8, 8), y + rnd(-8, 8) + (lg ? 0 : pet.low)), { vx: rnd(-8, 8), vy: rnd(-18, -8), life: rnd(.5, .7) });
+      emit('glint', toStage(x + rnd(-8, 8), y + rnd(-8, 8) + (lg ? 0 : headLow())), { vx: rnd(-8, 8), vy: rnd(-18, -8), life: rnd(.5, .7) });
     }
   }
   /** Where a spout leaves the head (logo units): lying, from the lying head; a figure that names no spout spot, just under its bubble spot. */
@@ -1144,7 +1148,7 @@ export function createPet(els, opts) {
     const l = proneK() > .5 && lieSet();
     if (l) return l.spout || [l.bubble[0], l.bubble[1] + 30];
     const [x, y] = custom && !custom.anchors?.spout ? [A.bubble[0], A.bubble[1] + 30] : A.spout;
-    return [x, y + pet.low];
+    return [x, y + headLow()];
   }
   /** How tall the spout's column is (0..1) and how solid, at `k` of the gesture: it shoots up, holds, and breaks into spray. */
   const spoutCol = k => ({ h: smooth(clamp((k - .25) / .1, 0, 1)), a: 1 - smooth(clamp((k - .45) / .12, 0, 1)) });
@@ -1544,7 +1548,7 @@ export function createPet(els, opts) {
       if (fc.emit === 'tear') { emit('drop', toStage(tear[0] + pet.look[0], tear[1]), { vx: pet.facing * rnd(10, 30), vy: -20, life: 3 }); pet.emitAt = T + (fc.emitEvery ?? .8); }
       if (fc.emit === 'tears') {
         // both eyes cry, taking turns; a figure that names only its one tear spot cries from there, and lying from the lying one
-        const eyes = proneK() > .5 ? [tear] : (custom && !custom.anchors?.tears ? [A.tear] : A.tears).map(([x, y]) => [x, y + pet.low]);
+        const eyes = proneK() > .5 ? [tear] : (custom && !custom.anchors?.tears ? [A.tear] : A.tears).map(([x, y]) => [x, y + headLow()]);
         const [ex, ey] = eyes[pet.tearN++ % eyes.length];
         emit('drop', toStage(ex + pet.look[0] + rnd(-6, 6), ey), { vx: pet.facing * rnd(-20, 50), vy: rnd(-60, -20), life: 3 }); pet.emitAt = T + .22;
       }

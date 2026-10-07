@@ -1048,6 +1048,18 @@ describe('kneeling, a cheeky tongue, talking mouths', () => {
     expect(frames.at(-1).kneel).toBe(false);
   });
 
+  it('kneeling ends with the next motion, even one done seated, and lifts the head points', () => {
+    const pet = barePet();
+    pet.setFigure({ anchors: { kneelRaise: 14 }, draw() {} });
+    run(pet, 1);
+    pet.act('kneel');
+    run(pet, 1.5);
+    expect(pet.pet.kneel).toBe(true);
+    pet.act('wave');
+    expect(pet.pet.kneel).toBe(false);
+    expect(pet.pet.mode).toBe('sit');
+  });
+
   it('talking hands the figure a mouth shape by the character said', () => {
     const frames = [];
     const pet = barePet();

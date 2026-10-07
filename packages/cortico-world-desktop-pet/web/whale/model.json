@@ -1847,6 +1847,40 @@
       31.83
      ],
      "use": "shut"
+    },
+    {
+     "id": "kneel_smile",
+     "tex": "kneel_smile",
+     "z": 21.32,
+     "parent": "kneel",
+     "grid": [
+      4,
+      4
+     ],
+     "box": [
+      142.83,
+      150.67,
+      11.67,
+      9.83
+     ],
+     "use": "smile"
+    },
+    {
+     "id": "kneel_talk",
+     "tex": "kneel_talk",
+     "z": 21.32,
+     "parent": "kneel",
+     "grid": [
+      4,
+      4
+     ],
+     "box": [
+      142.83,
+      150.67,
+      11.67,
+      9.83
+     ],
+     "use": "talk"
     }
    ],
    "pivots": {

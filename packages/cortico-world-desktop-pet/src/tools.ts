@@ -82,7 +82,7 @@ export const DESKTOP_PET_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_act',
     tags: ['act'],
-    description: '不说话,依次做一串表情或动作(词表见环境说明)。立即返回;sit、sleep 和 lie 会一直保持到下一个动作。',
+    description: '不说话,依次做一串表情或动作(词表见环境说明)。立即返回;sit、sleep、lie 和 kneel 会一直保持到下一个动作。',
     parameters: {
       type: 'object',
       properties: {

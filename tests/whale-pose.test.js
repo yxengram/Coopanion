@@ -630,10 +630,14 @@ describe('hands pressed together, on the hips and held out; a hand at the head a
 
 describe('lying mouths and kneeling, as the whale draws them', () => {
   it('lying, she talks and smiles with mouth patches; asleep the mouth stays shut', () => {
-    expect(lyingMouth({ talk: 1 }, 'neutral', 'lie').talk).toBe(1);
+    expect(lyingMouth({ talk: 1, t: Math.PI / 34 }, 'neutral', 'lie').talk).toBe(1);
     expect(lyingMouth({ talk: 0 }, 'happy', 'lie').smile).toBe(1);
     expect(lyingMouth({ talk: 0 }, 'neutral', 'lie').smile).toBe(0);
     expect(lyingMouth({ talk: 1 }, 'happy', 'sleep')).toEqual({ talk: 0, smile: 0 });
+    expect(lyingMouth({ talk: 1 }, 'petrify', 'lie')).toEqual({ talk: 0, smile: 0 });
+    // talking, it opens and closes on the beat
+    const opens = [0, .03, .06, .09, .12, .15].map(t => lyingMouth({ talk: 1, t }, 'neutral', 'lie').talk);
+    expect(Math.max(...opens) - Math.min(...opens)).toBeGreaterThan(.5);
     for (const use of ['smile', 'talk']) {
       const p = model.poses.lie.overlays.find(o => o.use === use);
       expect(p, use).toBeTruthy();
@@ -644,6 +648,7 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
   it('kneeling is one drawing on the floor, with an eyes-shut patch, in every scheme', () => {
     const K = model.poses.kneel, [p] = K.required, [x, y, w, h] = p.box;
     for (const id of SCHEMES) { expectFile(id, p); for (const o of K.overlays) expectFile(id, o); }
+    expect(K.overlays.map(o => o.use).sort()).toEqual(['shut', 'smile', 'talk']);
     expect(Math.abs(y + h - 256)).toBeLessThan(3);
     expect(Math.abs(x + w / 2 - 128)).toBeLessThan(25);
     expect(p.z).toBeGreaterThan(Math.max(...model.parts.map(q => q.z)));

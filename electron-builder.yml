@@ -17,7 +17,7 @@ files:
 # latest-linux.yml next to the installers (and app-update.yml into the app), which the release workflow uploads
 publish:
   provider: github
-  owner: Pal-AI-Lab
+  owner: yxengram
   repo: Coopanion
 win:
   target:

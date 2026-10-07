@@ -1,42 +1,83 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { createPet, createSfx, EXPRESSIONS, FACES, figure, MOTIONS, SOUND_KINDS, STAND, defaultSkin, HEAD_TOP, ROLL_D } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
-import { VOCAB } from '../packages/cortico-world-desktop-pet/src/script.ts';
+import { createBody, createPet, FACES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MOTIONS, ROLL_D, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
+import { createSfx, EXPR_TONES, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
+import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
 
-/** A pet with no page under it: the elements and the sound only take calls. */
-function barePet(onEvent) {
+const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
+const vocabOf = (pack) => JSON.parse(readFileSync(new URL(`web/${pack}/figure.json`, PKG), 'utf8')).vocab;
+const BOUNDS = () => ({ W: 1200, H: 400, floorY: 380, S: .42 });
+
+/**
+ * A pet with no page under it: the elements and the sound only take calls. It is Coo as our app has her, the kit's
+ * plus body; `opts` may say otherwise (`plus: false` is the kit as any other pack knows it).
+ */
+function barePet(onEvent, opts = {}) {
   const el = () => ({ setAttribute() {}, innerHTML: '' });
-  const sfx = new Proxy({}, { get: () => () => {} });
+  const sfx = { play() {} };
   const fxG = el(), petG = el();
-  const pet = createPet({ petG, shadowEl: el(), fxG }, { sfx, onEvent, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+  const pet = createPet({ petG, shadowEl: el(), fxG }, { sfx, onEvent, figure: cooFigure(), skin: defaultSkin(), plus: true, roam: 'off', bounds: BOUNDS, ...opts });
   pet.resize();
   // the particles' and Coo's markup, as last drawn
   pet.fxHtml = () => fxG.innerHTML;
   pet.petHtml = () => petG.innerHTML;
   return pet;
 }
+/** A bare pet whose sounds are kept as [name, kind] in `pet.heard`. */
+function hearingPet(opts = {}) {
+  const heard = [];
+  const pet = barePet(undefined, { sfx: { play: (name, kind) => heard.push([name, kind]) }, ...opts });
+  pet.heard = heard;
+  return pet;
+}
 const run = (pet, seconds) => { for (let i = 0; i < seconds * 60; i++) { pet.step(1 / 60); pet.render(); } };
 const eyesIn = html => (html.match(/class="eye"/g) || []).length;
+/** Runs `fn` with Math.random drawn from a fixed seed (mulberry32), so a free-roaming pet does the same each time. */
+function seeded(fn, seed = 7) {
+  const real = Math.random;
+  let a = seed;
+  Math.random = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  try { return fn(); } finally { Math.random = real; }
+}
+/** An audio context that only counts what is made in it: voices (a tone's oscillator or a noise's source) and fades (a hush). */
+function countingCtx() {
+  const made = { voices: 0, fades: 0 };
+  const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {}, cancelScheduledValues() { made.fades++; }, setTargetAtTime() {} });
+  const node = () => ({ connect() {}, start() {}, stop() {}, frequency: param(), gain: param(), Q: {} });
+  const ctx = {
+    currentTime: 0, state: 'running', sampleRate: 8, destination: {},
+    createGain: node, createDynamicsCompressor: node, createBiquadFilter: node,
+    createOscillator() { made.voices++; return node(); },
+    createBufferSource() { made.voices++; return node(); },
+    createBuffer: () => ({ getChannelData: () => new Float32Array(8) }),
+  };
+  return { ctx, made };
+}
 
 describe('the words the model can use', () => {
-  it('match what the body knows, both ways', () => {
-    const words = kind => VOCAB.filter(v => v.kind === kind).map(v => v.id).sort();
-    expect(words('expression')).toEqual([...EXPRESSIONS].sort());
-    expect(words('motion')).toEqual([...MOTIONS].sort());
+  it('Coo and the whale do every word of their vocabularies on the kit, and the kit does no word they leave out', () => {
+    for (const pack of ['coo', 'whale']) {
+      const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
+      // both know the kit's words and the plus body's
+      expect(words('expression'), pack).toEqual([...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS].sort());
+      expect(words('motion'), pack).toEqual([...KIT_MOTIONS, ...PLUS_MOTIONS].sort());
+    }
   });
 
-  it('every expression has a face Coo can draw', () => {
-    for (const n of EXPRESSIONS) {
-      const fc = FACES[n].f(.5);
+  it('every expression has a face Coo can draw, the plus ones too', () => {
+    for (const n of [...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS]) {
+      const fc = (PLUS_FACES[n] ?? FACES[n]).f(.5);
       expect(fc.eyes).toHaveLength(2);
       expect(figure(fc, { look: fc.lookAt || [0, 0], legs: STAND, low: 0, t: .5, blink: 0, acc: defaultSkin() })).toContain('class="eye"');
     }
   });
 
   it('every motion is one the body takes, and plays out without getting stuck', () => {
-    for (const m of MOTIONS) {
+    for (const m of [...KIT_MOTIONS, ...PLUS_MOTIONS]) {
       const pet = barePet();
       run(pet, 1);
-      if (m !== 'walk' && m !== 'run') expect(pet.act(m), m).toBe(true);
+      expect(pet.doWord(m), m).toBe(true);
       run(pet, 5);
       // everything but sitting, sleeping and lying ends back on its feet
       if (m !== 'sit' && m !== 'sleep' && m !== 'lie' && m !== 'kneel' && m !== 'walk' && m !== 'run') expect(pet.pet.mode, m).toBe('idle');
@@ -54,6 +95,15 @@ describe('the words the model can use', () => {
       run(pet, 2.5);
       expect(pet.pet.mode, m).toBe('idle');
     }
+  });
+
+  it('a walk asked for as a word reports done once it stops, so the next word need not wait out its seconds', () => {
+    const events = [];
+    const pet = barePet((kind, d) => events.push([kind, d.word]));
+    run(pet, 1);
+    pet.doWord('walk');
+    run(pet, 12);
+    expect(events).toContainEqual(['done', 'walk']);
   });
 
   it('a motion that stops an ordered walk reports the walk as interrupted', () => {
@@ -83,17 +133,47 @@ describe('the words the model can use', () => {
 
   it('each motion sound can be silenced with the motion kind', () => {
     for (const n of ['look', 'peek', 'flinch', 'shiver', 'dance', 'away']) expect(SOUND_KINDS.move, n).toContain(n);
-    // look and peek borrow the 'hmm' tone and away the 'huff', which belong to no kind: watch them to see whether they played
-    const played = [];
-    const sfx = createSfx({ storageKey: 'test.sfx' });
-    sfx.hmm = () => played.push('hmm');
-    sfx.huff = () => played.push('huff');
+    // the body files them as motion sounds
+    for (const m of ['peek', 'flinch', 'shiver', 'away']) {
+      const pet = hearingPet();
+      run(pet, 1);
+      pet.act(m);
+      expect(pet.heard, m).toContainEqual([m, 'move']);
+    }
+    // look and peek borrow the 'hmm' tone and away the 'huff', which belong to no kind: count the voices made to see whether they played
+    const { ctx, made } = countingCtx();
+    const sfx = createSfx({ ctx });
     sfx.configure({ kinds: { move: false } });
-    sfx.look(); sfx.peek(); sfx.away();
-    expect(played).toEqual([]);
-    sfx.configure({ kinds: { move: true } });
-    sfx.look(); sfx.peek(); sfx.away();
-    expect(played).toEqual(['hmm', 'hmm', 'huff']);
+    for (const n of ['look', 'peek', 'away']) sfx.play(n, 'move');
+    expect(made.voices).toBe(0);
+    sfx.configure({ kinds: { move: true, face: false } });
+    for (const n of ['look', 'peek', 'away']) {
+      const before = made.voices;
+      sfx.play(n, 'move');
+      expect(made.voices, n).toBeGreaterThan(before);
+    }
+  });
+
+  it("a pack's own expression borrows a kit face's marks, and its own motion is a gesture its figure draws", () => {
+    // `salute` is a plus word too: the pack's own word of that name wins, with or without plus
+    for (const plus of [false, true]) {
+      const frames = [];
+      const pet = barePet(undefined, { plus, words: { facepalm: { expression: { like: 'worried' } }, salute: { motion: { seconds: 1.2 } } } });
+      pet.setFigure({ draw: (g, face, o) => frames.push({ face, o }) });
+      run(pet, 1);
+      expect(pet.doWord('facepalm')).toBe(true);
+      run(pet, .2);
+      expect(frames.at(-1).o.face).toBe('facepalm');
+      expect(frames.at(-1).face.sweat).toBe(true);
+      expect(pet.doWord('salute')).toBe(true);
+      run(pet, .5);
+      expect(frames.at(-1).o.gesture.kind).toBe('salute');
+      // the pack's gesture, not ours: no serious salute face, and it is over at its own 1.2 s
+      expect(frames.at(-1).o.face, String(plus)).not.toBe('saluting');
+      run(pet, .8);
+      expect(frames.at(-1).o.gesture, String(plus)).toBeNull();
+      expect(pet.doWord('fly')).toBe(false);
+    }
   });
 
   it('a figure that draws a gesture itself takes it whole from the frame, and the body leaves it out', () => {
@@ -286,14 +366,12 @@ describe('the words the model can use', () => {
 
   it("a figure that names no glint spots gets its glints by its own bubble, not at Coo's head", () => {
     const glintY = anchors => {
-      const fxG = { setAttribute() {}, innerHTML: '' }, el = () => ({ setAttribute() {}, innerHTML: '' });
-      const pet = createPet({ petG: el(), shadowEl: el(), fxG }, { sfx: new Proxy({}, { get: () => () => {} }), roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
-      pet.resize();
+      const pet = barePet();
       pet.setFigure({ anchors, draw() {} });
       run(pet, 1);
       pet.setExpr('happy');
       run(pet, .2);
-      const ys = [...fxG.innerHTML.matchAll(/stroke="#e0a100"[^>]*translate\([-\d.]+ ([-\d.]+)\)/g)].map(m => +m[1]);
+      const ys = [...pet.fxHtml().matchAll(/stroke="#e0a100"[^>]*translate\([-\d.]+ ([-\d.]+)\)/g)].map(m => +m[1]);
       expect(ys.length).toBeGreaterThan(0);
       return Math.min(...ys);
     };
@@ -598,9 +676,9 @@ describe('lying down', () => {
 describe('a roll, a cup and a book', () => {
   /** A bare pet whose group transform is kept, to see the roll's turn. */
   function rollPet(x = 300) {
-    const attrs = {}, sfx = new Proxy({}, { get: () => () => {} });
+    const attrs = {}, sfx = { play() {} };
     const petG = { setAttribute(k, v) { attrs[k] = v; }, innerHTML: '' }, el = () => ({ setAttribute() {}, innerHTML: '' });
-    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx, roam: 'off', startX: x, bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx, figure: cooFigure(), skin: defaultSkin(), plus: true, roam: 'off', startX: x, bounds: BOUNDS });
     pet.resize();
     pet.turnOf = () => +(attrs.transform.match(/^rotate\(([-\d.]+) /)?.[1] ?? 0);
     pet.petHtml = () => petG.innerHTML;
@@ -669,7 +747,7 @@ describe('a roll, a cup and a book', () => {
 
   it('reading, the eyes run along a line and back, looking down', () => {
     const xs = [], ys = [];
-    for (let t = 0; t < 3; t += .05) { const [x, y] = FACES.reading.f(t).lookAt; xs.push(x); ys.push(y); }
+    for (let t = 0; t < 3; t += .05) { const [x, y] = PLUS_FACES.reading.f(t).lookAt; xs.push(x); ys.push(y); }
     expect(Math.min(...ys)).toBeGreaterThan(2);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(5);
   });
@@ -679,22 +757,25 @@ describe('a gentle smile, an awkward one and a giggle', () => {
   it('each has its own face sound, silenced with the other face sounds', () => {
     for (const [face, sound] of [['gentle', 'soft'], ['awkward', 'wry'], ['giggle', 'hehe']]) {
       expect(SOUND_KINDS.face, face).toContain(sound);
-      const played = [];
-      const sfx = createSfx({ storageKey: 'test.sfx' });
+      expect(EXPR_TONES[face], face).toBe(sound);
+      // the body asks for it as a face sound
+      const pet = hearingPet();
+      run(pet, 1);
+      pet.setExpr(face);
+      expect(pet.heard, face).toContainEqual([sound, 'face']);
+      const { ctx, made } = countingCtx();
+      const sfx = createSfx({ ctx });
       sfx.configure({ kinds: { face: false } });
-      const orig = sfx[sound];
-      expect(typeof orig).toBe('function');
-      sfx[sound] = () => played.push(sound);
-      sfx.expr(face);
-      expect(played, face).toEqual([]);
+      sfx.expr(face); sfx.play(sound, 'face');
+      expect(made.voices, face).toBe(0);
       sfx.configure({ kinds: { face: true } });
       sfx.expr(face);
-      expect(played, face).toEqual([sound]);
+      expect(made.voices, face).toBeGreaterThan(0);
     }
   });
 
   it('gentle nods slowly soon after it comes in and again within the usual 3.2 s hold, still between', () => {
-    const lean = s => FACES.gentle.f(10 + s, { exprAt: 10 }).lean;
+    const lean = s => PLUS_FACES.gentle.f(10 + s, { exprAt: 10 }).lean;
     expect(lean(.8)).toBeGreaterThan(5);
     expect(Math.abs(lean(1.8))).toBeLessThan(1e-9);
     expect(lean(3)).toBeGreaterThan(5);
@@ -709,7 +790,7 @@ describe('a gentle smile, an awkward one and a giggle', () => {
   });
 
   it('a giggle shakes in fits: hard at first, then quiet until the next fit', () => {
-    const titter = s => FACES.giggle.f(10 + s, { exprAt: 10 }).titter;
+    const titter = s => PLUS_FACES.giggle.f(10 + s, { exprAt: 10 }).titter;
     const peak = (a, b) => { let m = 0; for (let s = a; s < b; s += .01) m = Math.max(m, titter(s)); return m; };
     expect(peak(0, .7)).toBeGreaterThan(.8);
     expect(peak(.71, 1.59)).toBeLessThan(1e-9);
@@ -781,15 +862,15 @@ describe('a sigh, happy tears and turning to stone', () => {
     run(pet, 1);
     expect(pet.act('sigh')).toBe(true);
     run(pet, .3);
-    let fc = FACES.sighing.f(pet.pet.pulse.t0 + .3, pet.pet);
+    let fc = PLUS_FACES.sighing.f(pet.pet.pulse.t0 + .3, pet.pet);
     expect(fc.eyes[0].shape).toBe('ring');
     expect(fc.puff ?? 0).toBe(0);
-    fc = FACES.sighing.f(pet.pet.pulse.t0 + 1.2, pet.pet);
+    fc = PLUS_FACES.sighing.f(pet.pet.pulse.t0 + 1.2, pet.pet);
     expect(fc.eyes[0].shape).toBe('lid');
     expect(fc.puff).toBeGreaterThan(.5);
     // something else cuts it short: no drooping face left over
     pet.act('nod');
-    expect(FACES.sighing.f(pet.pet.pulse.t0 + .1, pet.pet).puff ?? 0).toBe(0);
+    expect(PLUS_FACES.sighing.f(pet.pet.pulse.t0 + .1, pet.pet).puff ?? 0).toBe(0);
   });
 
   it('happy tears drop slower than crying, with thin tracks on Coo', () => {
@@ -828,7 +909,7 @@ describe('a sigh, happy tears and turning to stone', () => {
     pet.setExpr('petrify');
     expect(pet.pet.mode).toBe('idle');
     run(pet, .5);
-    const at = s => FACES.petrify.f(pet.pet.exprAt + s, pet.pet);
+    const at = s => PLUS_FACES.petrify.f(pet.pet.exprAt + s, pet.pet);
     expect(at(1).freeze).toBe(true);
     expect(at(1).stone).toBeCloseTo(1, 5);
     expect(at(.1).freeze).toBe(false);
@@ -885,12 +966,19 @@ describe('pleading, a scratch at the head, an idea, hands on hips and a hug', ()
 
   it("hands on hips' swish is a motion sound, muted with them", () => {
     expect(SOUND_KINDS.move).toContain('hips');
-    const played = [];
-    const sfx = createSfx({ storageKey: 'test.sfx' });
-    sfx.huff = () => played.push('huff');
+    const pet = hearingPet();
+    run(pet, 1);
+    pet.act('hips');
+    expect(pet.heard).toContainEqual(['hips', 'move']);
+    // it borrows the 'huff' tone, which belongs to no kind
+    const { ctx, made } = countingCtx();
+    const sfx = createSfx({ ctx });
     sfx.configure({ kinds: { move: false } });
-    sfx.hips();
-    expect(played).toEqual([]);
+    sfx.play('hips', 'move');
+    expect(made.voices).toBe(0);
+    sfx.configure({ kinds: { move: true } });
+    sfx.play('hips', 'move');
+    expect(made.voices).toBeGreaterThan(0);
   });
 
   it('an idea lights one bulb over the head, which fades', () => {
@@ -919,10 +1007,10 @@ describe('pleading, a scratch at the head, an idea, hands on hips and a hug', ()
 
 describe('coaxing, a song, serving tea, a salute and a V sign', () => {
   it('coaxing rocks side to side with a cat mouth and a heart every 1.2 s', () => {
-    const fc = FACES.coax.f(1);
+    const fc = PLUS_FACES.coax.f(1);
     expect(fc.cat).toBe(true);
     expect(fc.emitEvery).toBeCloseTo(1.2);
-    const rocks = [0, .5, 1, 1.5].map(t => FACES.coax.f(t).rock);
+    const rocks = [0, .5, 1, 1.5].map(t => PLUS_FACES.coax.f(t).rock);
     expect(Math.max(...rocks) - Math.min(...rocks)).toBeGreaterThan(1);
     const pet = barePet();
     run(pet, 1);
@@ -949,17 +1037,14 @@ describe('coaxing, a song, serving tea, a salute and a V sign', () => {
 
   it('a song ends once she walks off, lies down or is picked up, and is not sung asleep; its tune is hushed', () => {
     const hushed = [];
-    const el = () => ({ setAttribute() {}, innerHTML: '' });
-    const sfx = new Proxy({}, { get: (o, k) => (k === 'hush' ? n => hushed.push(n) : () => {}) });
-    const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
-    pet.resize();
+    const pet = barePet(undefined, { sfx: { play: (n, kind) => { if (n.startsWith('stop:')) hushed.push([n, kind]); } } });
     run(pet, 1);
     pet.act('song');
     run(pet, .5);
     pet.walkTo(100, false, 'w');
     run(pet, .1);
     expect(pet.pet.pulse).toBeNull();
-    expect(hushed).toEqual(['song']);
+    expect(hushed).toEqual([['stop:song', 'move']]);
     run(pet, 4);
     pet.act('sleep');
     run(pet, 1);
@@ -969,11 +1054,27 @@ describe('coaxing, a song, serving tea, a salute and a V sign', () => {
     expect(pet.act('song')).toBe(true);
   });
 
+  it("hushing the song fades out what is left of its tune, and only the song's", () => {
+    const { ctx, made } = countingCtx();
+    const sfx = createSfx({ ctx });
+    sfx.play('stop:song', 'move');
+    expect(made.fades).toBe(0);
+    sfx.play('song', 'move');
+    expect(made.voices).toBeGreaterThan(0);
+    sfx.play('stop:song', 'move');
+    expect(made.fades).toBeGreaterThan(0);
+    // once hushed there is nothing left to cut, and a stop is no sound of its own, muted or not
+    const fades = made.fades, voices = made.voices;
+    sfx.configure({ kinds: { move: false } });
+    sfx.play('stop:song', 'move');
+    expect(made).toMatchObject({ fades, voices });
+  });
+
   it('a salute looks serious with the hand up and winks as it comes down', () => {
     const pet = barePet();
     run(pet, 1);
     pet.act('salute');
-    const at = k => FACES.saluting.f(pet.pet.pulse.t0 + k * pet.pet.pulse.dur, pet.pet);
+    const at = k => PLUS_FACES.saluting.f(pet.pet.pulse.t0 + k * pet.pet.pulse.dur, pet.pet);
     expect(at(.4).brows).toBe('angry');
     expect(at(.9).eyes[1].shape).toBe('up');
   });
@@ -1070,9 +1171,202 @@ describe('kneeling, a cheeky tongue, talking mouths', () => {
     expect(shapes.size).toBe(4);
   });
 
+  it("talking with no character said (a page that does not pass it) moves the mouth's shape on each time", () => {
+    for (const plus of [true, false]) {
+      const frames = [];
+      const pet = barePet(undefined, { plus });
+      pet.setFigure({ draw: (g, face, o) => frames.push(o) });
+      run(pet, 1);
+      const shapes = [];
+      for (let i = 0; i < 5; i++) { pet.talk(); run(pet, .05); shapes.push(frames.at(-1).talkShape); }
+      expect(shapes, String(plus)).toEqual([1, 2, 3, 0, 1]);
+      // a character still picks its own shape
+      pet.talk('c');
+      run(pet, .05);
+      expect(frames.at(-1).talkShape).toBe('c'.codePointAt(0) % 4);
+    }
+  });
+
   it('the cheeky face pokes a tongue out, on Coo too', () => {
-    expect(FACES.tongue.f(0).tongue).toBe(true);
-    const fc = FACES.tongue.f(0);
+    expect(PLUS_FACES.tongue.f(0).tongue).toBe(true);
+    const fc = PLUS_FACES.tongue.f(0);
     expect(figure(fc, { look: [0, 0], legs: STAND, low: 0, t: 0, blink: 0, acc: defaultSkin() })).toContain('#f08a9a');
+  });
+});
+
+describe('what the page holds a pack to', () => {
+  it("a body's sounds are muted with the kind they are filed under, a pack's own with its manifest's kind", async () => {
+    const made = { tones: 0, clips: 0 };
+    const node = () => ({ connect() {}, start() {}, stop() {}, frequency: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} }, gain: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} }, Q: {} });
+    class Ctx {
+      constructor() { this.currentTime = 0; this.state = 'running'; this.sampleRate = 8; this.destination = {}; }
+      createGain() { return node(); }
+      createDynamicsCompressor() { return node(); }
+      createBiquadFilter() { return node(); }
+      createOscillator() { made.tones++; return node(); }
+      createBufferSource() { made.clips++; return node(); }
+      createBuffer() { return { getChannelData: () => new Float32Array(8) }; }
+      decodeAudioData() { return Promise.resolve({}); }
+    }
+    const saved = { window: globalThis.window, document: globalThis.document, location: globalThis.location, fetch: globalThis.fetch };
+    Object.assign(globalThis, { window: { AudioContext: Ctx }, document: { hidden: false }, location: { href: 'http://127.0.0.1/' }, fetch: async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }) });
+    try {
+      const sfx = createSfx({ storageKey: 'test.sfx' });
+      sfx.unlock();
+      sfx.usePack('/packs/robot/', { boing: { file: 'boing.ogg', kind: 'move', volume: 1 } });
+      await new Promise((r) => setTimeout(r, 0));
+      sfx.configure({ kinds: { move: false } });
+      // looking about borrows the 'hmm' tone, which belongs to no kind; the pack's boing is a move sound whatever the body files it under
+      sfx.play('look', 'move'); sfx.play('boing', 'face');
+      expect(made).toEqual({ tones: 0, clips: 0 });
+      sfx.configure({ kinds: { move: true, face: false } });
+      // a face that borrows the ui tone 'pop' is a face sound
+      sfx.play('pop', 'face');
+      expect(made.tones).toBe(0);
+      sfx.play('boing', 'face'); sfx.play('look', 'move');
+      expect(made.clips).toBe(1);
+      expect(made.tones).toBeGreaterThan(0);
+    } finally {
+      Object.assign(globalThis, saved);
+    }
+  });
+
+  it("a body's box is kept to the stage and to the most the kit stretches a body", () => {
+    const size = { W: 1000, H: 600, S: .5 };
+    const l = readLayout({ box: { x: -5000, y: -5000, w: 1e6, h: 1e6 }, hit: [{ x: 500, y: 300, r: 1e6 }], bubble: { x: -50, y: 9e9 } }, size);
+    // a 256-unit square at S .5 is 128 pixels: no box past 1.5 × √2 of that
+    expect(l.box.w).toBeLessThanOrEqual(128 * 1.5 * Math.SQRT2);
+    expect(l.box.h).toBeLessThanOrEqual(128 * 1.5 * Math.SQRT2);
+    expect(l.bubble).toEqual({ x: 0, y: 600 });
+  });
+
+  it('a touch counts only right after pointer input, a crash only after a throw', () => {
+    const gate = touchGate();
+    expect(gate.take('pet', 0)).toBe(false);
+    gate.input(100);
+    expect(gate.take('poke', 300)).toBe(true);
+    expect(gate.take('pet', 5000)).toBe(false);
+    expect(gate.take('crash', 5000)).toBe(false);
+    gate.input(6000);
+    expect(gate.take('throw', 6100)).toBe(true);
+    expect(gate.take('crash', 7500)).toBe(true);
+    expect(gate.take('crash', 7600)).toBe(false);
+  });
+});
+
+/** The body a pack hands the figure frame (createBody), on a stand-in document; what it tells the page is kept in `events`. */
+function bareBody(opts = {}) {
+  const el = () => ({ setAttribute() {}, innerHTML: '', textContent: '', remove() {}, appendChild() {} });
+  const kids = [el(), el(), el()];
+  const doc = { head: { appendChild() {} }, documentElement: { dataset: {} }, createElement: el, createElementNS: () => ({ ...el(), children: kids }) };
+  const events = [];
+  const body = createBody({ root: { ownerDocument: doc, appendChild() {} }, bounds: BOUNDS, emit: (kind, d) => events.push([kind, d]), sound() {}, start: { skin: defaultSkin() } }, { figure: cooFigure(), ...opts });
+  body.events = events;
+  return body;
+}
+const stepBody = (body, seconds) => { for (let i = 0; i < seconds * 60; i++) body.step(1 / 60); };
+
+describe('a word the body cannot take', () => {
+  it('is done at once, so the page goes on to the next word instead of waiting', () => {
+    const body = bareBody({ plus: true });
+    stepBody(body, 1);
+    const done = () => body.events.filter(([k]) => k === 'done').map(([, d]) => d.word);
+    // one it does not know
+    expect(body.do('fly')).toBe(false);
+    expect(done()).toEqual(['fly']);
+    // one it knows but cannot do now: no song while she is being talked to
+    body.set({ listening: true });
+    expect(body.do('song')).toBe(false);
+    expect(done()).toEqual(['fly', 'song']);
+    body.set({ listening: false });
+    // a word it takes is not done before it is
+    expect(body.do('song')).toBe(true);
+    expect(body.do('nod')).toBe(true);
+    expect(done()).toEqual(['fly', 'song']);
+    body.dispose();
+  });
+
+  it('without plus, our words are ones the body does not know, and done at once', () => {
+    const body = bareBody();
+    stepBody(body, 1);
+    for (const w of [...PLUS_EXPRESSIONS, ...PLUS_MOTIONS]) expect(body.do(w), w).toBe(false);
+    expect(body.events.filter(([k]) => k === 'done').map(([, d]) => d.word)).toEqual([...PLUS_EXPRESSIONS, ...PLUS_MOTIONS]);
+    body.dispose();
+  });
+});
+
+describe('a body without plus is the kit as any other pack knows it', () => {
+  it('knows only the kit words and the pack\'s own', () => {
+    for (const w of [...PLUS_EXPRESSIONS, ...PLUS_MOTIONS]) {
+      const pet = barePet(undefined, { plus: false });
+      run(pet, 1);
+      expect(pet.doWord(w), w).toBe(false);
+    }
+    for (const w of [...KIT_EXPRESSIONS, ...KIT_MOTIONS]) {
+      const pet = barePet(undefined, { plus: false });
+      run(pet, 1);
+      expect(pet.doWord(w), w).toBe(true);
+    }
+  });
+
+  it("every kit motion plays out and ends on its feet, as with upstream's kit", () => {
+    for (const m of KIT_MOTIONS) {
+      const pet = barePet(undefined, { plus: false });
+      run(pet, 1);
+      expect(pet.doWord(m), m).toBe(true);
+      run(pet, 5);
+      if (m !== 'sit' && m !== 'sleep' && m !== 'walk' && m !== 'run') expect(pet.pet.mode, m).toBe('idle');
+    }
+  });
+
+  it("draws the kit's own faces, shy and sad too, not the plus body's", () => {
+    for (const [plus, want] of [[false, FACES], [true, PLUS_FACES]]) {
+      const frames = [];
+      const pet = barePet(undefined, { plus });
+      pet.setFigure({ draw: (g, face, o) => frames.push({ face, o }) });
+      run(pet, 1);
+      pet.setExpr('sad');
+      run(pet, .2);
+      expect(frames.at(-1).o.face).toBe('sad');
+      expect(frames.at(-1).face.lean, String(plus)).toBe(want.sad.f(0).lean);
+      pet.setExpr('shy');
+      run(pet, .2);
+      expect(!!frames.at(-1).face.lookLock, String(plus)).toBe(!plus);
+    }
+    expect(FACES.sad.f(0).lean).toBeUndefined();
+    expect(PLUS_FACES.sad.f(0).lean).toBeGreaterThan(0);
+  });
+
+  it('flashes no glints for a happy face', () => {
+    for (const plus of [false, true]) {
+      const pet = barePet(undefined, { plus });
+      run(pet, 1);
+      pet.setExpr('happy');
+      run(pet, .2);
+      expect(pet.fxHtml().includes('#e0a100'), String(plus)).toBe(plus);
+    }
+  });
+
+  it('never lies down roaming free (the plus body does now and then)', () => {
+    const modes = (plus) => seeded(() => {
+      const seen = new Set();
+      const pet = barePet((kind, d) => { if (kind === 'mode') seen.add(d.mode); }, { plus, roam: 'free' });
+      for (let i = 0; i < 600 * 60; i++) { pet.step(1 / 60); if (i % 30 === 0) pet.render(); }
+      return seen;
+    });
+    expect(modes(false).has('lie')).toBe(false);
+    expect(modes(true).has('lie')).toBe(true);
+  });
+
+  it("hands the figure a frame with the plus fields at rest", () => {
+    const frames = [];
+    const pet = barePet(undefined, { plus: false });
+    pet.setFigure({ anchors: { lie: { hit: [128, 190, 120, 66], halfW: 124, bubble: [180, 60] } }, draw: (g, face, o) => frames.push(o) });
+    run(pet, 1);
+    pet.act('sit');
+    run(pet, 2);
+    const o = frames.at(-1);
+    expect(o).toMatchObject({ lie: 0, prone: false, kneel: false, away: 0 });
+    expect(pet.lying).toBe(0);
   });
 });

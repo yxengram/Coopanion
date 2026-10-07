@@ -23,6 +23,12 @@ describe('console colours follow the pet', () => {
     expect(theme(dir).selectedId).toBe(COO_SCHEME);
   });
 
+  it('gives the exported whale pack (an alias of the built-in whale) the whale\'s schemes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cc-theme-'));
+    followPetLook(dir, { figure: 'coopanion-whale', scheme: 'kimi' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-whale-kimi');
+  });
+
   it('leaves a scheme picked on the appearance page, and keeps the person\'s own schemes', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cc-theme-'));
     const mine = { id: 'mine', name: '我的', note: '', palettes: { light: {}, dark: {} } };

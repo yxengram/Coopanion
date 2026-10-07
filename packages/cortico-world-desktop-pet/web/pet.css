@@ -40,22 +40,10 @@ body.tab .floor{position:fixed; left:0; right:0; bottom:0; height:48px; backgrou
 body.desk{background:transparent}
 body.desk .floor{display:none}
 .stage{position:fixed; inset:0; touch-action:none}
-.stage svg{position:absolute; inset:0; width:100%; height:100%; display:block; overflow:visible}
-/* a pack's sandboxed frame: transparent (a colour scheme unlike the frame's would give it a backdrop) and never under the pointer */
+/* the body's sandboxed frame: transparent (a colour scheme unlike the frame's would give it a backdrop) and never under the pointer */
 .figure-layer{position:absolute; inset:0; pointer-events:none}
 .figure-layer iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:transparent; color-scheme:normal; pointer-events:none}
 
-/* figure classes */
-.ink{stroke:var(--skin-ink)} .inkf{fill:var(--skin-ink)} .eye{stroke:var(--skin-eye)}
-.blush{fill:var(--blush)} .tearf{fill:var(--tear)} .angry{stroke:var(--anger)}
-.p-heart{stroke:var(--heart)} .p-dust{stroke:var(--dust)} .shadow{fill:var(--shadow)}
-.c-head-main{stroke:var(--c-head-main, var(--skin-ink))} .c-head-acc{stroke:var(--c-head-acc, var(--skin-eye))}
-.c-glasses-main{stroke:var(--c-glasses-main, var(--skin-ink))} .c-glasses-acc{stroke:var(--c-glasses-acc, var(--skin-eye))}
-.c-side-main{stroke:var(--c-side-main, var(--skin-eye))} .c-side-acc{stroke:var(--c-side-acc, var(--skin-eye))}
-.c-neck-main{stroke:var(--c-neck-main, var(--skin-eye))} .c-neck-acc{stroke:var(--c-neck-acc, var(--skin-eye))}
-.f-head-main{fill:var(--c-head-main, var(--skin-ink))} .f-head-acc{fill:var(--c-head-acc, var(--skin-eye))}
-.f-side-main{fill:var(--c-side-main, var(--skin-eye))} .f-side-acc{fill:var(--c-side-acc, var(--skin-eye))}
-.f-neck-main{fill:var(--c-neck-main, var(--skin-eye))} .f-neck-acc{fill:var(--c-neck-acc, var(--skin-eye))}
 
 /* bubbles */
 .bubble{
@@ -65,13 +53,16 @@ body.desk .floor{display:none}
   font-size:14.5px; line-height:1.55; user-select:text; -webkit-user-select:text;
   transform-origin:var(--tail, 50%) calc(100% + 10px);
 }
-.bubble::after{
-  content:""; position:absolute; left:calc(var(--tail, 50%) - 7px); bottom:-8.5px; width:12px; height:12px;
-  background:var(--surface); border-right:2.5px solid var(--skin-ink); border-bottom:2.5px solid var(--skin-ink);
-  border-bottom-right-radius:4px; transform:rotate(45deg);
+/* tail: an outline triangle whose base reaches the border's inner edge, so its sides join the border,
+   and a surface triangle one line width inside it that opens the border between the sides. Neither
+   is rotated. y=0 is the padding edge, the border spans 0..2.5, the tip sits 8.5px past the border. */
+.bubble::before, .bubble::after{
+  content:""; position:absolute; left:calc(var(--tail, 50%) - 12px); bottom:-11px; width:22px; height:11.5px;
 }
+.bubble::before{background:var(--skin-ink); clip-path:path('M0 0.5 L8.9 9.4 Q11 11.5 13.1 9.4 L22 0.5 Z')}
+.bubble::after{background:var(--surface); clip-path:path('M3.04 0 L9.6 6.56 Q11 7.96 12.4 6.56 L18.96 0 Z')}
 .bubble.heard{border-style:dashed; box-shadow:none; max-width:min(260px, calc(100vw - 20px))}
-.bubble.heard::after{display:none}
+.bubble.heard::before, .bubble.heard::after{display:none}
 .bubble.ask{min-width:min(236px, calc(100vw - 20px)); padding-right:32px}
 .bubble.pop{animation:bubble-in .26s cubic-bezier(.3,1.5,.5,1)}
 @keyframes bubble-in{from{transform:scale(.5); opacity:0}}
@@ -97,7 +88,10 @@ body.desk .floor{display:none}
 .b-own{display:flex; align-items:center; gap:6px; padding:3px 3px 3px 10px; border-radius:11px; border:1.5px dashed var(--line); background:var(--bg)}
 .b-own:focus-within, .b-own.chosen{border-style:solid; border-color:var(--skin-eye)}
 .b-own input{flex:1; min-width:0; border:0; background:transparent; font:inherit; font-size:14px; color:var(--text); outline:none; padding:4px 0}
-.b-own button{flex:none; font:inherit; font-size:12.5px; padding:4px 10px; border-radius:8px; border:0; background:var(--text); color:var(--surface); cursor:pointer}
+.b-own button[type="submit"]{flex:none; font:inherit; font-size:12.5px; padding:4px 10px; border-radius:8px; border:0; background:var(--text); color:var(--surface); cursor:pointer}
+.b-expand{flex:none; display:grid; place-items:center; width:26px; height:26px; padding:0; border:0; border-radius:50%; background:none; color:var(--muted); cursor:pointer}
+.b-expand:hover{color:var(--text)}
+.b-expand svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
 .b-opt.dim, .b-own.dim{opacity:.35}
 /* an app's conversation: one step per bubble, with the answer's controls under Coo's line */
 .d-mark{color:var(--skin-eye); font-weight:700}

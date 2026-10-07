@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
+import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
 const model = JSON.parse(readFileSync(new URL('model.json', WHALE), 'utf8'));
@@ -129,7 +129,7 @@ describe('lying down, as the whale draws it', () => {
     const [cx, cy, rx, ry] = A.hit;
     expect(inside([cx, cy], drawn)).toBe(true);
     expect(cx - rx >= vx0 && cx + rx <= vx1 && cy - ry >= vy0 && cy + ry <= vy1).toBe(true);
-    // the half width pet-core keeps from the screen edges covers every piece of the drawing (it is centred on x 128)
+    // the half width the kit keeps from the screen edges covers every piece of the drawing (it is centred on x 128)
     const x0 = Math.min(...LIE.required.map(p => p.box[0])), x1 = Math.max(...LIE.required.map(p => p.box[0] + p.box[2]));
     expect(A.halfW).toBeGreaterThanOrEqual(Math.max(128 - x0, x1 - 128) - 2);
   });
@@ -169,7 +169,7 @@ describe('lying down, as the whale draws it', () => {
     for (let s = 0; s < 48; s++) {
       const ph = s / 48 * 2 * Math.PI, f = kickField(ax, KICK.amp * Math.sin(ph) * rad, KICK.apart * Math.sin(ph + 1.6) * rad);
       const out = rest.map(([x, y]) => { const d = f(0, 0, x, y); return [x + d[0], y + d[1]]; });
-      // where the head is drawn, and the points pet-core and the fx use on it
+      // where the head is drawn, and the points the kit and the fx use on it
       rest.forEach(([x, y], i) => { if (onDrawn(i) && x >= hx0 && y >= hy0 && x <= hx1 && y <= hy1) expect(Math.hypot(out[i][0] - x, out[i][1] - y), `${x},${y}`).toBeLessThan(.01); });
       for (const p of [A.gaze, A.tear, LIE.pivots.lieChin, LIE.fx.to]) expect(Math.hypot(...f(0, 0, ...p))).toBeLessThan(.01);
       drawn.forEach((d, c) => {
@@ -193,7 +193,7 @@ describe('lying down, as the whale draws it', () => {
     expect(eyesShut({}, [{ shape: 'down' }, { shape: 'down' }], 'sleep')).toBe(1);
     expect(eyesShut({}, [{ shape: 'ring', ry: 16 }], 'lie')).toBe(0);
     expect(eyesShut({ blink: .7 }, [{ shape: 'ring', ry: 16 }], 'lie')).toBe(.7);
-    // waking: pet-core opens the lid from 0 to 10 over half a second; no frame at 60 fps jumps by more than a third
+    // waking: the kit opens the lid from 0 to 10 over half a second; no frame at 60 fps jumps by more than a third
     let prev = 1;
     for (let mt = 0; mt <= .5; mt += 1 / 60) {
       const s = eyesShut({}, lid(10 * Math.min(1, mt / .5)), 'wake');
@@ -257,12 +257,15 @@ describe('waving with an open hand, as the whale draws it', () => {
   });
 });
 
-describe('the lying and waving drawings inside the pack sandbox', () => {
-  it('reports what poses it can show on every frame, so pet-core keeps a pack without the files seated', () => {
-    const frame = readFileSync(new URL('../packages/cortico-world-desktop-pet/web/figure-frame.js', import.meta.url), 'utf8');
-    const sandbox = readFileSync(new URL('../packages/cortico-world-desktop-pet/web/figure-sandbox.js', import.meta.url), 'utf8');
-    expect(frame).toMatch(/t: 'drawn'[^\n]*poses: fig\.poses/);
-    expect(sandbox).toMatch(/get poses\(\)/);
+describe('the lying and waving drawings, as the kit reads them', () => {
+  it('reports what poses it can show on every frame, so the kit keeps a pack without the files seated', () => {
+    const src = readFileSync(new URL('figure.js', WHALE), 'utf8');
+    expect(src).toMatch(/get poses\(\)/);
+    // the whale's body is the kit's plus body, from the kit next to it (in the app and in an exported pack alike)
+    expect(src).toMatch(/import \* as kit from '\.\.\/kit\/body\.js'/);
+    expect(src).toMatch(/kit\.createBody\(opts\.host, \{ figure: await createWhaleFigure\(base, opts\), plus: true \}\)/);
+    // the figure never fetches (the frame allows no connections): the model comes in opts.model
+    expect(src).not.toMatch(/\bfetch\(/);
   });
 });
 
@@ -359,7 +362,7 @@ describe('cheering with both arms up, as the whale draws it', () => {
       expect(to, slot).toBeLessThan(Math.abs(arm.rest));
       expect(to, slot).toBeLessThan(lim);
       let x = rest0, v = 0, full = false, swapped = false, last = 0;
-      // pet-core's pulse('cheer', 1.8); the gesture's last frame comes before k reaches 1
+      // the kit's pulse('cheer', 1.8); the gesture's last frame comes before k reaches 1
       const dt = 1 / 60, T = 1.8;
       for (let t = 0; t < T - 1e-9; t += dt) {
         const gk = t / T, on = env(gk), target = rest0 + (s * to - rest0) * on;
@@ -462,7 +465,7 @@ describe('her back, as the whale draws it', () => {
     // facing right the front's tail is on the left; the drawing has its fluke on the right
     expect(model.parts.find(q => q.id === 'tail').box[0] + model.parts.find(q => q.id === 'tail').box[2] / 2).toBeLessThan(128);
     expect((BACK.tail[0] + BACK.tail[2]) / 2).toBeGreaterThan(128);
-    // pet-core's turn: faceVis eases to the other side, the group flipping at zero
+    // the kit's turn: faceVis eases to the other side, the group flipping at zero
     let fv = 1, shown = 0;
     for (let i = 0; i < 30; i++) {
       fv += (-1 - fv) * (1 - Math.exp(-15 / 60));
@@ -541,7 +544,7 @@ describe('a roll, as the whale draws it', () => {
     expect(p.z).toBeGreaterThan(Math.max(...model.parts.map(q => q.z)));
   });
 
-  it("goes as far in a turn as pet-core carries her, turning about the ball's middle, under her", () => {
+  it("goes as far in a turn as the kit carries her, turning about the ball's middle, under her", () => {
     expect(ROLL.around).toBeCloseTo(ROLL_D, 0);
     const [p] = ROLL.required, [x, y, w, h] = p.box, [cx, cy] = ROLL.pivots.rollBall;
     expect(cx).toBe(128);
@@ -572,7 +575,7 @@ describe('a roll, as the whale draws it', () => {
     expect(ballMix(.9)).toBe(0);
     expect(ballMix(.3)).toBe(1);
     expect(ballMix(.7)).toBe(1);
-    // the ball turns in step with pet-core carrying her along
+    // the ball turns in step with the kit carrying her along
     for (let k = 0; k <= 1; k += .05) expect(rollTurn(k)).toBeCloseTo(coreRollTurn(k), 9);
     expect(rollTurn(.165)).toBe(0);
     expect(rollTurn(.835)).toBe(1);

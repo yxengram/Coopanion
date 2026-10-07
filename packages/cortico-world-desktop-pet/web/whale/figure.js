@@ -1,8 +1,8 @@
 /**
- * The DeepSeek whale maid as a pet-core figure: a sprite rig drawn with rig/rig.js.
+ * The DeepSeek whale maid as a figure for the kit (web/kit/body.js): a sprite rig drawn with kit/rig.js.
  *
- * She stands the way Coo does, three-quarters on and facing right; pet-core mirrors the whole
- * group when she turns. pet-core runs the body (walking, jumping, dragging, faces); this file turns
+ * She stands the way Coo does, three-quarters on and facing right; the kit mirrors the whole
+ * group when she turns. The kit runs the body (walking, jumping, dragging, faces); this file turns
  * each frame it hands over into rig parameters, runs springs for hair, skirt, tail, fins and ahoge,
  * paints the face (eyes, mouth, blush) into a live texture, and draws the rig into a canvas that
  * lives in the pet's own SVG group, so the stage's transform (position, squash, tilt, facing) applies.
@@ -11,10 +11,11 @@
  * what each part hides (the dress under the arm, the hair behind the face, the legs under the
  * skirt) was painted in by edits of that same drawing.
  *
- * Rig space = pet-core's logo space: x=128 under the body, soles at y=256.
+ * Rig space = the kit's logo space: x=128 under the body, soles at y=256.
  * model.json keeps the master drawing's pixel frame for the face sprites; U/V convert.
  */
-import { createRig } from '../rig/rig.js';
+import { createRig } from '../kit/rig.js';
+import * as kit from '../kit/body.js';
 
 const f1 = n => Math.round(n * 100) / 100;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -25,7 +26,7 @@ const smooth = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 /**
- * Lying down (pet-core's `lie`, 0..1) as an over-dissolve: the lying drawing fades in over the seated rig, which
+ * Lying down (the kit's `lie`, 0..1) as an over-dissolve: the lying drawing fades in over the seated rig, which
  * stays fully drawn until the drawing is opaque and goes in one step then; getting up runs it backwards. The rig is
  * many layers, so fading it would show them through each other where the drawing does not cover it (her head and
  * headdress, seated, reach above the lying drawing). `poseA` is the drawing's alpha, `standA` the rig's (0 or 1);
@@ -79,7 +80,7 @@ export const NECK_RAISES = ['cover'];
 export const BENT_RAISES = ['idea', 'salute', 'vsign', 'cover'];
 /** How far up (°) the fist arm goes for a near-arm raise before the drawing takes it on to its own angle. */
 export const RAISE_TO = 80;
-/** A roll (`roll`) turns once, eased, over this part of the gesture (as pet-core's rollTurn; the body travels with it). */
+/** A roll (`roll`) turns once, eased, over this part of the gesture (as the kit's rollTurn; the body travels with it). */
 export const rollTurn = k => smooth(.2, .8, k);
 /**
  * The curled-up drawing's share of a roll: it covers her over the crouch, almost a cut (she is squashed low and
@@ -91,7 +92,7 @@ export function ballLift(support, deg) {
   const n = support.length, x = (((deg % 360) + 360) % 360) / 360 * n, i = Math.floor(x) % n;
   return lerp(support[i], support[(i + 1) % n], x - Math.floor(x));
 }
-/** How far the cup comes up to her mouth (0..1) at `k` of the sip: over its middle, while pet-core shuts her eyes. */
+/** How far the cup comes up to her mouth (0..1) at `k` of the sip: over its middle, while the kit shuts her eyes. */
 export const sipLift = k => smooth(.38, .5, k) * (1 - smooth(.56, .66, k));
 /** Whether she props her chin on her far hand: thinking, standing or sitting still, the far arm free. */
 export function chinWanted(face, mode, lieK, gesture) {
@@ -213,15 +214,17 @@ function loadImage(url) {
 }
 
 /**
- * Loads the model and textures; resolves to a figure object for createPet's `opts.figure`.
+ * Loads the model and textures; resolves to a figure object for the kit's `opts.figure` (createPet, createBody).
  * `opts.raster` shows each frame as an SVG <image> copied from the canvas instead of the canvas itself (slower;
  * for pages that are screen-recorded, where a WebGL canvas inside SVG is not always in the capture).
- * `opts.scheme` picks a colour scheme (model.schemes; default the original); `opts.model` (model.json
- * already parsed) and `opts.asset(path)` (a texture's URL) are for pages that bundle the files;
- * `opts.loadImage` is the figure frame's (figure-frame.js), which loads images WebGL may read there.
+ * `opts.scheme` picks a colour scheme (model.schemes; default the original). `opts.model` (model.json, already
+ * parsed) is required: the figure never fetches (the figure frame allows no connections), so pages load it themselves.
+ * `opts.asset(path)` gives a texture's URL (default: relative to `base`); `opts.loadImage` is the figure frame's
+ * (figure-frame.js), which loads images WebGL may read there, and every image goes through it when given.
  */
 export async function createWhaleFigure(base = new URL('./', import.meta.url), opts = {}) {
-  const model = opts.model || await (await fetch(new URL('model.json', base))).json();
+  const model = opts.model;
+  if (!model || typeof model !== 'object') throw new Error('whale: opts.model (the parsed model.json) is required; the figure does not fetch it');
   const asset = opts.asset || (p => new URL(p, base));
   const load = opts.loadImage || loadImage;
   const { S, X0, FEET } = model.units;
@@ -718,7 +721,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   };
   let lastT = null, prevTilt = 0, prevYaw = 0, prevLow = 0, headTilt = 0, fx = '';
   const fxTurn = [0, 0]; // this frame's head turn (angleX, angleY), for effects drawn over the face
-  // pet-core tips Coo's whole round body to listen, nod, doze or wobble; she keeps her feet on the floor and
+  // the kit tips Coo's whole round body to listen, nod, doze or wobble; she keeps her feet on the floor and
   // moves her head instead. Only flight, dragging and the jump's crouch and landing tip the whole group,
   // running keeps half its lean. The shares ease between modes so the group never snaps.
   // dancing sways her mostly as a whole, the rest of the sway goes to the neck
@@ -790,7 +793,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const mode = o.mode || 'idle', face = o.face || 'neutral';
     const walking = mode === 'walk' || mode === 'run', held = mode === 'drag', airborne = mode === 'air';
 
-    /* body: pet-core's `low` is how far the hips sink (sitting, the walk's bob), in these units */
+    /* body: the kit's `low` is how far the hips sink (sitting, the walk's bob), in these units */
     sitK = lerp(sitK, clamp(o.sit ?? 0, 0, 1), ease(12, dt));
     const low = o.low || 0;
     const lowV = (low - prevLow) / Math.max(dt, 1e-3); prevLow = low;
@@ -813,13 +816,13 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (face === 'dizzy') tiltT += 3 * Math.sin(t * 4.5);
     if (held) tiltT += o.swing * .25;
     headTilt = sp.head.step(tiltT, dt);
-    // what pet-core meant for the whole body and the group did not take goes to the neck (forward +)
+    // what the kit meant for the whole body and the group did not take goes to the neck (forward +)
     const [gT, gL] = GROUP[mode] || [0, 0];
     const bend = (o.tilt ?? 0) * (1 - wTilt) + (o.lean ?? 0) * Math.sign(o.facing || 1) * (1 - wLean);
     wTilt = lerp(wTilt, gT, ease(10, dt)); wLean = lerp(wLean, gL, ease(10, dt));
-    // pet-core's short gestures, as she does them. Nod, shake, wave and bow are hers alone (see `gestures`):
+    // the kit's short gestures, as she does them. Nod, shake, wave and bow are hers alone (see `gestures`):
     // a nod pitches the face down twice (angleY +) and dips the head forward, a shake turns the face from side
-    // to side (angleX) under a slight roll; both die away by the end. The rest add to what pet-core does.
+    // to side (angleX) under a slight roll; both die away by the end. The rest add to what the kit does.
     const g = o.gesture, gk = g ? g.k : 0;
     const env = (a, b) => smooth(0, a, gk) * (1 - smooth(b, 1, gk));
     const nod = g?.kind === 'nod' ? Math.sin(gk * Math.PI * 2) ** 2 * (1 - .3 * gk) : 0;
@@ -874,7 +877,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const fins = sp.fins.step(finMood * 14 + sway * 10, dt);
     // each fin flutters on its own beat: a stiff buzz when angry, an uneven jitter when flustered, bursts when excited, a beat when flapping
     const burst = k => Math.max(0, Math.sin(t * 2.3 - k)) ** 2;
-    // a fit of giggles (pet-core's `titter`, 0..1): the shoulders bob, the fins and ahoge twitch with them
+    // a fit of giggles (the kit's `titter`, 0..1): the shoulders bob, the fins and ahoge twitch with them
     const titter = fc.titter || 0;
     // singing, the fins beat time
     const beat = face === 'singing' ? 7 * Math.sin(t * Math.PI * 2.5) : 0;
@@ -887,7 +890,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const tail = sp.tail.step(sway * 14 + tailMood * 12 + spoutP * 18, dt) + wagAmp * 13 * Math.sin(t * (4 + 5 * wagAmp)) + Math.sin(t * 1.3) * 3
       + flap * 14 * Math.sin(t * 17);
 
-    /* legs: pet-core hands hip→foot segments sized for Coo; keep their angle (forward = foot to the right) */
+    /* legs: the kit hands hip→foot segments sized for Coo; keep their angle (forward = foot to the right) */
     const legA = o.legs.map(l => -Math.atan2(l[2] - l[0], Math.max(4, l[3] - l[1])) * 180 / Math.PI);
     const lift = o.legs.map(l => clamp(29 - Math.hypot(l[2] - l[0], l[3] - l[1]), -8, 20));
     // sitting swaps the lower body for its own drawing (skirt spread on the floor, legs forward) in a
@@ -937,7 +940,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const armF = armFBase - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1);
 
     /* deformer states */
-    // pet-core sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
+    // the kit sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
     // going down to lie she tips forward off the seat before the lying drawing takes over
     st.body = { a: -sway * 1.2 + (held ? o.swing * .15 : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA), ty: low - 9.6 * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
     // stretching she grows tall on her toes; a curtsy sinks low with a little bow
@@ -1107,7 +1110,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.finFar = { a: -fins * .8 - finF - Math.sin(t * 1.4 + .8) * 1.2 };
 
     if (LIE) lying(o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap }, g, gk);
-    // her back shows through the middle of a turn (pet-core keeps her at least 85% wide then) and while she turns away;
+    // her back shows through the middle of a turn (the kit keeps her at least 85% wide then) and while she turns away;
     // it fades in over the front, which only goes once the back is opaque
     const canBack = backable();
     // (turning away, front and back trade at the narrowest moment of the squeeze, almost a cut)
@@ -1176,7 +1179,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   function lying(o, fc, face, mode, t, dt, breath, poseA, gs, g, gk) {
     const { nod, shake, bow, flinch, peek, flap } = gs;
     const pv = LIE.pivots, still = mode === 'sleep' || fc.listen;
-    // a fidget from pet-core (kick, chin, thump) is a short gesture
+    // a fidget from the kit (kick, chin, thump) is a short gesture
     const fid = kind => (g?.kind === kind ? Math.sin(Math.PI * gk) : 0);
     const flopUp = 1 - smooth(.2, .6, lieK);  // tipped up off the floor until she is down
     st.lie = { a: -14 * flopUp, sx: 1 + .006 * breath, sy: (1 - .012 * breath) * (1 - .04 * flinch) };
@@ -1297,7 +1300,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   return {
     draw,
     groupTilt,
-    /** The gestures she draws herself, from the frame's `gesture` (pet-core leaves them off the body). */
+    /** The gestures she draws herself, from the frame's `gesture` (the kit leaves them off the body). */
     gestures: ['nod', 'shake', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh', 'pray', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
@@ -1334,10 +1337,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     /** Raster mode: a promise that settles once the last drawn frame is ready to be painted. */
     get painted() { return decoded || Promise.resolve(); },
     get colors() { return { z: accent() }; },
-    /** Which poses of her own she can show now (the current scheme has their files): pet-core keeps her seated otherwise. */
+    /** Which poses of her own she can show now (the current scheme has their files): the kit keeps her seated otherwise. */
     get poses() { return { lie: !!LIE && poseOK(), back: backable() }; },
     schemes: SCHEMES,
-    // points pet-core uses: eye tracking, a tear and one under each eye (where the streams run), sleep z's, hearts [x from, x to, y], bubble
+    // points the kit uses: eye tracking, a tear and one under each eye (where the streams run), sleep z's, hearts [x from, x to, y], bubble
     anchors: {
       gaze: [U(745), V(690)], tear: [U(640), V(752)], tears: [[U(654), V(752)], [U(852), V(750)]], z: [196, 44],
       hearts: [96, 176, 62], bubble: [128, 18], glints: [[48, 32], [208, 46]],
@@ -1350,4 +1353,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     },
     model,
   };
+}
+
+/**
+ * The whale pack's entry (figure.json): her body for the figure frame, the kit's body drawn by her figure.
+ * The kit is this file's own `../kit/body.js`, not `opts.kit`: in the app that is the same module, and a pack
+ * that ships `whale/figure.js` next to `kit/body.js` and `kit/rig.js` brings it along. `plus` turns on the
+ * kit's extra words, faces and poses, which she draws.
+ */
+export async function createWhaleBody(base, opts) {
+  return kit.createBody(opts.host, { figure: await createWhaleFigure(base, opts), plus: true });
 }

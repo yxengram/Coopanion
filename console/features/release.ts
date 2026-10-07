@@ -5,8 +5,8 @@
 import { pick } from '../core/language.ts';
 import { APP_VERSION } from '../app-version.ts';
 
-export const REPO_URL = 'https://github.com/Pal-AI-Lab/Coopanion';
-const RELEASE_API = 'https://api.github.com/repos/Pal-AI-Lab/Coopanion/releases/latest';
+export const REPO_URL = 'https://github.com/yxengram/Coopanion';
+const RELEASE_API = 'https://api.github.com/repos/yxengram/Coopanion/releases/latest';
 /** 与 Cortico 控制台查框架 Release 同一时限。 */
 const RELEASE_TIMEOUT_MS = 15_000;
 

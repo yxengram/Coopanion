@@ -11,7 +11,7 @@
  */
 import { readDeploymentTheme, writeDeploymentTheme } from 'cortico/web/theme-store.ts';
 import { defaultStoredTheme, normalizeStoredTheme, type ThemePalette, type ThemeScheme } from 'cortico/web/shared/theme.ts';
-import type { FigurePack } from 'cortico-world-desktop-pet';
+import { figureOf, type FigurePack } from 'cortico-world-desktop-pet';
 
 /** The scheme Coo wears: the app's default (`web.theme` in companion.ts). */
 export const COO_SCHEME = 'mint';
@@ -78,9 +78,10 @@ export function figureSchemes(packs: readonly FigurePack[]): ThemeScheme[] {
   });
 }
 
-/** The console scheme for a pet look: Coo's, or the pack preset's (its first with colours for a pick that is not a preset). */
+/** The console scheme for a pet look: Coo's, or the pack preset's (its first with colours for a pick that is not a preset); an aliased figure is its built-in pack. */
 export function schemeForSkin(skin: { figure?: string; scheme?: string } | undefined, packs: readonly FigurePack[]): string {
-  const pack = packs.find((p) => p.id === skin?.figure);
+  const figure = skin?.figure === undefined ? undefined : figureOf(skin.figure);
+  const pack = packs.find((p) => p.id === figure);
   const presets = pack?.manifest.presets.filter((p) => p.console) ?? [];
   if (!pack || !presets.length) return COO_SCHEME;
   return schemeId(pack.id, (presets.find((p) => p.id === skin?.scheme) ?? presets[0]!).id);

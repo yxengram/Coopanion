@@ -4,8 +4,9 @@
  * Run as `electron electron-main.cjs --pet-url=http://127.0.0.1:<port>/pet`, or call
  * `runPetHost({ url, parentPid })` from an app's own main process. With `--parent-pid=<pid>`
  * the window closes once that process exits. The window covers the work area of one display
- * (the primary one at start), is transparent and always on top, and ignores the mouse until the
- * page reports the pointer is over the figure, a bubble or the menu. When the pet is carried onto
+ * (the primary one at start), short of the edge an auto-hidden taskbar waits on, is transparent
+ * and always on top, and ignores the mouse until the page reports the pointer is over the figure,
+ * a bubble or the menu. When the pet is carried onto
  * another display, the window moves to that display mid-drag; when its display is unplugged, it
  * moves to the primary one. A tray icon shows, hides and closes it; an embedding app that has its
  * own tray passes `tray: false`.
@@ -20,6 +21,8 @@ const { join } = require('node:path');
 
 /** Milliseconds between the cursor reports the page gets. */
 const CURSOR_EVERY_MS = 100;
+/** Milliseconds between the checks for a fullscreen window covering the pet's display. */
+const FULLSCREEN_EVERY_MS = 200;
 /** Most pixels one backdrop sample returns. */
 const BACKDROP_SAMPLES = 1500;
 
@@ -86,11 +89,98 @@ const foreground = (() => {
   }
 })();
 
+/**
+ * The screen edge the taskbar waits on while it hides itself ('left', 'top', 'right' or
+ * 'bottom'), or null when it does not hide. Every display's taskbar shares the primary one's edge
+ * and auto-hide setting. Always null off Windows or when koffi does not load.
+ */
+const autoHideTaskbarEdge = (() => {
+  if (process.platform !== 'win32') return () => null;
+  try {
+    const koffi = require('koffi');
+    const shell32 = koffi.load('shell32.dll');
+    const RECT = koffi.struct('RECT', { left: 'int32_t', top: 'int32_t', right: 'int32_t', bottom: 'int32_t' });
+    const APPBARDATA = koffi.struct('APPBARDATA', { cbSize: 'uint32_t', hWnd: 'void *', uCallbackMessage: 'uint32_t', uEdge: 'uint32_t', rc: RECT, lParam: 'intptr_t' });
+    const SHAppBarMessage = shell32.func('uintptr_t __stdcall SHAppBarMessage(uint32_t msg, _Inout_ APPBARDATA *data)');
+    const ABM_GETSTATE = 4, ABM_GETTASKBARPOS = 5, ABS_AUTOHIDE = 1;
+    const data = () => ({ cbSize: koffi.sizeof(APPBARDATA), hWnd: null, uCallbackMessage: 0, uEdge: 0, rc: { left: 0, top: 0, right: 0, bottom: 0 }, lParam: 0 });
+    return () => {
+      if (!(Number(SHAppBarMessage(ABM_GETSTATE, data())) & ABS_AUTOHIDE)) return null;
+      const pos = data();
+      if (!SHAppBarMessage(ABM_GETTASKBARPOS, pos)) return null;
+      return ['left', 'top', 'right', 'bottom'][pos.uEdge] ?? null;
+    };
+  } catch {
+    return () => null;
+  }
+})();
+
+/**
+ * DIP the window keeps off the display edge an auto-hidden taskbar waits on. Windows treats a
+ * window covering a whole display as a full-screen app and keeps the taskbar from showing over it;
+ * Chromium leaves 2 physical pixels on that edge of a maximized window for this. The display's
+ * size in DIP is rounded and Electron rounds a window's far edge outward to whole pixels, so a gap
+ * of g DIP comes out as at least (g − ½) × scale pixels rounded down: 3 DIP leaves 2 pixels from
+ * 100% up, 2 DIP can leave 1 at 125%.
+ */
+const AUTOHIDE_TASKBAR_GAP = 3;
+
+/** The part of display `d` the window covers: its work area, off the edge an auto-hidden taskbar waits on. */
+function coverArea(d) {
+  let { x, y, width, height } = d.workArea;
+  const b = d.bounds, edge = autoHideTaskbarEdge(), gap = AUTOHIDE_TASKBAR_GAP;
+  // only where the work area reaches that edge of the display
+  if (edge === 'left' && x === b.x) { x += gap; width -= gap; }
+  if (edge === 'top' && y === b.y) { y += gap; height -= gap; }
+  if (edge === 'right' && x + width === b.x + b.width) width -= gap;
+  if (edge === 'bottom' && y + height === b.y + b.height) height -= gap;
+  return { x, y, width, height };
+}
+
 /** A window's HWND as a BigInt. */
 function hwndOf(win) {
   const b = win.getNativeWindowHandle();
   return b.length === 8 ? b.readBigInt64LE(0) : BigInt(b.readInt32LE(0));
 }
+
+/**
+ * Whether the foreground window fills the whole monitor the window `own` is on, as a game, a video
+ * or a browser in full screen does. A maximized window never counts: it reaches past the monitor's
+ * edges when the taskbar hides itself. Nor do the pet window and the desktop. Null off Windows or
+ * when koffi does not load.
+ */
+const fullscreen = (() => {
+  if (process.platform !== 'win32') return null;
+  try {
+    const koffi = require('koffi');
+    const user32 = koffi.load('user32.dll');
+    const GetForegroundWindow = user32.func('intptr_t __stdcall GetForegroundWindow()');
+    const IsZoomed = user32.func('int __stdcall IsZoomed(intptr_t hwnd)');
+    const GetClassNameW = user32.func('int __stdcall GetClassNameW(intptr_t hwnd, void *buf, int max)');
+    const GetWindowRect = user32.func('int __stdcall GetWindowRect(intptr_t hwnd, void *rect)');
+    const MonitorFromWindow = user32.func('intptr_t __stdcall MonitorFromWindow(intptr_t hwnd, uint32_t flags)');
+    const GetMonitorInfoW = user32.func('int __stdcall GetMonitorInfoW(intptr_t monitor, void *info)');
+    // MONITORINFO is its own size, the monitor RECT, the work RECT and flags
+    const MONITORINFO_BYTES = 40, MONITOR_DEFAULTTONEAREST = 2;
+    // the desktop's own windows: they cover the monitor but are not an application
+    const DESKTOP_CLASSES = new Set(['Progman', 'WorkerW']);
+    return (own) => {
+      const hwnd = BigInt(GetForegroundWindow());
+      if (hwnd === 0n || hwnd === own || IsZoomed(hwnd)) return false;
+      const monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+      if (monitor !== MonitorFromWindow(own, MONITOR_DEFAULTTONEAREST)) return false;
+      const name = Buffer.alloc(128);
+      if (GetClassNameW(hwnd, name, 64) > 0 && DESKTOP_CLASSES.has(name.toString('utf16le').split('\0')[0])) return false;
+      const rect = Buffer.alloc(16), info = Buffer.alloc(MONITORINFO_BYTES);
+      info.writeUInt32LE(MONITORINFO_BYTES, 0);
+      if (!GetWindowRect(hwnd, rect) || !GetMonitorInfoW(monitor, info)) return false;
+      return rect.readInt32LE(0) <= info.readInt32LE(4) && rect.readInt32LE(4) <= info.readInt32LE(8)
+        && rect.readInt32LE(8) >= info.readInt32LE(12) && rect.readInt32LE(12) >= info.readInt32LE(16);
+    };
+  } catch {
+    return null;
+  }
+})();
 
 /** `w`×`h` screen pixels from (x, y) in physical pixels, shrunk to `ow`×`oh`, as top-down BGRA. */
 function grabScreen(x, y, w, h, ow, oh) {
@@ -169,24 +259,28 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   let win = null, tray = null, dress = null;
   /** Id of the display whose work area the window covers. */
   let displayId = null;
+  /** The setting, and whether it is what hid the window. */
+  let hideWhenFullscreen = false, autoHidden = false;
 
   /** The display the window belongs on: the one it was moved to, or the primary display once that one is gone. */
   const display = () => screen.getAllDisplays().find((d) => d.id === displayId) ?? screen.getPrimaryDisplay();
 
+  /** Moves the window over display `d`; returns the area it now covers. */
   const cover = (d) => {
     displayId = d.id;
-    const { x, y, width, height } = d.workArea;
-    win.setBounds({ x, y, width, height });
+    const area = coverArea(d);
+    win.setBounds(area);
     // Windows: a window moved onto a display with another scale factor is resized by the DPI
     // change to its old size times the ratio of the two scales; once it is on the new display, the
     // same bounds set again hold.
-    win.setBounds({ x, y, width, height });
+    win.setBounds(area);
+    return area;
   };
 
   const place = () => { if (win) cover(display()); };
 
   const create = () => {
-    const d = display(), wa = d.workArea;
+    const d = display(), wa = coverArea(d);
     win = new BrowserWindow({
       x: wa.x, y: wa.y, width: wa.width, height: wa.height,
       transparent: true, frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
@@ -224,7 +318,14 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
       last = key;
       win.webContents.send('pet:cursor', at);
     }, CURSOR_EVERY_MS);
-    win.on('closed', () => { clearInterval(cursorTimer); win = null; });
+    // hidden while the setting is on and a window fills the pet's monitor; shown again once neither holds
+    const fullscreenTimer = fullscreen && setInterval(() => {
+      if (!win) return;
+      const covered = hideWhenFullscreen && fullscreen(hwndOf(win));
+      if (covered && !autoHidden && win.isVisible()) { autoHidden = true; win.hide(); }
+      else if (!covered && autoHidden) { autoHidden = false; win.showInactive(); }
+    }, FULLSCREEN_EVERY_MS);
+    win.on('closed', () => { clearInterval(cursorTimer); clearInterval(fullscreenTimer); win = null; });
     // page console lines reach the World's log through stdout
     win.webContents.on('console-message', (e) => { if (e.level !== 'debug') console.log(`[page:${e.level}] ${e.message}`); });
     win.webContents.on('did-fail-load', (_e, code, desc, failedUrl) => console.log(`[page:error] 加载失败 ${code} ${desc} ${failedUrl}`));
@@ -264,6 +365,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     else if (win.isFocused()) win.blur();
   });
   ipcMain.on('pet:hide', () => { if (win) win.hide(); });
+  ipcMain.on('pet:hideWhenFullscreen', (_e, on) => { hideWhenFullscreen = !!on; });
   ipcMain.on('pet:openDress', () => openDress());
   ipcMain.handle('pet:sampleBackdrop', (_e, query) => {
     try { return win ? sampleBackdrop(win, query || {}) : []; } catch { return []; }
@@ -276,11 +378,10 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   ipcMain.handle('pet:followCursor', () => {
     if (!win) return null;
     const pt = screen.getCursorScreenPoint(), d = screen.getDisplayNearestPoint(pt);
-    const from = display();
-    if (d.id === from.id) return null;
-    cover(d);
-    const wa = d.workArea;
-    return { x: pt.x - wa.x, y: pt.y - wa.y, w: wa.width, h: wa.height, dx: from.workArea.x - wa.x, dy: from.workArea.y - wa.y };
+    const fromDisplay = display();
+    if (d.id === fromDisplay.id) return null;
+    const from = coverArea(fromDisplay), wa = cover(d);
+    return { x: pt.x - wa.x, y: pt.y - wa.y, w: wa.width, h: wa.height, dx: from.x - wa.x, dy: from.y - wa.y };
   });
 
   // a pet is not an app to switch to

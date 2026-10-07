@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/pet-core.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -625,5 +625,27 @@ describe('hands pressed together, on the hips and held out; a hand at the head a
         expect(Math.hypot(hx - wx, hy - wy), `${pose} ${id}`).toBeLessThan(14);
       }
     }
+  });
+});
+
+describe('lying mouths and kneeling, as the whale draws them', () => {
+  it('lying, she talks and smiles with mouth patches; asleep the mouth stays shut', () => {
+    expect(lyingMouth({ talk: 1 }, 'neutral', 'lie').talk).toBe(1);
+    expect(lyingMouth({ talk: 0 }, 'happy', 'lie').smile).toBe(1);
+    expect(lyingMouth({ talk: 0 }, 'neutral', 'lie').smile).toBe(0);
+    expect(lyingMouth({ talk: 1 }, 'happy', 'sleep')).toEqual({ talk: 0, smile: 0 });
+    for (const use of ['smile', 'talk']) {
+      const p = model.poses.lie.overlays.find(o => o.use === use);
+      expect(p, use).toBeTruthy();
+      for (const id of SCHEMES) expectFile(id, p);
+    }
+  });
+
+  it('kneeling is one drawing on the floor, with an eyes-shut patch, in every scheme', () => {
+    const K = model.poses.kneel, [p] = K.required, [x, y, w, h] = p.box;
+    for (const id of SCHEMES) { expectFile(id, p); for (const o of K.overlays) expectFile(id, o); }
+    expect(Math.abs(y + h - 256)).toBeLessThan(3);
+    expect(Math.abs(x + w / 2 - 128)).toBeLessThan(25);
+    expect(p.z).toBeGreaterThan(Math.max(...model.parts.map(q => q.z)));
   });
 });

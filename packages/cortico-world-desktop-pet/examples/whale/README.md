@@ -107,6 +107,11 @@ pet-core 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎
 伸懒腰时握拳手臂先往上举再换成十指相扣举过头顶的那张（袖子盖在刘海上、往下渐隐），身子拉长、仰头、闭眼打哈欠；
 伸懒腰按手臂转到的角度交接（握拳手臂过 70–95° 才换），那张画比画的位置稍微往上一点，手在头饰上方；
 屈膝礼时双手捏着裙边，裙摆向两边撑开、下摆两角翘起，身子往下一沉、上身前倾低头、闭眼；坐着时先站起来。
+说话时 pet-core 按正在说的字给出口型（`frame.talkShape`，0–3：张大的「啊」、扁宽的「咿」、小圆的「呜」、圆的「哦」），大肥鱼按它换嘴，说话不再只是一张一合。
+吐舌（`tongue`）是表情：一只眼眨着，嘴边吐出一点舌尖（画出来的，`tongue`）。
+趴着时，说话会换上张嘴的贴片、笑的表情换上笑嘴的贴片（`poses.lie.overlays` 的 `talk`、`smile`，和闭眼贴片一样是对趴姿图只改嘴那一块的编辑），睡着时不张嘴。
+跪坐（`kneel`）对身体来说是坐下（`frame.sit`），另外带 `frame.kneel`；大肥鱼坐稳后换成一张跪坐的画（`poses.kneel`），站姿在它完全不透明后才隐去，和趴下一样；
+眨眼、打盹、闭眼的表情用它的闭眼贴片。换成别的动作或只是坐下就不再跪坐。Coo 没有跪坐的样子，就坐着。
 叹气（`sigh`，约 2 秒）：前 0.35 先吸一口气（眼睛睁大往上看，上身挺一点），之后长长呼出来：半闭眼、八字眉、嘴是小小的「哈」（脸的 `puff`），
 上身和头往前一塌，鲸鳍和尾巴垂下，嘴前飘出两小团白气。脸 `sighing` 按 pet-core 的 `pulse` 计时，叹气被别的动作打断就回到平常的脸。
 转身和转圈转到侧对你的那一下（`facing` 绝对值小于约 0.45），以及背过身（`away`）时，换成背面那张画；站着时才有（坐着、趴着照旧），
@@ -131,7 +136,7 @@ pet-core 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎
 围裙上的喷水小鲸鱼是手写的矢量图（`examples/whale/apron-whale.svg`）：围裙抹成空白布面后，按这套裙子的深色印在右下角
 （白色的眼睛和肚皮保持白色，乘上布面的明暗），坐姿的围裙是俯视的，印得扁一些；团成球的那张也一样。
 
-新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、指、捂嘴笑、抱臂、伸懒腰、屈膝礼 `tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
+新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、跪坐 `tex/kneel_*.png`、趴着的嘴 `tex/lie_smile.png`、`tex/lie_talk.png`、指、捂嘴笑、抱臂、伸懒腰、屈膝礼 `tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
 `model.json` 的 `poses`）也来自 ChatGPT 的图像模型（gpt-image-2.5，经本地代理用 ChatGPT 订阅调用），和原来的贴图同源：
 把站姿渲染成一张参考图，对它做编辑。先试过本地的 FLUX.2-klein-4B，画风和比例都不如它（手画得太大，趴姿的头发变短）。
 - 手臂：编辑只改手臂（举到头边张开手掌、托着下巴、双手举到头两侧、双手在胸前比心）。输出比参考图大约 1%，缩放回参考图尺寸再配准；

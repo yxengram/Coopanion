@@ -65,7 +65,7 @@ const S = pick({
     kinds: {
       move: ['动作', '走路、跑、跳、落地、被甩出去、点头、摇头、转圈、晕、发抖、跳舞、张望、探头、后缩、背过身、翻滚、喝茶、翻书、喷水、叹气、灵光一闪、叉腰、唱歌、奉茶、敬礼、比耶'],
       touch: ['互动', '被拎起来、拎着晃、被摸、被戳'],
-      face: ['表情', '开心、眨眼、喜欢、惊讶、生气、难过、害羞、打哈欠、温柔、苦笑、偷笑、石化裂开'],
+      face: ['表情', '开心、眨眼、喜欢、惊讶、生气、难过、害羞、打哈欠、温柔、苦笑、偷笑、石化裂开、吐舌'],
       snore: ['打呼噜', '睡着时的呼噜声'],
       talk: ['说话', '气泡里逐字冒出的叽咕声、选项卡片弹出'],
       ui: ['按钮与提示', '点按钮、气泡弹出、选中、开始和结束听你说话'],
@@ -110,7 +110,7 @@ const S = pick({
     kinds: {
       move: ['Moving', 'Walking, running, jumping, landing, being thrown, nodding, shaking, spinning, dizziness'],
       touch: ['Touch', 'Being picked up, swung, petted, poked'],
-      face: ['Faces', 'Happy, wink, love, surprised, angry, sad, shy, yawning, gentle, wry laugh, giggle, cracking stone'],
+      face: ['Faces', 'Happy, wink, love, surprised, angry, sad, shy, yawning, gentle, wry laugh, giggle, cracking stone, tongue out'],
       snore: ['Snoring', 'Snores while asleep'],
       talk: ['Talking', 'The babble as bubble text appears, choice cards popping up'],
       ui: ['Buttons and cues', 'Button clicks, bubbles opening, picks, listening starting and ending'],

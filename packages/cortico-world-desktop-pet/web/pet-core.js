@@ -279,6 +279,8 @@ export const FACES = {
   // coaxing, sweet as can be: smiling eyes, cheeks all pink, a cat's ω mouth (`cat`), rocking side to side (`rock`),
   // a little heart now and then
   coax:      { label: '撒娇', kao: '(^ω^)', f: t => ({ gap: [56, 56], eyes: [{ shape: 'up' }, { shape: 'up' }], blush: .85, cat: true, rock: Math.sin(t * 3), emit: 'heart', emitEvery: 1.2 }) },
+  // cheeky: a wink and the tip of her tongue poked out (`tongue`), a little blush
+  tongue:    { label: '吐舌', kao: '(^ ڡ o', f: () => ({ gap: [52, 48], eyes: [ring(), { shape: 'up' }], blush: .45, tongue: true }) },
   // happy tears: shining, brimming eyes under raised brows, a smile, two thin tracks and a tear now and then
   moved:     { label: '感动', kao: '(;▽;)', f: () => ({ gap: [54, 54], eyes: [ring({ ry: 15, dy: 1 }), ring({ ry: 15, dy: 1 })], brows: 'sad', sparkle: true, blush: .6, streams: { a: .5, len: .5, w: .6 }, emit: 'tear', emitEvery: 1.5 }) },
   // turned to stone (我裂开了): a shocked stare, then frozen still and greying (`freeze`, `stone` 0..1), a crack running
@@ -366,6 +368,8 @@ export function figure(fc, o) {
       : `M${f(98 + bx)} ${f(96 + by)}L${f(123 + bx)} ${f(88 + by)}M${f(153 + bx)} ${f(88 + by)}L${f(178 + bx)} ${f(96 + by)}`;
     fs += `<path class="ink" fill="none" stroke-width="9" stroke-linecap="round" d="${d}"/>`;
   }
+  // cheeky: the tip of a tongue poking out of the ring's gap (the mouth)
+  if (fc.tongue) fs += `<path fill="#f08a9a" stroke-width="5" class="ink" d="M206 138Q222 136 226 148Q228 160 216 160Q206 158 204 146Z"/>`;
   s += faceG(fs);
   s += sideFront(acc.side, sw);
   s += headFront(acc.head, sw, t);
@@ -750,7 +754,7 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
       const m = {
         happy: 'happy', wink: 'wink', love: 'love', surprised: 'surprised', angry: 'angry', sad: 'sad', shy: 'shy', sleepy: 'yawn',
         smug: 'wink', worried: 'hmm', determined: 'pop', flustered: 'shy', scared: 'surprised', excited: 'sparkle', cry: 'sad', confused: 'hmm',
-        disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy',
+        disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
       };
       // an expression's sound is a face sound, whichever tone it borrows
       if (m[n] && !muted.has('face')) api[m[n]]();
@@ -780,15 +784,15 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55 } 
 /** Expressions: a face held for a few seconds. */
 export const EXPRESSIONS = ['neutral', 'happy', 'wink', 'love', 'shy', 'surprised', 'angry', 'sad', 'sleepy', 'thinking',
   'smug', 'pout', 'worried', 'determined', 'flustered', 'scared', 'excited', 'cry', 'confused', 'disgusted', 'nervous',
-  'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax'];
+  'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue'];
 /** A forward roll (`roll`) turns once, eased, over this part of the gesture; the body travels the same way. */
 export const rollTurn = k => smooth(clamp((k - .2) / .6, 0, 1));
 // how far one roll goes, in logo units: once round a ball of radius 100 (Coo's ring is 102 to its outer edge)
 export const ROLL_D = 2 * Math.PI * 100;
-/** Motions: things the body does. `sit`, `sleep` and `lie` last until something else happens. */
+/** Motions: things the body does. `sit`, `sleep`, `lie` and `kneel` last until something else happens. */
 export const MOTIONS = ['stand', 'jump', 'hop', 'look', 'turn', 'nod', 'shake', 'spin', 'sit', 'sleep', 'lie', 'dizzy', 'walk', 'run',
   'wave', 'bow', 'shiver', 'flap', 'dance', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh',
-  'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy'];
+  'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel'];
 /** Body modes in which the figure travels across the stage or squashes fast (dancing steps and sways on the spot). */
 const MOVING_MODES = new Set(['drag', 'air', 'crouch', 'land', 'walk', 'run', 'dance']);
 /** Modes resting on the floor, seated or lying: the body gets up (`wake`) before it does anything else. */
@@ -838,7 +842,7 @@ export function createPet(els, opts) {
     nextAt: 1.2, emitAt: 0, airKind: 'jump', turned: false, startle: false, lastAct: '',
     turnAcc: 0, dx: 0, dy: 0, jumpV: 700, jumpVx: 0, xf: null, blushK: 0,
     eyeSig: '', eyeCur: null, eyePrev: null, eyeDims: [[16, 16, 0, 0], [16, 16, 0, 0]], swapAge: 9,
-    glance: [0, 0], glanceAt: 0, swing: 0, swingV: 0, prevA: null, velX: 0, talkK: 0, sfxAt: 0, skid: false, cue: 0,
+    glance: [0, 0], glanceAt: 0, swing: 0, swingV: 0, prevA: null, velX: 0, talkK: 0, talkShape: 0, sfxAt: 0, skid: false, cue: 0,
     pulse: null, walkId: 0, listening: false, thinking: false, placed: false, noteAt: 0, tearN: 0, exprAt: 0,
     lieK: 0, prone: false, fidgetAt: 0, kickPh: 0, backK: 0, awayK: 0, breathK: 1,
   };
@@ -917,6 +921,8 @@ export function createPet(els, opts) {
     if (pet.pulse?.kind === 'song' && m !== 'idle' && m !== 'sit') endSong();
     // a back turned in a huff lasts through standing and sitting about; anything else turns her round again
     if (pet.pulse?.kind === 'away' && m !== 'idle' && m !== 'sit' && m !== 'sleep') pet.pulse = null;
+    // kneeling is a way of sitting: anything but sitting ends it
+    if (m !== 'sit') pet.kneel = false;
     pet.mode = m; pet.modeT = 0; pet.turned = false; pet.startle = false; pet.skid = false; pet.cue = 0;
     // a lying rest stays lying through its sleep and the getting up; anything else ends it
     // ...and getting up goes back through lying only if she got that far down
@@ -956,7 +962,9 @@ export function createPet(els, opts) {
       case 'nod': pulse('nod', .7); sfx.nod(); break;
       case 'shake': pulse('shake', .7); sfx.shake(); break;
       case 'spin': if (!seated) setMode('idle'); pulse('spin', .6); sfx.spin(); break;
-      case 'sit': pet.prone = false; setMode('sit', { dur: 1e9 }); break;
+      case 'sit': pet.prone = false; setMode('sit', { dur: 1e9, kneel: false }); break;
+      // kneeling politely (seiza): a sit to the body, which a figure with its own drawing of it shows instead (Coo just sits)
+      case 'kneel': pet.prone = false; setMode('sit', { dur: 1e9, kneel: true }); sfx.tick(); break;
       // asked to sleep while lying, she sleeps lying down
       case 'sleep': pet.prone = pet.mode === 'lie' || (pet.mode === 'sleep' && pet.prone); setMode('sleep', { dur: 1e9 }); break;
       case 'lie': pet.prone = true; setMode('lie', { dur: 1e9, fidgetAt: T + rnd(4, 8) }); break;
@@ -1108,7 +1116,7 @@ export function createPet(els, opts) {
     for (const o of opts2) { if ((r -= o[1]) < 0) { pick = o[0]; break; } }
     if (pick === 'look') { setMode('look'); pet.lastAct = 'look'; }
     else if (pick === 'expr') { setExpr(['happy', 'wink', 'love', 'sleepy', 'surprised', 'shy'][Math.floor(Math.random() * 6)]); pet.lastAct = 'expr'; }
-    else if (pick === 'sit') { setMode('sit', { dur: rnd(6, 9) }); pet.lastAct = 'sit'; }
+    else if (pick === 'sit') { setMode('sit', { dur: rnd(6, 9), kneel: false }); pet.lastAct = 'sit'; }
     else if (pick === 'lie') { pet.prone = true; setMode('lie', { dur: rnd(6, 10), fidgetAt: T + rnd(4, 8) }); pet.lastAct = 'lie'; }
     else if (pick !== 'wait') act(pick);
     if (pet.mode === 'idle' && T >= pet.nextAt) pet.nextAt = T + rnd(2, 4);
@@ -1607,7 +1615,7 @@ export function createPet(els, opts) {
     else if (pet.swapAge < .16) eyeClose = 1 - (pet.swapAge - .07) / .09;
     const face = { ...fc, eyes, gap: pet.gap.map(g => Math.min(64, g + (fc.freeze ? 0 : pet.talkK) * 12)), blush: pet.blushK };
     const gesture = pet.pulse ? { kind: pet.pulse.kind, k: clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1) } : null;
-    const frame = { look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing, lie: pet.lieK, prone: pet.prone, talk: pet.talkK, gesture };
+    const frame = { look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing, lie: pet.lieK, prone: pet.prone, kneel: !!pet.kneel, talk: pet.talkK, talkShape: pet.talkShape || 0, gesture };
     if (custom) custom.draw(petG, face, { ...frame, face: fname, mode: pet.mode, modeT: pet.modeT, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot });
     else petG.innerHTML = figure(face, { ...frame, away: pet.awayK });
 
@@ -1806,7 +1814,8 @@ export function createPet(els, opts) {
     get roam() { return roam; },
     /** Outside orders keep free roaming quiet for `seconds`. */
     holdRoam(seconds) { hold = Math.max(hold, T + seconds); },
-    talk() { pet.talkK = 1; },
+    /** A spoken character: the mouth opens, shaped by the character (one of four shapes, so speech does not just flap). */
+    talk(ch) { pet.talkK = 1; if (ch) pet.talkShape = ch.codePointAt(0) % 4; },
     setListening(on) { pet.listening = on; if (on && (pet.mode === 'walk' || pet.mode === 'run')) setMode('idle'); },
     setThinking(on) { pet.thinking = on; },
     /** Head top in stage pixels, for placing a speech bubble. */

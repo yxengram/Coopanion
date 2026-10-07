@@ -765,6 +765,40 @@
       41.5
      ],
      "use": "shut"
+    },
+    {
+     "id": "lie_smile",
+     "tex": "lie_smile",
+     "z": 21.15,
+     "parent": "lieLegs",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      184.47,
+      209.82,
+      17.47,
+      10.45
+     ],
+     "use": "smile"
+    },
+    {
+     "id": "lie_talk",
+     "tex": "lie_talk",
+     "z": 21.15,
+     "parent": "lieLegs",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      184.47,
+      209.82,
+      17.47,
+      10.45
+     ],
+     "use": "talk"
     }
    ],
    "pivots": {
@@ -1776,6 +1810,59 @@
     67.67
    ],
    "source": "gpt-image-2.5 edit of the standing rig render: stretch_gpt 3"
+  },
+  "kneel": {
+   "required": [
+    {
+     "id": "kneel_body",
+     "tex": "kneel_body",
+     "z": 21.3,
+     "parent": "kneel",
+     "grid": [
+      12,
+      16
+     ],
+     "box": [
+      31.0,
+      31.5,
+      172.5,
+      224.67
+     ]
+    }
+   ],
+   "overlays": [
+    {
+     "id": "kneel_shut",
+     "tex": "kneel_shut",
+     "z": 21.31,
+     "parent": "kneel",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      108.17,
+      122.83,
+      68.5,
+      31.83
+     ],
+     "use": "shut"
+    }
+   ],
+   "pivots": {
+    "kneel": [
+     128,
+     256
+    ]
+   },
+   "headDrop": 15.0,
+   "head": [
+    40.33,
+    30.83,
+    202.0,
+    167.5
+   ],
+   "source": "gpt-image-2.5 edit of the standing rig render into kneeling seiza: kneel_gpt 1"
   }
  }
 }

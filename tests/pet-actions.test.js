@@ -39,17 +39,17 @@ describe('the words the model can use', () => {
       if (m !== 'walk' && m !== 'run') expect(pet.act(m), m).toBe(true);
       run(pet, 5);
       // everything but sitting, sleeping and lying ends back on its feet
-      if (m !== 'sit' && m !== 'sleep' && m !== 'lie' && m !== 'walk' && m !== 'run') expect(pet.pet.mode, m).toBe('idle');
+      if (m !== 'sit' && m !== 'sleep' && m !== 'lie' && m !== 'kneel' && m !== 'walk' && m !== 'run') expect(pet.pet.mode, m).toBe('idle');
     }
   });
 
-  it('sitting, sleeping and lying last until asked to stand, then end on its feet', () => {
-    for (const m of ['sit', 'sleep', 'lie']) {
+  it('sitting, sleeping, lying and kneeling last until asked to stand, then end on its feet', () => {
+    for (const m of ['sit', 'sleep', 'lie', 'kneel']) {
       const pet = barePet();
       run(pet, 1);
       pet.act(m);
       run(pet, 6);
-      expect(pet.pet.mode, m).toBe(m);
+      expect(pet.pet.mode, m).toBe(m === 'kneel' ? 'sit' : m);
       pet.act('stand');
       run(pet, 2.5);
       expect(pet.pet.mode, m).toBe('idle');
@@ -1025,5 +1025,42 @@ describe('pointing, giggling behind a hand, arms crossed, a stretch and a curtsy
     pet.act('cross');
     run(pet, .3);
     expect(pet.pet._fname).toBe('pout');
+  });
+});
+
+describe('kneeling, a cheeky tongue, talking mouths', () => {
+  it('kneeling is a sit that tells the figure so, and ends when she gets up or just sits', () => {
+    const frames = [];
+    const pet = barePet();
+    pet.setFigure({ draw: (g, face, o) => frames.push(o) });
+    run(pet, 1);
+    pet.act('kneel');
+    run(pet, 1);
+    expect(pet.pet.mode).toBe('sit');
+    expect(frames.at(-1).kneel).toBe(true);
+    pet.act('sit');
+    run(pet, .1);
+    expect(frames.at(-1).kneel).toBe(false);
+    pet.act('kneel');
+    run(pet, .5);
+    pet.act('stand');
+    run(pet, .1);
+    expect(frames.at(-1).kneel).toBe(false);
+  });
+
+  it('talking hands the figure a mouth shape by the character said', () => {
+    const frames = [];
+    const pet = barePet();
+    pet.setFigure({ draw: (g, face, o) => frames.push(o) });
+    run(pet, 1);
+    const shapes = new Set();
+    for (const ch of 'abcd') { pet.talk(ch); run(pet, .05); shapes.add(frames.at(-1).talkShape); }
+    expect(shapes.size).toBe(4);
+  });
+
+  it('the cheeky face pokes a tongue out, on Coo too', () => {
+    expect(FACES.tongue.f(0).tongue).toBe(true);
+    const fc = FACES.tongue.f(0);
+    expect(figure(fc, { look: [0, 0], legs: STAND, low: 0, t: 0, blink: 0, acc: defaultSkin() })).toContain('#f08a9a');
   });
 });

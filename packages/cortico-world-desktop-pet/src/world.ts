@@ -1201,7 +1201,7 @@ export class DesktopPetWorld implements World {
     const why = told.length ? `${told.join(';')}。` : '';
     if (!actions.length) return { text: `[pet_act 没执行] 没有${told.length ? '当前形象做得了的' : '认得的'}动作${dropped.length ? `(${dropped.join('、')})` : ''}。${why}`, failed: true };
     if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions })) return this.notConnected('pet_act');
-    const lasting = actions.filter((a) => a === 'sit' || a === 'sleep' || a === 'lie');
+    const lasting = actions.filter((a) => a === 'sit' || a === 'sleep' || a === 'lie' || a === 'kneel');
     const note = (dropped.length ? `\n[执行参数] 不认识的动作已略过:${dropped.join('、')}。` : '') + (why ? `\n[执行参数] ${why}` : '');
     return { text: `开始依次做:${actions.join(' → ')}。${lasting.length ? `${lasting.join('、')} 会一直保持到下一个动作。` : ''}${note}` };
   }

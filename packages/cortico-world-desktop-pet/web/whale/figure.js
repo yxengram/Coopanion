@@ -142,6 +142,17 @@ export const KICK = { amp: 10, apart: 1.25 };
  * shut-eye shapes (up, down), and lid eyes that are nearly closed (cry, squeeze, a yawn, waking). The drawing has no
  * half-lids, so a half-lidded face (smug, disgusted) keeps its eyes open.
  */
+/** Faces that smile with an open mouth (the lying drawing's smile patch shows for them). */
+export const SMILING = ['happy', 'love', 'excited', 'wink', 'giggle', 'coax', 'moved', 'tongue', 'dragged'];
+/**
+ * Which mouth patch the lying drawing shows (0..1 each): talking opens it on the beat, a smiling face smiles.
+ * Asleep, both stay shut.
+ */
+export function lyingMouth(o, face, mode) {
+  if (mode === 'sleep') return { talk: 0, smile: 0 };
+  const talk = smooth(.12, .3, o.talk || 0);
+  return { talk, smile: SMILING.includes(face) ? 1 - talk : 0 };
+}
 export function eyesShut(o, eyes, mode) {
   const e = eyes?.[0] || {};
   return Math.max(o.blink || 0, o.eyeClose || 0, mode === 'sleep' ? 1 : 0, smooth(.6, 1, o.drowse || 0),
@@ -242,7 +253,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const BACK = model.poses?.back;
   // a roll: one drawing of her curled up into a ball (model.poses.roll), turned whole about its middle
   const ROLL = model.poses?.roll;
-  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...PROP_PARTS, ...RAISE_PARTS, ...(BACK ? BACK.required : []), ...(ROLL ? ROLL.required : [])];
+  // kneeling (seiza): one drawing of her, with an eyes-shut patch (model.poses.kneel), dissolved in over the seated rig
+  const KNEEL = model.poses?.kneel;
+  const KNEEL_PARTS = KNEEL ? [...KNEEL.required, ...(KNEEL.overlays || [])] : [];
+  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...PROP_PARTS, ...RAISE_PARTS, ...(BACK ? BACK.required : []), ...(ROLL ? ROLL.required : []), ...KNEEL_PARTS];
   // the scheme's accent colours the listening arcs, thought bubbles and sleep z's
   const accent = () => schemeInfo(scheme).accent || '#4d6bfe';
   const loaded = {}, ready = {};
@@ -264,6 +278,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       for (const [g, pose] of Object.entries({ ...PROPS, ...RAISES })) set[g] = pose.required.every(p => set.tex[p.tex]);
       set.back = !!BACK && BACK.required.every(p => set.tex[p.tex]);
       set.roll = !!ROLL && ROLL.required.every(p => set.tex[p.tex]);
+      set.kneel = !!KNEEL && KNEEL.required.every(p => set.tex[p.tex]);
       if (LIE && !set.lie && LIE.required.some(p => set.tex[p.tex])) console.warn(`whale: scheme ${id} lacks some lying-pose files; she sits instead`);
       return (ready[id] = set);
     });
@@ -382,6 +397,13 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of ROLL.required) parts.push({ ...p, alpha: 0 });
   }
   const rollOK = () => !!(cur.roll && (!fade || fade.set.roll));
+  // the kneeling drawing stands on the floor on its own, breathing a little
+  if (KNEEL) {
+    deformers.kneel = { kind: 'rot', pivot: KNEEL.pivots.kneel };
+    for (const p of KNEEL_PARTS) parts.push({ ...p, alpha: 0 });
+  }
+  const kneelOK = () => !!(cur.kneel && (!fade || fade.set.kneel));
+  let kneelK = 0;
   /** Whether her back can show now: she has the drawing and is standing (seated or lying she turns as before). */
   const backable = () => !!BACK && backOK() && sitK < .5 && !lieK;
 
@@ -505,6 +527,16 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     fg.restore();
   }
 
+  /** The tip of a tongue poking out under the mouth, a little to the near side (cheeky). */
+  function tongueTip() {
+    const cx = 770 - FACE.x, cy = 776 - FACE.y;
+    fg.save(); fg.fillStyle = '#ef8394'; fg.strokeStyle = INK; fg.lineWidth = 2.6; fg.lineJoin = 'round';
+    fg.beginPath(); fg.moveTo(cx - 6, cy - 1); fg.quadraticCurveTo(cx - 7, cy + 11, cx + 1, cy + 12); fg.quadraticCurveTo(cx + 9, cy + 11, cx + 7, cy - 1);
+    fg.fill(); fg.stroke();
+    fg.strokeStyle = 'rgba(160,40,60,.6)'; fg.lineWidth = 1.4; fg.beginPath(); fg.moveTo(cx + .5, cy + 1); fg.lineTo(cx + .5, cy + 7); fg.stroke();
+    fg.restore();
+  }
+
   /** Small drawn mouths for the moods the sprites don't cover (form < 0 frowns). */
   function lineMouth(form, w = 1) {
     const cx = 766 - FACE.x, cy = 772 - FACE.y;
@@ -587,7 +619,17 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const m = MOUTH[face] ?? 'neutral_mouth';
     const open = Math.max(talk * (.45 + .45 * Math.abs(Math.sin(t * 17))), face === 'sleepy' || face === 'waking' ? gapOpen : 0);
     if (fc.cat) catMouth(open);
-    else if (open > .12) sprite(face === 'surprised' ? 'surprised_mouth' : 'happy_mouth', { sy: .35 + .65 * open, sx: .85 + .15 * open });
+    else if (open > .12 && face === 'surprised') sprite('surprised_mouth', { sy: .35 + .65 * open, sx: .85 + .15 * open });
+    // talking, the open mouth takes one of four shapes by the character being said: open "a", wide "i", small round "u", round "o"
+    else if (open > .12) {
+      const k = o.talkShape || 0;
+      if (k === 0) sprite('happy_mouth', { sy: .35 + .65 * open, sx: .85 + .15 * open });
+      else if (k === 1) sprite('happy_mouth', { sy: .2 + .3 * open, sx: 1.05 + .1 * open });
+      else if (k === 2) sprite('surprised_mouth', { sx: .35 + .15 * open, sy: .3 + .3 * open });
+      else sprite('surprised_mouth', { sx: .45 + .25 * open, sy: .45 + .4 * open });
+    }
+    // cheeky: a small smile with the tip of the tongue out under it
+    else if (fc.tongue) { lineMouth(.5, 1.1); tongueTip(); }
     // breathing out a sigh, a small round "ha"
     else if (fc.puff > .1) sprite('surprised_mouth', { s: .55 + .25 * fc.puff });
     // singing, a round mouth opening and closing on the beat
@@ -701,7 +743,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [.5, .6], pout: [.3, 0], worried: [-.3, .1], determined: [.9, .3], flustered: [.4, .8], scared: [-1, 0, -1],
     excited: [1, 1], cry: [-1, 0, -1], confused: [.2, .1], bowing: [-.2, .2],
     disgusted: [-.4, 0], nervous: [-.4, 0], peeking: [.6, .5],
-    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], pleading: [.2, .3], moved: [.4, .5], sighing: [-.3, 0], petrify: [.6, 0], coax: [.5, 1], singing: [.6, .6], saluting: [.9, .3], stretching: [.3, .2], pointing: [.8, .4],
+    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], pleading: [.2, .3], moved: [.4, .5], sighing: [-.3, 0], petrify: [.6, 0], coax: [.5, 1], singing: [.6, .6], saluting: [.9, .3], tongue: [.6, .8], stretching: [.3, .2], pointing: [.8, .4],
   };
   // brows by face, in master pixels: [lift of the whole brow, lift of its inner end (by the nose), extra lift of
   // the far brow]; a negative inner lift is the frown
@@ -712,10 +754,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [1, -1], pout: [-1, -3], worried: [2, 4.5], determined: [0, -3], flustered: [2, 3.5], scared: [3, 4],
     excited: [3, 0], cry: [1, 5], confused: [1, 0, 5],
     disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
-    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5], singing: [2.5, 1], saluting: [0, -3], stretching: [-1, 0], pointing: [1.5, 0],
+    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5], singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
   };
   // the head by face: tilt (degrees, forward +) and pitch (angleY, down +)
-  const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: -4, giggle: 5, pleading: 4, coax: 4 };
+  const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: -4, giggle: 5, pleading: 4, coax: 4, tongue: -5 };
   const HEAD_PITCH = { singing: -.25, sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3, reading: .4, giggle: .2 };
   const BROW_SPLIT = U(765);  // the near brow is left of this, the far brow right of it
   let browLift = 0, browInner = 0, browSide = 0;
@@ -1089,7 +1131,17 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st.rollBall = { a, ty: ROLL.support[0] - ballLift(ROLL.support, a), sx: 1 + .05 * land, sy: 1 - .05 * land };
       for (const p of ROLL.required) st.alpha[p.id] = tex[p.tex] ? ballA : 0;
     }
-    const hideFront = hide || backA >= 1 || ballA >= 1;
+    // kneeling: once she is down, the kneeling drawing fades in over the seated rig (which then goes), as lying does
+    kneelK = lerp(kneelK, o.kneel && KNEEL && kneelOK() && !lieK ? smooth(.5, 1, sitK) : 0, ease(10, dt));
+    if (kneelK < 1e-3) kneelK = 0;
+    const kneelA = smooth(.15, .5, kneelK);
+    if (KNEEL) {
+      st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
+      const shutK = eyesShut(o, fc.eyes, mode);
+      for (const p of KNEEL.required) st.alpha[p.id] = tex[p.tex] ? kneelA : 0;
+      for (const p of KNEEL.overlays || []) st.alpha[p.id] = tex[p.tex] ? kneelA * shutK : 0;
+    }
+    const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
 
     st.mix = 0;
     if (fade) { if (fade.t0 == null) fade.t0 = t; st.mix = smooth(0, 1, (t - fade.t0) / fade.dur); }
@@ -1151,7 +1203,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
 
     const shut = eyesShut(o, fc.eyes, mode);
     for (const p of LIE.required) st.alpha[p.id] = tex[p.tex] ? poseA : 0;
-    for (const p of LIE.overlays) st.alpha[p.id] = tex[p.tex] && p.use === 'shut' ? poseA * shut : 0;
+    const mouth = lyingMouth(o, face, mode);
+    for (const p of LIE.overlays) st.alpha[p.id] = !tex[p.tex] ? 0 : p.use === 'shut' ? poseA * shut : poseA * (mouth[p.use] || 0);
   }
 
   /* ---------- effects over the figure (SVG, like the built-in figure's) ---------- */
@@ -1272,7 +1325,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; kneelK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

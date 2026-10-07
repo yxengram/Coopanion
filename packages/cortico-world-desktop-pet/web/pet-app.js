@@ -203,7 +203,7 @@ function walk(m) {
 /* ---------- actions ---------- */
 const DUR = {
   stand: 1.2, jump: 1.2, hop: .9, look: 2.7, turn: .4, nod: .8, shake: .8, spin: .8, sit: .8, sleep: .8, lie: .8, dizzy: 3.2,
-  wave: 1.7, bow: 1.7, shiver: 1.9, flap: 1.5, cheer: 1.9, heart: 2.3, dance: 3.4, flinch: 1, peek: 2.5, away: 3.3, roll: 1.6, sip: 3.7, read: 4.5, spout: 1.7, sigh: 2.1, pray: 2.3, scratch: 2.2, idea: 1.9, hips: 2.6, hug: 2.7, song: 4.1, serve: 2.7, salute: 1.9, vsign: 1.9, point: 2.1, cover: 2.5, cross: 2.7, stretch: 2.7, curtsy: 2.3,
+  wave: 1.7, bow: 1.7, shiver: 1.9, flap: 1.5, cheer: 1.9, heart: 2.3, dance: 3.4, flinch: 1, peek: 2.5, away: 3.3, roll: 1.6, sip: 3.7, read: 4.5, spout: 1.7, sigh: 2.1, pray: 2.3, scratch: 2.2, idea: 1.9, hips: 2.6, hug: 2.7, song: 4.1, serve: 2.7, salute: 1.9, vsign: 1.9, point: 2.1, cover: 2.5, cross: 2.7, stretch: 2.7, curtsy: 2.3, kneel: .8,
 };
 const acts = [];
 let actUntil = 0, actWait = null;
@@ -324,7 +324,7 @@ function typeText(it, text, dt, anchors) {
   while (it.acc >= 1 && it.shown < text.length) {
     const ch = text[it.shown++];
     it.acc -= PAUSE.test(ch) ? 5 : 1;
-    if (!SILENT.test(ch)) { sfx.babble(ch); ctl.talk(); }
+    if (!SILENT.test(ch)) { sfx.babble(ch); ctl.talk(ch); }
     while (it.fired < anchors.length && anchors[it.fired].at <= it.shown) acts.push(...anchors[it.fired++].actions);
   }
   if (it.marks?.length) p.innerHTML = marked(text, it.shown, it.marks);

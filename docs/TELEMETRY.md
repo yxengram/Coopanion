@@ -1,8 +1,10 @@
 # 匿名使用统计
 
-从 v0.1.10 起，Coopanion 会向项目自己的服务器 `https://survey.palailab.org` 发送匿名使用统计，用来了解有多少人在用、用得多久、哪些功能有人用。本页列出发送的全部字段。客户端代码在 [`core/telemetry.ts`](../core/telemetry.ts)，服务端代码在 [`telemetry-server/`](../telemetry-server/)。
+**这个版本不发送使用统计。** 统计代码还在（客户端 [`core/telemetry.ts`](../core/telemetry.ts)，服务端 [`telemetry-server/`](../telemetry-server/)），但只有启动时用环境变量 `COOPANION_TELEMETRY_URL` 指定了服务器才会启用，平时既不计数、不写文件，也不联网；卸载时也不上报。设置窗口里没有这个开关。
 
-**关掉**：设置窗口「习惯」页最下面，取消勾选「匿名使用统计」。关掉时会发最后一条 `telemetry_disabled`，没发出去的记录随即清空，之后不再计数也不再发送。重新勾上后沿用原来的安装编号。
+下面是启用时发送的全部字段，留作自己部署统计服务器时参考。
+
+**关掉**（启用时）：配置项 `companion.telemetry` 设为 `false`。关掉时会发最后一条 `telemetry_disabled`，没发出去的记录随即清空，之后不再计数也不再发送。重新打开后沿用原来的安装编号。
 
 ## 不发送的内容
 
@@ -15,7 +17,7 @@
 
 ## 安装编号
 
-第一次启动时随机生成一个 UUID，存在数据文件夹的 `home/companion/telemetry.json` 里，和账号、硬件都没有关联。删掉这个文件，下次启动会换一个新编号。统计开着的时候，同目录下还有一个 `telemetry-id`，里面只有这个编号，Windows 卸载程序读它来报告卸载（见下文 `uninstalled`）。
+第一次启动时随机生成一个 UUID，存在数据文件夹的 `home/companion/telemetry.json` 里，和账号、硬件都没有关联。删掉这个文件，下次启动会换一个新编号。统计开着的时候，同目录下还有一个 `telemetry-id`，里面只有这个编号（上游的 Windows 卸载程序读它来报告卸载，这个版本的卸载程序不读）。
 
 ## 每次发送都带的字段
 
@@ -76,7 +78,7 @@
 | `extension_installed` / `extension_removed` | `name`、`version`、`kind` | 启动时发现扩展比上次多了或少了 |
 | `crash` | `where`，其余见下表 | Core 出错。`where` 是来源：`core`（未捕获的异常，Core 随后退出）、`core-rejection`（未处理的 promise 拒绝，Core 继续运行；同样的一条在一次运行里只报一次）、`core-exit`（Core 进程意外退出后被重启，由重启后的 Core 报告） |
 | `telemetry_disabled` / `telemetry_enabled` | | 关掉或重新打开统计 |
-| `uninstalled` | | Windows 上卸载（升级时不算）；由卸载程序发出，统计关着时不发 |
+| `uninstalled` | | 上游的 Windows 卸载程序发出；这个版本的卸载程序不发 |
 
 `crash` 的其余字段。错误消息不发送：消息里可能有文件路径、Key 的片段或你说过的话。
 

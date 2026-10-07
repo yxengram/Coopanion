@@ -94,7 +94,7 @@ function watchTalk(bus: WakeBus): () => boolean {
   return () => { const was = heard; heard = false; return was; };
 }
 
-/** The switch for anonymous usage statistics, on the 「习惯」 page and in the advanced settings. */
+/** The switch for anonymous usage statistics; it only matters when COOPANION_TELEMETRY_URL names a server, so no page shows it. */
 const TELEMETRY_KEY = 'companion.telemetry';
 const COMPANION_GROUP: ConfigGroup = {
   id: 'companion',
@@ -103,11 +103,6 @@ const COMPANION_GROUP: ConfigGroup = {
     type: 'object',
     title: 'Coopanion',
     properties: {
-      [TELEMETRY_KEY]: {
-        type: 'boolean',
-        title: '匿名使用统计',
-        description: '发送不含对话内容的使用次数与设置,帮助改进 Coopanion。字段见 docs/TELEMETRY.md。',
-      },
       // Cormini copies `rounds` when the bot is built, so a change applies from the next start
       'rounds.soft': {
         type: 'integer',
@@ -472,30 +467,32 @@ export async function main(): Promise<void> {
 
   const bot = createBot(loaded, definition, { extensions });
   bus = bot.core.bus;
-  const stats = new Telemetry({
+  // usage statistics only go to a server named here (a local telemetry-server in development); this build has none,
+  // so by default nothing is counted, written or sent
+  const statsUrl = process.env.COOPANION_TELEMETRY_URL;
+  const stats = statsUrl ? new Telemetry({
     dir: deployDir,
     version: process.env.COOPANION_VERSION ?? 'dev',
-    // development runs point it at a local telemetry-server
-    url: process.env.COOPANION_TELEMETRY_URL || undefined,
+    url: statsUrl,
     enabled: () => getByPath(loaded.config as unknown as Record<string, unknown>, TELEMETRY_KEY) !== false,
     snapshot: () => snapshotOf(loaded.config, loaded.memoryDir),
     extensions: () => reportedExtensions(extensions),
-  });
+  }) : null;
   telemetry = stats;
-  countUse(bot.core, loaded.config, stats);
+  if (stats) countUse(bot.core, loaded.config, stats);
   hintFailures(bot.core, loaded.config, () => pet);
   // set by app/core-host.cjs when this Core replaces one that exited unasked
   const exited = process.env.COOPANION_CORE_EXIT;
   delete process.env.COOPANION_CORE_EXIT;
   if (exited) {
     const code = Number(exited);
-    stats.event('crash', { where: 'core-exit', exitCode: Number.isInteger(code) ? code : null, signal: Number.isInteger(code) ? null : exited.slice(0, 20) });
+    stats?.event('crash', { where: 'core-exit', exitCode: Number.isInteger(code) ? code : null, signal: Number.isInteger(code) ? null : exited.slice(0, 20) });
   }
   // without a key every model call fails: hold events until the home page saves one and resumes
   const keyMissing = !hasKey(loaded.config);
   if (keyMissing) bot.core.bus.setPaused(true);
   const { port } = await bot.start();
-  stats.start();
+  stats?.start();
   process.send?.({ type: 'companion:ready', port, dataDir: loaded.dataDir, keyMissing });
   const guideDeps: GuideDeps = {
     pet: () => pet,
@@ -503,7 +500,7 @@ export async function main(): Promise<void> {
     doneFile: join(deployDir, GUIDE_FILE),
     openDress: () => process.send?.({ type: 'companion:open', path: '#/dress' }),
     onEnd: (end) => (notice as NoticeWorld | null)?.guideEnded(end),
-    track: (type, fields) => stats.event(type, fields),
+    track: (type, fields) => stats?.event(type, fields),
   };
   guide = guideDeps;
   void introduce(guideDeps, guideRun, () => hasKey(loaded.config), keyMissing ? watchTalk(bot.core.bus) : null).catch((err) => {
@@ -515,7 +512,7 @@ export async function main(): Promise<void> {
     if (stopping) return;
     stopping = true;
     const done = await Promise.race([
-      Promise.all([bot.shutdown(reason), stats.stop()]).then(() => true),
+      Promise.all([bot.shutdown(reason), stats?.stop()]).then(() => true),
       new Promise<false>((r) => setTimeout(() => r(false), 30_000)),
     ]);
     process.exit(done ? 0 : 1);
@@ -538,7 +535,7 @@ export async function main(): Promise<void> {
     const key = JSON.stringify(fields);
     if (reported.has(key)) return;
     reported.add(key);
-    stats.event('crash', fields);
+    stats?.event('crash', fields);
   };
   process.on('uncaughtException', (err) => {
     log.emit('error', '未捕获异常,正在关机', { event: 'uncaught-exception', err });

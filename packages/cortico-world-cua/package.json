@@ -6,12 +6,12 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Pal-AI-Lab/Coopanion.git",
+    "url": "https://github.com/yxengram/Coopanion.git",
     "directory": "packages/cortico-world-cua"
   },
-  "homepage": "https://github.com/Pal-AI-Lab/Coopanion/tree/main/packages/cortico-world-cua#readme",
+  "homepage": "https://github.com/yxengram/Coopanion/tree/main/packages/cortico-world-cua#readme",
   "bugs": {
-    "url": "https://github.com/Pal-AI-Lab/Coopanion/issues"
+    "url": "https://github.com/yxengram/Coopanion/issues"
   },
   "keywords": [
     "cortico-world",

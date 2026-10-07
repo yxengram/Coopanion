@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Pal-AI-Lab/Coopanion/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/Pal-AI-Lab/Coopanion?color=00a870"></a>
-  <a href="https://github.com/Pal-AI-Lab/Coopanion/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Pal-AI-Lab/Coopanion/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/yxengram/Coopanion/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/yxengram/Coopanion?color=00a870"></a>
+  <a href="https://github.com/yxengram/Coopanion/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yxengram/Coopanion/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Windows 10 / 11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-1f6feb">
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1f6feb">
   <img alt="Linux x64" src="https://img.shields.io/badge/Linux-x64-1f6feb">
@@ -24,7 +24,7 @@
   <a href="#快速上手">快速上手</a> ｜
   <a href="#日常使用">日常使用</a> ｜
   <a href="#常见问题">常见问题</a> ｜
-  <a href="https://github.com/Pal-AI-Lab/Coopanion/releases">更新记录</a> ｜
+  <a href="https://github.com/yxengram/Coopanion/releases">更新记录</a> ｜
   <a href="docs/DEVELOPMENT.md">参与开发</a>
 </p>
 
@@ -42,7 +42,7 @@ Coopanion 是一个桌宠。桌宠 **Coo** 待在屏幕底边，可以用气泡�
 - **装扮**：Coo 的配色、帽子、耳饰、眼镜、颈饰，以及大小和走动频率。
 - **扩展**：在扩展页安装 QQ 机器人、画室、小游戏等 World。
 
-每个版本的改动见 [Releases](https://github.com/Pal-AI-Lab/Coopanion/releases)。
+每个版本的改动见 [Releases](https://github.com/yxengram/Coopanion/releases)。
 
 ## 安装
 
@@ -56,7 +56,7 @@ Coopanion 是一个桌宠。桌宠 **Coo** 待在屏幕底边，可以用气泡�
 
 ### Windows：下载安装包
 
-1. 打开[最新发布](https://github.com/Pal-AI-Lab/Coopanion/releases/latest)，下载 `Coopanion-Setup-版本号.exe`。
+1. 打开[最新发布](https://github.com/yxengram/Coopanion/releases/latest)，下载 `Coopanion-Setup-版本号.exe`。
 2. 双击运行。安装包没有数字签名，Windows 可能弹出「Windows 已保护你的电脑」，点 **更多信息** → **仍要运行**。
 3. 选安装位置（默认 `C:\Users\你的用户名\Coopanion`），点安装。装好后自动启动，桌面上有图标。
 
@@ -68,14 +68,14 @@ Coopanion 是一个桌宠。桌宠 **Coo** 待在屏幕底边，可以用气泡�
 打开 PowerShell，粘贴下面这行并回车：
 
 ```powershell
-irm https://raw.githubusercontent.com/Pal-AI-Lab/Coopanion/main/installer/install.ps1 | iex
+irm https://raw.githubusercontent.com/yxengram/Coopanion/main/installer/install.ps1 | iex
 ```
 
 它会下载最新的安装包并运行，装完删掉下载的文件。
 
 ### macOS
 
-1. 打开[最新发布](https://github.com/Pal-AI-Lab/Coopanion/releases/latest)。Apple 芯片下载 `Coopanion-版本号-mac-arm64.dmg`，Intel 下载 `…-mac-x64.dmg`。
+1. 打开[最新发布](https://github.com/yxengram/Coopanion/releases/latest)。Apple 芯片下载 `Coopanion-版本号-mac-arm64.dmg`，Intel 下载 `…-mac-x64.dmg`。
    不确定是哪种：苹果菜单 →「关于本机」，「芯片」一栏写 Apple M 系列就是 Apple 芯片。
 2. 双击 dmg，把 Coopanion 拖进「应用程序」。
 3. 应用没有 Apple 开发者签名，第一次打开会被拦下：先双击打开一次，在提示里点「完成」；再到「系统设置 → 隐私与安全性」，页面底部点「仍要打开」并输入密码。之后就能正常打开。
@@ -86,7 +86,7 @@ irm https://raw.githubusercontent.com/Pal-AI-Lab/Coopanion/main/installer/instal
 
 ### Linux
 
-1. 打开[最新发布](https://github.com/Pal-AI-Lab/Coopanion/releases/latest)，下载 `Coopanion-版本号-linux-x64.deb`（Debian / Ubuntu）或 `Coopanion-版本号-linux-x64.AppImage`（其他发行版）。
+1. 打开[最新发布](https://github.com/yxengram/Coopanion/releases/latest)，下载 `Coopanion-版本号-linux-x64.deb`（Debian / Ubuntu）或 `Coopanion-版本号-linux-x64.AppImage`（其他发行版）。
 2. deb：`sudo apt install ./Coopanion-版本号-linux-x64.deb`，然后从应用菜单打开。
    AppImage：`chmod +x Coopanion-*.AppImage` 后运行。Ubuntu 22.04 及以后要先装 `libfuse2`（`sudo apt install libfuse2t64`）。
 3. 桌宠是透明置顶窗口，需要桌面开启窗口合成（GNOME、KDE 默认开启）。Wayland 下通过 XWayland 运行。
@@ -229,7 +229,7 @@ irm https://raw.githubusercontent.com/Pal-AI-Lab/Coopanion/main/installer/instal
 - **费用**：Coopanion 免费。聊天的费用由你选的模型服务按用量收取，可在「用量与成本」页查看（内置价目的只有 DeepSeek）。
 - **发给模型服务的内容**：你说的话、打的字、和 Coo 的互动，以及操作电脑时的截图。只发给你配置的那一家。
 - **留在本机的内容**：API Key、记忆、对话记录、设置、日志。语音在本机识别，只把识别出的文字发出去。
-- **匿名使用统计**：发到 `survey.palailab.org`，只有使用次数、时长、设置和随机生成的安装编号，不含对话、截图、Key 和文件。字段见 [docs/TELEMETRY.md](docs/TELEMETRY.md)，可在「习惯」页关闭。
+- **使用统计**：不发送。这个版本不收集任何使用统计，也不生成安装编号。
 - **其他联网**：打开设置窗口时向 GitHub 查询新版本；安装扩展时访问 npm；下载语音模型时访问 ModelScope（失败时用 Hugging Face）。
 
 ## 数据与卸载
@@ -288,13 +288,13 @@ irm https://raw.githubusercontent.com/Pal-AI-Lab/Coopanion/main/installer/instal
 <details>
 <summary><b>想看它在想什么</b></summary>
 
-「对话」页有完整的记录。遇到问题时在这一页点「导出诊断」，把诊断包附在 [Issue](https://github.com/Pal-AI-Lab/Coopanion/issues) 里。
+「对话」页有完整的记录。遇到问题时在这一页点「导出诊断」，把诊断包附在 [Issue](https://github.com/yxengram/Coopanion/issues) 里。
 
 </details>
 
 ## 反馈与参与
 
-- 问题和建议请提 [Issue](https://github.com/Pal-AI-Lab/Coopanion/issues)，写上系统版本、Coopanion 版本和复现步骤。
+- 问题和建议请提 [Issue](https://github.com/yxengram/Coopanion/issues)，写上系统版本、Coopanion 版本和复现步骤。
 - 从源码构建或修改代码见[开发文档](docs/DEVELOPMENT.md)。
 
 ## 致谢

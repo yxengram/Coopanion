@@ -9,7 +9,7 @@
 
 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 的电脑操作 World,一个独立的扩展包:bot 看得见这台电脑(Windows、macOS 或 Linux)的主屏幕,
 能移动和点击鼠标、滚动、打字、按组合键、列出和切换窗口。使用者一动鼠标键盘,操作就让位。
-[Coopanion](https://github.com/Pal-AI-Lab/Coopanion) 用它让 Coo 帮你操作电脑。
+[Coopanion](https://github.com/yxengram/Coopanion) 用它让 Coo 帮你操作电脑。
 
 ## 工具
 

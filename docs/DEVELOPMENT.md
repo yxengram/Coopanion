@@ -9,7 +9,7 @@ Coopanion 是用 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 组装的 Elec
 需要 Git、Node.js 22 和 pnpm(`corepack enable`),在 Windows 或 macOS 上都能开发。
 
 ```bash
-git clone --recursive https://github.com/Pal-AI-Lab/Coopanion.git
+git clone --recursive https://github.com/yxengram/Coopanion.git
 cd Coopanion
 pnpm install
 pnpm run dev                # 准备 build/cortico 并启动应用,数据写在 build/data
@@ -56,7 +56,7 @@ $env:CORTICO_COMPANION_DATA = "$env:TEMP\coo-test"; pnpm run start
 | `scripts/pack.ts` | 组装扁平的 `build/app` 并调用 electron-builder;`installer/nsis.nsh` 定 Windows 默认安装位置、卸载时保留 `data`、卸载(非升级)时报告给统计服务;Mac 包是临时签名(ad hoc)的 dmg 与 zip |
 | `scripts/make-icons.cjs` | 用 Electron 把 Coo 的造型(`web/coo/coo.js`)画成 `app/icons` 与 `core/seed/avatar.png` |
 | `installer/install.ps1` | 一行命令安装用的脚本:下载最新 Release 的安装包并运行 |
-| `telemetry-server/` | 匿名使用统计的服务端(单文件 Node + SQLite),部署在 `survey.palailab.org`,说明见 [telemetry-server/README.md](../telemetry-server/README.md) |
+| `telemetry-server/` | 匿名使用统计的服务端(单文件 Node + SQLite);应用只在 `COOPANION_TELEMETRY_URL` 指向它时才发送,说明见 [telemetry-server/README.md](../telemetry-server/README.md) |
 | `promo/` | 宣传片与仓库 banner,网页渲染,说明见 [promo/README.md](../promo/README.md) |
 
 ## 发布

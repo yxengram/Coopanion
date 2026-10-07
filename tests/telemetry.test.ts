@@ -11,7 +11,7 @@ const ENDPOINT = { vendor: 'vendor-a', model: 'model-a', endpointKind: 'builtin'
 async function sentDay(feed: (t: Telemetry) => void): Promise<{ models: ModelUse[]; providerErrors: number }> {
   let body: { days: Array<{ models: ModelUse[]; providerErrors: number }> } | null = null;
   const t = new Telemetry({
-    dir: mkdtempSync(join(tmpdir(), 'coo-telemetry-')), version: 'test', enabled: () => true,
+    dir: mkdtempSync(join(tmpdir(), 'coo-telemetry-')), version: 'test', enabled: () => true, url: 'http://127.0.0.1/v1/report',
     snapshot: () => ({}), extensions: () => [],
     fetchImpl: (async (_url: string, init: RequestInit) => { body = JSON.parse(String(init.body)); return new Response(null, { status: 204 }); }) as typeof fetch,
   });

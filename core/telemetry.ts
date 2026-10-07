@@ -1,5 +1,6 @@
 /**
- * Anonymous usage statistics, sent to the project's own server (`telemetry-server/`). Every field
+ * Anonymous usage statistics for a server of the `telemetry-server/` kind. This build has none: core/companion.ts
+ * makes a Telemetry only when COOPANION_TELEMETRY_URL names one, so by default nothing is counted or sent. Every field
  * is listed in docs/TELEMETRY.md; nothing the person says, types, sees or names leaves the machine,
  * and neither do keys, error messages, the person's file names or paths (a crash names program files,
  * relative to the program directory), endpoint addresses or the names of models on custom endpoints.
@@ -21,7 +22,6 @@ import { cpus, release, totalmem } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const TELEMETRY_URL = 'https://survey.palailab.org/v1/report';
 /** How often the day's record goes out while the app runs. */
 const SEND_MS = 30 * 60_000;
 /** Running time is counted in whole minutes. */
@@ -104,7 +104,8 @@ export interface TelemetryOptions {
   snapshot: () => Record<string, unknown>;
   /** The installed extensions as they should be reported, `name` or `private`, once per package. */
   extensions: () => Array<{ name: string; version: string | null; kind: string | null }>;
-  url?: string;
+  /** The server's report endpoint (`…/v1/report`). */
+  url: string;
   fetchImpl?: typeof fetch;
   now?: () => Date;
 }
@@ -125,7 +126,7 @@ export class Telemetry {
   private readonly lastTries = new Map<string, { m: ModelUse; try: ModelTry }>();
 
   constructor(private readonly opts: TelemetryOptions) {
-    this.url = opts.url ?? TELEMETRY_URL;
+    this.url = opts.url;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.now = opts.now ?? (() => new Date());
     this.lastTick = this.now().getTime();

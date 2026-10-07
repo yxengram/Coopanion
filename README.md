@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Pal-AI-Lab/Coopanion/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/Pal-AI-Lab/Coopanion?color=00a870"></a>
-  <a href="https://github.com/Pal-AI-Lab/Coopanion/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Pal-AI-Lab/Coopanion/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/yxengram/Coopanion/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/yxengram/Coopanion?color=00a870"></a>
+  <a href="https://github.com/yxengram/Coopanion/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yxengram/Coopanion/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Windows 10 / 11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-1f6feb">
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-1f6feb">
   <img alt="Linux x64" src="https://img.shields.io/badge/Linux-x64-1f6feb">
@@ -24,7 +24,7 @@
   <a href="#getting-started">Getting Started</a> ｜
   <a href="#everyday-use">Everyday Use</a> ｜
   <a href="#faq">FAQ</a> ｜
-  <a href="https://github.com/Pal-AI-Lab/Coopanion/releases">Changelog</a> ｜
+  <a href="https://github.com/yxengram/Coopanion/releases">Changelog</a> ｜
   <a href="docs/DEVELOPMENT.md">Development</a>
 </p>
 
@@ -44,7 +44,7 @@ The app is in Chinese and English. The first-run guide is currently Chinese only
 - **Dress up**: Coo's colors, hats, earrings, glasses and neckwear, plus its size and how often it walks.
 - **Extensions**: install Worlds such as a QQ bot, a drawing room and small games from the Extensions page.
 
-What changed in each version is in [Releases](https://github.com/Pal-AI-Lab/Coopanion/releases).
+What changed in each version is in [Releases](https://github.com/yxengram/Coopanion/releases).
 
 ## Install
 
@@ -58,7 +58,7 @@ You also need an API key from one model service. [DeepSeek](https://platform.dee
 
 ### Windows: installer
 
-1. Open the [latest release](https://github.com/Pal-AI-Lab/Coopanion/releases/latest) and download `Coopanion-Setup-<version>.exe`.
+1. Open the [latest release](https://github.com/yxengram/Coopanion/releases/latest) and download `Coopanion-Setup-<version>.exe`.
 2. Run it. The installer is not code-signed, so Windows may show "Windows protected your PC": click **More info** → **Run anyway**.
 3. Pick a folder (default `C:\Users\<you>\Coopanion`) and install. Coopanion starts when done, and a desktop icon is added.
 
@@ -70,14 +70,14 @@ You also need an API key from one model service. [DeepSeek](https://platform.dee
 Open PowerShell, paste this line and press Enter:
 
 ```powershell
-irm https://raw.githubusercontent.com/Pal-AI-Lab/Coopanion/main/installer/install.ps1 | iex
+irm https://raw.githubusercontent.com/yxengram/Coopanion/main/installer/install.ps1 | iex
 ```
 
 It downloads the latest installer, runs it, and deletes the download afterwards.
 
 ### macOS
 
-1. Open the [latest release](https://github.com/Pal-AI-Lab/Coopanion/releases/latest). On Apple silicon download `Coopanion-<version>-mac-arm64.dmg`; on Intel download `…-mac-x64.dmg`.
+1. Open the [latest release](https://github.com/yxengram/Coopanion/releases/latest). On Apple silicon download `Coopanion-<version>-mac-arm64.dmg`; on Intel download `…-mac-x64.dmg`.
    Not sure which you have: Apple menu → About This Mac. If "Chip" says Apple M-something, it is Apple silicon.
 2. Open the dmg and drag Coopanion into Applications.
 3. The app has no Apple developer signature, so macOS blocks the first open. Open it once and click Done on the warning, then go to System Settings → Privacy & Security, click **Open Anyway** at the bottom and confirm with your password. It opens normally after that.
@@ -88,7 +88,7 @@ It downloads the latest installer, runs it, and deletes the download afterwards.
 
 ### Linux
 
-1. Open the [latest release](https://github.com/Pal-AI-Lab/Coopanion/releases/latest) and download `Coopanion-<version>-linux-x64.deb` (Debian / Ubuntu) or `Coopanion-<version>-linux-x64.AppImage` (other distributions).
+1. Open the [latest release](https://github.com/yxengram/Coopanion/releases/latest) and download `Coopanion-<version>-linux-x64.deb` (Debian / Ubuntu) or `Coopanion-<version>-linux-x64.AppImage` (other distributions).
 2. deb: `sudo apt install ./Coopanion-<version>-linux-x64.deb`, then open Coopanion from the app menu.
    AppImage: `chmod +x Coopanion-*.AppImage` and run it. Ubuntu 22.04 and later need `libfuse2` first (`sudo apt install libfuse2t64`).
 3. The pet is a transparent always-on-top window, so the desktop needs compositing (on by default in GNOME and KDE). Under Wayland it runs through XWayland.
@@ -231,7 +231,7 @@ After installing, click **Restart process** and enable it in **World Overview**.
 - **Cost**: Coopanion is free. The model service you choose bills you for usage; see the Usage & cost page (built-in prices exist for DeepSeek only).
 - **Sent to the model service**: what you say and type, your interactions with Coo, and screenshots during computer use. Only the service you configured receives them.
 - **Kept on your machine**: API keys, memory, conversation history, settings and logs. Speech is recognized locally and only the text is sent.
-- **Anonymous usage statistics**: sent to `survey.palailab.org`. Only counts, time used, settings and a random install ID; no conversations, screenshots, keys or files. Every field is listed in [docs/TELEMETRY.md](docs/TELEMETRY.md). Turn it off in Habits.
+- **Usage statistics**: none. This build sends no usage statistics and keeps no install ID.
 - **Other network access**: a check for new releases on GitHub when the settings window opens; npm when installing extensions; ModelScope (or Hugging Face as a fallback) when downloading the speech model.
 
 ## Data and uninstalling
@@ -290,13 +290,13 @@ Set `HTTP_PROXY` / `HTTPS_PROXY` in the environment Coopanion starts from. Local
 <details>
 <summary><b>What is it thinking?</b></summary>
 
-The Chat page has the full record. If something goes wrong, click **Export diagnostics** there and attach the file to an [issue](https://github.com/Pal-AI-Lab/Coopanion/issues).
+The Chat page has the full record. If something goes wrong, click **Export diagnostics** there and attach the file to an [issue](https://github.com/yxengram/Coopanion/issues).
 
 </details>
 
 ## Feedback and contributing
 
-- Report problems and ideas in [Issues](https://github.com/Pal-AI-Lab/Coopanion/issues) with your OS version, Coopanion version and steps to reproduce.
+- Report problems and ideas in [Issues](https://github.com/yxengram/Coopanion/issues) with your OS version, Coopanion version and steps to reproduce.
 - To build from source or change the code, see the [development guide](docs/DEVELOPMENT.md).
 
 ## Acknowledgements

@@ -29,8 +29,12 @@ const PKG_REL = relative(ROOT, PKG).split('\\').join('/').replace(/\/$/, '');
 
 export const PACK_ID = 'coopanion-whale';
 export const SOURCE_URL = 'https://github.com/yxengram/Coopanion';
-/** The app whose sound.js decides which tones the pack ships. */
-export const UPSTREAM_REF = 'origin/main';
+/**
+ * The upstream release the pack was checked against. Which tones the pack ships comes from sound.js itself (the
+ * tones it marks `plus` are ours); this tag is only a cross-check (`--upstream <ref>`), since in a clone of the fork
+ * `origin` is the fork.
+ */
+export const UPSTREAM_REF = 'v0.1.17';
 export const RATE = 44100;
 /** Every tone renders from the same seed (spout's random pitches, the noise), so the files come out the same each time. */
 export const SEED = 0x5eed;
@@ -54,7 +58,13 @@ export function toneNamesIn(src) {
   return [...src.slice(start, end).matchAll(/^ {4}([a-zA-Z]\w*)\(/gm)].map((m) => m[1]);
 }
 
-/** Upstream's tone names, from `git show <ref>:<PKG>/web/sound.js`. */
+/** Upstream's tone names: the tones our sound.js does not mark as ours. */
+export async function upstreamTones() {
+  const { TONES } = await soundModule();
+  return TONES.filter((t) => !t.plus).map((t) => t.name);
+}
+
+/** Upstream's tone names as `git show <ref>:<PKG>/web/sound.js` has them, for the cross-check. */
 export function upstreamToneNames(ref = UPSTREAM_REF) {
   let src;
   try {
@@ -80,17 +90,19 @@ export function requestedTones() {
 
 /**
  * The sounds the pack ships, `[{ name, kind }]` in sound.js's order: tones our kit asks for that upstream's
- * sound.js does not have, filed under the kind our SOUND_KINDS gives them. `upstreamTones` defaults to git.
+ * sound.js does not have, filed under the kind our SOUND_KINDS gives them. `upstreamTones` defaults to the tones
+ * sound.js does not mark `plus`.
  */
-export async function packSounds({ upstreamTones = upstreamToneNames() } = {}) {
+export async function packSounds({ upstreamTones: given } = {}) {
+  const theirs = given ?? await upstreamTones();
   const { TONES } = await soundModule();
   const ours = new Set(TONES.map((t) => t.name));
-  const lost = upstreamTones.filter((n) => !ours.has(n));
+  const lost = theirs.filter((n) => !ours.has(n));
   if (lost.length) throw new Error(`upstream tones missing from our sound.js: ${lost.join(', ')}`);
   const asked = requestedTones();
   const unknown = [...asked].filter((n) => !ours.has(n));
   if (unknown.length) throw new Error(`the kit asks for tones sound.js does not have: ${unknown.join(', ')}`);
-  const upstream = new Set(upstreamTones);
+  const upstream = new Set(theirs);
   const list = TONES.filter((t) => asked.has(t.name) && !upstream.has(t.name)).map(({ name, kind }) => ({ name, kind }));
   for (const s of list) if (s.kind !== 'move' && s.kind !== 'face') throw new Error(`sound ${s.name}: kind ${s.kind} (expected move or face)`);
   return list;
@@ -296,9 +308,16 @@ function fileCount(dir) {
 }
 
 /** Writes `<outDir>/coopanion-whale/`; returns what it wrote. */
-export async function exportPack(outDir = join(ROOT, 'build', 'packs'), { upstream = UPSTREAM_REF, log = console.log } = {}) {
-  const upstreamTones = upstreamToneNames(upstream);
-  const list = await packSounds({ upstreamTones });
+export async function exportPack(outDir = join(ROOT, 'build', 'packs'), { upstream = null, log = console.log } = {}) {
+  const tones = await upstreamTones();
+  if (upstream) {
+    // a newer upstream may have grown tones of its own: a pack file of the same name still wins there
+    const git = new Set(upstreamToneNames(upstream)), ours = new Set(tones);
+    const extra = [...git].filter((n) => !ours.has(n)), gone = tones.filter((n) => !git.has(n));
+    if (extra.length || gone.length) log(`${upstream}'s sound.js differs: has ${extra.join(', ') || 'nothing'} more, lacks ${gone.join(', ') || 'nothing'}`);
+    else log(`${upstream}'s sound.js has the same tones as ours, less our own`);
+  }
+  const list = await packSounds({ upstreamTones: tones });
   const files = await packFiles();
   const missing = files.filter((f) => !existsSync(f.from));
   if (missing.length) throw new Error(`files the pack needs are missing:\n${missing.map((f) => `  ${f.from}`).join('\n')}`);
@@ -319,7 +338,7 @@ export async function exportPack(outDir = join(ROOT, 'build', 'packs'), { upstre
   }
   mkdirSync(join(dir, 'sounds'), { recursive: true });
   for (const s of sounds) writeFileSync(join(dir, 'sounds', `${s.name}.wav`), encodeWav(s.samples));
-  const manifest = await buildManifest({ upstreamTones, volumes: Object.fromEntries(sounds.map((s) => [s.name, s.volume])) });
+  const manifest = await buildManifest({ upstreamTones: tones, volumes: Object.fromEntries(sounds.map((s) => [s.name, s.volume])) });
   writeFileSync(join(dir, 'figure.json'), JSON.stringify(manifest, null, 2) + '\n');
   writeFileSync(join(dir, 'README.md'), packReadme(manifest, sounds));
 
@@ -343,7 +362,7 @@ const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(imp
 if (isMain) {
   const args = process.argv.slice(2);
   const at = args.indexOf('--upstream');
-  const upstream = at >= 0 ? args.splice(at, 2)[1] : UPSTREAM_REF;
+  const upstream = at >= 0 ? args.splice(at, 2)[1] : null;
   const outDir = args[0] ? resolve(args[0]) : undefined;
   exportPack(outDir, { upstream }).then((r) => {
     console.log(`wrote ${r.dir}: ${r.files} files, ${(r.bytes / 1048576).toFixed(1)} MB (sounds rendered with Electron ${r.electron})`);

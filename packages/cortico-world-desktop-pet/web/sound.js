@@ -225,6 +225,7 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
   }
   /** The pack's own sounds by name: kind, volume, the file's bytes, and the buffer once an audio context decoded them. */
   let own = new Map();
+  let plusTones = true; // until a pack is shown: Coo, the first body, is ours
   function decode(o) {
     if (o.buffer || o.decoding || !ctx) return;
     o.decoding = o.bytes.then((b) => ctx.decodeAudioData(b.slice(0))).then((buf) => { o.buffer = buf; }, (err) => console.error(`音效 ${o.name} 没能解码:`, err));
@@ -253,9 +254,11 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
     },
     /**
      * The body's sounds (`sounds` of the pack on screen, from `base`): each is fetched now and decoded once
-     * there is an audio context. `null` drops them.
+     * there is an audio context. `null` drops them. `plus`: the body is one of ours (Coo, the whale) and may ask for
+     * the plus tones; any other pack hears only the tones upstream's page has, as it would there.
      */
-    usePack(base, sounds) {
+    usePack(base, sounds, { plus = false } = {}) {
+      plusTones = plus;
       own = new Map(Object.entries(sounds ?? {}).map(([name, d]) => {
         const bytes = fetch(new URL(d.file, new URL(base, location.href))).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))));
         bytes.catch((err) => console.error(`音效 ${name}(${d.file})没能载入:`, err));
@@ -277,7 +280,7 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
       if (muted.has(k)) return;
       if (k === 'snore' && snoreSeconds > 0 && args[0] > snoreSeconds) return;
       if (o) playOwn(o);
-      else if (Object.hasOwn(tones, name)) tones[name](...args);
+      else if (Object.hasOwn(tones, name) && (plusTones || !PLUS_TONES.has(name))) tones[name](...args);
     },
     /** Fades out what is left of a sound that can be cut short (`play('stop:song')`). */
     hush,

@@ -91,7 +91,7 @@ async function showFigure(s) {
     next.set({ roam: 'calm' });
     body?.dispose();
     body = next;
-    sfx.usePack(pack.base, pack.sounds);
+    sfx.usePack(pack.base, pack.sounds, { plus: pack.id === 'coo' || pack.id === 'whale' });
   } catch (err) {
     previewFailed(s.figure, err);
   } finally {

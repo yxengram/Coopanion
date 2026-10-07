@@ -10,7 +10,7 @@
  * is stepped with it; seeking backwards replays from zero. `window.promo.renderAt(t)` is what the
  * recorder calls frame by frame.
  */
-import { createPet, FACES, STAND, heartD } from '../../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { createPet, FACES as KIT_FACES, PLUS_FACES, STAND, heartD } from '../../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, figure, skinCss, skinVars, normalizeSkin, wear } from '../../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { AUDIO_START, BEAT, bar, beat, bump, clamp01, ease, h, lerp, rng, seg, svgEl, f1 } from './util.js';
 import { createArcs } from './arcs.js';
@@ -19,6 +19,9 @@ import { Wordmark } from './wordmark.js';
 import { busInto, createVoices, renderTrack } from './sfx.js';
 import { VENDORS } from '../../packages/cortico-provider-coo/src/vendors.ts';
 import { VENDOR_ICONS } from '../../packages/cortico-provider-coo/src/icons.ts';
+
+// Coo here is the app's Coo, with the plus faces (shy, sad and the rest)
+const FACES = { ...KIT_FACES, ...PLUS_FACES };
 
 export const SOUNDTRACK = { file: 'assets/bgm.mp3', title: '花卷Jwyan - 可爱鲈鱼' };
 /** Balance of the music and the sound effects, for the live preview and the recording alike: the main hits (90th
@@ -373,7 +376,7 @@ function reset() {
   applySkin(PLAIN_SKIN);
   ctl = null;
   ctl = createPet({ petG, shadowEl, fxG }, {
-    sfx: petSfx, figure: cooFigure(), roam: 'off', startX: 100,
+    sfx: petSfx, figure: cooFigure(), plus: true, roam: 'off', startX: 100,
     bounds: () => ({ W, H, floorY: floorAt(ctl ? ctl.pet.x : 100), S: hero.S }),
   });
   ctl.pet.facing = 1;

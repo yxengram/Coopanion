@@ -133,7 +133,7 @@ async function swapBody(s) {
   body?.dispose();
   body = next;
   words = new Map(pack.vocab.map((w) => [w.id, w]));
-  sfx.usePack(pack.base, pack.sounds);
+  sfx.usePack(pack.base, pack.sounds, { plus: pack.id === 'coo' || pack.id === 'whale' });
   reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme);
 }
 async function applyFigure(s) {

@@ -1231,6 +1231,20 @@ describe('what the page holds a pack to', () => {
     }
   });
 
+  it('only our own bodies hear the plus tones; another pack asking for one hears what upstream plays (nothing)', () => {
+    const { ctx, made } = countingCtx();
+    const sfx = createSfx({ ctx });
+    sfx.usePack('/packs/robot/', {}, { plus: false });
+    sfx.play('song', 'move'); sfx.play('spout', 'move'); sfx.play('soft', 'face');
+    expect(made.voices).toBe(0);
+    sfx.play('jump', 'move');
+    expect(made.voices).toBeGreaterThan(0);
+    const before = made.voices;
+    sfx.usePack('/web/whale/', {}, { plus: true });
+    sfx.play('song', 'move');
+    expect(made.voices).toBeGreaterThan(before);
+  });
+
   it("a body's box is kept to the stage and to the most the kit stretches a body", () => {
     const size = { W: 1000, H: 600, S: .5 };
     const l = readLayout({ box: { x: -5000, y: -5000, w: 1e6, h: 1e6 }, hit: [{ x: 500, y: 300, r: 1e6 }], bubble: { x: -50, y: 9e9 } }, size);
@@ -1286,11 +1300,11 @@ describe('a word the body cannot take', () => {
     body.dispose();
   });
 
-  it('without plus, our words are ones the body does not know, and done at once', () => {
+  it('without plus, our words are ones the body does not know, and it keeps upstream\'s timing (no early done)', () => {
     const body = bareBody();
     stepBody(body, 1);
-    for (const w of [...PLUS_EXPRESSIONS, ...PLUS_MOTIONS]) expect(body.do(w), w).toBe(false);
-    expect(body.events.filter(([k]) => k === 'done').map(([, d]) => d.word)).toEqual([...PLUS_EXPRESSIONS, ...PLUS_MOTIONS]);
+    for (const w of [...PLUS_EXPRESSIONS, ...PLUS_MOTIONS, 'fly']) expect(body.do(w), w).toBe(false);
+    expect(body.events.filter(([k]) => k === 'done')).toEqual([]);
     body.dispose();
   });
 });

@@ -1468,10 +1468,13 @@ export function createBody(host, opts) {
     step(dt) { ctl.step(dt); ctl.render(); },
     layout: ctl.layout,
     resize: ctl.resize,
-    /** Does a word; one it does not know or cannot take now (a song while being talked to) is reported done at once, so the page's queue moves on. */
+    /**
+     * Does a word. With `plus`, one it does not know or cannot take now (a song while being talked to) is reported
+     * done at once, so the page's queue moves on; other bodies keep upstream's timing (the word's seconds).
+     */
     do(word) {
       const ok = ctl.doWord(word);
-      if (!ok) host.emit('done', { word });
+      if (!ok && opts.plus) host.emit('done', { word });
       return ok;
     },
     walk: (x, run, id) => ctl.walkTo(x, run, id),

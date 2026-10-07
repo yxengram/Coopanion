@@ -105,8 +105,8 @@ Coo 和大肥鱼用的 kit 比原版多一些词、表情和姿势，只在打�
 - figure 可以声明的能力：`poses`（`lie`、`back`，随帧报告）、`anchors` 里的 `lie`、`glints`（开心、得意时星光冒出的几处，没给就在气泡位置两侧）、`spout`、`kneelRaise`、`tears`，
   以及在 `gestures` 里列出自己画的扩展手势；Coo 专用的几项由 `cooFigure()` 声明。每一项的说明在 `web/kit/body.js` 里 `createPet` 的注释。
 - `talk(ch)` 可以带上正在说的字，口型由字的编码决定；不带时每说一下换下一个口型。
-- 做不了的词（不认识的，或此刻做不了的，比如倾听时唱歌）`do(word)` 会立刻报 `done`，页面的动作队列不用干等。
-- 声音一律按 `play(名字, 类别)` 要，扩展的音色在 `web/sound.js`；唱歌被打断时要 `stop:song`，不认识它的页面忽略就是。
+- 带 `plus` 的身体做不了的词（不认识的，或此刻做不了的，比如倾听时唱歌）`do(word)` 会立刻报 `done`，页面的动作队列不用干等；不带 `plus` 的身体和上游一样，等满这个词的 `seconds`。
+- 声音一律按 `play(名字, 类别)` 要，扩展的音色在 `web/sound.js`，只有 Coo 和大肥鱼听得到（别的包要这些名字和在上游一样没有声音，得自带音频文件）；唱歌被打断时要 `stop:song`，不认识它的页面忽略就是。
 
 大肥鱼的入口 `createWhaleBody` 不用 `opts.kit`，而是由 `figure.js` 自己 import 旁边的 `../kit/body.js`，并传 `plus: true`。
 在应用里它和 `opts.kit` 是同一个模块；导出成形象包时把 `whale/figure.js` 和 `kit/body.js`、`kit/rig.js` 放在一起，包就带着自己的 kit，

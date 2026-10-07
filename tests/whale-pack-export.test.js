@@ -8,21 +8,21 @@ import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  PACK_ID, buildManifest, encodeWav, finishSound, packFiles, packSounds, requestedTones, toneNamesIn, upstreamToneNames,
+  PACK_ID, UPSTREAM_REF, buildManifest, encodeWav, finishSound, packFiles, packSounds, requestedTones, toneNamesIn, upstreamToneNames,
 } from '../packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs';
 import { BUILTIN_PACKS, readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { TONES } from '../packages/cortico-world-desktop-pet/web/sound.js';
 
 const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
 const builtin = (id) => JSON.parse(readFileSync(new URL(`web/${id}/figure.json`, PKG), 'utf8'));
-// upstream's tone names from git when origin/main is there (a shallow CI checkout may lack it), else the tones
-// sound.js marks as not ours; with git, the two must agree
+// upstream's tones are the ones sound.js does not mark as ours; when the pinned upstream tag is there (a shallow
+// CI checkout may lack it), its sound.js must have exactly those
 let fromGit = null;
-try { fromGit = upstreamToneNames(); } catch { /* no upstream ref */ }
-const upstreamTones = fromGit ?? TONES.filter((t) => !t.plus).map((t) => t.name);
+try { fromGit = upstreamToneNames(UPSTREAM_REF); } catch { /* no tag here */ }
+const upstreamTones = TONES.filter((t) => !t.plus).map((t) => t.name);
 
 describe('exported whale pack', () => {
-  it('upstream tones read from git match the tones sound.js marks as upstream', () => {
+  it('upstream tones at the pinned tag match the tones sound.js marks as upstream', () => {
     if (!fromGit) return;
     expect(new Set(fromGit)).toEqual(new Set(TONES.filter((t) => !t.plus).map((t) => t.name)));
     expect(toneNamesIn(readFileSync(new URL('web/sound.js', PKG), 'utf8'))).toEqual(TONES.map((t) => t.name));
@@ -102,7 +102,13 @@ describe('exported whale pack', () => {
     // the copied modules only import each other
     for (const mod of ['whale/figure.js', 'kit/body.js', 'kit/rig.js']) {
       const src = readFileSync(files.find((f) => f.to === mod).from, 'utf8');
-      for (const [, spec] of src.matchAll(/^\s*import\b[^'"]*['"]([^'"]+)['"]/gm)) {
+      const specs = [
+        ...src.matchAll(/^\s*(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]/gm), // import … from, export … from
+        ...src.matchAll(/^\s*import\s*['"]([^'"]+)['"]/gm), // import 'x'
+        ...src.matchAll(/\bimport\(\s*['"]([^'"]+)['"]/g), // import('x')
+      ];
+      expect(src).not.toMatch(/\bimport\(\s*[^'"\s]/); // no computed dynamic imports
+      for (const [, spec] of specs) {
         expect(spec.startsWith('.')).toBe(true);
         expect(to).toContain(posix.normalize(posix.join(posix.dirname(mod), spec)));
       }

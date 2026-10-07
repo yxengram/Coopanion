@@ -33,6 +33,13 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 这些贴图不在本包的 AGPL 授权范围内。它们随 Coopanion 分发,想在别处使用请自行确认原设的权利。
 
+## Claude 娘形象
+
+`web/claude-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是社区流行的「Claude 娘」角色设计(原作者尚有争议,这里不署名)。
+图由 GPT 的图像模型(gpt-image-2.5)按社区同人图参考生成,再由本项目拆件。
+
+参考图的作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
+
 ## 其他运行时依赖
 
 - `ws`:MIT
@@ -40,5 +47,5 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 ## 本包的许可
 
-AGPL-3.0-or-later,见 [`LICENSE`](LICENSE);`web/whale/` 的贴图除外,见上。
+AGPL-3.0-or-later,见 [`LICENSE`](LICENSE);`web/whale/` 和 `web/claude-chan/` 的贴图除外,见上。
 并入 Coopanion 之前的版本(独立仓库 `Pal-AI-Lab/cortico-world-desktop-pet` 里的历史)是 MIT。

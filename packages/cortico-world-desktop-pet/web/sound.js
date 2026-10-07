@@ -15,6 +15,8 @@ export const SOUND_KINDS = {
 };
 /** The kinds a body's sounds are filed under; the rest belong to the page (talk, ui). */
 export const BODY_SOUND_KINDS = ['move', 'touch', 'face', 'snore'];
+/** Built-in pack ids that are ours and may ask for the plus tones (`usePack`'s `plus`). */
+export const OWN_PACKS = ['coo', 'whale', 'claude-chan'];
 const KIND_OF = Object.fromEntries(Object.entries(SOUND_KINDS).flatMap(([kind, names]) => names.map((n) => [n, kind])));
 /** The tone each expression plays as it comes on, filed as a face sound (the kit's FACE_TONES plus the plus faces'). */
 export const EXPR_TONES = {
@@ -254,7 +256,7 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
     },
     /**
      * The body's sounds (`sounds` of the pack on screen, from `base`): each is fetched now and decoded once
-     * there is an audio context. `null` drops them. `plus`: the body is one of ours (Coo, the whale) and may ask for
+     * there is an audio context. `null` drops them. `plus`: the body is one of ours (OWN_PACKS) and may ask for
      * the plus tones; any other pack hears only the tones upstream's page has, as it would there.
      */
     usePack(base, sounds, { plus = false } = {}) {

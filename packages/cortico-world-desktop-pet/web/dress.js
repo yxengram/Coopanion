@@ -7,7 +7,7 @@
  * `/socket?role=dress`.
  */
 import { applyTheme } from './ui.js';
-import { createSfx } from './sound.js';
+import { createSfx, OWN_PACKS } from './sound.js';
 import {
   COO_CSS, mini, normalizeSkin, skinCss, wear,
   PALETTES, HEADS, SIDES, GLASSES, NECKS, ACC_COLORS, LINKED, NO_BODY, ROLES,
@@ -91,7 +91,7 @@ async function showFigure(s) {
     next.set({ roam: 'calm' });
     body?.dispose();
     body = next;
-    sfx.usePack(pack.base, pack.sounds, { plus: pack.id === 'coo' || pack.id === 'whale' });
+    sfx.usePack(pack.base, pack.sounds, { plus: OWN_PACKS.includes(pack.id) });
   } catch (err) {
     previewFailed(s.figure, err);
   } finally {

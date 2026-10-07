@@ -112,7 +112,7 @@ Coo 和大肥鱼用的 kit 比原版多一些词、表情和姿势，只在打�
 在应用里它和 `opts.kit` 是同一个模块；导出成形象包时把 `whale/figure.js` 和 `kit/body.js`、`kit/rig.js` 放在一起，包就带着自己的 kit，
 在原版的桌宠里也是同样的词和姿势。`figure.js` 不联网（形象包的沙箱也不让）：`model.json` 由调用方读好传进 `opts.model`，
 没给就直接报错；贴图都经 `opts.loadImage` 载入。`kit/rig.js` 比原版多一个 `st.stone`（0 到 1，整张褪成灰白的石头色，石化用）。
-展示页（`serve.mjs`）同样用 `plus: true`，按 `figure.json` 的词表给每个词一个按钮；加 `?figure=coo` 换成 Coo，`?scheme=<id>` 选配色。
+展示页（`serve.mjs`）同样用 `plus: true`，按 `figure.json` 的词表给每个词一个按钮；加 `?figure=coo` 换成 Coo、`?figure=claude-chan` 换成 Claude 娘（`web/claude-chan/`），`?scheme=<id>` 选配色。
 
 下面是这些扩展在大肥鱼（和 Coo）身上的样子。
 
@@ -192,6 +192,12 @@ Coo 和大肥鱼用的 kit 比原版多一些词、表情和姿势，只在打�
 
 在 Coopanion 自己里 `coopanion-whale` 是内置大肥鱼的别名（`src/packs.ts` 的 `PACK_ALIASES`）：装了不会多出一个形象，配置里选着它时显示的就是内置的那个。
 `tests/whale-pack-export.test.js` 不渲染、不用 Electron，检查生成的清单能通过 `readManifest`、复制的文件齐全。
+
+Claude 娘用同一套办法导出：`pnpm run export:claude [输出目录]`（`scripts/export-claude-pack.mjs`）写出 `coopanion-claude-chan/`，
+名字「Claude 娘」，带着她的整张词表（没有喷水）、`claude-chan/` 下 `figure.js` 引入的全部模块（按 import 算出来，都得在包里）、kit、
+贴图和音效（大肥鱼那些里去掉只有喷水才用的 `spout`：kit 里只在她词表没有的词的 `case` 行上播放的音色不带）。她的贴图只限非商业使用，清单的 `license` 和包里的 `README.md` 都写明了。
+在 Coopanion 自己里 `coopanion-claude-chan` 同样是内置 Claude 娘的别名；`tests/claude-pack-export.test.js` 还用 `git show v0.1.17:` 取原版的 `packs.ts` 检查清单。
+两个脚本只是各自的描述（id、名字、许可、README），导出的活都在 `scripts/export-pack.mjs` 里。
 
 ## 贴图来源
 

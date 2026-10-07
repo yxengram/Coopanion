@@ -29,6 +29,18 @@ describe('console colours follow the pet', () => {
     expect(theme(dir).selectedId).toBe('coo-whale-kimi');
   });
 
+  it('gives Claude-chan her own scheme, named after her, next to the whale\'s', () => {
+    expect(WHALE_SCHEMES.filter((s) => s.id.startsWith('coo-fig-claude-chan-')).map((s) => [s.id, s.name])).toEqual([['coo-fig-claude-chan-original', 'Claude 娘 · 原版']]);
+    const dir = mkdtempSync(join(tmpdir(), 'cc-theme-'));
+    followPetLook(dir, { figure: 'claude-chan', scheme: 'original' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-fig-claude-chan-original');
+    followPetLook(dir, { figure: 'whale', scheme: 'claude' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-whale-claude');
+    // her exported pack (an alias of the built-in) gets the same scheme
+    followPetLook(dir, { figure: 'coopanion-claude-chan', scheme: 'original' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-fig-claude-chan-original');
+  });
+
   it('leaves a scheme picked on the appearance page, and keeps the person\'s own schemes', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cc-theme-'));
     const mine = { id: 'mine', name: '我的', note: '', palettes: { light: {}, dark: {} } };

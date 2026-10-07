@@ -10,7 +10,7 @@
 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 的桌宠 World,一个独立的扩展包。
 [Coopanion](https://github.com/yxengram/Coopanion) 桌面上的 Coo 就是它。
 
-bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置的 Coo(C 形的身体,两只 0 形的眼睛,两条短腿)、内置的大肥鱼,或者装上的其他包。它用气泡说话、用选项提问、
+bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置的 Coo(C 形的身体,两只 0 形的眼睛,两条短腿)、内置的大肥鱼和 Claude 娘,或者装上的其他包。它用气泡说话、用选项提问、
 沿屏幕底边走动、做表情和动作;人可以对它说话(FunASR 在本机识别,Windows 上也可用系统自带的识别)、打字、点选项、戳它、摸它、
 把它拎起来甩出去,这些都作为事件送回 bot。
 
@@ -21,7 +21,7 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 | `pet_say(script)` | 冒气泡说话;`【词】` 先做动作再换新气泡,`<词>` 打字到那里时做 | 立即返回,报约显示多久、前面排了多久 |
 | `pet_ask(question, options, allowOwnAnswer)` | 提问气泡,最多 3 个选项,默认再加一格自己写 | 立即返回;回答以 `[回答]` 事件送达 |
 | `pet_walk_to(to, run)` | 走(跑)到桌宠所在屏幕横向 0–1 处,或 `left` `center` `right` `cursor` | 走到或被打断才返回,最多 30 秒;`interruptible`,收到 interrupt 时停在原地并写明位置 |
-| `pet_act(actions)` | 不说话,依次做一串表情或动作 | 立即返回;词表里标着保持的词(Coo 和大肥鱼的 `sit` `sleep` `lie` `kneel`)保持到下个动作 |
+| `pet_act(actions)` | 不说话,依次做一串表情或动作 | 立即返回;词表里标着保持的词(Coo、大肥鱼和 Claude 娘的 `sit` `sleep` `lie` `kneel`)保持到下个动作 |
 | `pet_set(…)` | 改自己的外观和习惯,见「自己调整」 | 自己能改的立即返回;要问的等对方回答 |
 | `pet_quiet(minutes, sound, roam)` | 临时安静:默认关音效、站着不动,到点恢复,设置不变 | 立即返回 |
 
@@ -45,9 +45,11 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 ## 桌宠窗口
 
 World 在 `127.0.0.1:7797`(被占向上顺延)起一个页面服务:`/pet` 是桌宠本身,`/dress` 是装扮页。
-桌宠有两个形象,在装扮页最上面一行选,存在配置 `skin.figure` 里:`coo` 是 Coo,`whale` 是 DeepSeek 大肥鱼
-(鲸鱼女仆,`web/whale`,用 `web/rig` 画的 Live2D 式分件模型,八套配色存在 `skin.scheme`,见 [examples/whale](examples/whale/README.md))。
-选大肥鱼时装扮页的配色和配件换成她的八套配色;桌宠页第一次用到她时才加载她的贴图,只加载选中的那套。
+桌宠内置三个形象,在装扮页最上面一行选,存在配置 `skin.figure` 里:`coo` 是 Coo,`whale` 是 DeepSeek 大肥鱼
+(鲸鱼女仆,`web/whale`,用 `web/rig` 画的 Live2D 式分件模型,八套配色存在 `skin.scheme`,见 [examples/whale](examples/whale/README.md)),
+`claude-chan` 是 Claude 娘(正面站着的 Q 版少女,`web/claude-chan`,同样是 rig 画的分件模型,一套配色 `original`;
+词表和大肥鱼一样,只少了 `spout`)。
+选大肥鱼时装扮页的配色和配件换成她的八套配色;桌宠页第一次用到哪个形象时才加载它的贴图,只加载选中的那套。
 桌宠窗口是一个 Electron 进程(`host/electron-main.cjs`):透明、无边框、置顶,盖住一块显示器的工作区
 (启动时是主显示器)。桌宠被拎着拖到另一块显示器上时,窗口当场挪到那块显示器,拖动中桌宠一直跟着光标,松手就在那块显示器上落下;
 走路只在当前这块显示器上。窗口所在的显示器被拔掉时回到主显示器。`pet_walk_to` 的 0–1 和事件里的横向位置都按当前这块显示器算。
@@ -129,7 +131,7 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 
 ## 形象包
 
-桌宠的身体都来自形象包,Coo 也是一个。形象包是一个目录,根上有 `figure.json`;内置的 Coo 在 `web/coo/`、大肥鱼在 `web/whale/`,
+桌宠的身体都来自形象包,Coo 也是一个。形象包是一个目录,根上有 `figure.json`;内置的 Coo 在 `web/coo/`、大肥鱼在 `web/whale/`、Claude 娘在 `web/claude-chan/`,
 其余的从数据目录的 `figures/<目录>/` 和应用给的 `packRoots` 里找。`skin.figure` 是包的 id,`skin.scheme` 是它的打扮(Coo 的打扮存在 skin 自己的配色和配件字段里)。
 
 包里的代码只在沙箱里跑:桌宠页把它放进 `/figure-frame`,这个页面的 CSP 把它设成不透明源、禁止一切网络连接,
@@ -145,7 +147,7 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 
 | 字段 | 含义 |
 |---|---|
-| `id` | 小写字母、数字和 `-`,不能和内置包(`coo`、`whale`)重名;`coopanion-whale`(大肥鱼导出给别的 Coopanion 用的包)在这里当作内置的大肥鱼,装了也不列出来,`skin.figure` 写它时显示内置的那条 |
+| `id` | 小写字母、数字和 `-`,不能和内置包(`coo`、`whale`、`claude-chan`)重名;`coopanion-whale`、`coopanion-claude-chan`(大肥鱼和 Claude 娘导出给别的 Coopanion 用的包)在这里当作内置的那个,装了也不列出来,`skin.figure` 写它时显示内置的那条 |
 | `name`、`about` | 按语言的名字;`about` 写这个身体长什么样,原样放进 bot 的环境提示词 |
 | `entry`、`export` | 模块路径和它导出的工厂函数 |
 | `model` | 交给工厂的 JSON(`opts.model`),可省 |
@@ -162,7 +164,7 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 工厂按 `factory(base, { model, scheme, kit, loadImage, asset, host })` 调用,返回一个身体;契约写在 `web/figure-frame.js` 开头。
 用 kit 的包只要 `kit.createBody(host, { figure, words })`:`figure` 每帧画一次,`words` 是 kit 本身没有的词怎么做。
 本仓库的桌宠页在 `talk` 里带上正在说的字(`talk(ch)`),kit 据此换口型;没带字的页面每次换下一种口型。
-`examples/whale/README.md` 是写形象包的完整说明。20 秒内没准备好、或者跑的时候抛错,桌宠换回 Coo,并告诉 bot 现在按 Coo 的词表。
+`examples/whale/README.md` 是写形象包的完整说明,最后一节讲怎样把内置的大肥鱼(`pnpm run export:whale`)和 Claude 娘(`pnpm run export:claude`)导出成别的 Coopanion 能装的包。20 秒内没准备好、或者跑的时候抛错,桌宠换回 Coo,并告诉 bot 现在按 Coo 的词表。
 
 ## 自己调整
 

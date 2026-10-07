@@ -1,0 +1,1096 @@
+{
+  "manifest": 2,
+  "api": 2,
+  "id": "claude-chan",
+  "version": "1.0.0",
+  "name": {
+    "zh": "Claude 娘",
+    "en": "Claude-chan"
+  },
+  "about": {
+    "zh": "一个 Q 版动漫少女,二头半身,正面站着;橙色波浪长发披在身后、垂到膝盖,头一侧别着一朵橙色花饰、垂着黑白两色的发带;穿奶白色衬衫,配一件短披肩和长长的泡泡袖,一条长及脚踝的奶白、黑、橙三色多层长裙,黑色鞋子;平时双手捧着一本封面有朵花的棕色书",
+    "en": "a chibi anime girl, two and a half heads tall, standing facing front; wavy orange hair falling behind her to the knees, an orange flower ornament with black-and-white ribbons on one side of her head; a cream blouse with a short capelet and long puffy sleeves, an ankle-long layered skirt in cream, black and orange, and black shoes; she usually holds a brown book with a flower on its cover"
+  },
+  "author": "Coopanion",
+  "credits": [
+    {
+      "role": "角色设定",
+      "name": "社区流行的 Claude 娘设定"
+    }
+  ],
+  "entry": "figure.js",
+  "export": "createClaudeBody",
+  "model": "model.json",
+  "thumb": "thumbs/original.png",
+  "axes": [
+    {
+      "id": "scheme",
+      "name": {
+        "zh": "配色",
+        "en": "Colours"
+      },
+      "options": [
+        {
+          "id": "original",
+          "name": {
+            "zh": "原版"
+          },
+          "thumb": "thumbs/original.png",
+          "accent": "#D97757"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "id": "original",
+      "pick": {
+        "scheme": "original"
+      },
+      "name": {
+        "zh": "原版"
+      },
+      "thumb": "thumbs/original.png",
+      "accent": "#D97757",
+      "console": {
+        "light": {
+          "a": "#d97757",
+          "a2": "#c2928a",
+          "on": "#1f0f08",
+          "t": "#a84e2f",
+          "c3": "#7b7974",
+          "c4": "#c6a58c"
+        },
+        "dark": {
+          "a": "#e08a6c",
+          "a2": "#d9a497",
+          "on": "#1f0f08",
+          "t": "#eba287",
+          "c3": "#97958d",
+          "c4": "#c6a58c"
+        }
+      }
+    }
+  ],
+  "vocab": [
+    {
+      "id": "neutral",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "平静"
+        ]
+      },
+      "about": {
+        "zh": "默认的脸"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "happy",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "开心",
+          "高兴"
+        ]
+      },
+      "about": {
+        "zh": "眯眼笑,头上的发带一翘一翘,长发轻轻摆"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "wink",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "眨眼"
+        ]
+      },
+      "about": {
+        "zh": "一只眼 ^"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "love",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "喜欢",
+          "爱心"
+        ]
+      },
+      "about": {
+        "zh": "眼睛变心形,冒小心心,身子轻轻左右晃"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "shy",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "害羞",
+          "偷看"
+        ]
+      },
+      "about": {
+        "zh": "脸红低头躲开,过一会儿偷偷抬眼看你"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "surprised",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "惊讶",
+          "吃惊"
+        ]
+      },
+      "about": {
+        "zh": "眼睛放大,头顶感叹号"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "angry",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "生气"
+        ]
+      },
+      "about": {
+        "zh": "皱眉,头顶怒气符号,身体发抖"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "sad",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "难过",
+          "伤心",
+          "委屈",
+          "失落"
+        ]
+      },
+      "about": {
+        "zh": "八字眉,低头看地,垂头丧气,掉眼泪,头上的发带耷拉下来"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "sleepy",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "犯困",
+          "困"
+        ]
+      },
+      "about": {
+        "zh": "眯眼打哈欠"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "thinking",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "思考",
+          "想想"
+        ]
+      },
+      "about": {
+        "zh": "眼睛往上看,头顶冒圈"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "smug",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "得意",
+          "嘚瑟"
+        ]
+      },
+      "about": {
+        "zh": "眯眼斜看,嘴角带笑"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "pout",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "嘟嘴",
+          "哼"
+        ]
+      },
+      "about": {
+        "zh": "嘴嘟起来,脸红,扭头不看你"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "worried",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "担心",
+          "着急"
+        ]
+      },
+      "about": {
+        "zh": "八字眉,冒冷汗"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "determined",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "认真",
+          "坚定"
+        ]
+      },
+      "about": {
+        "zh": "眼神压低,一脸认真"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "flustered",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "慌张",
+          "窘"
+        ]
+      },
+      "about": {
+        "zh": "眼睛变成 > <,满脸通红冒汗"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "scared",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "害怕",
+          "吓到"
+        ]
+      },
+      "about": {
+        "zh": "眼睛瞪大,冒汗,身体发抖"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "excited",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "期待",
+          "星星眼"
+        ]
+      },
+      "about": {
+        "zh": "眼睛里闪着星星"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "cry",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "大哭",
+          "哭"
+        ]
+      },
+      "about": {
+        "zh": "闭眼大哭,眼泪直流"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "confused",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "疑惑",
+          "问号"
+        ]
+      },
+      "about": {
+        "zh": "一脸不解,头顶问号"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "disgusted",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "嫌弃",
+          "无语"
+        ]
+      },
+      "about": {
+        "zh": "半眯眼斜看,身子往后仰,额头三道黑线"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "nervous",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "紧张",
+          "忐忑"
+        ]
+      },
+      "about": {
+        "zh": "眼神乱瞟,冒汗,身子绷紧,时不时抖一下"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "gentle",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "温柔",
+          "欣慰",
+          "没事的"
+        ]
+      },
+      "about": {
+        "zh": "眼睛温柔地半眯着看你,淡淡脸红,时不时轻轻点头"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "awkward",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "尴尬",
+          "苦笑",
+          "尬笑"
+        ]
+      },
+      "about": {
+        "zh": "笑眼配八字眉,挂一大滴汗,身子往后一缩"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "moved",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "感动",
+          "泪目",
+          "好感动"
+        ]
+      },
+      "about": {
+        "zh": "笑着含泪,眼里泪光闪闪,挂两道细泪痕"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "petrify",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "石化",
+          "裂开",
+          "我裂开了",
+          "碎了"
+        ]
+      },
+      "about": {
+        "zh": "当场僵住变成灰白石像,裂开一道缝,几秒后恢复;只在坏消息、被吐槽时用"
+      },
+      "seconds": 3.2
+    },
+    {
+      "id": "coax",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "撒娇",
+          "卖萌",
+          "好不好嘛"
+        ]
+      },
+      "about": {
+        "zh": "笑眯眯地撒娇,脸通红,猫咪 ω 嘴,左右晃,冒小心心"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "tongue",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "吐舌",
+          "略略略",
+          "调皮"
+        ]
+      },
+      "about": {
+        "zh": "眨一只眼,吐出一点舌尖,调皮地笑"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "giggle",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "偷笑",
+          "嘻嘻",
+          "憋笑",
+          "窃笑"
+        ]
+      },
+      "about": {
+        "zh": "眯眼憋着笑,一阵一阵地抖"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "stand",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "站起",
+          "站"
+        ]
+      },
+      "about": {
+        "zh": "站起来(坐着、睡着时)"
+      },
+      "seconds": 1.2
+    },
+    {
+      "id": "jump",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "跳",
+          "跳起来"
+        ]
+      },
+      "about": {
+        "zh": "原地起跳"
+      },
+      "seconds": 1.2
+    },
+    {
+      "id": "hop",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "小跳",
+          "蹦"
+        ]
+      },
+      "about": {
+        "zh": "小小蹦一下"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "look",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "张望",
+          "看看"
+        ]
+      },
+      "about": {
+        "zh": "左右张望"
+      },
+      "seconds": 2.7
+    },
+    {
+      "id": "turn",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "转身"
+        ]
+      },
+      "about": {
+        "zh": "转向另一边"
+      },
+      "seconds": 0.4
+    },
+    {
+      "id": "nod",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "点头"
+        ]
+      },
+      "about": {
+        "zh": "低头两下"
+      },
+      "seconds": 0.8
+    },
+    {
+      "id": "shake",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "摇头"
+        ]
+      },
+      "about": {
+        "zh": "脸左右转"
+      },
+      "seconds": 0.8
+    },
+    {
+      "id": "spin",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "转圈"
+        ]
+      },
+      "about": {
+        "zh": "原地转一圈"
+      },
+      "seconds": 0.8
+    },
+    {
+      "id": "sit",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "坐下",
+          "坐"
+        ]
+      },
+      "about": {
+        "zh": "坐下"
+      },
+      "seconds": 0.8,
+      "lasting": true
+    },
+    {
+      "id": "sleep",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "睡觉",
+          "睡"
+        ]
+      },
+      "about": {
+        "zh": "坐着打盹(趴着时就趴着睡)"
+      },
+      "seconds": 0.8,
+      "lasting": true
+    },
+    {
+      "id": "kneel",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "跪坐",
+          "正坐"
+        ]
+      },
+      "about": {
+        "zh": "把书放到一边,端端正正地跪坐,双手放在膝上"
+      },
+      "seconds": 0.8,
+      "lasting": true
+    },
+    {
+      "id": "lie",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "趴下",
+          "躺平",
+          "趴着"
+        ]
+      },
+      "about": {
+        "zh": "趴在地上捧着书看,脚丫翘起来晃"
+      },
+      "seconds": 0.8,
+      "lasting": true
+    },
+    {
+      "id": "dizzy",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "晕",
+          "转晕"
+        ]
+      },
+      "about": {
+        "zh": "头晕眼花几秒"
+      },
+      "seconds": 3.2
+    },
+    {
+      "id": "walk",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "走走",
+          "散步"
+        ]
+      },
+      "about": {
+        "zh": "随便走一段"
+      },
+      "seconds": 12
+    },
+    {
+      "id": "run",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "跑",
+          "跑起来"
+        ]
+      },
+      "about": {
+        "zh": "跑到屏幕另一头"
+      },
+      "seconds": 12
+    },
+    {
+      "id": "wave",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "招手",
+          "打招呼"
+        ]
+      },
+      "about": {
+        "zh": "一只手抱着书,另一只手举起来挥一挥"
+      },
+      "seconds": 1.7
+    },
+    {
+      "id": "bow",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "鞠躬"
+        ]
+      },
+      "about": {
+        "zh": "闭眼,上身往前倾鞠一躬"
+      },
+      "seconds": 1.7
+    },
+    {
+      "id": "shiver",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "发抖",
+          "哆嗦"
+        ]
+      },
+      "about": {
+        "zh": "缩着身子抖一会儿"
+      },
+      "seconds": 1.9
+    },
+    {
+      "id": "flap",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "扑腾",
+          "激动"
+        ]
+      },
+      "about": {
+        "zh": "开心地蹦起来,长发、裙摆和头上的发带一起晃"
+      },
+      "seconds": 1.5
+    },
+    {
+      "id": "heart",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "比心",
+          "笔芯"
+        ]
+      },
+      "about": {
+        "zh": "比个心"
+      },
+      "seconds": 2.3
+    },
+    {
+      "id": "cheer",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "欢呼",
+          "好耶",
+          "万岁"
+        ]
+      },
+      "about": {
+        "zh": "高兴地欢呼一下"
+      },
+      "seconds": 1.9
+    },
+    {
+      "id": "dance",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "跳舞",
+          "摇摆"
+        ]
+      },
+      "about": {
+        "zh": "原地踩着节拍摇摆三秒,冒音符"
+      },
+      "seconds": 3.4
+    },
+    {
+      "id": "flinch",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "后缩",
+          "吓一跳"
+        ]
+      },
+      "about": {
+        "zh": "吓得往后一缩,马上恢复"
+      },
+      "seconds": 1
+    },
+    {
+      "id": "peek",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "探头",
+          "瞅瞅"
+        ]
+      },
+      "about": {
+        "zh": "身子往前探,盯着前方看两秒"
+      },
+      "seconds": 2.5
+    },
+    {
+      "id": "away",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "背过身",
+          "不理你",
+          "扭头"
+        ]
+      },
+      "about": {
+        "zh": "背过身去不理人,过一会儿再转回来"
+      },
+      "seconds": 3.3
+    },
+    {
+      "id": "roll",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "翻滚",
+          "打滚",
+          "前滚翻"
+        ]
+      },
+      "about": {
+        "zh": "团成一个球,在地上向前滚一圈再站起来"
+      },
+      "seconds": 1.6
+    },
+    {
+      "id": "sip",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "喝茶",
+          "抱杯子",
+          "喝口水"
+        ]
+      },
+      "about": {
+        "zh": "双手捧着茶杯喝一口茶"
+      },
+      "seconds": 3.7
+    },
+    {
+      "id": "read",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "看书",
+          "读书",
+          "拿书"
+        ]
+      },
+      "about": {
+        "zh": "翻开随身带的那本书,捧着读一会儿"
+      },
+      "seconds": 4.5
+    },
+    {
+      "id": "sigh",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "叹气",
+          "唉",
+          "无奈"
+        ]
+      },
+      "about": {
+        "zh": "吸一口气再长长呼出来,身子一塌,轻度无奈时偶尔用"
+      },
+      "seconds": 2.1
+    },
+    {
+      "id": "pray",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "拜托",
+          "求求你",
+          "合十"
+        ]
+      },
+      "about": {
+        "zh": "双手合十拜托你(也可以是道谢、道歉),眼睛亮晶晶地看着你"
+      },
+      "seconds": 2.3
+    },
+    {
+      "id": "scratch",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "挠头",
+          "过奖了",
+          "嘿嘿"
+        ]
+      },
+      "about": {
+        "zh": "被夸时不好意思地挠挠头,另一只手还抱着书"
+      },
+      "seconds": 2.2
+    },
+    {
+      "id": "idea",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "有了",
+          "想到了",
+          "灵光一闪"
+        ]
+      },
+      "about": {
+        "zh": "一只手抱着书,另一只手竖起食指,头顶亮起一个小灯泡"
+      },
+      "seconds": 1.9
+    },
+    {
+      "id": "hips",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "叉腰"
+        ]
+      },
+      "about": {
+        "zh": "双手叉腰,配合当时的表情(生气、得意、认真),没有就一脸认真"
+      },
+      "seconds": 2.6
+    },
+    {
+      "id": "hug",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "抱抱",
+          "求抱抱",
+          "抱一下"
+        ]
+      },
+      "about": {
+        "zh": "张开双臂要抱抱,一脸温柔"
+      },
+      "seconds": 2.7
+    },
+    {
+      "id": "song",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "唱歌",
+          "哼歌",
+          "哼小曲"
+        ]
+      },
+      "about": {
+        "zh": "闭着眼轻轻哼一首小曲四秒左右,飘音符;有人说话时会停"
+      },
+      "seconds": 4.1
+    },
+    {
+      "id": "serve",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "奉茶",
+          "请用茶",
+          "喝口水吧"
+        ]
+      },
+      "about": {
+        "zh": "双手捧着一杯冒热气的茶递给你,适合提醒对方歇一歇、喝口水"
+      },
+      "seconds": 2.7
+    },
+    {
+      "id": "salute",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "敬礼",
+          "遵命",
+          "收到"
+        ]
+      },
+      "about": {
+        "zh": "利落地敬个礼,一脸认真,放下时眨眨眼"
+      },
+      "seconds": 1.9
+    },
+    {
+      "id": "vsign",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "比耶",
+          "耶",
+          "剪刀手"
+        ]
+      },
+      "about": {
+        "zh": "在脸边比个 V,眨眼歪头,闪一下星光"
+      },
+      "seconds": 1.9
+    },
+    {
+      "id": "point",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "指",
+          "指着",
+          "看那边"
+        ]
+      },
+      "about": {
+        "zh": "伸手朝面前指过去,眼睛看着那边"
+      },
+      "seconds": 2.1
+    },
+    {
+      "id": "cover",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "捂嘴笑",
+          "掩嘴笑"
+        ]
+      },
+      "about": {
+        "zh": "手挡在嘴边,眯着眼偷偷笑"
+      },
+      "seconds": 2.5
+    },
+    {
+      "id": "cross",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "抱臂",
+          "抱着胳膊"
+        ]
+      },
+      "about": {
+        "zh": "双臂抱在胸前,配合当时的表情(生气、得意、认真),没有就嘟着嘴"
+      },
+      "seconds": 2.7
+    },
+    {
+      "id": "stretch",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "伸懒腰"
+        ]
+      },
+      "about": {
+        "zh": "双手举过头顶伸个大懒腰,闭眼打哈欠"
+      },
+      "seconds": 2.7
+    },
+    {
+      "id": "curtsy",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "屈膝礼",
+          "提裙礼"
+        ]
+      },
+      "about": {
+        "zh": "双手捏着长裙的裙边轻轻提起,身子一沉行个屈膝礼"
+      },
+      "seconds": 2.3
+    }
+  ],
+  "sounds": {},
+  "can": {
+    "walk": true
+  }
+}

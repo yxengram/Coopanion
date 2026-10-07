@@ -10,7 +10,7 @@
  * Colors follow the World's `theme` through `data-theme` on the root element.
  */
 import { applyTheme, clamp, f, ICONS } from './ui.js';
-import { createSfx } from './sound.js';
+import { createSfx, OWN_PACKS } from './sound.js';
 import { COO_CSS, mini, normalizeSkin, skinCss } from './coo/coo.js';
 import { loadBody } from './body-host.js';
 
@@ -133,7 +133,7 @@ async function swapBody(s) {
   body?.dispose();
   body = next;
   words = new Map(pack.vocab.map((w) => [w.id, w]));
-  sfx.usePack(pack.base, pack.sounds, { plus: pack.id === 'coo' || pack.id === 'whale' });
+  sfx.usePack(pack.base, pack.sounds, { plus: OWN_PACKS.includes(pack.id) });
   reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme);
 }
 async function applyFigure(s) {

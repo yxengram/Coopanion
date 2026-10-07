@@ -20,6 +20,7 @@
     "build:installer": "tsx scripts/stage.ts && tsx scripts/pack.ts",
     "build:icons": "electron scripts/make-icons.cjs",
     "export:whale": "node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs",
+    "export:claude": "node packages/cortico-world-desktop-pet/scripts/export-claude-pack.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "typecheck:web": "tsc -p tsconfig.web.json",

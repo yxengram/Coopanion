@@ -21,6 +21,13 @@ describe('pet_set', () => {
   it('takes a pack\'s picks only for that pack', () => {
     expect(planSettings({ figure: 'whale', scheme: 'claude' }, cfg(), packs).errors).toEqual([]);
     expect(planSettings({ scheme: 'claude' }, cfg(), packs).errors).toHaveLength(1);
+    expect(planSettings({ figure: 'claude-chan', scheme: 'claude' }, cfg(), packs).errors).toHaveLength(1);
+  });
+
+  it('switches to Claude-chan in her one scheme', () => {
+    const { changes, errors } = planSettings({ figure: 'claude-chan' }, cfg(), packs);
+    expect(errors).toEqual([]);
+    expect(changes.map((c) => c.patch)).toEqual([{ skin: { figure: 'claude-chan', scheme: 'original' } }]);
   });
 
   it('dresses Coo through its skin\'s own fields', () => {

@@ -1,6 +1,6 @@
 /**
  * Figure packs: the pet's body, as a directory with a `figure.json` manifest. Coo is one, built in
- * (`web/coo/`), and so is the whale maid (`web/whale/`).
+ * (`web/coo/`), and so are the whale maid (`web/whale/`) and Claude-chan (`web/claude-chan/`).
  *
  * A pack's code runs only inside the sandboxed figure frame (`web/figure-frame.html`): an opaque
  * origin with no network access, talking to the pet page by `postMessage` alone. The body there is
@@ -28,11 +28,11 @@ export const FIGURE_API = 2;
 /** The built-in body, and the one shown when the skin names a pack that is not there. */
 export const COO = 'coo';
 /**
- * Installed pack ids that stand for a built-in pack: our whale exported for other copies of the app
- * (`coopanion-whale`) is the built-in whale here, with the same scheme ids. Such a pack is not listed,
- * and a skin naming it shows the built-in one.
+ * Installed pack ids that stand for a built-in pack: our whale and Claude-chan exported for other copies of the app
+ * (`coopanion-whale`, `coopanion-claude-chan`, scripts/export-*-pack.mjs) are the built-in ones here, with the same
+ * scheme ids. Such a pack is not listed, and a skin naming it shows the built-in one.
  */
-export const PACK_ALIASES: Readonly<Record<string, string>> = { 'coopanion-whale': 'whale' };
+export const PACK_ALIASES: Readonly<Record<string, string>> = { 'coopanion-whale': 'whale', 'coopanion-claude-chan': 'claude-chan' };
 /** The pack id a skin's `figure` stands for: an alias's built-in, Coo when there is none. */
 export const figureOf = (figure: string | undefined): string => {
   const id = figure ?? COO;
@@ -242,6 +242,7 @@ export interface PackScan { packs: FigurePack[]; problems: string[] }
 export const BUILTIN_PACKS: ReadonlyArray<{ dir: string; base: string }> = [
   { dir: fileURLToPath(new URL('../web/coo/', import.meta.url)), base: '/web/coo/' },
   { dir: fileURLToPath(new URL('../web/whale/', import.meta.url)), base: '/web/whale/' },
+  { dir: fileURLToPath(new URL('../web/claude-chan/', import.meta.url)), base: '/web/claude-chan/' },
 ];
 
 /** The built-in packs and those installed under `roots` (each subdirectory one pack). */

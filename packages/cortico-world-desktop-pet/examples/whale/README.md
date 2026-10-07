@@ -177,6 +177,22 @@ Coo 和大肥鱼用的 kit 比原版多一些词、表情和姿势，只在打�
 尾巴摆、垂、拍地；眨眼、打盹、睡着和闭眼的表情用闭眼贴片，其余表情靠头顶的符号和身体的动静。哪套配色缺趴姿的任一文件，
 这套配色照常加载，只是 `figure.poses.lie` 为 false，她趴下时一直坐着。
 
+## 导出成形象包
+
+`pnpm run export:whale [输出目录]`（即 `node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs`，默认输出到仓库的 `build/packs`）
+把大肥鱼导出成 `coopanion-whale/` 形象包，原版 v0.1.17 起的 Coopanion 也能装：放进数据目录的 `home/companion/data/figures/`。
+
+- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 72 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
+- `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色、每个姿势、五官、缩略图），缺一个就报错。
+- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show origin/main:` 的那份比对得出，现在是 18 个），用 `node_modules` 里的 Electron
+  离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），
+  去掉结尾的静音，存成 44.1 kHz 16 位单声道 WAV。文件按峰值 -1 dBFS 存，`volume` 把它调回原来的响度：页面播放时同样经过总音量和压缩器，听起来和内置音色一样。
+  渲染出来是静音或超过满幅都会报错。比对用的上游分支可以用 `--upstream <ref>` 换。
+- 包里的 `README.md` 写了安装方法和在原版里的限制（唱歌不能打断、口型轮流换、包里音效的第一次播放可能没声音）。
+
+在 Coopanion 自己里 `coopanion-whale` 是内置大肥鱼的别名（`src/packs.ts` 的 `PACK_ALIASES`）：装了不会多出一个形象，配置里选着它时显示的就是内置的那个。
+`tests/whale-pack-export.test.js` 不渲染、不用 Electron，检查生成的清单能通过 `readManifest`、复制的文件齐全。
+
 ## 贴图来源
 
 全部由 ChatGPT 生成（角色原设「溟月」，上善无形；DeepSeek 女仆二创，ZipZipPipe），围裙上的小鲸鱼除外。

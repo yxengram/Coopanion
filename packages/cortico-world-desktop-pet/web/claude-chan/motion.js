@@ -70,12 +70,37 @@ export function eyesShut(o, eyes, mode) {
 export const sipLift = k => smooth(.38, .5, k) * (1 - smooth(.56, .66, k));
 /** A roll turns once, eased, over this part of the gesture (as the kit's rollTurn). */
 export const rollTurn = k => smooth(.2, .8, k);
+/** How far one roll carries her (kit/body.js ROLL_D, rig units). */
+export const ROLL_D = 2 * Math.PI * 100;
+/**
+ * The ball's turn (degrees) at `k` of a roll, rolling without slipping: it turns ROLL_D / `around` (its perimeter)
+ * times while the kit carries her ROLL_D. Past whole turns, the rest is split: it curls up tilted back by half of it
+ * and comes up tilted forward by the other half (a ball the size of the old one, around = ROLL_D, turns 0 → 360).
+ * Assumes the full ROLL_D of travel: near a screen edge the kit rolls her shorter (kit/body.js caps pulse.dx by the
+ * room, and the frame's `gesture` carries no dx), so the ball slips there, as the kit's own spin roll does.
+ */
+export function ballAngle(k, around = ROLL_D) {
+  const turns = ROLL_D / Math.max(1, around), frac = turns - Math.round(turns);
+  return 360 * turns * rollTurn(k) - 180 * frac;
+}
 /** The curled-up drawing's share of a roll: almost a cut in the crouch, and out again as she springs up. */
 export const ballMix = k => smooth(.13, .165, k) * (1 - smooth(.835, .87, k));
 /** How far the ball's middle sits above the floor turned by `deg` (poses.roll.support, every 5°). */
 export function ballLift(support, deg) {
   const n = support.length, x = (((deg % 360) + 360) % 360) / 360 * n, i = Math.floor(x) % n;
   return lerp(support[i], support[(i + 1) % n], x - Math.floor(x));
+}
+/**
+ * Her back hair's swing (poses.back.rects.hair: v = 0 at the nape, 1 at the lowest tips): the head above stays put,
+ * the tips move most. `hair`, `hairY`, `swish` are the front hair's springs; `flip` is -1 while the drawing is mirrored,
+ * so the hair trails the same way the front hair does.
+ */
+export function backHairField(hair, hairY, swish, t, flip = 1) {
+  return (u, v) => {
+    const w = v * Math.sqrt(v);
+    return [flip * (hair * 7 * w + Math.sin(t * 1.6 + v * 3) * w + swish * 1.2 * Math.sin(t * (3 + 4 * swish) + v * 2) * w * w),
+      hairY * 10 * w * w - Math.abs(hair) * 1.2 * w];
+  };
 }
 /** The away gesture's share of her back carried over frames: dropped early, she turns round over .3 s. */
 export function awayStep(awayA, awayBack, g, dt) {
@@ -148,7 +173,7 @@ export const POSE_KIND = {
   bookside: 'armR',
 };
 /** A missing drawing stands in for another that is there (the book-held ones first). */
-export const POSE_ALT = { read: ['book'], write: ['read', 'book'], search: ['read', 'book'], offer: ['book'], fist: ['vsign'], shy: ['pray'], oops: ['cover'] };
+export const POSE_ALT = { read: ['book'], write: ['read', 'book'], search: ['read', 'book'], fist: ['vsign'], shy: ['pray'], oops: ['cover'] };
 /** Modes where she holds the book when nothing else is asked; and the calm ones where faces pose her arms. */
 export const CALM_MODES = ['idle', 'look', 'sit', 'sleep', 'wake'];
 export const BOOK_MODES = [...CALM_MODES, 'walk'];
@@ -165,7 +190,7 @@ export const BACK_FADE = .15;
 export const ARM_FALLBACK = {
   wave: [108, null], scratch: [150, null], idea: [160, null], salute: [145, null], vsign: [95, null], point: [90, null],
   cover: [-32, null], chin: [-32, null], fist: [120, null],
-  cheer: [115, -115], heart: [-28, 28], read: [-26, 26], cup: [-28, 28], offer: [-24, 24], pray: [-30, 30], hips: [24, -24],
+  cheer: [115, -115], heart: [-28, 28], read: [-26, 26], cup: [-28, 28], pray: [-30, 30], hips: [24, -24],
   hug: [70, -70], cross: [-34, 34], stretch: [165, -165], curtsy: [16, -16], oops: [-36, 36], search: [-26, 26], shy: [-30, 30],
   write: [-26, 26],
 };
@@ -677,7 +702,6 @@ export function createMotion(model, R) {
           case 'heart': { const b = .025 * Math.sin(t * 8); s.sx = s.sy = 1 + b; break; }
           case 'pray': s.ty += 1.5 * Math.abs(Math.sin(t * 6)); break;
           case 'hug': s.sx = 1 + .02 * Math.sin(t * 2.2); break;
-          case 'offer': if (own) { const o2 = .05 * smooth(.2, .45, gk); s.sx = s.sy = 1 + o2; } break;
           case 'cross': s.a = shiver * 1.2 * Math.sin(t * 43); break;
           case 'oops': s.a = .6 * Math.sin(t * 31) * (flinch || .3); break;
           case 'shy': s.ty += .6 * Math.sin(t * 9); break;
@@ -793,9 +817,10 @@ export function createMotion(model, R) {
     backA = smooth(0, .5, backK) * backOn;
     if (BACK) {
       st.backFlip = { sx: view.flip ? -1 : 1 };
-      // the drawing's lower end is her hem and shoes: they stay put on the floor
-      st.backHair = { fn: (u, v) => { const w = v * v * (1 - smooth(.75, .97, v)); return [(hair * 6 + Math.sin(t * 1.6 + v * 3)) * w, hairY * 6 * w]; } };
-      for (const p of BACK.parts) st.alpha[p.id] = caps.tex(p.tex) ? backA : 0;
+      // only the hair hangs on the warp (her body, hem and shoes stay on the flip); it swings like the front hair
+      st.backHair = { fn: backHairField(hair, hairY, swish, t, view.flip ? -1 : 1) };
+      // (the under layer is all but hidden while the body over it fades, or it would tint her through it)
+      for (const p of BACK.parts) st.alpha[p.id] = caps.tex(p.tex) ? (p.under ? backA ** 3 : backA) : 0;
       const sq = Math.max(away ? .3 * Math.sin(Math.PI * smooth(0, .12, gk)) + .3 * Math.sin(Math.PI * smooth(.88, 1, gk)) : 0, awayA > awayBack ? .3 * bump(awayA) : 0);
       st.body.sx *= 1 - sq * backOn;
     }
@@ -803,7 +828,7 @@ export function createMotion(model, R) {
     if (awayFace) { st.body.sx *= 1 - .12 * awayFace; st.body.a -= 3 * awayFace; }
     const ballA = is('roll') && ROLL && caps.pose('roll') ? ballMix(gk) : 0;
     if (ROLL) {
-      const a = 360 * rollTurn(gk), land = Math.sin(Math.PI * clamp((gk - .12) / .12, 0, 1)), sup = ROLL.pose.support;
+      const a = ballAngle(gk, ROLL.pose.around), land = Math.sin(Math.PI * clamp((gk - .12) / .12, 0, 1)), sup = ROLL.pose.support;
       st.rollBall = { a, ty: sup?.length ? sup[0] - ballLift(sup, a) : 0, sx: 1 + .05 * land, sy: 1 - .05 * land };
       for (const p of ROLL.parts) st.alpha[p.id] = caps.tex(p.tex) ? ballA : 0;
     }

@@ -1,9 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { createPet, FACES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import {
-  anchorsOf, approach, ARM_BOTH, ARM_FALLBACK, ARM_ONE, armPlan, buildRig, createMotion, extentOf, FACE_ARMS, feetFromLegs, fxPointsOf,
-  GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, SIT_LOW, sitAnchors, sitMix, sitRaise,
+  anchorsOf, approach, ARM_BOTH, ARM_FALLBACK, ARM_ONE, armPlan, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
+  feetFromLegs, fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, SIT_LOW, sitAnchors, sitMix, sitRaise,
+  ROLL_D, WHOLE_POSES,
 } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/claude-chan/fx.js';
@@ -24,13 +26,31 @@ function png(url) {
   const b = readFileSync(url);
   return { w: b.readUInt32BE(16), h: b.readUInt32BE(20), colorType: b[25] };
 }
+/** The alpha channel of an 8-bit RGBA, non-interlaced PNG: { w, h, a }. */
+function alphaOf(url) {
+  const b = readFileSync(url), w = b.readUInt32BE(16), h = b.readUInt32BE(20);
+  expect(b[24] === 8 && b[25] === 6 && b[28] === 0, 'an 8-bit RGBA PNG, not interlaced').toBe(true);
+  const idat = [];
+  for (let o = 8; o < b.length; o += 12 + b.readUInt32BE(o)) if (b.toString('ascii', o + 4, o + 8) === 'IDAT') idat.push(b.subarray(o + 8, o + 8 + b.readUInt32BE(o)));
+  const raw = inflateSync(Buffer.concat(idat)), row = w * 4, px = new Uint8Array(row * h), a = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (row + 1)], src = y * (row + 1) + 1, dst = y * row;
+    for (let i = 0; i < row; i++) {
+      const l = i >= 4 ? px[dst + i - 4] : 0, u = y ? px[dst + i - row] : 0, ul = y && i >= 4 ? px[dst + i - row - 4] : 0;
+      const p = l + u - ul, pa = Math.abs(p - l), pb = Math.abs(p - u), pc = Math.abs(p - ul);
+      px[dst + i] = (raw[src + i] + [0, l, u, (l + u) >> 1, pa <= pb && pa <= pc ? l : pb <= pc ? u : ul][f]) & 255;
+    }
+  }
+  for (let i = 0; i < w * h; i++) a[i] = px[i * 4 + 3];
+  return { w, h, a };
+}
 const inside = ([x, y], [x0, y0, x1, y1], m = 0) => x >= x0 - m && x <= x1 + m && y >= y0 - m && y <= y1 + m;
 
 /* ---------- a made-up model with every drawing, so the code is tested before (and beyond) the art ---------- */
 const FAMS = ['happy', 'sleep', 'surprised', 'love', 'dizzy', 'drag', 'cry', 'smug', 'angry', 'sad', 'wink', 'halflid', 'shy', 'determined'];
 const MOUTH_SPRITES = ['neutral_mouth', ...TALK_SHAPES.map(s => `mouth_${s}`), ...['frown', 'pout', 'cat', 'grin', 'tongue', 'smile'].map(s => `mouth_${s}`)];
 const ARM_POSES = ['book', 'bookside', 'wave', 'chin', 'scratch', 'idea', 'salute', 'vsign', 'point', 'cover', 'fist', 'read', 'write', 'search',
-  'cheer', 'heart', 'cup', 'pray', 'hips', 'hug', 'cross', 'stretch', 'curtsy', 'oops', 'shy', 'offer'];
+  'cheer', 'heart', 'cup', 'pray', 'hips', 'hug', 'cross', 'stretch', 'curtsy', 'oops', 'shy'];
 function synthModel() {
   const eye = (x0, x1) => {
     const cx = (x0 + x1) / 2;
@@ -209,6 +229,33 @@ describe('Claude-chan: motion helpers', () => {
     expect(r.ty).toBeCloseTo(0);
     expect(Math.abs(l.tx)).toBeLessThanOrEqual(4);
   });
+  it('swings her back hair from the nape, the tips most, trailing the same way mirrored or not', () => {
+    const f = backHairField(1, 0, 0, 0), m = backHairField(1, 0, 0, 0, -1);
+    expect(f(.5, 0).map(Math.abs)).toEqual([0, 0]);
+    expect(Math.abs(f(.5, 1)[0])).toBeGreaterThan(Math.abs(f(.5, .5)[0]) * 2);
+    expect(f(.5, 1)[0]).toBeGreaterThan(4);
+    expect(m(.5, 1)[0]).toBeCloseTo(-f(.5, 1)[0]);
+    // carried, the hair lifts
+    expect(backHairField(0, -1, 0, 0)(.5, 1)[1]).toBeLessThan(-5);
+  });
+  it('rolls the ball without slipping, curling up tilted back and coming up tilted forward as much', () => {
+    expect(KIT_ROLL_D).toBeCloseTo(2 * Math.PI * 100);
+    // ballAngle assumes the kit's full roll (it gets no dx): the two must not drift apart
+    expect(ROLL_D).toBe(KIT_ROLL_D);
+    // a ball as big round as the kit's roll turns once, upright at both ends
+    expect(ballAngle(0)).toBeCloseTo(0);
+    expect(ballAngle(1)).toBeCloseTo(360);
+    for (const around of [300, 420, 504.55, 560]) {
+      const a0 = ballAngle(0, around), a1 = ballAngle(1, around);
+      // the perimeter it rolls over is the way the kit carries her
+      expect((a1 - a0) / 360 * around).toBeCloseTo(KIT_ROLL_D, 6);
+      expect(((a1 % 360) + 360) % 360).toBeCloseTo(((-a0 % 360) + 360) % 360, 6);
+      expect(Math.abs(a0)).toBeLessThanOrEqual(90);
+      // it only turns while she travels (the kit's rollTurn: k .2 .. .8)
+      expect(ballAngle(.1, around)).toBe(a0);
+      expect(ballAngle(.9, around)).toBe(a1);
+    }
+  });
   it('crossfades at a steady pace and never overshoots', () => {
     let v = 0;
     for (let i = 0; i < 9; i++) v = approach(v, 1, 1 / 60, .15);
@@ -245,6 +292,13 @@ describe('Claude-chan: motion helpers', () => {
     for (const pose of [...Object.values(ARM_ONE), ...Object.values(ARM_BOTH)]) expect(ARM_FALLBACK[pose], pose).toBeTruthy();
     for (const pose of [...Object.values(FACE_ARMS), ...Object.values(POSE_ALT).flat()]) expect(ARM_POSES, pose).toContain(pose);
     for (const f of Object.keys(FACE_ARMS)) expect(ALL_FACES, f).toContain(f);
+  });
+  it('keeps no arm drawing, stand-in or plain-arms way that nothing asks for', () => {
+    // asked for: by a gesture, by a face, or held (the book)
+    const asked = new Set(['book', 'bookside', ...Object.values(ARM_ONE), ...Object.values(ARM_BOTH), ...Object.values(FACE_ARMS)]);
+    for (const k of [...Object.keys(POSE_ALT), ...Object.keys(ARM_FALLBACK)]) expect(asked.has(k), k).toBe(true);
+    for (const id of realPoses.filter(id => !WHOLE_POSES.includes(id))) expect(asked.has(id), `drawing ${id}`).toBe(true);
+    expect(existsSync(new URL('tex/pose_offer.png', DIR))).toBe(false);
   });
   it('builds every arm drawing on its own turn and hand warp, and the whole-body ones off the standing tree', () => {
     const R = buildRig(SYNTH);
@@ -413,6 +467,39 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
   it('has every part texture, RGBA, sized to its box', () => {
     for (const p of real.parts) texOk(new URL(`tex/${p.tex}.png`, DIR), p.box[2] * K, p.box[3] * K, p.tex);
   });
+  it('ships exactly the files model.json names under tex/ and feat/ (none missing, none left over)', () => {
+    // the pack export copies the whole folder: a stale drawing would ship too
+    const tex = new Set(real.parts.map(p => p.tex));
+    const walk = o => {
+      if (Array.isArray(o)) o.forEach(walk);
+      else if (o && typeof o === 'object') { if (typeof o.tex === 'string') tex.add(o.tex); Object.values(o).forEach(walk); }
+    };
+    walk(real.poses);
+    const feat = new Set(Object.keys(real.feat.sprites || {}));
+    for (const [e, f] of Object.entries(real.feat.eyes)) for (const n of ['lash', 'ball', 'iris', 'rim']) if (f[n]) feat.add(`${e}_${n}`);
+    const files = d => readdirSync(new URL(`${d}/`, DIR)).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)).sort();
+    expect(files('tex')).toEqual([...tex].sort());
+    expect(files('feat')).toEqual([...feat].sort());
+  });
+  it('leaves the side of her head on her right to the back hair: the fringe part stops well inside its outline', () => {
+    // the head's parallax parts the two by up to ~5 units there; a fringe edge across the outline shows as a nick
+    const part = id => ({ box: real.parts.find(p => p.id === id).box, ...alphaOf(new URL(`tex/${id}.png`, DIR)) });
+    const hb = part('hair_back'), fr = part('bangs');
+    const at = (t, x, y) => {
+      const i = Math.floor((x - t.box[0]) * K), j = Math.floor((y - t.box[1]) * K);
+      return i < 0 || j < 0 || i >= t.w || j >= t.h ? 0 : t.a[j * t.w + i];
+    };
+    let rows = 0;
+    // from just under the top of the head (where the outline changes hands, nearly level) down past the brows
+    for (let y = 38; y <= 74; y += .6) {
+      let edge = null;
+      for (let x = hb.box[0]; x < 128 && edge == null; x += 1 / K) if (at(hb, x, y) > 200) edge = x;
+      if (edge == null) continue;
+      rows++;
+      for (let x = edge - 2; x < edge + 5; x += 1 / K) expect(at(fr, x, y), `fringe at ${x.toFixed(1)}, ${y.toFixed(1)}`).toBeLessThan(8);
+    }
+    expect(rows).toBeGreaterThan(50);
+  });
   it('keeps her pivots mirrored about her middle, and every point inside the view', () => {
     const PV = real.pivots, mid = PV.head?.[0] ?? 128, view = real.view;
     for (const [l, r] of [['armL', 'armR'], ['footL', 'footR']]) {
@@ -490,14 +577,36 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
     expect(P.kneel.overlays.map(o => o.use).sort()).toEqual(['shut', 'smile', 'talk']);
     // the ball rolls on its edge: a support sample every 5°, all within the ball
     expect(P.roll.support).toHaveLength(72);
-    expect(P.roll.around).toBeGreaterThan(0);
     const rb = P.roll.required[0].box;
     for (const v of P.roll.support) expect(v > 0 && v <= Math.max(rb[2], rb[3]) * .6).toBe(true);
     expect(inside(P.roll.pivots.rollBall, [rb[0], rb[1], rb[0] + rb[2], rb[1] + rb[3]])).toBe(true);
+    // curled up she is well under her standing height (232), and 'around' is the ball's own perimeter
+    expect(rb[2]).toBeGreaterThan(130);
+    expect(Math.max(rb[2], rb[3])).toBeLessThan(180);
+    expect(P.roll.around).toBeGreaterThan(Math.PI * Math.min(rb[2], rb[3]) * .95);
+    expect(P.roll.around).toBeLessThan(Math.PI * Math.max(rb[2], rb[3]) * 1.05);
+    // at every turn the ball touches the floor: its lowest point is support[a] below the pivot
+    const [, py] = P.roll.pivots.rollBall;
+    expect(py + P.roll.support[0]).toBeCloseTo(256, 0);
     // her back stands on the floor, centred under her
     expect(P.back.pivots.backFlip).toEqual([128, 256]);
     const bb = P.back.required[0].box;
     expect(Math.abs(bb[1] + bb[3] - 256)).toBeLessThan(30);
+    // ...in three pieces: the body on the flip, the hair on its warp over it and (filled on behind her) under it
+    const bp = Object.fromEntries(P.back.required.map(p => [p.id, p]));
+    expect(Object.keys(bp).sort()).toEqual(['back_body', 'back_hair', 'back_hair_under']);
+    expect(bp.back_body.parent).toBe('backFlip');
+    expect([bp.back_hair.parent, bp.back_hair_under.parent]).toEqual(['backHair', 'backHair']);
+    expect(bp.back_hair_under.z).toBeLessThan(bp.back_body.z);
+    expect(bp.back_hair.z).toBeGreaterThan(bp.back_body.z);
+    expect(bp.back_hair_under.under).toBe(true);
+    // the warp starts at the nape (the head above it stays) and reaches the lowest tip
+    const hr = P.back.rects.hair, hb = bp.back_hair.box, ub = bp.back_hair_under.box;
+    expect(hr[1]).toBeGreaterThan(hb[1] + 60);
+    expect(hr[3]).toBeCloseTo(Math.max(hb[1] + hb[3], ub[1] + ub[3]), 1);
+    expect(hr[0]).toBeLessThanOrEqual(Math.min(hb[0], ub[0]) + .01);
+    expect(hr[2]).toBeGreaterThanOrEqual(Math.max(hb[0] + hb[2], ub[0] + ub[2]) - .01);
+    expect(R.deformers.backHair.rect).toEqual(hr);
     // seated: the body hangs on its own deformers, the head sinks a sane amount
     expect(P.sit.headDrop).toBeGreaterThan(10);
     expect(P.sit.headDrop).toBeLessThanOrEqual(SIT_LOW);
@@ -554,8 +663,10 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
     run(pet, .3);
     pet.doWord('away'); run(pet, .8);
     expect(alpha('back_body')).toBe(1);
-    // her hem and shoes stay on the floor while the back hair sways
-    expect(seen.last.st.backHair.fn(.5, 1).map(Math.abs)).toEqual([0, 0]);
+    expect([alpha('back_hair'), alpha('back_hair_under')]).toEqual([1, 1]);
+    // the back hair sways from the nape; the head and her body (on the flip, not the warp) stay put
+    expect(seen.last.st.backHair.fn(.5, 0).map(Math.abs)).toEqual([0, 0]);
+    expect(seen.last.st.backFlip.a ?? 0).toBe(0);
     pet.doWord('sit');
     let prev = 1, drop = 0;
     for (let i = 0; i < 60; i++) {

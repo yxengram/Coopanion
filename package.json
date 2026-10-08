@@ -1,7 +1,7 @@
 {
   "name": "coopanion",
   "productName": "Coopanion",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "A desktop companion built on Cortico: a pet on your screen that talks, listens and can operate the computer",
   "license": "AGPL-3.0-or-later",
@@ -21,6 +21,7 @@
     "build:icons": "electron scripts/make-icons.cjs",
     "export:whale": "node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs",
     "export:claude": "node packages/cortico-world-desktop-pet/scripts/export-claude-pack.mjs",
+    "export:gpt": "node packages/cortico-world-desktop-pet/scripts/export-gpt-pack.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "typecheck:web": "tsc -p tsconfig.web.json",

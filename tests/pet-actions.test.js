@@ -65,10 +65,12 @@ describe('the words the model can use', () => {
     }
   });
 
-  it('Claude-chan knows the same words but spout (she has no blowhole)', () => {
-    const words = (kind) => vocabOf('claude-chan').filter((v) => v.kind === kind).map((v) => v.id).sort();
-    expect(words('expression')).toEqual([...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS].sort());
-    expect(words('motion')).toEqual([...KIT_MOTIONS, ...PLUS_MOTIONS].filter((w) => w !== 'spout').sort());
+  it('Claude-chan and GPT-chan know the same words but spout (they have no blowhole)', () => {
+    for (const pack of ['claude-chan', 'gpt-chan']) {
+      const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
+      expect(words('expression'), pack).toEqual([...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS].sort());
+      expect(words('motion'), pack).toEqual([...KIT_MOTIONS, ...PLUS_MOTIONS].filter((w) => w !== 'spout').sort());
+    }
   });
 
   it('every expression has a face Coo can draw, the plus ones too', () => {
@@ -1391,7 +1393,7 @@ describe('what the page holds a pack to', () => {
     sfx.play('song', 'move');
     expect(made.voices).toBeGreaterThan(before);
     // the pages pass plus for exactly the built-in packs that are ours
-    expect(OWN_PACKS).toEqual(['coo', 'whale', 'claude-chan']);
+    expect(OWN_PACKS).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan']);
   });
 
   it("a body's box is kept to the stage and to the most the kit stretches a body", () => {

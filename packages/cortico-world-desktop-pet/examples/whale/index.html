@@ -65,14 +65,17 @@ const sfx = createSfx({ storageKey: 'whale-demo.sound' });
 ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => sfx.unlock(), { capture: true }));
 let scale = +$('#scale').value;
 const q = new URLSearchParams(location.search);
-// ?figure=coo shows Coo instead, for comparing the same motions, ?figure=claude-chan Claude-chan; each pack's figure.json lists its words
-const coo = q.get('figure') === 'coo', claude = q.get('figure') === 'claude-chan';
-const pack = coo ? '../../web/coo/' : claude ? '../../web/claude-chan/' : '../../web/whale/';
+// ?figure=coo shows Coo instead, for comparing the same motions, ?figure=claude-chan Claude-chan, ?figure=gpt-chan
+// GPT-chan; each pack's figure.json lists its words
+const coo = q.get('figure') === 'coo', claude = q.get('figure') === 'claude-chan', gpt = q.get('figure') === 'gpt-chan';
+const pack = coo ? '../../web/coo/' : claude ? '../../web/claude-chan/' : gpt ? '../../web/gpt-chan/' : '../../web/whale/';
 const load = async p => (await fetch(new URL(p, new URL(pack, location.href)))).json();
 const skin = coo ? defaultSkin() : null;
 if (coo) document.head.append(Object.assign(document.createElement('style'), { textContent: COO_CSS + skinCss(skin) }));
-// the whale never fetches: the page hands her the parsed model.json (Claude-chan likewise, her module loaded only when asked for)
-const createFigure = claude ? (await import('../../web/claude-chan/figure.js')).createClaudeFigure : createWhaleFigure;
+// the whale never fetches: the page hands her the parsed model.json (Claude-chan and GPT-chan likewise, their modules
+// loaded only when asked for)
+const createFigure = claude ? (await import('../../web/claude-chan/figure.js')).createClaudeFigure
+  : gpt ? (await import('../../web/gpt-chan/figure.js')).createGptFigure : createWhaleFigure;
 const figure = coo ? null : await createFigure(undefined, { model: await load('model.json'), scheme: q.get('scheme') || undefined });
 // `plus`: the kit's extra words, faces and poses, as in the app
 const ctl = createPet({ petG: $('#pet'), shadowEl: $('#shadow'), fxG: $('#fx') }, {
@@ -100,7 +103,7 @@ const schemeBtns = (figure?.schemes || []).map(sc => {
 
 // talking: a line of text into the bubble, one character at a time, the mouth moving with it
 let line = '', shown = 0, nextAt = 0;
-const LINES = [claude ? '你好呀，我是 Claude 娘～' : '你好呀，我是鲸鱼女仆～', '今天也要好好休息哦。', '要我帮你查点什么吗？', '嘿嘿，被发现了。'];
+const LINES = [claude ? '你好呀，我是 Claude 娘～' : gpt ? '……我是 GPT 娘。' : '你好呀，我是鲸鱼女仆～', '今天也要好好休息哦。', '要我帮你查点什么吗？', '嘿嘿，被发现了。'];
 $('#talk').onclick = () => { line = LINES[Math.floor(Math.random() * LINES.length)]; shown = 0; nextAt = 0; bubble.hidden = false; ctl.holdRoam(6); };
 const toggle = (id, fn) => { const b = $(id); b.onclick = () => { b.classList.toggle('on'); fn(b.classList.contains('on')); }; };
 toggle('#listen', on => { ctl.setListening(on); if (on) sfx.listenStart(); else sfx.listenEnd(); });

@@ -27,7 +27,10 @@ export function hoverButtonList(value: string): PetAction[] {
  * a figure pack's are `scheme` (src/packs.ts).
  */
 export interface PetSkin {
-  /** The figure pack on screen: coo (built in), whale (built in, web/whale), claude-chan (built in, web/claude-chan) or an installed pack's id. */
+  /**
+   * The figure pack on screen: coo (built in), whale (built in, web/whale), claude-chan (built in, web/claude-chan),
+   * gpt-chan (built in, web/gpt-chan) or an installed pack's id.
+   */
   figure?: string;
   /** The pack's pick: a preset id, or its axes' options joined by `-`. */
   scheme?: string;

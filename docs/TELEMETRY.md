@@ -50,7 +50,7 @@
 | `vendor` / `model` / `endpointKind` | 当前使用的模型服务，规则同上 |
 | `language` | 界面语言 |
 | `autostart` | 是否开机自动启动 |
-| `figure` / `scheme` / `roam` | 形象（Coo、大肥鱼或 Claude 娘）、配色、走动程度 |
+| `figure` / `scheme` / `roam` | 形象（Coo、大肥鱼、Claude 娘或 GPT 娘）、配色、走动程度 |
 | `voiceInput` | 语音输入是否打开 |
 | `asrEngine` / `micMode` / `talkKey` | 识别引擎（`funasr` / `system`）、收音方式（按住说 / 按一下开关 / 一直听）、说话键（键名，`*2` 表示先按一下再按住） |
 | `sound` / `sounds` | 音效总开关；按类的开关（动作、互动、表情、打呼噜、说话、按钮与提示）和呼噜时长 |

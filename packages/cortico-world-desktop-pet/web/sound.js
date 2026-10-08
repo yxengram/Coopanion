@@ -16,7 +16,7 @@ export const SOUND_KINDS = {
 /** The kinds a body's sounds are filed under; the rest belong to the page (talk, ui). */
 export const BODY_SOUND_KINDS = ['move', 'touch', 'face', 'snore'];
 /** Built-in pack ids that are ours and may ask for the plus tones (`usePack`'s `plus`). */
-export const OWN_PACKS = ['coo', 'whale', 'claude-chan'];
+export const OWN_PACKS = ['coo', 'whale', 'claude-chan', 'gpt-chan'];
 const KIND_OF = Object.fromEntries(Object.entries(SOUND_KINDS).flatMap(([kind, names]) => names.map((n) => [n, kind])));
 /** The tone each expression plays as it comes on, filed as a face sound (the kit's FACE_TONES plus the plus faces'). */
 export const EXPR_TONES = {

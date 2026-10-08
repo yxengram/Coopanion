@@ -197,6 +197,18 @@ describe('with a pet page', () => {
     expect(world.envPromptVars()['pet.body']).toContain('棕色书');
   });
 
+  it('dresses as the built-in GPT-chan, and as her exported pack, with her words (no spout)', async () => {
+    for (const figure of ['gpt-chan', 'coopanion-gpt-chan']) {
+      const { world } = await mounted((c) => { c.skin.figure = figure; c.skin.scheme = 'original'; });
+      const page = await FakePage.open(origin(world));
+      cleanup.push(() => page.close());
+      expect(page.init.skin).toMatchObject({ figure: 'gpt-chan', scheme: 'original' });
+      await tool(world, 'pet_act').handler({ actions: ['看书', '喷水'] }, ctx);
+      expect((await page.next((m) => m.t === 'act')).actions).toEqual(['read']);
+      expect(world.envPromptVars()['pet.body']).toContain('龙翼');
+    }
+  });
+
   it('merges repeated pokes into one touch event', async () => {
     const { world, host } = await mounted();
     const page = await FakePage.open(origin(world));

@@ -484,6 +484,12 @@
     636,
     604
    ],
+   "drag_mouth": [
+    468,
+    600,
+    520,
+    608
+   ],
    "cry_eyeL": [
     330,
     494,
@@ -726,6 +732,7 @@
     "surprised_mouth": 4,
     "love_mouth": 4,
     "dizzy_mouth": 6,
+    "drag_mouth": 10,
     "cry_mouth": 12,
     "smug_mouth": 10,
     "angry_mouth": 6,

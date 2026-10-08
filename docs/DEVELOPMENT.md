@@ -53,11 +53,11 @@ $env:CORTICO_COMPANION_DATA = "$env:TEMP\coo-test"; pnpm run start
 | `console/` | 覆盖在 Cortico 控制台上的入口:普通/高级两种模式,「开始」「习惯」「装扮」「语音输入」「电脑操作」五页,「系统提示词」页的「清空重开」,字标下的版本与更新提示(`features/release.ts`,版本号由 `scripts/stage.ts` 写进 `app-version.ts`) |
 | `app/` | Electron 主进程:托盘(Mac 上是菜单栏图标)、设置窗口(启动时不打开)、Core 子进程托管、桌宠窗口模式、自动更新(`updater.cjs`);`app/shims/` 是扩展安装用的 corepack 替身 |
 | `scripts/stage.ts` | 从 `vendor/cortico` 生成应用使用的 `build/cortico`:去掉内建的平台 World 与 llamacpp,叠加 `console/`,构建控制台 |
-| `scripts/pack.ts` | 组装扁平的 `build/app` 并调用 electron-builder;`installer/nsis.nsh` 定 Windows 默认安装位置、卸载时保留 `data`、卸载(非升级)时报告给统计服务;Mac 包是临时签名(ad hoc)的 dmg 与 zip |
+| `scripts/pack.ts` | 组装扁平的 `build/app` 并调用 electron-builder;`installer/nsis.nsh` 定 Windows 默认安装位置、卸载时保留 `data`;Mac 包是临时签名(ad hoc)的 dmg 与 zip |
 | `scripts/make-icons.cjs` | 用 Electron 把 Coo 的造型(`web/coo/coo.js`)画成 `app/icons` 与 `core/seed/avatar.png` |
+| `scripts/banner.mjs` | 画各 README 顶部的明暗 banner(Coo + `scripts/lettering.mjs` 的字形):`node scripts/banner.mjs <companion\|desktop-pet\|cua> <目录>` 在目录里写 `banner.svg` 与 `banner-dark.svg` |
 | `installer/install.ps1` | 一行命令安装用的脚本:下载最新 Release 的安装包并运行 |
 | `telemetry-server/` | 匿名使用统计的服务端(单文件 Node + SQLite);应用只在 `COOPANION_TELEMETRY_URL` 指向它时才发送,说明见 [telemetry-server/README.md](../telemetry-server/README.md) |
-| `promo/` | 宣传片与仓库 banner,网页渲染,说明见 [promo/README.md](../promo/README.md) |
 
 ## 发布
 
@@ -71,7 +71,7 @@ GitHub Actions 会构建 Windows 安装包和两个 Mac 包(Apple 芯片、Intel
 
 - 提 PR 前先跑 `pnpm run test`、`pnpm run test:worlds`、`pnpm run typecheck`、`pnpm run typecheck:web` 和 `pnpm run typecheck:worlds`，CI 也会跑这些检查。
 - 改到用户能看到的行为时,同步更新 [README](../README.md)。
-- 第一次提 PR 要签贡献者许可协议,见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
+- 贡献按 AGPL-3.0-or-later 发布,不用签协议,见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
 
 ## World 源码来源
 
@@ -87,4 +87,4 @@ Core 使用内置 Electron 的 Node 环境代理支持，读取 HTTP_PROXY/HTTPS
 
 装扮页通过 URL 初始值和父窗口消息跟随控制台主题，消息校验精确来源与父窗口；桌宠配色独立保存。
 
-执行 `node promo/banner.mjs companion assets` 同步生成 README 明暗 banner 与 `console/branding.ts`。复用现有字母几何，Coopanion 仅开头两个 o 着品牌绿色。生成后重新构建控制台。
+执行 `node scripts/banner.mjs companion assets` 同步生成 README 明暗 banner 与 `console/branding.ts`。复用现有字母几何，Coopanion 仅开头两个 o 着品牌绿色。生成后重新构建控制台。

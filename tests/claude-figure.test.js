@@ -3,7 +3,7 @@ import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import {
-  anchorsOf, approach, ARM_BOTH, ARM_FALLBACK, ARM_ONE, armPlan, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
+  anchorsOf, approach, ARM_BOTH, BODY_CUT, bodyAlphas, bodyStep, bodyWant, bowPose, SIT_CUT, ARM_FALLBACK, ARM_ONE, armPlan, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
   feetFromLegs, fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, SIT_LOW, sitAnchors, sitMix, sitRaise,
   ROLL_D, WHOLE_POSES,
 } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -240,7 +240,7 @@ describe('Claude-chan: motion helpers', () => {
   });
   it('rolls the ball without slipping, curling up tilted back and coming up tilted forward as much', () => {
     expect(KIT_ROLL_D).toBeCloseTo(2 * Math.PI * 100);
-    // ballAngle assumes the kit's full roll (it gets no dx): the two must not drift apart
+    // without the kit's travel (upstream's kit) ballAngle takes the full roll: the two must not drift apart
     expect(ROLL_D).toBe(KIT_ROLL_D);
     // a ball as big round as the kit's roll turns once, upright at both ends
     expect(ballAngle(0)).toBeCloseTo(0);
@@ -254,7 +254,55 @@ describe('Claude-chan: motion helpers', () => {
       // it only turns while she travels (the kit's rollTurn: k .2 .. .8)
       expect(ballAngle(.1, around)).toBe(a0);
       expect(ballAngle(.9, around)).toBe(a1);
+      // no travel given (upstream's kit) is the full roll
+      expect(ballAngle(.5, around, undefined)).toBe(ballAngle(.5, around));
+      expect(ballAngle(.5, around, NaN)).toBe(ballAngle(.5, around));
     }
+  });
+  it('rolls the ball only as far as the kit carries her, near a screen edge too', () => {
+    for (const around of [300, 504.55, ROLL_D]) {
+      for (const travel of [ROLL_D, 400, 250, 120, 3, 0, -2]) {
+        const a0 = ballAngle(0, around, travel), a1 = ballAngle(1, around, travel);
+        // the perimeter it rolls over is the way she goes
+        expect((a1 - a0) / 360 * around, `${around} ${travel}`).toBeCloseTo(travel, 6);
+        // the rest of a whole turn split: tilted back as much coming in as forward going out
+        expect(((a1 % 360) + 360) % 360).toBeCloseTo(((-a0 % 360) + 360) % 360, 6);
+        expect(Math.abs(a0)).toBeLessThanOrEqual(90);
+        // in step with the way along
+        const turn = k => { const u = Math.min(1, Math.max(0, (k - .2) / .6)); return u * u * (3 - 2 * u); };
+        if (travel) for (const k of [.3, .5, .7]) expect((ballAngle(k, around, travel) - a0) / (a1 - a0)).toBeCloseTo(turn(k), 9);
+      }
+    }
+    // with no room at all it does not turn
+    expect(ballAngle(0, 504.55, 0)).toBe(0);
+    expect(ballAngle(1, 504.55, 0)).toBe(0);
+  });
+  it('turns the ball on the rig as far as the kit rolls her, which a screen edge cuts short', () => {
+    const W = 400, S = .42;
+    const { fig, seen } = stubFigure(SYNTH);
+    const frames = [], draw = fig.draw;
+    fig.draw = (g, fc, o) => { draw.call(fig, g, fc, o); frames.push({ travel: o.gesture?.travel, a: seen.last.st.rollBall?.a }); };
+    const el = () => ({ setAttribute() {}, innerHTML: '' });
+    const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', startX: 200, bounds: () => ({ ...BOUNDS(), W }) });
+    pet.resize();
+    run(pet, .3);
+    pet.pet.facing = 1;
+    const x0 = pet.pet.x, xs = [];
+    expect(pet.doWord('roll')).toBe(true);
+    const from = frames.length;
+    for (let i = 0; i < 100; i++) { run(pet, 1 / 60); xs.push(pet.pet.x); }
+    const roll = frames.slice(from, from + 100), travel = roll[0].travel;
+    // short of the full roll: the room ahead, in rig units
+    expect(travel).toBeCloseTo((W - 104 * S - 8 - x0) / S, 6);
+    expect(travel).toBeLessThan(ROLL_D * .6);
+    // the ball's turn, frame by frame, is the way she goes (around = ROLL_D here)
+    expect(roll.filter(f => f.travel === travel).length).toBeGreaterThan(85);
+    for (let i = 1; i < roll.length; i++) {
+      if (roll[i].travel === undefined) continue; // the roll is over
+      expect((roll[i].a - roll[i - 1].a) / 360 * ROLL_D * S, `frame ${i}`).toBeCloseTo(xs[i] - xs[i - 1], 6);
+    }
+    expect((xs.at(-1) - x0) / S).toBeCloseTo(travel, 6);
+    expect(seen.bad).toEqual([]);
   });
   it('crossfades at a steady pace and never overshoots', () => {
     let v = 0;
@@ -622,10 +670,9 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
     expect(alpha('lie_body')).toBe(1);
     expect(seen.last.hideFront).toBe(true);
     pet.doWord('stand'); run(pet, 4);
-    // she goes down through the seated body, and the kneeling drawing covers it
-    pet.doWord('kneel'); run(pet, .4);
-    expect(alpha('sit_skirt')).toBeGreaterThan(0);
-    run(pet, 2.6);
+    // she goes down as the standing rig, and the kneeling drawing takes over from it (never the seated body between)
+    pet.doWord('kneel');
+    for (let i = 0; i < 180; i++) { run(pet, 1 / 60); expect(alpha('sit_skirt')).toBe(0); }
     expect(alpha('kneel_body')).toBe(1);
     expect(alpha('sit_skirt')).toBe(0);
     pet.doWord('sit'); run(pet, 2);
@@ -704,6 +751,76 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
 });
 
 describe('Claude-chan: sitting', () => {
+  it('hands over between bodies at the sit\'s cut, with a margin either way, never half in between', () => {
+    expect(bodyWant('stand', SIT_CUT.down - .01, { sitOK: true })).toBe('stand');
+    expect(bodyWant('stand', SIT_CUT.down + .01, { sitOK: true })).toBe('sit');
+    expect(bodyWant('sit', SIT_CUT.down - .01, { sitOK: true })).toBe('sit');
+    expect(bodyWant('sit', SIT_CUT.up - .01, { sitOK: true })).toBe('stand');
+    expect(bodyWant('stand', 1, { kneel: true })).toBe('kneel');
+    expect(bodyWant('stand', 1, { kneel: true, sitOK: true })).toBe('kneel');
+    // no seated drawing: she stays the standing rig
+    expect(bodyWant('stand', 1)).toBe('stand');
+    // the upper body of the two dissolves; the lower stays opaque under it, so the two never both show part-way
+    let B = { from: 'stand', to: 'stand', x: 1 };
+    expect(bodyAlphas(B)).toEqual({ stand: 1, sit: 0, kneel: 0 });
+    for (const [want, up] of [['sit', 'sit'], ['kneel', 'kneel'], ['sit', 'kneel'], ['stand', 'sit']]) {
+      let frames = 0;
+      do {
+        B = bodyStep(B, want, 1 / 120);
+        const a = bodyAlphas(B), part = Object.values(a).filter(v => v > 0 && v < 1);
+        expect(part.length, want).toBeLessThanOrEqual(1);
+        if (part.length) expect(a[up], want).toBe(part[0]);
+        frames++;
+      } while (B.x < 1);
+      expect(frames / 120, want).toBeLessThanOrEqual(BODY_CUT + 1e-9);
+      expect(bodyAlphas(B)[want]).toBe(1);
+    }
+    // a change of mind halfway runs the hand-over back from where it is
+    B = bodyStep({ from: 'stand', to: 'sit', x: .3 }, 'stand', 0);
+    expect(B).toEqual({ from: 'sit', to: 'stand', x: .7 });
+  });
+  it('bows deep: the upper body foreshortens and drops, the head drops further and pitches down', () => {
+    expect(bowPose(0)).toEqual({ pitch: 0, neckTy: 0, neckSy: 1, neckSx: 1, waistSy: 1, waistSx: 1, waistTy: 0 });
+    const b = bowPose(1);
+    expect(b.pitch).toBeGreaterThan(.9);
+    expect(b.waistSy).toBeLessThan(.85);
+    expect(b.neckTy).toBeGreaterThan(5);
+    expect(bowPose(2)).toEqual(b);
+  });
+  it.skipIf(!real)('on the real rig: a bow drops her head a good way while the skirt stays, and sitting or kneeling is a clean cut', () => {
+    const { fig, R: RR, seen } = stubFigure(real);
+    const pet = barePet(fig);
+    // (a standing part with no alpha set is drawn whole)
+    const alpha = id => seen.last.st.alpha[id] ?? (RR.STANDING[id] ? 1 : 0);
+    const chin = () => pointOf(RR.deformers, 'headMid', seen.last.st, 128, RR.HEAD[3] - 20)[1];
+    const hem = () => pointOf(RR.deformers, 'skirt', seen.last.st, 128, RR.SKIRT[3])[1];
+    run(pet, 1);
+    const [c0, h0] = [chin(), hem()];
+    pet.doWord('bow');
+    let deep = 0;
+    for (let i = 0; i < 96; i++) { run(pet, 1 / 60); deep = Math.max(deep, chin() - c0); expect(Math.abs(hem() - h0)).toBeLessThan(1); }
+    expect(deep).toBeGreaterThan(12);
+    run(pet, 1);
+    // down, up, down kneeling, and up again through the seated body: the standing skirt is opaque whenever the pool
+    // is part-way, the seated body (or the standing one) whenever the kneeling drawing is, and each cut takes a frame
+    const parts = ['skirt', 'sit_skirt', 'sit_top', 'kneel_body'];
+    // (kneeling, the whole standing rig is hidden under the drawing: hideFront)
+    const ends = { sit: [0, 1, 1, 0], stand: [1, 0, 0, 0], kneel: [1, 0, 0, 1] };
+    for (const [w, secs] of [['sit', 2], ['stand', 4], ['kneel', 2], ['sit', 1], ['stand', 4]]) {
+      pet.doWord(w);
+      let mixed = 0;
+      for (let i = 0; i < secs * 60; i++) {
+        run(pet, 1 / 60);
+        const [sk, pool, , kn] = parts.map(alpha);
+        if (pool > 0 && pool < 1) { expect(sk, w).toBe(1); mixed++; }
+        if (kn > 0 && kn < 1) { expect(Math.max(sk, pool), w).toBe(1); mixed++; }
+      }
+      expect(mixed, w).toBeLessThanOrEqual(1);
+      expect(parts.map(alpha), w).toEqual(ends[w]);
+      expect(seen.last.hideFront, w).toBe(w === 'kneel');
+    }
+    expect(seen.bad).toEqual([]);
+  });
   it('raises the kit\'s points by what her head sinks less than the kit\'s 29', () => {
     expect(sitRaise(0, 22)).toBe(0);
     expect(sitRaise(1, 22)).toBeCloseTo(7);

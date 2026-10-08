@@ -681,14 +681,46 @@ describe('lying down', () => {
 
 describe('a roll, a cup and a book', () => {
   /** A bare pet whose group transform is kept, to see the roll's turn. */
-  function rollPet(x = 300) {
+  function rollPet(x = 300, bounds = BOUNDS, opts = {}) {
     const attrs = {}, sfx = { play() {} };
     const petG = { setAttribute(k, v) { attrs[k] = v; }, innerHTML: '' }, el = () => ({ setAttribute() {}, innerHTML: '' });
-    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx, figure: cooFigure(), skin: defaultSkin(), plus: true, roam: 'off', startX: x, bounds: BOUNDS });
+    // Coo, with the frames' gestures kept
+    const fig = cooFigure(), draw = fig.draw, gestures = [];
+    fig.draw = (g, face, o) => { gestures.push(o.gesture); draw.call(fig, g, face, o); };
+    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx, figure: fig, skin: defaultSkin(), plus: true, roam: 'off', startX: x, bounds, ...opts });
     pet.resize();
     pet.turnOf = () => +(attrs.transform.match(/^rotate\(([-\d.]+) /)?.[1] ?? 0);
+    // the spin's drop: 26 * S while the ring is down on the floor, less while it is off it
+    pet.dropOf = () => +(attrs.transform.match(/^rotate\([^)]*\) translate\(0 ([-\d.]+)\)/)?.[1] ?? 0);
+    pet.transform = () => attrs.transform;
     pet.petHtml = () => petG.innerHTML;
+    pet.gestures = gestures;
     return pet;
+  }
+  /** A stage `W` wide (the body is 2 * (104 * .42 + 8) ≈ 103 across, standing). */
+  const narrow = W => () => ({ ...BOUNDS(), W });
+  /**
+   * Rolls `pet` (already facing the way wanted) and checks the ring never slides: while it is down on the floor it
+   * turns exactly as far as it goes (a turn of 360° is ROLL_D). Returns the frames' { x, a, drop, down, travel }.
+   */
+  function rollWatched(pet) {
+    expect(pet.act('roll')).toBe(true);
+    const S = .42, out = [];
+    for (let i = 0; i < 100; i++) {
+      pet.step(1 / 60); pet.render();
+      const drop = pet.dropOf();
+      out.push({ x: pet.pet.x, a: pet.turnOf(), drop, down: drop >= 26 * S - .1, travel: pet.gestures.at(-1)?.travel });
+    }
+    let slid = 0;
+    for (let i = 1; i < out.length; i++) {
+      const [p, q] = [out[i - 1], out[i]];
+      if (!p.down || !q.down) continue;
+      const turned = (q.a - p.a) / 360 * ROLL_D * S, went = q.x - p.x;
+      slid += Math.abs(turned - went);
+      expect(Math.abs(turned - went), `frame ${i}`).toBeLessThan(.25);
+    }
+    expect(slid).toBeLessThan(2);
+    return out;
   }
 
   it('rolls once round on the floor, one turn of the way along, and is up again where it stopped', () => {
@@ -717,6 +749,115 @@ describe('a roll, a cup and a book', () => {
     run(pet, 2);
     expect(pet.pet.x).toBeLessThan(1100 - ROLL_D * .42 + 1);
     expect(pet.pet.x).toBeGreaterThan(0);
+  });
+
+  it('a full roll tells the figure it went the whole way, and the ring rolls it without sliding', () => {
+    const pet = rollPet(300);
+    run(pet, 1);
+    pet.pet.facing = 1;
+    const x0 = pet.pet.x, out = rollWatched(pet);
+    expect(out[0].travel).toBeCloseTo(ROLL_D, 6);
+    expect((pet.pet.x - x0) / .42).toBeCloseTo(ROLL_D, 1);
+    // all the way on the floor: no hop
+    expect(out.filter(o => o.a > 1 && o.a < 359).every(o => o.down)).toBe(true);
+  });
+
+  it('near an edge it rolls as far as there is room: the frame says how far, the ring hops for the rest of its turn', () => {
+    // 400 wide: 148 px each way from the middle, short of the 264 px a roll goes
+    const pet = rollPet(200, narrow(400));
+    run(pet, 1);
+    pet.pet.facing = 1;
+    const x0 = pet.pet.x, out = rollWatched(pet);
+    const travel = out[0].travel;
+    expect(travel).toBeGreaterThan(300);
+    expect(travel).toBeLessThan(ROLL_D * .6);
+    // what the frame said is how far she went (the way she faces)
+    expect((pet.pet.x - x0) / .42).toBeCloseTo(travel, 1);
+    expect(pet.pet.x).toBeCloseTo(400 - 104 * .42 - 8, 6);
+    // the ring still turns once, ending upright, but off the floor for part of it
+    expect(Math.max(...out.map(o => o.a))).toBeGreaterThan(355);
+    expect(out.some(o => !o.down && o.a > 1 && o.a < 359)).toBe(true);
+    run(pet, 1);
+    expect(pet.turnOf()).toBe(0);
+    expect(pet.pet.pulse).toBeNull();
+  });
+
+  it('with no room either way she flips on the spot, the ring off the floor', () => {
+    const W = 2 * (104 * .42 + 8) + .2;
+    const pet = rollPet(W / 2, narrow(W));
+    run(pet, 1);
+    const x0 = pet.pet.x, out = rollWatched(pet);
+    expect(Math.abs(out[0].travel)).toBeLessThan(.5);
+    expect(Math.abs(pet.pet.x - x0)).toBeLessThan(.2);
+    expect(Math.max(...out.map(o => Math.abs(o.a)))).toBeGreaterThan(355);
+    // up off the floor as it turns: by 46 * S at the top (less the 26 * S it drops by), never down mid-turn
+    expect(Math.min(...out.map(o => o.drop))).toBeCloseTo(-20 * .42, 0);
+    expect(out.some(o => o.down && Math.abs(o.a) > 5 && Math.abs(o.a) < 355)).toBe(false);
+  });
+
+  it('off the edge it is facing (no room ahead, less than zero), she turns round and rolls the room behind, no slide', () => {
+    for (const [W, full] of [[1200, true], [300, false]]) {
+      const pet = rollPet(W / 2, narrow(W));
+      run(pet, 1);
+      const max0 = W - 104 * .42 - 8, min0 = 104 * .42 + 8;
+      pet.pet.x = max0 + 5; pet.pet.facing = 1;
+      const out = rollWatched(pet);
+      expect(pet.pet.facing, String(W)).toBe(-1);
+      // the push back on screen comes before the turn and is not counted
+      const want = full ? ROLL_D : (max0 - min0) / .42;
+      expect(out[0].travel, String(W)).toBeCloseTo(want, 6);
+      expect((max0 - pet.pet.x) / .42, String(W)).toBeCloseTo(want, 1);
+      expect(Math.min(...out.map(o => o.a)), String(W)).toBeLessThan(-355);
+    }
+  });
+
+  it('the frame carries no travel for any other gesture, nor for a pack word named roll', () => {
+    const pet = rollPet(300, BOUNDS, { words: { roll: { motion: { seconds: 1.5 } } } });
+    run(pet, 1);
+    pet.act('nod');
+    run(pet, .3);
+    expect(Object.keys(pet.gestures.at(-1))).toEqual(['kind', 'k']);
+    run(pet, 2);
+    expect(pet.doWord('roll')).toBe(true);
+    run(pet, .5);
+    expect(pet.gestures.at(-1)).toMatchObject({ kind: 'roll' });
+    expect(Object.keys(pet.gestures.at(-1))).toEqual(['kind', 'k']);
+    expect(pet.transform().startsWith('rotate')).toBe(false);
+  });
+
+  it("without plus, a pack's roll draws as with upstream's kit (v0.1.17): the same gestures and group, frame by frame", async () => {
+    const { execFileSync } = await import('node:child_process');
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { pathToFileURL } = await import('node:url');
+    const dir = mkdtempSync(join(tmpdir(), 'upstream-kit-'));
+    try {
+      for (const f of ['body.js', 'rig.js']) {
+        writeFileSync(join(dir, f), execFileSync('git', ['show', `v0.1.17:packages/cortico-world-desktop-pet/web/kit/${f}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+      }
+    } catch { return; } // a shallow checkout may lack the tag
+    writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
+    const up = await import(pathToFileURL(join(dir, 'body.js')).href);
+    const ours = await import('../packages/cortico-world-desktop-pet/web/kit/body.js');
+    const frames = (kit, W) => seeded(() => {
+      const log = [], el = () => ({ setAttribute() {}, innerHTML: '' });
+      const petG = { setAttribute(k, v) { log.push(v); }, innerHTML: '' };
+      const fig = { draw(g, face, o) { log.push(JSON.stringify(o.gesture)); } };
+      const pet = kit.createPet({ petG, shadowEl: el(), fxG: el() }, {
+        sfx: { play() {} }, figure: fig, plus: false, roam: 'off', startX: W - 60, words: { roll: { motion: { seconds: 1.5 } } },
+        bounds: () => ({ W, H: 400, floorY: 380, S: .42 }),
+      });
+      pet.resize();
+      for (const w of ['roll', 'nod', 'jump', 'roll']) { pet.doWord(w); run(pet, 2); }
+      return log;
+    }, 3);
+    for (const W of [1200, 300, 104]) {
+      const a = frames(ours, W), b = frames(up, W);
+      expect(a.length, String(W)).toBe(b.length);
+      expect(a.some(s => s.includes('"roll"')), String(W)).toBe(true);
+      expect(a.findIndex((s, i) => s !== b[i]), String(W)).toBe(-1);
+    }
   });
 
   it('takes no other order mid-roll, but a pick-up ends it', () => {

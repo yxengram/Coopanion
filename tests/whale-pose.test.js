@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -581,6 +581,27 @@ describe('a roll, as the whale draws it', () => {
     expect(rollTurn(.835)).toBe(1);
     expect(ballLift(ROLL.support, 360)).toBeCloseTo(ROLL.support[0], 5);
     expect(ballLift(ROLL.support, -5)).toBeCloseTo(ROLL.support[71], 5);
+  });
+
+  it('turns the ball only as far as the kit carries her (gesture.travel), the full roll when no kit says', () => {
+    expect(WHALE_ROLL_D).toBe(ROLL_D);
+    // a full roll is once round, upright at both ends (her ball is as big round as the kit's roll)
+    expect(ballAngle(0, ROLL.around)).toBeCloseTo(0, 0);
+    expect(ballAngle(1, ROLL.around)).toBeCloseTo(360, 0);
+    expect(ballAngle(.5, ROLL.around, undefined)).toBe(ballAngle(.5, ROLL.around, ROLL_D));
+    for (const travel of [ROLL_D, 450, 300, 100, 0, -3]) {
+      const a0 = ballAngle(0, ROLL.around, travel), a1 = ballAngle(1, ROLL.around, travel);
+      // rolling without slipping: the perimeter it turns over is the way she goes
+      expect((a1 - a0) / 360 * ROLL.around, String(travel)).toBeCloseTo(travel, 6);
+      expect(Math.abs(a0)).toBeLessThanOrEqual(90);
+      expect(((a1 % 360) + 360) % 360).toBeCloseTo(((-a0 % 360) + 360) % 360, 6);
+      // in step with the kit moving her
+      if (travel) for (const k of [.3, .5, .7]) expect((ballAngle(k, ROLL.around, travel) - a0) / (a1 - a0)).toBeCloseTo(coreRollTurn(k), 9);
+    }
+    expect(ballAngle(.6, ROLL.around, 0)).toBe(0);
+    // and the drawing turns by it, with the frame's travel
+    const src = readFileSync(new URL('../packages/cortico-world-desktop-pet/web/whale/figure.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/const a = ballAngle\(gk, ROLL\.around, g\?\.travel\)/);
   });
 });
 

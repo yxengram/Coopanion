@@ -73,14 +73,15 @@ export const rollTurn = k => smooth(.2, .8, k);
 /** How far one roll carries her (kit/body.js ROLL_D, rig units). */
 export const ROLL_D = 2 * Math.PI * 100;
 /**
- * The ball's turn (degrees) at `k` of a roll, rolling without slipping: it turns ROLL_D / `around` (its perimeter)
- * times while the kit carries her ROLL_D. Past whole turns, the rest is split: it curls up tilted back by half of it
- * and comes up tilted forward by the other half (a ball the size of the old one, around = ROLL_D, turns 0 → 360).
- * Assumes the full ROLL_D of travel: near a screen edge the kit rolls her shorter (kit/body.js caps pulse.dx by the
- * room, and the frame's `gesture` carries no dx), so the ball slips there, as the kit's own spin roll does.
+ * The ball's turn (degrees) at `k` of a roll, rolling without slipping: it turns `travel` / `around` (its perimeter)
+ * times while the kit carries her `travel` (the frame's gesture.travel, + forward: short of ROLL_D near a screen edge).
+ * Past whole turns, the rest is split: it curls up tilted back by half of it and comes up tilted forward by the other
+ * half (a ball the size of the old one, around = ROLL_D, turns 0 → 360 on a full roll). A kit that gives no travel
+ * (upstream's) rolls her the full ROLL_D.
  */
-export function ballAngle(k, around = ROLL_D) {
-  const turns = ROLL_D / Math.max(1, around), frac = turns - Math.round(turns);
+export function ballAngle(k, around = ROLL_D, travel = ROLL_D) {
+  const way = Number.isFinite(travel) ? travel : ROLL_D;
+  const turns = way / Math.max(1, around), frac = turns - Math.round(turns);
   return 360 * turns * rollTurn(k) - 180 * frac;
 }
 /** The curled-up drawing's share of a roll: almost a cut in the crouch, and out again as she springs up. */
@@ -146,6 +147,15 @@ export const GROUP = { air: [1, .3], drag: [1, .3], crouch: [1, .3], land: [1, .
 export function pitchFromLean(deg, share = 0) {
   const k = clamp(deg / 20, -.6, 1.4);
   return { pitch: .55 * k, neckTy: 3 * k, waistSy: 1 - .08 * k, waistTy: 2 * k, rot: clamp(deg * share, -6, 6) };
+}
+/**
+ * A bow (0..1, deepest at 1) as a figure facing you shows it: the upper body pitches toward you about the waist (it
+ * foreshortens, a little wider for being nearer, and drops), the head drops further and pitches down (shorter about
+ * the chin, the crown toward you), and the arms and book go with the upper body; the skirt stays.
+ */
+export function bowPose(k) {
+  k = clamp(k, 0, 1);
+  return { pitch: 1.05 * k, neckTy: 9 * k, neckSy: 1 - .1 * k, neckSx: 1 + .02 * k, waistSy: 1 - .2 * k, waistSx: 1 + .035 * k, waistTy: 3 * k };
 }
 /** The kit's foot at rest (y of a foot's centre on the floor). */
 export const FOOT_Y = 241;
@@ -280,10 +290,46 @@ export function sitAnchors(A, raise) {
 }
 /** Whether her arms are the seated body's own (hugging the book): nothing but the book or the plain arms planned. */
 export const sitOwnArms = plan => [plan.L, plan.R].every(k => k === 'book' || k === 'hangL' || k === 'hangR');
-/** The seated body's alphas: `sitA` the pool (from `k`, how far down she is), `topA` its arms and book (`own` 0..1). */
+/** The seated body's alphas: `sitA` the pool (its body's share, bodyAlphas), `topA` its arms and book (`own` 0..1). */
 export function sitMix(k, own) {
-  const sitA = smooth(.3, .7, k);
+  const sitA = clamp(k, 0, 1);
   return { sitA, topA: sitA * smooth(0, 1, own) };
+}
+
+/* ---------- which body shows: standing, seated (poses.sit) or kneeling (poses.kneel) ---------- */
+// The three never crossfade slowly (two bodies half there read as a double exposure): she sinks as the standing rig,
+// its skirt spreading toward the drawing's, and at SIT_CUT the drawing takes over in BODY_CUT seconds. Of the two
+// bodies in a hand-over, the upper (BODY_Z) dissolves and the lower stays opaque under it.
+export const BODY_Z = { stand: 0, sit: 1, kneel: 2 };
+/** The kit's sit (0..1) above which she shows the seated (or kneeling) body, and below which she stands again. */
+export const SIT_CUT = { down: .86, up: .8 };
+/** How long a hand-over between bodies takes (s): a frame, a cut where the shapes meet (more frames on a faster screen). */
+export const BODY_CUT = 1 / 60;
+/** How far the standing hem spreads (rig units, edge to edge, on top of its own) as she sinks, by the body to come. */
+export const SKIRT_SPREAD = { sit: 98, kneel: 46, none: 0 };
+/** The body she should show: `sit` the kit's sit, `kneel` a kneel with its drawing, `sitOK` the seated drawing there. */
+export function bodyWant(cur, sit, { kneel = false, sitOK = false } = {}) {
+  const seated = cur === 'stand' ? sit > SIT_CUT.down : sit > SIT_CUT.up;
+  if (!seated) return 'stand';
+  if (kneel) return 'kneel';
+  return sitOK ? 'sit' : 'stand';
+}
+/** A hand-over `{ from, to, x }` stepped toward the body `want`: a change of mind halfway runs it back. */
+export function bodyStep(B, want, dt) {
+  if (want !== B.to) {
+    if (want === B.from) B = { from: B.to, to: want, x: 1 - B.x };
+    else B = { from: B.x >= .5 ? B.to : B.from, to: want, x: 0 };
+  }
+  return { ...B, x: B.from === B.to ? 1 : approach(B.x, 1, dt, BODY_CUT) };
+}
+/** Each body's alpha in a hand-over: the upper one dissolves over the lower, which is opaque throughout. */
+export function bodyAlphas(B) {
+  const a = { stand: 0, sit: 0, kneel: 0 };
+  if (B.x >= 1 || B.from === B.to) { a[B.to] = 1; return a; }
+  const up = BODY_Z[B.to] > BODY_Z[B.from];
+  a[B.to] = up ? B.x : 1;
+  a[B.from] = up ? 1 : 1 - B.x;
+  return a;
 }
 /** The seated body's deformers and parts: `sitBase` on the floor under `body`, `sitTop` on the waist. */
 function sitRig(pose, deformers, parts) {
@@ -519,8 +565,9 @@ export function createMotion(model, R) {
     });
   };
   springs();
-  let prevTilt = 0, prevYaw = 0, prevLow = 0, wTilt = 0, wLean = 0, sitK = 0, danceK = 0, lieK = 0, kneelK = 0, sitDrawK = 0;
+  let prevTilt = 0, prevYaw = 0, prevLow = 0, wTilt = 0, wLean = 0, sitK = 0, danceK = 0, lieK = 0;
   let sitOwnK = 1, raiseNow = 0;  // (sit) the seated arms' share; how far her points rise over the kit's sink
+  let bodyB = { from: 'stand', to: 'stand', x: 1 }, dropNow = null;  // the body hand-over; the head's sink seated (eased)
   let perk = 0, swish = 0, droop = 0, browLift = 0, browInner = 0, browSide = 0, backA = 0, backOn = 1, awayA = 0, faceArmT = 0, sinceArmG = 9, lastFaceArm = null, lastArmG = null;
   let armA = { hangL: 1, hangR: 1 };
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
@@ -537,11 +584,17 @@ export function createMotion(model, R) {
     lieK = LIE && caps.pose('lie') ? lerp(lieK, clamp(o.lie ?? 0, 0, 1), ease(14, dt)) : 0;
     if (lieK < 1e-3) lieK = 0;
     const { poseA, hide } = poseMix(lieK);
-    // (sit) seated she shows the seated body, her head sunk less than `low`; a kneel with its own drawing goes down
-    // through it too (the drawing fades in over it), but then the kit's points follow the kneel's own head (kneelRaise)
+    // (sit) seated she shows the seated body, her head sunk less than `low`; a kneel with its own drawing shows that
+    // instead (cut in from the standing rig, never through the seated body), and the kit's points follow its head (kneelRaise)
     const kneelOK = !!KNEEL && caps.pose('kneel'), sitOK = !!SIT && caps.pose('sit');
-    const sitDrop = sitOK ? sitRaise(o.sit, SIT.drop) : 0;
-    raiseNow = o.kneel && kneelOK ? 0 : sitDrop;
+    const kneeling = !!o.kneel && kneelOK && !lieK;
+    // the body she shows (see bodyStep); kneeling, her live head sinks to the kneeling drawing's, so it takes over in place
+    bodyB = bodyStep(bodyB, bodyWant(bodyB.to, o.sit ?? 0, { kneel: kneeling, sitOK }), dt);
+    const bodyA = bodyAlphas(bodyB);
+    const dropT = kneeling && KNEEL.pose.headDrop != null ? KNEEL.pose.headDrop : sitOK ? SIT.drop : null;
+    dropNow = dropT == null ? null : dropNow == null || bodyA.kneel >= 1 ? dropT : approach(dropNow, dropT, dt, 1 / 8);
+    const sitDrop = dropNow == null ? 0 : sitRaise(o.sit, dropNow);
+    raiseNow = kneeling ? 0 : sitDrop;
     const lowB = low - sitDrop;
 
     /* the kit's short gestures, as she does them */
@@ -609,16 +662,16 @@ export function createMotion(model, R) {
     wTilt = lerp(wTilt, gT, ease(10, dt)); wLean = lerp(wLean, gL, ease(10, dt));
     const gNeck = shake * 2.5 - wave * 3 + (gkind === 'vsign' ? -5 * hold : 0) + (gkind === 'scratch' ? 5 * hold : 0) + (gkind === 'heart' ? 3 * Math.sin(gk * Math.PI * 4) * heart : 0);
     const gYaw = shake * 1.1 - awayFace * 1.3;
-    const fwd = bow * 20 - flinch * 8 + peek * (9 + 1.5 * Math.sin(t * 5)) + 3 * titter - 3 * inh + 6 * exh + curt * 10
+    const fwd = -flinch * 8 + peek * (9 + 1.5 * Math.sin(t * 5)) + 3 * titter - 3 * inh + 6 * exh
       + (is('read') ? 5 * hold : 0) + sip * 4 + (is('serve') || is('hug') ? 5 * hold : 0) + (is('pray') ? 4 * hold * (.6 + .4 * Math.sin(gk * Math.PI * 4)) : 0)
       - (is('hips') || is('cross') ? 3 * hold : 0) + (is('point') ? 3 * hold : 0) + awayFace * 4;
-    const P = pitchFromLean(fwd), PL = pitchFromLean(leanRest, .3);
+    const P = pitchFromLean(fwd), PL = pitchFromLean(leanRest, .3), B = bowPose(Math.max(bow, .45 * curt));
     const headA = headTilt + gNeck;
     const tiltVel = (headA - prevTilt) / Math.max(dt, 1e-3); prevTilt = headA;
     const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
     // facing you, the head turns a touch toward +x at rest; angleY + pitches the face down
     const angleX = clamp(clamp(look[0] / 5, -1, 1) * .9 + gYaw + .12, -1.4, 1.4);
-    const angleY = clamp(clamp(look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + P.pitch + PL.pitch
+    const angleY = clamp(clamp(look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + P.pitch + PL.pitch + B.pitch
       - flinch * .3 - .1 * inh + .3 * exh + awayFace * .35, -1.4, 1.4);
 
     /* springs */
@@ -747,17 +800,21 @@ export function createMotion(model, R) {
     }
     // the upper body sinks with the kit's `low` (sitting, the walk's bob); a bow shortens it instead of turning it
     st.waist = {
-      a: P.rot + PL.rot, ty: lowB + P.waistTy + PL.waistTy,
-      sy: (1 - .07 * titter) * (1 + .03 * inh - .03 * exh) * P.waistSy * PL.waistSy,
+      a: P.rot + PL.rot, ty: lowB + P.waistTy + PL.waistTy + B.waistTy, sx: B.waistSx,
+      sy: (1 - .07 * titter) * (1 + .03 * inh - .03 * exh) * P.waistSy * PL.waistSy * B.waistSy,
     };
     // the skirt: its top goes down with the waist, seated its hem settles on the floor and spreads; it bulges over a lifted foot
-    const hemK = sitK * hemDrop;
+    // sinking toward a seated drawing, the hem reaches the floor and spreads to its outline by the time it takes over
+    // (SIT_CUT, on the kit's own sit: the figure's sitK lags it)
+    const toward = kneeling ? 'kneel' : sitOK ? 'sit' : 'none';
+    const sinkK = toward === 'none' ? sitK : Math.max(sitK, clamp((o.sit ?? 0) / SIT_CUT.down, 0, 1));
+    const hemK = sinkK * hemDrop, spread = 16 * sitK + SKIRT_SPREAD[toward] * smooth(.25, 1, sinkK);
     st.skirt = {
       fn: (u, v) => {
         const k = v * v;
         let bulge = 0;
         for (let i = 0; i < 2; i++) bulge += feet[i].lift * Math.exp(-(((u - footU[i]) / .16) ** 2));
-        return [skirt * (4 + 4 * danceK) * k + flare * (u - .5) * 9 * v + sitK * (u - .5) * 16 * v + curt * (u - .5) * 14 * v,
+        return [skirt * (4 + 4 * danceK) * k + flare * (u - .5) * 9 * v + (u - .5) * spread * v + curt * (u - .5) * 14 * v,
           lerp(lowB, hemK, v) - flare * k * 3 - curt * 6 * k * Math.abs(u - .5) * 2 - bulge * .35 * smooth(.6, 1, v)];
       },
     };
@@ -768,7 +825,8 @@ export function createMotion(model, R) {
 
     st.neck = {
       a: headA + clamp(tiltRest * .8, -10, 12),
-      ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + nod * 2,
+      ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + B.neckTy + nod * 2,
+      sx: B.neckSx, sy: B.neckSy,
     };
     const turn = [angleX, angleY];
     const parallax = ([kx, ky]) => (u, v) => [angleX * kx * bump(u) * (.4 + .6 * bump(v)), angleY * ky * bump(v) * (.4 + .6 * bump(u))];
@@ -828,16 +886,14 @@ export function createMotion(model, R) {
     if (awayFace) { st.body.sx *= 1 - .12 * awayFace; st.body.a -= 3 * awayFace; }
     const ballA = is('roll') && ROLL && caps.pose('roll') ? ballMix(gk) : 0;
     if (ROLL) {
-      const a = ballAngle(gk, ROLL.pose.around), land = Math.sin(Math.PI * clamp((gk - .12) / .12, 0, 1)), sup = ROLL.pose.support;
+      const a = ballAngle(gk, ROLL.pose.around, g?.travel), land = Math.sin(Math.PI * clamp((gk - .12) / .12, 0, 1)), sup = ROLL.pose.support;
       st.rollBall = { a, ty: sup?.length ? sup[0] - ballLift(sup, a) : 0, sx: 1 + .05 * land, sy: 1 - .05 * land };
       for (const p of ROLL.parts) st.alpha[p.id] = caps.tex(p.tex) ? ballA : 0;
     }
-    // kneeling with a kneeling drawing: once she is down it fades in over the seated rig, as lying does
-    kneelK = lerp(kneelK, o.kneel && kneelOK && !lieK ? smooth(.5, 1, sitK) : 0, ease(10, dt));
-    if (kneelK < 1e-3) kneelK = 0;
+    // kneeling with a kneeling drawing: once she is down it takes over (bodyAlphas)
     let kneelA = 0;
     if (KNEEL) {
-      const a = kneelA = smooth(.15, .5, kneelK), shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, face, mode);
+      const a = kneelA = kneelOK ? bodyA.kneel : 0, shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, face, mode);
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
       for (const p of KNEEL.parts) {
         const use = p.use ? (p.use === 'shut' ? shut : m[p.use] || 0) : 1;
@@ -846,7 +902,7 @@ export function createMotion(model, R) {
     }
     // an opaque drawing over her (lying, her back, the ball, kneeling) hides the standing and the seated body alike
     const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
-    if (SIT) seated(st, o, fc, face, mode, dt, caps, sitOK, hideFront, plan);
+    if (SIT) seated(st, o, fc, face, mode, dt, caps, hideFront ? 0 : bodyA.sit, plan);
     return { st, hideFront, look, turn, steam, steamAt, puffK, poseShown: poseA, plan };
   }
 
@@ -854,15 +910,14 @@ export function createMotion(model, R) {
   const SIT_ARMS = [...HANG.hangL, ...HANG.hangR, ...Object.values(ARM).flatMap(A => A.parts.map(p => p.id))];
   const SIT_UNDER_IDS = [...SIT_UNDER, ...SHOES];
   /**
-   * The seated body's alphas: its pool comes in over the standing skirt as she goes down (which goes once the pool is
-   * opaque); its arms and book come in over every standing arm drawing, and give way to a gesture's or a face's arms
-   * (the standing torso and capelet show again under those). Gone under an opaque whole-body drawing (`hide`).
+   * The seated body's alphas at `bodyK`, its share of the hand-over (bodyAlphas; 0 under an opaque whole-body drawing):
+   * its pool comes in over the standing skirt (which goes once the pool is opaque); its arms and book over every
+   * standing arm drawing, and give way to a gesture's or a face's arms (the standing torso and capelet show again under
+   * those).
    */
-  function seated(st, o, fc, face, mode, dt, caps, sitOK, hide, plan) {
-    sitDrawK = lerp(sitDrawK, sitOK ? sitK : 0, ease(14, dt));
-    if (sitDrawK < 1e-3) sitDrawK = 0;
+  function seated(st, o, fc, face, mode, dt, caps, bodyK, plan) {
     sitOwnK = approach(sitOwnK, sitOwnArms(plan) ? 1 : 0, dt, ARM_FADE);
-    const { sitA, topA } = hide ? { sitA: 0, topA: 0 } : sitMix(sitDrawK, sitOwnK);
+    const { sitA, topA } = sitMix(bodyK, sitOwnK);
     const shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, face, mode);
     st.sitBase = {};
     st.sitTop = {};
@@ -903,11 +958,12 @@ export function createMotion(model, R) {
 
   function reset() {
     springs();
-    prevTilt = prevYaw = prevLow = wTilt = wLean = sitK = danceK = lieK = kneelK = sitDrawK = 0;
+    prevTilt = prevYaw = prevLow = wTilt = wLean = sitK = danceK = lieK = 0;
     perk = swish = droop = browLift = browInner = browSide = backA = awayA = faceArmT = kickPh = 0;
     backOn = 1;
     sinceArmG = 9; lastFaceArm = lastArmG = null;
-    sitOwnK = 1; raiseNow = 0;
+    sitOwnK = 1; raiseNow = 0; dropNow = null;
+    bodyB = { from: 'stand', to: 'stand', x: 1 };
     armA = { hangL: 1, hangR: 1 };
   }
 

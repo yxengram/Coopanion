@@ -277,7 +277,9 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  * - `away: 'hide'`: the figure has no back to show and hides its face by the frame's `away` instead, while the body
  *   does the turn's squash and lean; a figure without it (and without `away` in `gestures`) looks the other way.
  * - `roll: 'spin'`: the whole group turns over about the middle of the ring for a roll, the feet tucked in; a figure
- *   without it (and without `roll` in `gestures`) hops along.
+ *   without it (and without `roll` in `gestures`) hops along. A roll's `gesture` also has `travel`: how far it carries
+ *   her in all (logo units, + the way she faces), short of ROLL_D near a screen edge, so a ball drawn rolling turns
+ *   only that far (a pack in a kit without it assumes ROLL_D); the spin turns once all the same, off the floor for the rest.
  * - `squashFaces: true`: the faces' `sag` and `titter` squash the whole group.
  * - `liePoint(x, y, lie)`: where a standing point is in the lying drawing, for a figure that lies by turning its standing
  *   one (the bubble's spot and the box's top follow it).
@@ -496,10 +498,14 @@ export function createPet(els, opts) {
       // with little room ahead and more behind she turns round first
       case 'roll': {
         setMode('idle');
-        const room = d => (d > 0 ? maxX(0) - pet.x : pet.x - minX(0)), far = ROLL_D * S;
+        // (from where she stands: step brings her on screen before the turn starts, if she was off it)
+        const x0 = clamp(pet.x, minX(0), maxX(0));
+        const room = d => (d > 0 ? maxX(0) - x0 : x0 - minX(0)), far = ROLL_D * S;
         if (room(pet.facing) < far && room(-pet.facing) > room(pet.facing)) pet.facing *= -1;
         pulse('roll', 1.5);
-        Object.assign(pet.pulse, { x0: pet.x, dx: pet.facing * clamp(room(pet.facing), 0, far) });
+        const dx = pet.facing * clamp(room(pet.facing), 0, far);
+        // how far she rolls (logo units, the way she faces), all of it on screen: the figure turns her ball that far
+        Object.assign(pet.pulse, { x0, dx, travel: Math.abs(dx) / S });
         holdFace('happy', 1.9); play('roll', 'move'); break;
       }
       // a whale's song: eyes shut, swaying, rings of sound spreading out and notes rising (not while someone is talking to her)
@@ -1126,12 +1132,16 @@ export function createPet(els, opts) {
     const ax = 128, ay = drag ? 36 : 256;
     let AX = drag ? pet.dx : pet.x, AY = drag ? pet.dy : pet.fy;
     // (plus) a roll: a figure that turns over whole curls up and turns on the floor about the middle of its ring,
-    // dropping till the ring touches it; a figure that draws no roll of its own hops along instead
+    // dropping till the ring touches it; a figure that draws no roll of its own hops along instead.
+    // Short of a full roll's way (a screen edge) the ring still turns once, to end upright, but hops off the floor
+    // for the share of the turn the way along does not cover, so it never slides
     let rollXf = '';
     if (ours('roll') && !custom?.gestures?.includes('roll')) {
       const k = clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1);
       if (custom?.roll === 'spin') {
-        const drop = 26 * S * envelope(k, .18, .82), cy = AY - 128 * S * sy + drop;
+        // (up a little before the turn starts and down a little after it ends)
+        const hop = 46 * S * clamp(1 - (pet.pulse.travel ?? ROLL_D) / ROLL_D, 0, 1) * Math.sin(Math.PI * smooth(clamp((k - .14) / .72, 0, 1)));
+        const drop = 26 * S * envelope(k, .18, .82) - hop, cy = AY - 128 * S * sy + drop;
         rollXf = `rotate(${f(360 * rollTurn(k) * Math.sign(pet.facing))} ${f(AX)} ${f(cy)}) translate(0 ${f(drop)}) `;
       } else AY -= 46 * S * Math.sin(Math.PI * rollTurn(k));
     }
@@ -1154,6 +1164,8 @@ export function createPet(els, opts) {
     // (stone does not talk)
     const face = { ...fc, eyes, gap: pet.gap.map(g => Math.min(64, g + (fc.freeze ? 0 : pet.talkK) * 12)), blush: pet.blushK };
     const gesture = pet.pulse ? { kind: pet.pulse.kind, k: clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1) } : null;
+    // (plus) how far the roll carries her, so a figure's ball turns only that far round
+    if (ours('roll')) gesture.travel = pet.pulse.travel;
     custom.draw(petG, face, {
       look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing,
       face: fname, mode: pet.mode, modeT: pet.modeT, talk: pet.talkK, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot, gesture,

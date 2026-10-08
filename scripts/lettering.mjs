@@ -1,17 +1,15 @@
 /**
  * Lettering in the Cortico wordmark's construction (vendor/cortico/assets/cortico-banner.svg):
- * monoline strokes with round caps (19 wide here, 16 in the banner), a 48-unit x-height on the
+ * monoline strokes with round caps (16 wide in the banner), a 48-unit x-height on the
  * centre line y = 110, ascenders from y = 56, letters 31 units apart skeleton to skeleton, and
  * every "o" in the accent color. A capital C is the same arc at radius 42 standing on the
  * baseline; one that starts a later word gets a little extra space before it.
  *
- * `lettering` is the geometry alone and runs anywhere; `Wordmark` animates it in the promo, and
- * banner.mjs draws the repository banners from it.
+ * Geometry only; banner.mjs draws the repository banners and console/branding.ts from it.
  */
-import { ease, f1, seg, svgEl } from './util.js';
+const f1 = (n) => Math.round(n * 10) / 10;
 
-const R = 24, Y = 110, TOP = 86, BASE = 134, ASC = 56, GAP = 31, SW = 19, RC = 42, WORD = 12;
-const INK = '#1B1626', ACCENT = '#00A870';
+const R = 24, Y = 110, TOP = 86, BASE = 134, ASC = 56, GAP = 31, RC = 42, WORD = 12;
 const K = R * Math.SQRT1_2;
 const ring = (cx) => `M${cx} ${Y - R}A${R} ${R} 0 1 1 ${cx} ${Y + R}A${R} ${R} 0 1 1 ${cx} ${Y - R}`;
 
@@ -62,39 +60,3 @@ export function lettering(text, { cap, accentAt } = {}) {
 }
 /** Vertical extent of lettering in its own units: ascender and i-dot tops, descender bottom. */
 export const LETTER_BOX = { top: 40, centre: Y, bottom: 166 };
-
-/** A word drawn stroke by stroke; centred on x, its x-height centred on y, in stage pixels. */
-export class Wordmark {
-  constructor(parent, text, { x, y, scale = 1.4, stagger = .045, cap } = {}) {
-    const { width, glyphs } = lettering(text, { cap, accentAt: text === 'Coopanion' ? [1, 2] : undefined });
-    // viewBox covers the i dots above and the p descender below, plus the stroke radius
-    const vx = -SW, vy = LETTER_BOX.top, vw = width + 2 * SW, vh = LETTER_BOX.bottom - vy;
-    this.svg = svgEl('svg', { viewBox: `${vx} ${vy} ${vw} ${vh}`, width: f1(vw * scale), height: f1(vh * scale) });
-    Object.assign(this.svg.style, { position: 'absolute', left: `${f1(x - vw * scale / 2)}px`, top: `${f1(y - (Y - vy) * scale)}px`, overflow: 'visible' });
-    this.parts = glyphs.map((strokes) => strokes.map((s) => {
-      const el = s.dot
-        ? svgEl('circle', { cx: s.dot[0], cy: s.dot[1], r: 9, fill: INK })
-        : svgEl('path', { d: s.d, fill: 'none', stroke: s.accent ? ACCENT : INK, 'stroke-width': s.width ?? SW, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', pathLength: 1, 'stroke-dasharray': 1 });
-      this.svg.appendChild(el);
-      return el;
-    }));
-    this.stagger = stagger;
-    parent.appendChild(this.svg);
-  }
-  render(t, inAt, outAt = Infinity) {
-    const out = seg(t, outAt, outAt + .35);
-    this.svg.style.display = t < inAt - .05 || out >= 1 ? 'none' : '';
-    if (this.svg.style.display) return;
-    this.svg.style.opacity = String(f1((1 - out) * 100) / 100);
-    this.svg.style.transform = `translateY(${f1(-out * 30)}px)`;
-    this.parts.forEach((strokes, i) => {
-      const a = inAt + i * this.stagger;
-      strokes.forEach((el, j) => {
-        const k = ease.outCubic(seg(t, a + j * .06, a + j * .06 + .38));
-        if (el.tagName === 'circle') { el.setAttribute('r', f1(9 * ease.outBack(seg(t, a + .2, a + .45), 3))); return; }
-        el.setAttribute('stroke-dashoffset', f1((1 - k) * 1000) / 1000);
-        el.style.opacity = k > 0 ? '1' : '0';
-      });
-    });
-  }
-}

@@ -1,11 +1,11 @@
 {
   "name": "coopanion",
   "productName": "Coopanion",
-  "version": "0.1.17",
+  "version": "0.2.0",
   "private": true,
   "description": "A desktop companion built on Cortico: a pet on your screen that talks, listens and can operate the computer",
   "license": "AGPL-3.0-or-later",
-  "author": "Pal-AI-Lab",
+  "author": "Pal-AI-Lab, yxengram",
   "homepage": "https://github.com/yxengram/Coopanion",
   "type": "module",
   "main": "app/main.cjs",

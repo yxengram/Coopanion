@@ -2,7 +2,7 @@
 # macOS disk image and zip for the architecture of the Mac it is built on, or a Linux AppImage and deb.
 appId: ai.pal.coopanion
 productName: Coopanion
-copyright: Copyright © 2026 Pal-AI-Lab
+copyright: Copyright © 2026 Pal-AI-Lab, yxengram
 electronVersion: 44.4.4
 directories:
   app: build/app
@@ -68,7 +68,7 @@ linux:
   category: Utility
   executableName: coopanion
   synopsis: 桌面上的 AI 陪伴桌宠
-  maintainer: Pal-AI-Lab <phantivia@gmail.com>
+  maintainer: yxengram <21293076+yxengram@users.noreply.github.com>
   # ${arch} would read x86_64 for the AppImage and amd64 for the deb
   artifactName: Coopanion-${version}-linux-x64.${ext}
   desktop:

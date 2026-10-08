@@ -80,7 +80,7 @@ describe('exported whale pack', () => {
     if (fromGit) {
       const up = mkdtempSync(join(tmpdir(), 'upstream-packs-'));
       for (const f of ['packs.ts', 'script.ts']) {
-        writeFileSync(join(up, f), execFileSync('git', ['show', `origin/main:packages/cortico-world-desktop-pet/src/${f}`], { encoding: 'utf8' }));
+        writeFileSync(join(up, f), execFileSync('git', ['show', `${UPSTREAM_REF}:packages/cortico-world-desktop-pet/src/${f}`], { encoding: 'utf8' }));
       }
       const upstream = await import(pathToFileURL(join(up, 'packs.ts')).href);
       const gaps = [];

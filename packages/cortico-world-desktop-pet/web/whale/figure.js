@@ -82,6 +82,19 @@ export const BENT_RAISES = ['idea', 'salute', 'vsign', 'cover'];
 export const RAISE_TO = 80;
 /** A roll (`roll`) turns once, eased, over this part of the gesture (as the kit's rollTurn; the body travels with it). */
 export const rollTurn = k => smooth(.2, .8, k);
+/** How far one roll carries her (kit/body.js ROLL_D, rig units). */
+export const ROLL_D = 2 * Math.PI * 100;
+/**
+ * The ball's turn (degrees) at `k` of a roll, rolling without slipping: `travel` / `around` (its perimeter) turns as
+ * the kit carries her `travel` (the frame's gesture.travel, + forward: short of ROLL_D near a screen edge; a kit that
+ * gives none rolls her ROLL_D). Past whole turns the rest is split, tilted back by half of it as the ball comes in and
+ * forward by the other half as it goes (the ball shows only in between).
+ */
+export function ballAngle(k, around = ROLL_D, travel = ROLL_D) {
+  const way = Number.isFinite(travel) ? travel : ROLL_D;
+  const turns = way / Math.max(1, around), frac = turns - Math.round(turns);
+  return 360 * turns * rollTurn(k) - 180 * frac;
+}
 /**
  * The curled-up drawing's share of a roll: it covers her over the crouch, almost a cut (she is squashed low and
  * moving then), and gives her back as she springs up. 1 hides the standing rig.
@@ -1127,10 +1140,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       const sq = Math.max(away ? .3 * Math.sin(Math.PI * smooth(0, .12, gk)) + .3 * Math.sin(Math.PI * smooth(.88, 1, gk)) : 0, awayA > awayBack ? .3 * bump(awayA) : 0);
       if (canBack) st.body.sx *= 1 - sq;
     }
-    // rolling, the ball takes over from her in the crouch, turns once rolling on its edge, and gives her back as she pops up
+    // rolling, the ball takes over from her in the crouch, turns on its edge as far as she rolls, and gives her back as she pops up
     const ballA = g?.kind === 'roll' && ROLL && rollOK() ? ballMix(gk) : 0;
     if (ROLL) {
-      const a = 360 * rollTurn(gk), land = Math.sin(Math.PI * clamp((gk - .12) / .12, 0, 1));
+      const a = ballAngle(gk, ROLL.around, g?.travel), land = Math.sin(Math.PI * clamp((gk - .12) / .12, 0, 1));
       st.rollBall = { a, ty: ROLL.support[0] - ballLift(ROLL.support, a), sx: 1 + .05 * land, sy: 1 - .05 * land };
       for (const p of ROLL.required) st.alpha[p.id] = tex[p.tex] ? ballA : 0;
     }

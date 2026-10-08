@@ -379,6 +379,13 @@ export function sitAnchors(A, raise) {
   if (A.hearts) out.hearts = [A.hearts[0], A.hearts[1], f1(A.hearts[2] - raise)];
   return out;
 }
+/**
+ * The kit's anchors as she gives them (figure.anchors): raised by `raise` (motion.sitRaise, seated or kneeling) and no
+ * `kneelRaise`, which the kit would add while its kneel is on: her raise has it already, and keeps it after.
+ */
+export function liveAnchors(A, raise) {
+  return { ...sitAnchors(A, raise), kneelRaise: 0 };
+}
 /** Whether her arms are the seated body's own (resting in her lap): nothing but the plain arms planned. */
 export const sitOwnArms = plan => [plan.L, plan.R].every(k => k === 'hangL' || k === 'hangR');
 /** The seated body's alphas: `sitA` the pool (its body's share, bodyAlphas), `topA` its arms (`own` 0..1). */
@@ -700,7 +707,8 @@ export function createMotion(model, R) {
     lieB = LIE && caps.pose('lie') ? lieStep(lieB, lieK, dt) : { on: false, a: 0 };
     const { poseA, hide } = poseMix(lieB.a);
     // (sit) seated she shows the seated body, her head sunk less than `low`; a kneel with its own drawing shows that
-    // instead (cut in from the standing rig, never through the seated body), and the kit's points follow its head (kneelRaise)
+    // instead (cut in from the standing rig, never through the seated body); either way the kit's points rise with her
+    // head (raiseNow, figure.anchors)
     const kneelOK = !!KNEEL && caps.pose('kneel'), sitOK = !!SIT && caps.pose('sit');
     const kneeling = !!o.kneel && kneelOK && !lieK;
     // the body she shows (see bodyStep); kneeling, her live head sinks to the kneeling drawing's, so it takes over in place
@@ -717,7 +725,11 @@ export function createMotion(model, R) {
     // holds at once, or kneel → sit would float the seated bodice over its lap for seconds)
     dropNow = dropT == null ? null : dropNow == null || bodyA.kneel >= 1 || bodyA.sit >= 1 ? dropT : approach(dropNow, dropT, dt, 1 / 8);
     const sitDrop = dropNow == null ? 0 : sitRaise(o.sit, dropNow);
-    raiseNow = kneelNow ? 0 : sitDrop;
+    // her points rise by what her head sinks less than the kit's `low`, kneeling too (so the kit gets no kneelRaise:
+    // liveAnchors): the kit's kneel goes off the moment she gets up, while the kneeling drawing stays a second or more,
+    // and the kit reads her points before she draws, so a raise of the kit's own would drop them onto her chest for that
+    // second (and for a frame whenever its kneel came or went)
+    raiseNow = sitDrop;
     const lowB = low - sitDrop;
 
     /* the kit's short gestures, as she does them */
@@ -1137,7 +1149,7 @@ export function createMotion(model, R) {
     get arms() { return { ...armA }; },
     get lieK() { return lieK; },
     get sitK() { return sitK; },
-    /** (sit) How far the kit's points must rise seated (figure.anchors). */
+    /** How far the kit's points must rise, seated or kneeling (figure.anchors). */
     get sitRaise() { return raiseNow; },
   };
 }

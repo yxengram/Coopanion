@@ -13,7 +13,7 @@
  */
 import { createRig } from '../kit/rig.js';
 import * as kit from '../kit/body.js';
-import { anchorsOf, buildRig, clamp, createMotion, extentOf, fxPointsOf, hitsOf, sitAnchors, smooth } from './motion.js';
+import { anchorsOf, buildRig, clamp, createMotion, extentOf, fxPointsOf, hitsOf, liveAnchors, smooth } from './motion.js';
 import { createFacePainter, EYES } from './face.js';
 import { fxMarkup } from './fx.js';
 
@@ -258,13 +258,11 @@ export async function createGptFigure(base = new URL('./', import.meta.url), opt
     get poses() { return { lie: !!R.W.lie && caps.pose('lie'), back: true }; },
     schemes: SCHEMES,
     /**
-     * The kit's points (read every frame); seated (sit) they rise by what her head sinks less than the kit's 29.
-     * Kneeling without its drawing she shows the seated body, whose raise is already in: no `kneelRaise` on top.
+     * The kit's points (read every frame); seated or kneeling they rise by what her head sinks less than the kit's 29,
+     * and the kit adds no `kneelRaise` of its own: getting up from a kneel its kneel is off while the kneeling drawing
+     * still shows, and the points stay on that drawing's head (liveAnchors).
      */
-    get anchors() {
-      const A = sitAnchors(anchors, motion.sitRaise);
-      return A.kneelRaise && !caps.pose('kneel') ? { ...A, kneelRaise: 0 } : A;
-    },
+    get anchors() { return liveAnchors(anchors, motion.sitRaise); },
     extent,
     hits,
     model,

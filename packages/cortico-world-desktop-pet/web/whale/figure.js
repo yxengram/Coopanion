@@ -137,23 +137,40 @@ export const kneelStep = (b, kneelK, dt) => approach(b, kneelK > (b >= .5 ? .3 :
  */
 export const sitStep = (b, sit, airborne, dt) => approach(b, !airborne && (b >= .5 ? sit > .45 : sit > .55) ? 1 : 0, dt, BODY_CUT);
 /**
- * Her seated lower body and kneeling drawing over a frame: `S` is { sitB, kneelK, kneelB, prevSit } (sitStep's share,
- * her eased kneel, kneelStep's share, the kit's sit last frame), `o` the kit's frame, `sitK` her eased sit, `lying`
- * whether she lies at all, `kneelOK` whether the scheme has the kneeling drawing. The drawing cuts in once she is down.
+ * Her seated lower body and kneeling drawing over a frame: `S` is { sitB, kneelK, kneelB, prevSit, up } (sitStep's
+ * share, her eased kneel, kneelStep's share, the kit's sit last frame, her points' raise), `o` the kit's frame, `sitK`
+ * her eased sit, `lying` whether she lies at all, `kneelOK` whether the scheme has the kneeling drawing, `kneelRaise`
+ * how much higher her kneeling head sits than the kit's seated sink. The drawing cuts in once she is down.
  * Getting up from a kneel the kit's kneel is already off while she wakes (a second at sit 1) and its sit comes down:
  * she keeps kneeling until the seated body would go too, rather than showing it (legs forward) on the way up. A sit
  * word after a kneel leaves the kit's sit where it is, so then she does sit.
+ * `up` is how far the kit's points rise for her kneeling head (figure.anchors; the kit then adds no kneelRaise of its
+ * own): `kneelRaise` by the kit's sit, as the kit would, while its kneel is on or the drawing shows, and getting up
+ * on down with her sit till she is up, so they never drop to the seated sink on the way. The kit's own raise would
+ * stop the moment its kneel does (and it reads her points before she draws, a frame late whatever she does).
  */
-export function seatStep(S, o, { sitK, airborne = false, lying = false, kneelOK = false }, dt) {
+export function seatStep(S, o, { sitK, airborne = false, lying = false, kneelOK = false, kneelRaise = 0 }, dt) {
   const sit = o.sit ?? 0, rising = sit < S.prevSit - 1e-4;
   const sitB = sitStep(S.sitB, sit, airborne, dt);
   const keep = kneelOK && !o.kneel && !lying && S.kneelB >= .5 && sitB > 0 && (o.mode === 'wake' || rising);
   let kneelK = lerp(S.kneelK, o.kneel && kneelOK && !lying ? smooth(.5, 1, sitK) : 0, ease(10, dt));
   if (kneelK < 1e-3) kneelK = 0;  // the easing alone never reaches zero
   const kneelB = !kneelOK ? 0 : keep ? approach(S.kneelB, 1, dt, BODY_CUT) : kneelStep(S.kneelB, kneelK, dt);
-  return { sitB, kneelK, kneelB, prevSit: sit };
+  const k = kneelRaise * clamp(sit, 0, 1);
+  const up = o.kneel || kneelB > 0 ? k : S.up > 0 && rising ? Math.min(S.up, k) : 0;
+  return { sitB, kneelK, kneelB, prevSit: sit, up };
 }
-const SEATED_NOT = { sitB: 0, kneelK: 0, kneelB: 0, prevSit: 0 };
+const SEATED_NOT = { sitB: 0, kneelK: 0, kneelB: 0, prevSit: 0, up: 0 };
+/** The kit's anchors `A` with the head's points (all but the lying ones) raised by `r`. */
+export function liftAnchors(A, r) {
+  if (!(r > 0)) return A;
+  const up = p => [p[0], f1(p[1] - r)];
+  const out = { ...A };
+  for (const k of ['gaze', 'tear', 'z', 'bubble', 'spout', 'bulb']) if (A[k]) out[k] = up(A[k]);
+  for (const k of ['tears', 'glints']) if (A[k]) out[k] = A[k].map(up);
+  if (A.hearts) out.hearts = [A.hearts[0], A.hearts[1], f1(A.hearts[2] - r)];
+  return out;
+}
 export function lieStep(L, lieK, dt) {
   const on = L.on ? lieK > LIE_CUT.up : lieK > LIE_CUT.down;
   return { on, a: approach(L.a, on ? 1 : 0, dt, BODY_CUT) };
@@ -463,6 +480,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   }
   const kneelOK = () => !!(cur.kneel && (!fade || fade.set.kneel));
   let seat = SEATED_NOT;  // her seated lower body and kneeling drawing (seatStep)
+  // kneeling, her head sits this much higher than the seated rig's (which the points otherwise follow down)
+  const KNEEL_RAISE = KNEEL ? f1(29 - KNEEL.headDrop) : 0;
   /** Whether her back can show now: she has the drawing and is standing (seated or lying she turns as before). */
   const backable = () => !!BACK && backOK() && sitK < .5 && !lieK;
 
@@ -953,7 +972,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // sitting swaps the lower body for its own drawing (skirt spread on the floor, legs forward) in a frame halfway
     // down (on the kit's own sit: sitK lags it), under a little squash; a crossfade would show both skirts at once
     // (kneeling, the kneeling drawing cuts in over the seated rig once she is down, and stays till she is up: seatStep)
-    seat = seatStep(seat, o, { sitK, airborne, lying: !!lieK, kneelOK: !!KNEEL && kneelOK() }, dt);
+    seat = seatStep(seat, o, { sitK, airborne, lying: !!lieK, kneelOK: !!KNEEL && kneelOK(), kneelRaise: KNEEL_RAISE }, dt);
     const sitIn = seat.sitB, plop = Math.sin(Math.PI * smooth(.3, .8, sitK));
 
     /* arms: swing against the legs when walking, out in the air, flailing when held */
@@ -1354,6 +1373,16 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (fx !== s) { fxG.innerHTML = s; fx = s; }
   }
 
+  // points the kit uses: eye tracking, a tear and one under each eye (where the streams run), sleep z's, hearts [x from, x to, y], bubble
+  const POINTS = {
+    gaze: [U(745), V(690)], tear: [U(640), V(752)], tears: [[U(654), V(752)], [U(852), V(750)]], z: [196, 44],
+    hearts: [96, 176, 62], bubble: [128, 18], glints: [[48, 32], [208, 46]],
+    // a spout leaves the top of her head, just behind the ahoge
+    spout: [140, 42],
+    // the same, plus the hit ellipse [cx, cy, rx, ry] and half width, lying on her front (the spout from the lying head's crown)
+    ...(LIE ? { lie: { ...LIE.anchors, spout: [(LIE.rects.head[0] + LIE.rects.head[2]) / 2, LIE.rects.head[1] + 12] } } : {}),
+  };
+
   return {
     draw,
     groupTilt,
@@ -1397,17 +1426,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     /** Which poses of her own she can show now (the current scheme has their files): the kit keeps her seated otherwise. */
     get poses() { return { lie: !!LIE && poseOK(), back: backable() }; },
     schemes: SCHEMES,
-    // points the kit uses: eye tracking, a tear and one under each eye (where the streams run), sleep z's, hearts [x from, x to, y], bubble
-    anchors: {
-      gaze: [U(745), V(690)], tear: [U(640), V(752)], tears: [[U(654), V(752)], [U(852), V(750)]], z: [196, 44],
-      hearts: [96, 176, 62], bubble: [128, 18], glints: [[48, 32], [208, 46]],
-      // a spout leaves the top of her head, just behind the ahoge
-      spout: [140, 42],
-      // kneeling, her head sits this much higher than the seated rig's (which the points otherwise follow down)
-      ...(KNEEL ? { kneelRaise: f1(29 - KNEEL.headDrop) } : {}),
-      // the same, plus the hit ellipse [cx, cy, rx, ry] and half width, lying on her front (the spout from the lying head's crown)
-      ...(LIE ? { lie: { ...LIE.anchors, spout: [(LIE.rects.head[0] + LIE.rects.head[2]) / 2, LIE.rects.head[1] + 12] } } : {}),
-    },
+    /**
+     * The points the kit uses (read every frame), raised for her kneeling head (seatStep's `up`: she gives the raise,
+     * so there is no `kneelRaise` for the kit to add).
+     */
+    get anchors() { return liftAnchors(POINTS, seat.up); },
     model,
   };
 }

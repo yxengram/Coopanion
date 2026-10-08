@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { createPet, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -764,5 +764,66 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
     expect(seat.sitB).toBe(1);
     // without the drawing she kneels as the seated rig
     expect(seatStep({ sitB: 1, kneelK: 1, kneelB: 1, prevSit: 1 }, { sit: 1, kneel: true, mode: 'sit' }, { sitK: 1 }, 1 / 60).kneelB).toBe(0);
+  });
+  it('keeps the kit\'s points on her kneeling head while she gets up, and seated after a sit word', () => {
+    // her points as figure.js gives them: raised by seatStep's `up`, with no kneelRaise for the kit to add
+    const src = readFileSync(new URL('figure.js', WHALE), 'utf8');
+    expect(src).toMatch(/seat = seatStep\(seat, o, \{[^}]*kneelRaise: KNEEL_RAISE \}, dt\);/);
+    expect(src).toMatch(/get anchors\(\) \{ return liftAnchors\(POINTS, seat\.up\); \}/);
+    expect(src).not.toMatch(/const POINTS = \{[^;]*kneelRaise/);
+    const K = 29 - model.poses.kneel.headDrop, POINTS = { gaze: [140, 110], tears: [[120, 120], [150, 120]], hearts: [96, 176, 62], bubble: [128, 18] };
+    const el = () => ({ setAttribute() {}, innerHTML: '' });
+    let seat = { sitB: 0, kneelK: 0, kneelB: 0, prevSit: 0, up: 0 }, sitK = 0;
+    const fig = {
+      draw(_g, _fc, o) {
+        sitK += (Math.min(1, Math.max(0, o.sit ?? 0)) - sitK) * (1 - Math.exp(-12 / 60));
+        seat = seatStep(seat, o, { sitK, airborne: o.mode === 'air', kneelOK: true, kneelRaise: K }, 1 / 60);
+      },
+      get anchors() { return liftAnchors(POINTS, seat.up); },
+      poses: { kneel: true },
+    };
+    const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    pet.resize();
+    const run = s => { for (let i = 0; i < s * 60; i++) { pet.step(1 / 60); pet.render(); } };
+    // how far the bubble's spot is below her standing one, in kit units (the kit's own transform undone)
+    const sink = () => {
+      const p = pet.anchor(), c = pet.pet.xf, r = c.rot * Math.PI / 180;
+      return (-(p.x - c.AX) * Math.sin(r) + (p.y - c.AY) * Math.cos(r)) / c.ky + c.ay - POINTS.bubble[1];
+    };
+    expect(liftAnchors(POINTS, 0)).toBe(POINTS);
+    expect(liftAnchors(POINTS, 5)).toEqual({ gaze: [140, 105], tears: [[120, 115], [150, 115]], hearts: [96, 176, 57], bubble: [128, 13] });
+    run(.5);
+    pet.doWord('kneel'); run(3);
+    expect(seat.kneelB).toBe(1);
+    // kneeling they are on the drawing's head: raised once (hers), not twice
+    expect(sink()).toBeCloseTo(model.poses.kneel.headDrop, 0);
+    // getting up the kit's kneel is off from the first frame, while she wakes (a second at sit 1) on the kneeling
+    // drawing: the points stay on its head, and from there they only go up, through the drawing's cut too (never down
+    // toward the seated sink)
+    pet.doWord('stand');
+    let still = 0, off = 0, down = 0, last = sink(), cut = false;
+    for (let i = 0; i < 4 * 60; i++) {
+      run(1 / 60);
+      const s = sink();
+      down = Math.max(down, s - last);
+      last = s;
+      if (seat.kneelB === 0 && seat.prevSit > .2) cut = true;
+      if (seat.kneelB >= 1 && pet.pet.sitK > .999) { still++; off = Math.max(off, Math.abs(s - model.poses.kneel.headDrop)); }
+    }
+    expect(still).toBeGreaterThan(30);
+    expect(cut).toBe(true);
+    expect(off).toBeLessThan(.5);
+    expect(down).toBeLessThan(.5);
+    expect(sink()).toBeCloseTo(0, 0);
+    // a sit word after a kneel: the kneeling drawing goes, and so does the raise (the seated rig's points are the kit's)
+    pet.doWord('kneel'); run(3);
+    pet.doWord('sit'); run(2);
+    expect(seat.kneelB).toBe(0);
+    expect(sink()).toBeCloseTo(29, 0);
+    // kneeling the raise is the kit's kneelRaise by its sit, drawing or not; seated or standing there is none
+    const opt = { sitK: 1, kneelOK: true, kneelRaise: K };
+    expect(seatStep({ sitB: 1, kneelK: 0, kneelB: 0, prevSit: .5 }, { sit: .5, kneel: true, mode: 'sit' }, { ...opt, kneelOK: false }, 1 / 60).up).toBeCloseTo(K / 2);
+    expect(seatStep({ sitB: 1, kneelK: 0, kneelB: 0, prevSit: 1 }, { sit: 1, mode: 'sit' }, opt, 1 / 60).up).toBe(0);
+    expect(seatStep({ sitB: 1, kneelK: 0, kneelB: 0, prevSit: 1 }, { sit: 1, kneel: true, mode: 'sit' }, { ...opt, kneelRaise: 0 }, 1 / 60).up).toBe(0);
   });
 });

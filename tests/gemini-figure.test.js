@@ -4,7 +4,7 @@ import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, P
 import {
   anchorsOf, approach, ARM_BOTH, ARM_FALLBACK, ARM_ONE, armPlan, ballAngle, bowPose, buildRig, createMotion, extentOf, FACE_ARMS, feetFromLegs,
   fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, ROLL_D, SIT_BESIDE, SIT_LOW, sitAnchors, sitOwnArms, sitRaise,
-  tailField, WHOLE_POSES, EAR, EAR_MOOD, earFlick, earStates, TAIL, tailFlick,
+  tailField, WHOLE_POSES, EAR, EAR_MOOD, earFlick, earStates, TAIL, tailFlick, liveAnchors,
 } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gemini-chan/fx.js';
@@ -665,6 +665,51 @@ describe('Gemini-chan: faces', () => {
 });
 
 describe('Gemini-chan: sitting and bowing', () => {
+  it.skipIf(!real)('on the real rig: the kit\'s points stay on her kneeling head while she gets up, and end seated after a sit word', () => {
+    // her points as figure.js gives them to the kit: liveAnchors over anchorsOf, raised by her motion each frame
+    const { fig, motion, R: RR, seen } = stubFigure(real);
+    const base = anchorsOf(real, RR);
+    Object.defineProperty(fig, 'anchors', { get: () => liveAnchors(base, motion.sitRaise) });
+    const pet = barePet(fig);
+    const alpha = id => seen.last.st.alpha[id] ?? (RR.STANDING[id] ? 1 : 0);
+    // how far the bubble's spot is below her standing one, in kit units (the kit's own transform undone)
+    const sink = () => {
+      const p = pet.anchor(), c = pet.pet.xf, r = c.rot * Math.PI / 180;
+      return (-(p.x - c.AX) * Math.sin(r) + (p.y - c.AY) * Math.cos(r)) / c.ky + c.ay - base.bubble[1];
+    };
+    const kneelDrop = real.poses.kneel.headDrop;
+    run(pet, 1);
+    pet.doWord('kneel'); run(pet, 3);
+    expect(alpha('kneel_body')).toBe(1);
+    // kneeling they are on the drawing's head: raised once (hers), not twice (hers and a kneelRaise of the kit's)
+    expect(fig.anchors.kneelRaise).toBe(0);
+    expect(sink()).toBeCloseTo(kneelDrop, 0);
+    // getting up the kit's kneel is off from the first frame, while she wakes (a second at sit 1) on the kneeling
+    // drawing: the points stay on its head, and from there they only go up with her (never down toward the seated sink)
+    pet.doWord('stand');
+    let still = 0, off = 0, down = 0, shown = 0, last = sink();
+    for (let i = 0; i < 4 * 60; i++) {
+      run(pet, 1 / 60);
+      const s = sink();
+      down = Math.max(down, s - last);
+      last = s;
+      if (alpha('kneel_body') < 1) continue;
+      shown++;
+      if (pet.pet.sitK > .999) { still++; off = Math.max(off, Math.abs(s - kneelDrop)); }
+    }
+    expect(still).toBeGreaterThan(30);
+    expect(shown).toBeGreaterThan(still);
+    expect(off).toBeLessThan(.5);
+    expect(down).toBeLessThan(.5);
+    expect(sink()).toBeCloseTo(0, 0);
+    // a sit word after a kneel: the kneeling drawing goes and they end at the seated body's sink
+    pet.doWord('kneel'); run(pet, 3);
+    pet.doWord('sit'); run(pet, 2);
+    expect(alpha('kneel_body')).toBe(0);
+    expect(alpha('sit_skirt')).toBe(1);
+    expect(sink()).toBeCloseTo(real.poses.sit.headDrop, 0);
+    expect(seen.bad).toEqual([]);
+  });
   it('raises the kit\'s points by what her head sinks less than the kit\'s 29', () => {
     expect(sitRaise(0, 22)).toBe(0);
     expect(sitRaise(1, 22)).toBeCloseTo(7);

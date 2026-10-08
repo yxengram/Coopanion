@@ -33,6 +33,7 @@ git submodule update --init --recursive
 | `pnpm run typecheck:web` | 检查控制台的类型(先跑 `build:cortico`) |
 | `pnpm run build:installer` | Windows 上打出 `dist/Coopanion-Setup-<版本>.exe`;Mac 上打出 `dist/Coopanion-<版本>-mac-<架构>.dmg` 和 `.zip`(`PACK_ARCH=x64` 在 Apple 芯片上打 Intel 版) |
 | `pnpm run build:icons` | 用桌宠的造型重画应用图标和默认头像 |
+| `pnpm run export:whale` / `export:claude` / `export:gpt` / `export:gemini` | 把大肥鱼、Claude 娘、GPT 娘、Gemini 娘导出成原版 v0.1.17 起也能装的形象包(默认输出到 `build/packs/coopanion-<id>/`),说明见 `packages/cortico-world-desktop-pet/examples/whale/README.md`「导出成形象包」 |
 
 想用一份干净的数据测试(比如看首次启动、引导、没填 Key 时的提醒),把 `CORTICO_COMPANION_DATA` 指向一个空目录再启动:
 

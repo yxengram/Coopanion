@@ -3,7 +3,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { crashFields, Telemetry, type ModelTry, type ModelUse } from '../core/telemetry.ts';
+import { crashFields, reportedLook, Telemetry, type ModelTry, type ModelUse } from '../core/telemetry.ts';
+import { figureOf, figurePacks } from 'cortico-world-desktop-pet';
 
 const ENDPOINT = { vendor: 'vendor-a', model: 'model-a', endpointKind: 'builtin' } as const;
 
@@ -59,5 +60,18 @@ describe('crash fields', () => {
     Object.assign(err, { code: 'ERR_TEST' });
     const fields = crashFields(err, app, [extensions]);
     expect(fields).toEqual({ error: 'TypeError', code: 'ERR_TEST', frames: ['core/guide.ts:212', 'build/cortico/src/core/loop.ts:1043', 'packages/pet/world.ts:5'] });
+  });
+});
+
+describe('the figure in the day record', () => {
+  const builtins = new Set(figurePacks([]).packs.map((p) => p.id));
+  it('reports a built-in figure (an alias as its built-in) by id with its scheme', () => {
+    expect([...builtins]).toEqual(expect.arrayContaining(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']));
+    expect(reportedLook(figureOf('whale'), 'deepseek', builtins)).toEqual({ figure: 'whale', scheme: 'deepseek' });
+    expect(reportedLook(figureOf('coopanion-whale'), 'deepseek', builtins)).toEqual({ figure: 'whale', scheme: 'deepseek' });
+    expect(reportedLook(null, null, builtins)).toEqual({ figure: null, scheme: null });
+  });
+  it('reports an installed figure pack as custom, without its id or scheme', () => {
+    expect(reportedLook(figureOf('my-cat'), 'tabby', builtins)).toEqual({ figure: 'custom', scheme: null });
   });
 });

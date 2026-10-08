@@ -1,5 +1,5 @@
 /**
- * Renders web/sound.js tones offline, for the exported whale pack (scripts/export-whale-pack.mjs).
+ * Renders web/sound.js tones offline, for the exported figure packs (scripts/export-pack.mjs).
  * Run by Electron (not Node): `electron render-sounds.cjs <job.json> <outDir>`.
  *
  * job.json: `{ soundJs, rate, seed, tones: [{ name, kind, seconds }] }`. A hidden window imports sound.js

@@ -47,10 +47,21 @@ export function unitsOf(model) {
 /**
  * Lying down (the kit's `lie`, 0..1) as an over-dissolve: the lying drawing fades in over the seated rig, which stays
  * fully drawn until the drawing is opaque and goes in one step then. `poseA` is the drawing's alpha, `standA` the rig's.
+ * The figure runs it on lieStep's share, so the dissolve lasts a frame.
  */
 export function poseMix(lieK) {
   const poseA = smooth(.2, .45, lieK), standA = poseA >= 1 ? 0 : 1;
   return { poseA, standA, hide: standA <= 0 };
+}
+/**
+ * Whether the lying drawing shows (`on`, at LIE_CUT on the eased lie with a margin either way, so she does not flicker
+ * about one value) and its share `a`, which cuts in BODY_CUT. Fed to poseMix: run on the eased lie itself, the opaque
+ * rig and the fading drawing showed together for 4 to 8 frames getting up or lying down (two heads).
+ */
+export const LIE_CUT = { down: .45, up: .35 };
+export function lieStep(L, lieK, dt) {
+  const on = L.on ? lieK > LIE_CUT.up : lieK > LIE_CUT.down;
+  return { on, a: approach(L.a, on ? 1 : 0, dt, BODY_CUT) };
 }
 /** Faces that smile with an open mouth (the floor drawings' smile patches show for them). */
 export const SMILING = ['happy', 'love', 'excited', 'wink', 'giggle', 'coax', 'moved', 'tongue', 'dragged'];
@@ -615,6 +626,7 @@ export function createMotion(model, R) {
   let prevSit = 0;  // the kit's sit last frame (rising out of a kneel she stays kneeling)
   let sitOwnK = 1, raiseNow = 0;  // (sit) the seated arms' share; how far her points rise over the kit's sink
   let bodyB = { from: 'stand', to: 'stand', x: 1 }, dropNow = null;  // the body hand-over; the head's sink seated (eased)
+  let lieB = { on: false, a: 0 };  // the lying drawing's cut (lieStep)
   let perk = 0, swish = 0, droop = 0, fold = 0, curl = 0, wagPh = 0, browLift = 0, browInner = 0, browSide = 0, backA = 0, backOn = 1, awayA = 0, faceArmT = 0, sinceArmG = 9, lastFaceArm = null, lastArmG = null;
   let armA = { hangL: 1, hangR: 1 };
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
@@ -630,7 +642,9 @@ export function createMotion(model, R) {
     const breath = Math.sin(t * (mode === 'sleep' ? 1.7 : 2.4));
     lieK = LIE && caps.pose('lie') ? lerp(lieK, clamp(o.lie ?? 0, 0, 1), ease(14, dt)) : 0;
     if (lieK < 1e-3) lieK = 0;
-    const { poseA, hide } = poseMix(lieK);
+    // (the drawing cuts in and out: lieStep; the rig still tilts and her arms still hang on the eased lie)
+    lieB = LIE && caps.pose('lie') ? lieStep(lieB, lieK, dt) : { on: false, a: 0 };
+    const { poseA, hide } = poseMix(lieB.a);
     // (sit) seated she shows the seated body, her head sunk less than `low`; a kneel with its own drawing shows that
     // instead (cut in from the standing rig, never through the seated body), and the kit's points follow its head (kneelRaise)
     const kneelOK = !!KNEEL && caps.pose('kneel'), sitOK = !!SIT && caps.pose('sit');
@@ -645,7 +659,9 @@ export function createMotion(model, R) {
     const bodyA = bodyAlphas(bodyB);
     const kneelNow = kneeling || keepKneel;
     const dropT = kneelNow && KNEEL.pose.headDrop != null ? KNEEL.pose.headDrop : sitOK ? SIT.drop : null;
-    dropNow = dropT == null ? null : dropNow == null || bodyA.kneel >= 1 ? dropT : approach(dropNow, dropT, dt, 1 / 8);
+    // (the head eases to its sink only while the standing rig shows: once a drawn body has taken over, its own sink
+    // holds at once, or kneel → sit would float the seated bodice over its lap for seconds)
+    dropNow = dropT == null ? null : dropNow == null || bodyA.kneel >= 1 || bodyA.sit >= 1 ? dropT : approach(dropNow, dropT, dt, 1 / 8);
     const sitDrop = dropNow == null ? 0 : sitRaise(o.sit, dropNow);
     raiseNow = kneelNow ? 0 : sitDrop;
     const lowB = low - sitDrop;
@@ -878,7 +894,9 @@ export function createMotion(model, R) {
           lerp(lowB, hemK, v) - flare * k * 3 - curt * 6 * k * Math.abs(u - .5) * 2 - bulge * .35 * smooth(.6, 1, v)];
       },
     };
-    const shoeA = 1 - smooth(.35, .6, sitK);
+    // sinking toward a seated or kneeling drawing her shoes stay until it takes over (it hides them), and only with no
+    // drawing to come do they fade as she sits (half-faded, they ghost under the skirt's slit)
+    const shoeA = toward === 'none' ? 1 - smooth(.35, .6, sitK) : 1;
     for (const id of SHOES) st.alpha[id] = shoeA;
     st.footL = { tx: feet[0].tx, ty: feet[0].ty };
     st.footR = { tx: feet[1].tx, ty: feet[1].ty };
@@ -998,6 +1016,8 @@ export function createMotion(model, R) {
       st.alpha[p.id] = caps.tex(p.tex) ? (p.parent === 'sitTop' ? topA : sitA) * use : 0;
     }
     if (sitA >= 1) for (const id of SIT_UNDER_IDS) st.alpha[id] = 0;
+    // what the drawing draws itself out beyond the pool (her tail) goes as it comes, so the two never show together
+    else for (const id of SIT.hides || []) st.alpha[id] = (st.alpha[id] ?? 1) * (1 - sitA);
     if (topA >= 1) for (const id of SIT_BESIDE) st.alpha[id] = 0;
     if (topA > 0) for (const id of SIT_ARMS) st.alpha[id] = (st.alpha[id] ?? 1) * (1 - topA);
   }
@@ -1034,8 +1054,8 @@ export function createMotion(model, R) {
     perk = swish = droop = fold = curl = wagPh = browLift = browInner = browSide = backA = awayA = faceArmT = kickPh = 0;
     backOn = 1;
     sinceArmG = 9; lastFaceArm = lastArmG = null;
-    sitOwnK = 1; raiseNow = 0; dropNow = null;
-    bodyB = { from: 'stand', to: 'stand', x: 1 };
+    sitOwnK = 1; raiseNow = 0; dropNow = null; lieB = { on: false, a: 0 };
+    bodyB = { from: 'stand', to: 'stand', x: 1 }; prevSit = 0;
     armA = { hangL: 1, hangR: 1 };
   }
 

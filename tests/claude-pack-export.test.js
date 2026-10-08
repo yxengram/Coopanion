@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  PACK_ID, buildManifest, modules, packFiles, packSounds, requestedTones,
+  PACK_ID, buildManifest, modules, packFiles, packReadme, packSounds, requestedTones,
 } from '../packages/cortico-world-desktop-pet/scripts/export-claude-pack.mjs';
 import { PACK_ID as WHALE_ID, packSounds as whaleSounds } from '../packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs';
 import { ROOT, UPSTREAM_REF, encodeWav, upstreamToneNames } from '../packages/cortico-world-desktop-pet/scripts/export-pack.mjs';
@@ -34,6 +34,14 @@ function writePack(m) {
 }
 
 describe('exported Claude-chan pack', () => {
+  it('credits her design in its README exactly as the manifest does', async () => {
+    const m = await buildManifest({ upstreamTones });
+    const readme = packReadme(m, []);
+    expect(m.credits[0].name).toBe('ZipZipPipe（Bilibili）');
+    expect(readme).toContain(`角色设定是 ${m.credits[0].name}`);
+    expect(readme).not.toContain('ZipZipPipe(');
+  });
+
   it('ships every plus tone she can play, and none for the spout she lacks', async () => {
     const sounds = await packSounds({ upstreamTones });
     const names = sounds.map((s) => s.name);
@@ -65,6 +73,7 @@ describe('exported Claude-chan pack', () => {
     expect(m.about).toEqual(builtin.about);
     expect(m.thumb).toBe(builtin.thumb);
     expect(m.credits).toEqual(expect.arrayContaining(builtin.credits));
+    expect(m.credits[0]).toEqual({ role: '角色设定', name: 'ZipZipPipe（Bilibili）' });
     expect(JSON.stringify(m.credits)).toContain('https://github.com/yxengram/Coopanion');
     expect(m.license).toContain('AGPL-3.0-or-later');
     expect(m.license).toContain('非商业');
@@ -140,6 +149,10 @@ describe('exported Claude-chan pack', () => {
     for (const p of model.parts) expect(to).toContain(`tex/${p.tex}.png`);
     for (const t of [builtin.thumb, ...builtin.axes.flatMap((a) => a.options.map((o) => o.thumb)), ...builtin.presets.map((p) => p.thumb)]) expect(to).toContain(t);
     for (const n of ['neutral_mouth', 'mouth_a']) expect(to).toContain(`feat/${n}.png`);
+    // every face drawing the model names
+    for (const n of Object.keys(model.feat?.sprites ?? {})) expect(to).toContain(`feat/${n}.png`);
+    // every pose drawing too
+    for (const pose of Object.values(model.poses ?? {})) for (const p of [...(pose.required ?? []), ...(pose.overlays ?? [])]) expect(to).toContain(`tex/${p.tex}.png`);
     // what she loads before her first frame, well inside upstream's 20 s READY_MS from a local server
     const texBytes = files.filter((f) => /^(tex|feat)\//.test(f.to)).reduce((a, f) => a + statSync(f.from).size, 0);
     expect(texBytes).toBeLessThan(32 * 1048576);

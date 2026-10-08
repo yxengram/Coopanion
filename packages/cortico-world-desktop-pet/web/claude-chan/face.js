@@ -81,7 +81,10 @@ function planEye(k, e, i, face, fc, o, t, has, lx, ly, tilt, shut) {
   const fam = e.shape === 'up' && WINKS.includes(face) && has(`wink_${k}`) ? 'wink' : SHAPE_SPRITE[e.shape];
   const how = e.shape === 'gt' || e.shape === 'lt' ? { s: 1 + .03 * Math.sin(t * 22 + i) }
     : e.shape === 'heart' ? { s: .94 + .06 * (e.s ?? 1) / .8 } : e.shape === 'spiral' ? { rot: (e.rot || 0) * .6 } : squash;
-  return (fam && spr(fam, how)) || { kind: 'stroke', k, shape: e.shape, ...how };
+  // a drawn dizzy eye holds its lashes and lid round the spiral: it only wobbles (spun, they would turn with it); the
+  // stroked spiral spins whole
+  const sprHow = e.shape === 'spiral' ? { rot: .12 * Math.sin(e.rot || 0) } : how;
+  return (fam && spr(fam, sprHow)) || { kind: 'stroke', k, shape: e.shape, ...how };
 }
 
 function planMouth(fc, face, o, t, has) {

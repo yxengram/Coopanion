@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -90,6 +90,60 @@ describe('lying down, as the whale draws it', () => {
     }
     expect(poseMix(0)).toEqual({ poseA: 0, standA: 1, hide: false });
     expect(poseMix(1)).toEqual({ poseA: 1, standA: 0, hide: true });
+  });
+
+  it('cuts the lying drawing in and out in a frame, at a lie with a margin either way, not dissolving over the rig', () => {
+    expect(LIE_CUT.up).toBeLessThan(LIE_CUT.down);
+    // on above `down`, off again only below `up`
+    expect(lieStep({ on: false, a: 0 }, LIE_CUT.down - .01, 0).on).toBe(false);
+    expect(lieStep({ on: false, a: 0 }, LIE_CUT.down + .01, 0).on).toBe(true);
+    expect(lieStep({ on: true, a: 1 }, LIE_CUT.up + .01, 0).on).toBe(true);
+    expect(lieStep({ on: true, a: 1 }, LIE_CUT.up - .01, 0).on).toBe(false);
+    // the lie eased as the figure eases it, down and up (the kit's own easing on top only slows it): the drawing and
+    // the opaque rig show together for at most BODY_CUT
+    for (const dt of [1 / 60, 1 / 144]) {
+      let L = { on: false, a: 0 }, lie = 0, both = 0;
+      for (const [to, secs] of [[1, 1], [0, 1]]) {
+        for (let i = 0; i < secs / dt; i++) {
+          lie += (to - lie) * (1 - Math.exp(-14 * dt));
+          L = lieStep(L, lie, dt);
+          const { poseA, standA } = poseMix(L.a);
+          if (poseA > 0 && standA > 0) both++;
+        }
+        expect(L.a).toBe(to);
+      }
+      expect(both * dt, `dt ${dt}`).toBeLessThanOrEqual(2 * BODY_CUT + 1e-9);
+    }
+  });
+
+  it('swaps her lower body for the seated one in a frame on the kit\'s own sit, and never in the air', () => {
+    expect(sitStep(0, .54, false, 1)).toBe(0);
+    expect(sitStep(0, .56, false, 1)).toBe(1);
+    expect(sitStep(1, .46, false, 1)).toBe(1);
+    expect(sitStep(1, .44, false, 1)).toBe(0);
+    // a jump from sitting: off the floor with the kit's sit still high, she is standing
+    expect(sitStep(1, .9, true, 1)).toBe(0);
+    expect(sitStep(0, 1, false, 1 / 120)).toBeCloseTo(.5);
+    expect(sitStep(.5, 1, false, 1 / 120)).toBe(1);
+  });
+  it('cuts the kneeling drawing in and out in a frame, with a margin either way', () => {
+    expect(kneelStep(0, .49, 1)).toBe(0);
+    expect(kneelStep(0, .51, 1)).toBe(1);
+    expect(kneelStep(1, .31, 1)).toBe(1);
+    expect(kneelStep(1, .29, 1)).toBe(0);
+    // her kneel eased in and (the kit drops it at once on any word) out: part-way for at most BODY_CUT each way
+    for (const dt of [1 / 60, 1 / 144]) {
+      let b = 0, k = 0, part = 0;
+      for (const to of [1, 0]) {
+        for (let i = 0; i < 1 / dt; i++) {
+          k += (to - k) * (1 - Math.exp(-10 * dt));
+          b = kneelStep(b, k, dt);
+          if (b > 0 && b < 1) part++;
+        }
+        expect(b).toBe(to);
+      }
+      expect(part * dt, `dt ${dt}`).toBeLessThanOrEqual(2 * BODY_CUT + 1e-9);
+    }
   });
 
   it('every ready scheme has every standing file (one missing file fails the whole scheme)', () => {

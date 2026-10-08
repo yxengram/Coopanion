@@ -35,21 +35,21 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 ## Claude 娘形象
 
-`web/claude-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe(Bilibili)设计的 Claude 同人角色「Claude 娘」。
+`web/claude-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Claude 同人角色「Claude 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
 ## GPT 娘形象
 
-`web/gpt-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe(Bilibili)设计的 GPT 同人角色「GPT 娘」。
+`web/gpt-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 GPT 同人角色「GPT 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
 ## Gemini 娘形象
 
-`web/gemini-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe(Bilibili)设计的 Gemini 同人角色「Gemini 娘」。
+`web/gemini-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Gemini 同人角色「Gemini 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。

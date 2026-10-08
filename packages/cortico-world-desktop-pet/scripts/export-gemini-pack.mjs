@@ -40,7 +40,7 @@ ${soundSection(sounds)}
 
 - 代码(${code})是 AGPL-3.0-or-later,全文见 \`LICENSE\`;
   源码在 ${SOURCE_URL}(\`${PKG_REL}/web/\`),导出脚本是 \`${PKG_REL}/scripts/export-gemini-pack.mjs\`。
-- 贴图(\`tex/\`、\`feat/\`、\`thumbs/\`)不在 AGPL 授权范围内,**只限非商业使用**:角色设定是 ZipZipPipe(Bilibili)
+- 贴图(\`tex/\`、\`feat/\`、\`thumbs/\`)不在 AGPL 授权范围内,**只限非商业使用**:角色设定是 ZipZipPipe（Bilibili）
   画的 Gemini 同人形象;图由 GPT 的图像模型按这个设定生成,再由 Coopanion 拆件。
   原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们随 Coopanion 分发。
 - 音效由上面的代码合成,和代码同一许可。

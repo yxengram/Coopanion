@@ -62,7 +62,7 @@ kit 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎时�
 
 **词表**（`vocab`）：这个身体在场时 bot 能用的全部表情和动作，没列的词 bot 用不了。每个词写清 `names`（bot 可以用哪些名字写它）、
 `about`（在这个身体上是什么样子，原样进 bot 的提示词），`seconds`（连着做时等多久再做下一个）。
-用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；大肥鱼和 Coo 还列了 kit 的扩展词（见下一节），一共 72 个。
+用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；大肥鱼和 Coo 还列了 kit 的扩展词（见下一节），一共 72 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词，只是没有喷水（`spout`），一共 71 个。
 
 **入口**：`figure.json` 的 `entry` 和 `export` 指向一个工厂，按 `factory(base, { model, scheme, kit, loadImage, asset, host })` 调用，
 在沙箱里返回一个身体。契约在 `web/figure-frame.js` 开头。最省事的写法是交给 kit：
@@ -95,7 +95,7 @@ export async function createMyBody(base, opts) {
 
 ## kit 的扩展（`plus`）
 
-Coo 和大肥鱼用的 kit 比原版多一些词、表情和姿势，只在打开 `plus` 时才有：`createPet(els, { …, plus: true })`、
+Coo、大肥鱼和三个娘（Claude 娘、GPT 娘、Gemini 娘）用的 kit 比原版多一些词、表情和姿势，只在打开 `plus` 时才有：`createPet(els, { …, plus: true })`、
 `createBody(host, { figure, plus: true })`。不开时 kit 和原版的 kit 行为完全一样（只认 `KIT_EXPRESSIONS`、`KIT_MOTIONS` 和包自己的 `words`，
 表情用原版的 `FACES`），所以照上面写的形象包在这里照常能用。打开后：
 
@@ -106,7 +106,7 @@ Coo 和大肥鱼用的 kit 比原版多一些词、表情和姿势，只在打�
   以及在 `gestures` 里列出自己画的扩展手势；Coo 专用的几项由 `cooFigure()` 声明。每一项的说明在 `web/kit/body.js` 里 `createPet` 的注释。
 - `talk(ch)` 可以带上正在说的字，口型由字的编码决定；不带时每说一下换下一个口型。
 - 带 `plus` 的身体做不了的词（不认识的，或此刻做不了的，比如倾听时唱歌）`do(word)` 会立刻报 `done`，页面的动作队列不用干等；不带 `plus` 的身体和上游一样，等满这个词的 `seconds`。
-- 声音一律按 `play(名字, 类别)` 要，扩展的音色在 `web/sound.js`，只有 Coo 和大肥鱼听得到（别的包要这些名字和在上游一样没有声音，得自带音频文件）；唱歌被打断时要 `stop:song`，不认识它的页面忽略就是。
+- 声音一律按 `play(名字, 类别)` 要，扩展的音色在 `web/sound.js`，只有内置的五个形象（`web/sound.js` 的 `OWN_PACKS`）听得到（别的包要这些名字和在上游一样没有声音，得自带音频文件）；唱歌被打断时要 `stop:song`，不认识它的页面忽略就是。
 
 大肥鱼的入口 `createWhaleBody` 不用 `opts.kit`，而是由 `figure.js` 自己 import 旁边的 `../kit/body.js`，并传 `plus: true`。
 在应用里它和 `opts.kit` 是同一个模块；导出成形象包时把 `whale/figure.js` 和 `kit/body.js`、`kit/rig.js` 放在一起，包就带着自己的 kit，
@@ -187,10 +187,10 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 
 - `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 72 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色、每个姿势、五官、缩略图），缺一个就报错。
-- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show origin/main:` 的那份比对得出，现在是 18 个），用 `node_modules` 里的 Electron
+- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 18 个，三个娘的包没有 spout，是 17 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），
   去掉结尾的静音，存成 44.1 kHz 16 位单声道 WAV。文件按峰值 -1 dBFS 存，`volume` 把它调回原来的响度：页面播放时同样经过总音量和压缩器，听起来和内置音色一样。
-  渲染出来是静音或超过满幅都会报错。比对用的上游分支可以用 `--upstream <ref>` 换。
+  渲染出来是静音或超过满幅都会报错。
 - 包里的 `README.md` 写了安装方法和在原版里的限制（唱歌不能打断、口型轮流换、包里音效的第一次播放可能没声音）。
 
 在 Coopanion 自己里 `coopanion-whale` 是内置大肥鱼的别名（`src/packs.ts` 的 `PACK_ALIASES`）：装了不会多出一个形象，配置里选着它时显示的就是内置的那个。

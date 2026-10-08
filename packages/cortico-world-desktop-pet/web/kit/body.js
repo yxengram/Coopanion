@@ -2,13 +2,14 @@
  * The pet kit: a body that stands on the floor of the stage, walks, runs, jumps, sits, sleeps,
  * is picked up and thrown, makes faces and short gestures, with particles (hearts, tears, z's,
  * dust, notes) and a shadow. A figure pack builds its body on it (`createBody`) and only draws:
- * Coo (web/coo/figure.js) and the whale (web/whale/figure.js) both do. A pack may also ignore the
- * kit and answer the body contract (web/figure-frame.js) on its own.
+ * Coo (web/coo/figure.js), the whale (web/whale/figure.js) and the three front-facing girls
+ * (web/claude-chan, web/gpt-chan, web/gemini-chan) all do. A pack may also ignore the kit and answer
+ * the body contract (web/figure-frame.js) on its own.
  *
  * With `opts.plus` the body does more: it lies down on its front and kneels, and knows the faces and
  * motions in PLUS_EXPRESSIONS / PLUS_MOTIONS (a song, a spout, a roll, a cup of tea…) with their
- * particles (glints, rings of song, a bulb, chips of stone, spray). Coo and the whale ask for it;
- * without it the body is the kit as any other pack knows it.
+ * particles (glints, rings of song, a bulb, chips of stone, spray). Coo, the whale and the three
+ * girls ask for it; without it the body is the kit as any other pack knows it.
  *
  * Coordinates: the figure is drawn in logo units, facing right, ground at y=256, inside a 256 square.
  * The stage places it with translate(AX AY) rotate(rot) scale(kx ky) translate(-ax -ay); `toStage`

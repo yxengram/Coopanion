@@ -533,6 +533,14 @@ describe('GPT-chan: faces', () => {
       }
     }
   });
+  it('only wobbles a drawn dizzy eye (its lashes and lid would spin with it), and spins the stroked spiral whole', () => {
+    for (const rot of [0, 1, 2.5, 6, 40]) {
+      const fc = { eyes: [{ shape: 'spiral', rot }, { shape: 'spiral', rot }] };
+      const drawn = planFace(fc, 'dizzy', frame('dizzy'), .5, fullHas).eyes, stroked = planFace(fc, 'dizzy', frame('dizzy'), .5, noHas).eyes;
+      for (const e of drawn) { expect(e.kind).toBe('sprite'); expect(Math.abs(e.rot)).toBeLessThanOrEqual(.12); }
+      for (const e of stroked) { expect(e.kind).toBe('stroke'); expect(e.rot).toBeCloseTo(rot * .6); }
+    }
+  });
   it('draws every face into the texture without throwing, with eye drawings or none', () => {
     const base = Object.fromEntries(['eyeL', 'eyeR'].flatMap(k => ['lash', 'ball', 'iris', 'rim'].map(n => [`${k}_${n}`, { n: `${k}_${n}` }])));
     const allImg = { ...base, ...Object.fromEntries([...full].map(n => [n, { n }])) };
@@ -599,6 +607,56 @@ describe('GPT-chan: sitting and bowing', () => {
       pet.doWord('stand'); run(pet, 4);
       expect(alpha('tail')).toBe(1);
     }
+  });
+  it('lets the standing tail go as the seated drawing\'s own comes, so the two never both show in the cut', () => {
+    const model = { ...SYNTH, poses: { ...SYNTH.poses, sit: { ...SYNTH.poses.sit, hides: ['tail'] } } };
+    const R = buildRig(model), motion = createMotion(model, R), caps = { pose: () => true, tex: () => true };
+    // (on a fast screen the one-frame cut spans a few frames)
+    let mixed = 0, t = 0;
+    for (const sit of [1, 0]) {
+      for (let i = 0; i < 240; i++) {
+        const { st } = motion.step({}, { t: t += 1 / 240, mode: sit ? 'sit' : 'idle', sit }, 1 / 240, caps);
+        const a = st.alpha.sit_skirt ?? 0;
+        if (a > 0 && a < 1) mixed++;
+        expect((st.alpha.tail ?? 1) + a).toBeLessThanOrEqual(1 + 1e-9);
+      }
+    }
+    expect(mixed).toBeGreaterThan(0);
+  });
+  it('keeps her shoes opaque while she sinks toward a drawing that hides them, and fades them only with none to come', () => {
+    for (const [model, word] of [[SYNTH, 'sit'], [SYNTH, 'kneel'], [BARE, 'sit'], ...(real ? [[real, 'sit'], [real, 'kneel']] : [])]) {
+      const { fig, seen } = stubFigure(model);
+      const pet = barePet(fig);
+      const alpha = id => seen.last.st.alpha[id] ?? 1;
+      run(pet, .5);
+      pet.doWord(word);
+      const part = [];
+      for (let i = 0; i < 120; i++) {
+        run(pet, 1 / 60);
+        const a = alpha('shoe_l');
+        // (once a drawing is opaque over her the whole standing rig goes with it: hideFront)
+        if (a > 0 && a < 1 && !seen.last.hideFront) part.push(a);
+      }
+      if (model === BARE) expect(alpha('shoe_l')).toBeLessThan(.05);
+      else expect(part, `${word}`).toEqual([]);
+    }
+  });
+  it.skipIf(!real)('from a kneel to sitting, the seated drawing sits at its own sink from its first frame, not floating', () => {
+    const { fig, motion, seen } = stubFigure(real);
+    const pet = barePet(fig);
+    const alpha = id => seen.last.st.alpha[id] ?? 0;
+    run(pet, .5);
+    pet.doWord('kneel'); run(pet, 3);
+    expect(alpha('kneel_body')).toBe(1);
+    // (the kneeling drawing's head sinks much less than the seated one's: 6 against 24)
+    expect(real.poses.sit.headDrop - real.poses.kneel.headDrop).toBeGreaterThan(10);
+    pet.doWord('sit');
+    let worst = 0;
+    for (let i = 0; i < 120; i++) {
+      run(pet, 1 / 60);
+      if (alpha('sit_skirt') >= 1) worst = Math.max(worst, motion.sitRaise - sitRaise(1, real.poses.sit.headDrop));
+    }
+    expect(worst).toBeLessThan(.5);
   });
   it('gets up from kneeling on the kneeling drawing, never the seated one', () => {
     const { fig, seen } = stubFigure(SYNTH);

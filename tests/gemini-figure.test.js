@@ -617,6 +617,14 @@ describe('Gemini-chan: faces', () => {
       }
     }
   });
+  it('only wobbles a drawn dizzy eye (its lashes and lid would spin with it), and spins the stroked spiral whole', () => {
+    for (const rot of [0, 1, 2.5, 6, 40]) {
+      const fc = { eyes: [{ shape: 'spiral', rot }, { shape: 'spiral', rot }] };
+      const drawn = planFace(fc, 'dizzy', frame('dizzy'), .5, fullHas).eyes, stroked = planFace(fc, 'dizzy', frame('dizzy'), .5, noHas).eyes;
+      for (const e of drawn) { expect(e.kind).toBe('sprite'); expect(Math.abs(e.rot)).toBeLessThanOrEqual(.12); }
+      for (const e of stroked) { expect(e.kind).toBe('stroke'); expect(e.rot).toBeCloseTo(rot * .6); }
+    }
+  });
   it('draws every face into the texture without throwing, with eye drawings or none', () => {
     const base = Object.fromEntries(['eyeL', 'eyeR'].flatMap(k => ['lash', 'ball', 'iris', 'rim'].map(n => [`${k}_${n}`, { n: `${k}_${n}` }])));
     const allImg = { ...base, ...Object.fromEntries([...full].map(n => [n, { n }])) };
@@ -917,7 +925,7 @@ describe.skipIf(!real)('Gemini-chan: model.json and its files', () => {
       expect(R.W.sit.hides).toEqual(P.sit.hides || []);
     }
   });
-  it.skipIf(!realHas('lie', 'kneel', 'sit', 'roll'))('lies, kneels, sits and rolls with her drawings on the real rig', () => {
+  it('lies, kneels, sits and rolls with her drawings on the real rig', () => {
     const { fig, motion, R: RR, seen } = stubFigure(real);
     const pet = barePet(fig);
     const alpha = id => seen.last.st.alpha[id] ?? (RR.STANDING[id] ? 1 : 0);
@@ -963,7 +971,7 @@ describe.skipIf(!real)('Gemini-chan: model.json and its files', () => {
     expect(standing, "standing").toBeLessThan(256);
     expect(worst, "seated").toBeLessThan(256);
   });
-  it.skipIf(!realHas('sit', 'kneel', 'roll', 'back'))('hides the seated body under the ball and her back, and lets the back go gently when she sits turned away', () => {
+  it('hides the seated body under the ball and her back, and lets the back go gently when she sits turned away', () => {
     for (const from of ['sit', 'kneel']) {
       const { fig, seen } = stubFigure(real);
       const pet = barePet(fig);
@@ -1000,7 +1008,7 @@ describe.skipIf(!real)('Gemini-chan: model.json and its files', () => {
     expect(prev).toBe(0);
     expect(drop).toBeLessThan(.2);
   });
-  it.skipIf(!realHas('roll'))('squashes her for the roll only when the ball is hers (else the kit does)', () => {
+  it('squashes her for the roll only when the ball is hers (else the kit does)', () => {
     const minSy = without => {
       const { fig, seen } = stubFigure(real, true, without);
       const pet = barePet(fig);

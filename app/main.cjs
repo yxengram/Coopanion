@@ -30,7 +30,7 @@ const LINUX = process.platform === 'linux';
 // and the cursor position outside the app's own windows is unknown, which the pet needs.
 if (LINUX) app.commandLine.appendSwitch('ozone-platform', 'x11');
 // Without a usable GPU (virtual machines, blocklisted drivers) Chromium no longer
-// falls back to software WebGL on its own, and the whale figure draws with WebGL: allow SwiftShader. It
+// falls back to software WebGL on its own, and the whale and the three 娘 figures draw with WebGL: allow SwiftShader. It
 // only renders the app's own pages.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 const APP_ROOT = app.getAppPath();

@@ -4,6 +4,7 @@ import { createBody, createPet, FACES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRES
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
+import { figurePacks } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 
 const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
 const vocabOf = (pack) => JSON.parse(readFileSync(new URL(`web/${pack}/figure.json`, PKG), 'utf8')).vocab;
@@ -1392,8 +1393,9 @@ describe('what the page holds a pack to', () => {
     sfx.usePack('/web/whale/', {}, { plus: true });
     sfx.play('song', 'move');
     expect(made.voices).toBeGreaterThan(before);
-    // the pages pass plus for exactly the built-in packs that are ours
+    // the pages pass plus for exactly the built-in packs that are ours (the World's own list of them)
     expect(OWN_PACKS).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
+    expect(OWN_PACKS).toEqual(figurePacks([]).packs.map((p) => p.id));
   });
 
   it("a body's box is kept to the stage and to the most the kit stretches a body", () => {

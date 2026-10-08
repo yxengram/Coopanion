@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  PACK_ID, buildManifest, modules, packFiles, packSounds, requestedTones,
+  PACK_ID, buildManifest, modules, packFiles, packReadme, packSounds, requestedTones,
 } from '../packages/cortico-world-desktop-pet/scripts/export-gpt-pack.mjs';
 import { PACK_ID as WHALE_ID } from '../packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs';
 import { PACK_ID as CLAUDE_ID, packSounds as claudeSounds } from '../packages/cortico-world-desktop-pet/scripts/export-claude-pack.mjs';
@@ -35,6 +35,14 @@ function writePack(m) {
 }
 
 describe('exported GPT-chan pack', () => {
+  it('credits her design in its README exactly as the manifest does', async () => {
+    const m = await buildManifest({ upstreamTones });
+    const readme = packReadme(m, []);
+    expect(m.credits[0].name).toBe('ZipZipPipe（Bilibili）');
+    expect(readme).toContain(`角色设定是 ${m.credits[0].name}`);
+    expect(readme).not.toContain('ZipZipPipe(');
+  });
+
   it('ships every plus tone she can play, and none for the spout she lacks', async () => {
     const sounds = await packSounds({ upstreamTones });
     const names = sounds.map((s) => s.name);
@@ -141,7 +149,7 @@ describe('exported GPT-chan pack', () => {
     for (const p of model.parts) expect(to).toContain(`tex/${p.tex}.png`);
     for (const t of ['wing_l', 'wing_r', 'tail', 'horns']) expect(to).toContain(`tex/${t}.png`);
     for (const t of [builtin.thumb, ...builtin.axes.flatMap((a) => a.options.map((o) => o.thumb)), ...builtin.presets.map((p) => p.thumb)]) expect(to).toContain(t);
-    // every face drawing the model names (none yet: her eyes and mouths are drawn with strokes until there are)
+    // every face drawing the model names
     for (const n of Object.keys(model.feat?.sprites ?? {})) expect(to).toContain(`feat/${n}.png`);
     // every pose drawing too
     for (const pose of Object.values(model.poses ?? {})) for (const p of [...(pose.required ?? []), ...(pose.overlays ?? [])]) expect(to).toContain(`tex/${p.tex}.png`);

@@ -46,7 +46,7 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 
 World 在 `127.0.0.1:7797`(被占向上顺延)起一个页面服务:`/pet` 是桌宠本身,`/dress` 是装扮页。
 桌宠内置五个形象,在装扮页最上面一行选,存在配置 `skin.figure` 里:`coo` 是 Coo,`whale` 是 DeepSeek 大肥鱼
-(鲸鱼女仆,`web/whale`,用 `web/rig` 画的 Live2D 式分件模型,八套配色存在 `skin.scheme`,见 [examples/whale](examples/whale/README.md)),
+(鲸鱼女仆,`web/whale`,用 `web/kit/rig.js` 画的 Live2D 式分件模型,八套配色存在 `skin.scheme`,见 [examples/whale](examples/whale/README.md)),
 `claude-chan` 是 Claude 娘(正面站着的 Q 版少女,`web/claude-chan`,同样是 rig 画的分件模型,一套配色 `original`;
 词表和大肥鱼一样,只少了 `spout`),`gpt-chan` 是 GPT 娘(正面站着的白色小龙娘,`web/gpt-chan`,龙翼和尾巴跟着心情动,
 一套配色 `original`,词表和 Claude 娘一样),`gemini-chan` 是 Gemini 娘(正面站着的猫娘,`web/gemini-chan`,
@@ -221,5 +221,5 @@ npx tsx scripts/check-voice.ts <模型根> <语音.wav>   # 连真 FunASR 手动
 
 `tsconfig.json` 与 `vitest.config.ts` 把 `cortico/*` 指到主仓库的 `vendor/cortico/src/`;
 装进 Cortico 运行时由框架的模块钩子解析。网页部分不依赖 World:`web/kit/` 是现成的身体(动作模拟、表情、粒子,
-和画大肥鱼用的 rig),`web/coo/` 是 Coo 的造型、配件与形象包入口,`web/sound.js` 是合成音效与包自带音频的播放,
+和画大肥鱼与三个娘用的 rig(`kit/rig.js`)),`web/coo/` 是 Coo 的造型、配件与形象包入口,`web/sound.js` 是合成音效与包自带音频的播放,
 `web/body-host.js` 是桌宠页、装扮页这一侧的身体代理。

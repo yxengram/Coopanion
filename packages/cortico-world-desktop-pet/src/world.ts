@@ -1,8 +1,8 @@
 /**
  * DesktopPetWorld: the pet on the desktop as a World.
  *
- * Output goes through four tools that drive the pet page (bubble, options, walking,
- * expressions and motions). Input arrives as events: speech heard through the pet window's
+ * Output goes through the pet tools (say, ask, walk_to, act, set, quiet) that drive the pet page
+ * (bubble, options, walking, expressions and motions, its own look and habits, a quiet spell). Input arrives as events: speech heard through the pet window's
  * microphone (transcribed by FunASR's SenseVoice in this process, or Windows' own recognizer), typed text, answers to `pet_ask`, and touches
  * (poke, petting, being thrown). The page reports what actually happened; receipts and
  * events state only that.
@@ -1474,7 +1474,7 @@ export class DesktopPetWorld implements World {
       promptDocs: [{
         key: `worlds.${DESKTOP_PET_ID}.envPrompt`,
         title: '桌宠环境',
-        description: '描述桌宠的身体、四个工具与输入事件。',
+        description: '描述桌宠的身体、工具与输入事件。',
         path: ENV_PROMPT_FILE,
         role: 'envPrompt',
         vars: [

@@ -23,6 +23,9 @@ const lerp = (a, b, k) => a + (b - a) * k;
 const ease = (rate, dt) => 1 - Math.exp(-rate * dt);
 const bump = u => Math.sin(Math.PI * clamp(u, 0, 1));
 const smooth = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+const approach = (v, to, dt, dur) => v + clamp(to - v, -dt / dur, dt / dur);
+/** How long a whole-body drawing takes to cut in for another (lying, kneeling, her seated lower body): one frame. */
+export const BODY_CUT = 1 / 60;
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 /**
@@ -30,7 +33,7 @@ const SVGNS = 'http://www.w3.org/2000/svg';
  * stays fully drawn until the drawing is opaque and goes in one step then; getting up runs it backwards. The rig is
  * many layers, so fading it would show them through each other where the drawing does not cover it (her head and
  * headdress, seated, reach above the lying drawing). `poseA` is the drawing's alpha, `standA` the rig's (0 or 1);
- * `hide` drops the rig entirely.
+ * `hide` drops the rig entirely. The figure runs it on lieStep's share, so the dissolve lasts a frame.
  */
 /**
  * The open-hand wave's handover: `openHand` is the wave's strength when the drawn arm may show (the scheme has it,
@@ -115,6 +118,27 @@ export function chinWanted(face, mode, lieK, gesture) {
 export function poseMix(lieK) {
   const poseA = smooth(.2, .45, lieK), standA = poseA >= 1 ? 0 : 1;
   return { poseA, standA, hide: standA <= 0 };
+}
+/**
+ * Whether the lying drawing shows (`on`, at LIE_CUT on the eased lie with a margin either way, so she does not flicker
+ * about one value) and its share `a`, which cuts in BODY_CUT. Fed to poseMix: run on the eased lie itself, the opaque
+ * rig and the fading drawing showed together for 4 to 8 frames getting up or lying down (two heads).
+ */
+export const LIE_CUT = { down: .45, up: .35 };
+/**
+ * The kneeling drawing's share (0..1) after `kneelK` (her eased kneel): on above .5, off again only below .3, and the
+ * hand-over takes BODY_CUT. A dissolve on the eased kneel showed both her heads, half see-through, for frames.
+ */
+export const kneelStep = (b, kneelK, dt) => approach(b, kneelK > (b >= .5 ? .3 : .5) ? 1 : 0, dt, BODY_CUT);
+/**
+ * The seated lower body's share (0..1) after the kit's own `sit`: on above .55, off again only below .45 (and off in
+ * the air: a jump from sitting leaves the floor before the kit's sit has come down), the hand-over taking BODY_CUT.
+ * On her eased sitK it landed after take-off, both skirts and both pairs of legs half see-through.
+ */
+export const sitStep = (b, sit, airborne, dt) => approach(b, !airborne && (b >= .5 ? sit > .45 : sit > .55) ? 1 : 0, dt, BODY_CUT);
+export function lieStep(L, lieK, dt) {
+  const on = L.on ? lieK > LIE_CUT.up : lieK > LIE_CUT.down;
+  return { on, a: approach(L.a, on ? 1 : 0, dt, BODY_CUT) };
 }
 
 /** The lying drawing's deformers (model.poses.lie), from the floor up and outside the standing tree. */
@@ -420,7 +444,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of KNEEL_PARTS) parts.push({ ...p, alpha: 0 });
   }
   const kneelOK = () => !!(cur.kneel && (!fade || fade.set.kneel));
-  let kneelK = 0;
+  let kneelK = 0, kneelB = 0;  // her eased kneel; the kneeling drawing's share (kneelStep)
+  let sitB = 0;  // the seated lower body's share (sitStep)
   /** Whether her back can show now: she has the drawing and is standing (seated or lying she turns as before). */
   const backable = () => !!BACK && backOK() && sitK < .5 && !lieK;
 
@@ -748,7 +773,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // whether the last frame may be held as stone, whether it hid the standing rig (a frozen frame draws it again as it was),
   // and how grey she is
   let frozenOK = false, lastHidden = false, stoneK = 0;
-  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, poseShown = 0, kickPh = 0, chinK = 0, backA = 0, awayA = 0;
+  let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, lieB = { on: false, a: 0 }, poseShown = 0, kickPh = 0, chinK = 0, backA = 0, awayA = 0;
   const st = { z: {}, alpha: {} };
 
   // fins and tail by face: fins up (+) or drooping (-), tail wag size, and how far the tail droops (1 = 12°)
@@ -814,7 +839,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // a scheme without the lying files drops her to sitting at once: its textures are not in the rig to ease out with
     lieK = LIE && poseOK() ? lerp(lieK, clamp(o.lie ?? 0, 0, 1), ease(14, dt)) : 0;
     if (lieK < 1e-3) lieK = 0;  // the easing alone never reaches zero
-    const { poseA, hide } = poseMix(lieK);
+    // (the drawing cuts in and out: lieStep; the rig still tilts on the eased lie)
+    lieB = LIE && poseOK() ? lieStep(lieB, lieK, dt) : { on: false, a: 0 };
+    const { poseA, hide } = poseMix(lieB.a);
     poseShown = poseA;
     // thinking, standing or sitting still, she props her chin on her hand; a gesture that needs the far arm takes it down at once
     const chinTaken = FAR_ARM_GESTURES.includes(o.gesture?.kind);
@@ -906,9 +933,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     /* legs: the kit hands hip→foot segments sized for Coo; keep their angle (forward = foot to the right) */
     const legA = o.legs.map(l => -Math.atan2(l[2] - l[0], Math.max(4, l[3] - l[1])) * 180 / Math.PI);
     const lift = o.legs.map(l => clamp(29 - Math.hypot(l[2] - l[0], l[3] - l[1]), -8, 20));
-    // sitting swaps the lower body for its own drawing (skirt spread on the floor, legs forward) in a
-    // couple of frames halfway down, under a little squash; a long crossfade would show both skirts at once
-    const sitIn = smooth(.44, .54, sitK), plop = Math.sin(Math.PI * smooth(.3, .8, sitK));
+    // sitting swaps the lower body for its own drawing (skirt spread on the floor, legs forward) in a frame halfway
+    // down (on the kit's own sit: sitK lags it), under a little squash; a crossfade would show both skirts at once
+    sitB = sitStep(sitB, o.sit ?? 0, airborne, dt);
+    const sitIn = sitB, plop = Math.sin(Math.PI * smooth(.3, .8, sitK));
 
     /* arms: swing against the legs when walking, out in the air, flailing when held */
     let aN = 4, aF = -2;
@@ -984,7 +1012,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // the sitting skirt breathes a little at its hem, and its front edge swings with the body
     st.skirtSit = { fn: (u, v) => [skirt * 1.5 * v * v, -Math.max(0, breath) * .4 * v] };
     st.alpha.skirt = st.alpha.waist_bow_front = 1 - sitIn;
-    st.alpha.leg_back = st.alpha.leg_front = 1 - smooth(.42, .52, sitK);
+    st.alpha.leg_back = st.alpha.leg_front = 1 - sitIn;
     st.alpha.skirt_sit = st.alpha.waist_bow_sit_front = sitIn;
     st.armNear = { a: armN };
     // each drawn arm below takes its share of the plain arms away (their alphas multiply)
@@ -1147,10 +1175,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st.rollBall = { a, ty: ROLL.support[0] - ballLift(ROLL.support, a), sx: 1 + .05 * land, sy: 1 - .05 * land };
       for (const p of ROLL.required) st.alpha[p.id] = tex[p.tex] ? ballA : 0;
     }
-    // kneeling: once she is down, the kneeling drawing fades in over the seated rig (which then goes), as lying does
+    // kneeling: once she is down, the kneeling drawing cuts in over the seated rig (which then goes), as lying does
     kneelK = lerp(kneelK, o.kneel && KNEEL && kneelOK() && !lieK ? smooth(.5, 1, sitK) : 0, ease(10, dt));
     if (kneelK < 1e-3) kneelK = 0;
-    const kneelA = smooth(.15, .5, kneelK);
+    kneelB = KNEEL && kneelOK() ? kneelStep(kneelB, kneelK, dt) : 0;
+    const kneelA = kneelB;
     if (KNEEL) {
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
       const shutK = eyesShut(o, fc.eyes, mode);
@@ -1342,7 +1371,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; kneelK = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; kneelK = 0; kneelB = 0; sitB = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

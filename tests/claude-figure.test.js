@@ -3,7 +3,7 @@ import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import {
-  anchorsOf, approach, ARM_BOTH, BODY_CUT, bodyAlphas, bodyStep, bodyWant, bowPose, SIT_CUT, ARM_FALLBACK, ARM_ONE, armPlan, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
+  anchorsOf, approach, ARM_BOTH, BODY_CUT, bodyAlphas, bodyStep, bodyWant, bowPose, SIT_CUT, ARM_FALLBACK, ARM_ONE, armPlan, BACK_HAIR_REACH, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
   feetFromLegs, fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, SIT_LOW, sitAnchors, sitMix, sitRaise,
   ROLL_D, WHOLE_POSES,
 } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -237,6 +237,13 @@ describe('Claude-chan: motion helpers', () => {
     expect(m(.5, 1)[0]).toBeCloseTo(-f(.5, 1)[0]);
     // carried, the hair lifts
     expect(backHairField(0, -1, 0, 0)(.5, 1)[1]).toBeLessThan(-5);
+    // and at the spring's full swing (1.8) and a swish it stays within the fill under it, either way
+    for (const t of [0, .3, 1, 2.2]) {
+      for (const [hair, flip] of [[1.8, 1], [-1.8, 1], [1.8, -1]]) {
+        expect(Math.abs(backHairField(hair, 0, 1, t, flip)(.5, 1)[0])).toBeLessThanOrEqual(BACK_HAIR_REACH);
+      }
+    }
+    expect(BACK_HAIR_REACH).toBeLessThanOrEqual(10);
   });
   it('rolls the ball without slipping, curling up tilted back and coming up tilted forward as much', () => {
     expect(KIT_ROLL_D).toBeCloseTo(2 * Math.PI * 100);
@@ -466,6 +473,14 @@ describe('Claude-chan: faces', () => {
     expect(planFace(PLUS_FACES.coax.f(0), 'coax', frame('coax'), .5, fullHas).mouth.name).toBe('mouth_cat');
     expect(planFace(PLUS_FACES.coax.f(0), 'coax', frame('coax'), .5, noHas).mouth.kind).toBe('cat');
     expect(planFace(PLUS_FACES.tongue.f(0), 'tongue', frame('tongue'), .5, noHas).mouth.kind).toBe('tongue');
+  });
+  it('only wobbles a drawn dizzy eye (its lashes and lid would spin with it), and spins the stroked spiral whole', () => {
+    for (const rot of [0, 1, 2.5, 6, 40]) {
+      const fc = { eyes: [{ shape: 'spiral', rot }, { shape: 'spiral', rot }] };
+      const drawn = planFace(fc, 'dizzy', frame('dizzy'), .5, fullHas).eyes, stroked = planFace(fc, 'dizzy', frame('dizzy'), .5, noHas).eyes;
+      for (const e of drawn) { expect(e.kind).toBe('sprite'); expect(Math.abs(e.rot)).toBeLessThanOrEqual(.12); }
+      for (const e of stroked) { expect(e.kind).toBe('stroke'); expect(e.rot).toBeCloseTo(rot * .6); }
+    }
   });
   it('draws every face into the texture without throwing, sprites or none', () => {
     const painter = createFacePainter(SYNTH, { makeCanvas: recCanvas });
@@ -819,6 +834,39 @@ describe('Claude-chan: sitting', () => {
       expect(parts.map(alpha), w).toEqual(ends[w]);
       expect(seen.last.hideFront, w).toBe(w === 'kneel');
     }
+    expect(seen.bad).toEqual([]);
+  });
+  it.skipIf(!real)('on the real rig: lying down and getting up (jump or stand), the lying drawing cuts, never two of her at once', () => {
+    const { fig, seen } = stubFigure(real);
+    const pet = barePet(fig);
+    run(pet, 1);
+    for (const up of ['jump', 'stand']) {
+      let both = 0;
+      pet.doWord('lie');
+      for (let i = 0; i < 3 * 60; i++) { run(pet, 1 / 60); if (seen.last.poseShown > 0 && !seen.last.hideFront) both++; }
+      expect(seen.last.hideFront, up).toBe(true);
+      pet.doWord(up);
+      for (let i = 0; i < 3 * 60; i++) { run(pet, 1 / 60); if (seen.last.poseShown > 0 && !seen.last.hideFront) both++; }
+      expect(seen.last.poseShown, up).toBe(0);
+      // (a frame each way at most)
+      expect(both, up).toBeLessThanOrEqual(2);
+    }
+    expect(seen.bad).toEqual([]);
+  });
+  it.skipIf(!real)('on the real rig: getting up from a kneel she stays the kneeling drawing until she stands, never the seated one', () => {
+    const { fig, R: RR, seen } = stubFigure(real);
+    const pet = barePet(fig);
+    const alpha = id => seen.last.st.alpha[id] ?? (RR.STANDING[id] ? 1 : 0);
+    run(pet, 1);
+    pet.doWord('kneel');
+    run(pet, 2);
+    expect(alpha('kneel_body')).toBe(1);
+    pet.doWord('stand');
+    let seated = 0;
+    for (let i = 0; i < 4 * 60; i++) { run(pet, 1 / 60); seated = Math.max(seated, alpha('sit_top'), alpha('sit_skirt')); }
+    expect(seated).toBe(0);
+    expect(alpha('kneel_body')).toBe(0);
+    expect(alpha('skirt')).toBe(1);
     expect(seen.bad).toEqual([]);
   });
   it('raises the kit\'s points by what her head sinks less than the kit\'s 29', () => {

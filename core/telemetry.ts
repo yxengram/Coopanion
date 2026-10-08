@@ -371,6 +371,15 @@ export function describeEndpoint(entry: { kind: string; baseUrl?: string } | und
   return { vendor: `kind:${entry?.kind ?? 'unknown'}`, model: 'custom', endpointKind: host && PRIVATE_HOST.test(host) ? 'custom-local' : 'custom-remote' };
 }
 
+/**
+ * The figure and its scheme as the day record reports them: a built-in figure by its id (`figure` already resolved
+ * from any alias), an installed figure pack as `custom` without its scheme, whose ids are the pack's own.
+ */
+export function reportedLook(figure: string | null, scheme: unknown, builtins: ReadonlySet<string>): { figure: string | null; scheme: unknown } {
+  if (figure === null) return { figure, scheme };
+  return builtins.has(figure) ? { figure, scheme } : { figure: 'custom', scheme: null };
+}
+
 /** An extension's spec as written in extensions/package.json: a registry range keeps its name, a path or URL does not. */
 export function publicExtensionName(name: string, spec: string): string {
   return /^(link:|file:|git|https?:|github:|\.|\/|[a-zA-Z]:\\)/.test(spec) ? 'private' : name;

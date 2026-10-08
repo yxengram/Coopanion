@@ -50,7 +50,7 @@ import { deploymentRoot, providersRoot, repoRoot } from 'cortico/paths.ts';
 import { providerModules, registerProviderModules } from 'cortico/providers/registry.ts';
 import { withWorlds, type WorldDefinition, type WorldSection } from 'cortico/world.ts';
 import { TERMINAL } from 'cortico/worlds/terminal/definition.ts';
-import { desktopPetDefinition, figurePacks, type DesktopPetWorld } from 'cortico-world-desktop-pet';
+import { desktopPetDefinition, figureOf, figurePacks, type DesktopPetWorld } from 'cortico-world-desktop-pet';
 import { cuaDefinition } from 'cortico-world-cua';
 import COO, { vendorOf } from 'cortico-provider-coo';
 import { bundledConsoleAssets } from './bundled-panels.ts';
@@ -58,7 +58,7 @@ import { followPetLook } from './console-theme.ts';
 import { askForKey, guideDone, markDone, runGuide, type GuideDeps } from './guide.ts';
 import { noticeDefinition, type NoticeWorld } from './notice.ts';
 import { CONSOLE_PORT, DEPLOYMENT, DISPLAY_NAME, SEED_DIR, seed } from './seed.ts';
-import { crashFields, describeEndpoint, publicExtensionName, Telemetry, type Counter } from './telemetry.ts';
+import { crashFields, describeEndpoint, publicExtensionName, reportedLook, Telemetry, type Counter } from './telemetry.ts';
 
 /** The active endpoint's key is set in the process environment or the endpoint's `.env`. */
 function hasKey(config: CoreConfig): boolean {
@@ -299,19 +299,25 @@ function countFiles(dir: string, cap = 10_000): number {
 
 const sha256 = (file: string) => existsSync(file) ? createHash('sha256').update(readFileSync(file, 'utf8').replaceAll('\r\n', '\n')).digest('hex') : null;
 
+/** The built-in figures' ids (read once): only these are reported by id. */
+let builtinFigures: ReadonlySet<string> | null = null;
+
 /** The settings and state sent with each day's statistics (docs/TELEMETRY.md, the day record). */
 function snapshotOf(config: CoreConfig, workspace: string): Record<string, unknown> {
   const at = (path: string) => getByPath(config as unknown as Record<string, unknown>, path) ?? null;
   const active = config.providers[config.activeProvider];
   const endpoint = describeEndpoint(active, active?.spec?.model ?? '', vendorOf);
+  builtinFigures ??= new Set(figurePacks([]).packs.map((p) => p.id));
+  const figure = at('worlds.desktop-pet.skin.figure');
+  const look = reportedLook(typeof figure === 'string' ? figureOf(figure) : null, at('worlds.desktop-pet.skin.scheme'), builtinFigures);
   return {
     vendor: endpoint.vendor,
     model: endpoint.model,
     endpointKind: endpoint.endpointKind,
     language: config.language ?? null,
     autostart: process.env.COOPANION_AUTOSTART === '1',
-    figure: at('worlds.desktop-pet.skin.figure'),
-    scheme: at('worlds.desktop-pet.skin.scheme'),
+    figure: look.figure,
+    scheme: look.scheme,
     roam: at('worlds.desktop-pet.roam'),
     voiceInput: at('worlds.desktop-pet.asr.enabled'),
     asrEngine: at('worlds.desktop-pet.asr.engine'),

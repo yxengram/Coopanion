@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import {
@@ -25,6 +26,45 @@ const ALL_WORDS = [...KIT_MOTIONS, ...PLUS_MOTIONS];
 function png(url) {
   const b = readFileSync(url);
   return { w: b.readUInt32BE(16), h: b.readUInt32BE(20), colorType: b[25] };
+}
+/** The alpha channel of an 8-bit RGBA, non-interlaced PNG: { w, h, a }. */
+function alphaOf(url) {
+  const b = readFileSync(url), w = b.readUInt32BE(16), h = b.readUInt32BE(20);
+  expect(b[24] === 8 && b[25] === 6 && b[28] === 0, 'an 8-bit RGBA PNG, not interlaced').toBe(true);
+  const idat = [];
+  for (let o = 8; o < b.length; o += 12 + b.readUInt32BE(o)) if (b.toString('ascii', o + 4, o + 8) === 'IDAT') idat.push(b.subarray(o + 8, o + 8 + b.readUInt32BE(o)));
+  const raw = inflateSync(Buffer.concat(idat)), row = w * 4, px = new Uint8Array(row * h), a = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (row + 1)], src = y * (row + 1) + 1, dst = y * row;
+    for (let i = 0; i < row; i++) {
+      const l = i >= 4 ? px[dst + i - 4] : 0, u = y ? px[dst + i - row] : 0, ul = y && i >= 4 ? px[dst + i - row - 4] : 0;
+      const p = l + u - ul, pa = Math.abs(p - l), pb = Math.abs(p - u), pc = Math.abs(p - ul);
+      px[dst + i] = (raw[src + i] + [0, l, u, (l + u) >> 1, pa <= pb && pa <= pc ? l : pb <= pc ? u : ul][f]) & 255;
+    }
+  }
+  for (let i = 0; i < w * h; i++) a[i] = px[i * 4 + 3];
+  return { w, h, a };
+}
+/** Sizes of the connected regions where `on(i)` holds (8-connected, or 4-), and whether each touches the border. */
+function regions({ w, h }, on, eight = true) {
+  const seen = new Uint8Array(w * h), out = [], st = [];
+  const nb = eight ? [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]] : [[0, -1], [-1, 0], [1, 0], [0, 1]];
+  for (let s = 0; s < w * h; s++) {
+    if (seen[s] || !on(s)) continue;
+    let n = 0, edge = false;
+    seen[s] = 1; st.push(s);
+    while (st.length) {
+      const i = st.pop(), x = i % w, y = (i - x) / w;
+      n++;
+      if (!x || !y || x === w - 1 || y === h - 1) edge = true;
+      for (const [dx, dy] of nb) {
+        const X = x + dx, Y = y + dy, j = Y * w + X;
+        if (X >= 0 && Y >= 0 && X < w && Y < h && !seen[j] && on(j)) { seen[j] = 1; st.push(j); }
+      }
+    }
+    out.push({ n, edge });
+  }
+  return out;
 }
 const inside = ([x, y], [x0, y0, x1, y1], m = 0) => x >= x0 - m && x <= x1 + m && y >= y0 - m && y <= y1 + m;
 const rectOf = b => [b[0], b[1], b[0] + b[2], b[1] + b[3]];
@@ -939,6 +979,16 @@ describe.skipIf(!real)('GPT-chan: model.json and its files', () => {
     }
     expect(prev).toBe(0);
     expect(drop).toBeLessThan(.2);
+  });
+  it('cuts her back drawings clean: no stray specks off them, no pinholes the swaying hair would open', () => {
+    // the back is cut from a dark-glow picture along its segmentation map; a cut along the map's (stepped, a few px off)
+    // edge leaves bits of her outline as specks, and the map's line-join dots as 'flower' punch holes in hair and body
+    for (const tex of ['back_body', 'back_hair', 'back_top']) {
+      const t = alphaOf(new URL(`tex/${tex}.png`, DIR)), a = t.a;
+      const specks = regions(t, i => a[i] >= 128).filter(r => r.n < 50).length;
+      const holes = regions(t, i => a[i] < 128, false).filter(r => !r.edge && r.n < 200).length;
+      expect(specks + holes, `${tex}: ${specks} specks, ${holes} pinholes`).toBeLessThanOrEqual(3);
+    }
   });
   it('squashes her for the roll only when the ball is hers (else the kit does)', () => {
     const minSy = without => {

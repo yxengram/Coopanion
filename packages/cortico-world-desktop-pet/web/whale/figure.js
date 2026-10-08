@@ -136,6 +136,24 @@ export const kneelStep = (b, kneelK, dt) => approach(b, kneelK > (b >= .5 ? .3 :
  * On her eased sitK it landed after take-off, both skirts and both pairs of legs half see-through.
  */
 export const sitStep = (b, sit, airborne, dt) => approach(b, !airborne && (b >= .5 ? sit > .45 : sit > .55) ? 1 : 0, dt, BODY_CUT);
+/**
+ * Her seated lower body and kneeling drawing over a frame: `S` is { sitB, kneelK, kneelB, prevSit } (sitStep's share,
+ * her eased kneel, kneelStep's share, the kit's sit last frame), `o` the kit's frame, `sitK` her eased sit, `lying`
+ * whether she lies at all, `kneelOK` whether the scheme has the kneeling drawing. The drawing cuts in once she is down.
+ * Getting up from a kneel the kit's kneel is already off while she wakes (a second at sit 1) and its sit comes down:
+ * she keeps kneeling until the seated body would go too, rather than showing it (legs forward) on the way up. A sit
+ * word after a kneel leaves the kit's sit where it is, so then she does sit.
+ */
+export function seatStep(S, o, { sitK, airborne = false, lying = false, kneelOK = false }, dt) {
+  const sit = o.sit ?? 0, rising = sit < S.prevSit - 1e-4;
+  const sitB = sitStep(S.sitB, sit, airborne, dt);
+  const keep = kneelOK && !o.kneel && !lying && S.kneelB >= .5 && sitB > 0 && (o.mode === 'wake' || rising);
+  let kneelK = lerp(S.kneelK, o.kneel && kneelOK && !lying ? smooth(.5, 1, sitK) : 0, ease(10, dt));
+  if (kneelK < 1e-3) kneelK = 0;  // the easing alone never reaches zero
+  const kneelB = !kneelOK ? 0 : keep ? approach(S.kneelB, 1, dt, BODY_CUT) : kneelStep(S.kneelB, kneelK, dt);
+  return { sitB, kneelK, kneelB, prevSit: sit };
+}
+const SEATED_NOT = { sitB: 0, kneelK: 0, kneelB: 0, prevSit: 0 };
 export function lieStep(L, lieK, dt) {
   const on = L.on ? lieK > LIE_CUT.up : lieK > LIE_CUT.down;
   return { on, a: approach(L.a, on ? 1 : 0, dt, BODY_CUT) };
@@ -444,8 +462,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of KNEEL_PARTS) parts.push({ ...p, alpha: 0 });
   }
   const kneelOK = () => !!(cur.kneel && (!fade || fade.set.kneel));
-  let kneelK = 0, kneelB = 0;  // her eased kneel; the kneeling drawing's share (kneelStep)
-  let sitB = 0;  // the seated lower body's share (sitStep)
+  let seat = SEATED_NOT;  // her seated lower body and kneeling drawing (seatStep)
   /** Whether her back can show now: she has the drawing and is standing (seated or lying she turns as before). */
   const backable = () => !!BACK && backOK() && sitK < .5 && !lieK;
 
@@ -935,8 +952,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const lift = o.legs.map(l => clamp(29 - Math.hypot(l[2] - l[0], l[3] - l[1]), -8, 20));
     // sitting swaps the lower body for its own drawing (skirt spread on the floor, legs forward) in a frame halfway
     // down (on the kit's own sit: sitK lags it), under a little squash; a crossfade would show both skirts at once
-    sitB = sitStep(sitB, o.sit ?? 0, airborne, dt);
-    const sitIn = sitB, plop = Math.sin(Math.PI * smooth(.3, .8, sitK));
+    // (kneeling, the kneeling drawing cuts in over the seated rig once she is down, and stays till she is up: seatStep)
+    seat = seatStep(seat, o, { sitK, airborne, lying: !!lieK, kneelOK: !!KNEEL && kneelOK() }, dt);
+    const sitIn = seat.sitB, plop = Math.sin(Math.PI * smooth(.3, .8, sitK));
 
     /* arms: swing against the legs when walking, out in the air, flailing when held */
     let aN = 4, aF = -2;
@@ -1176,10 +1194,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       for (const p of ROLL.required) st.alpha[p.id] = tex[p.tex] ? ballA : 0;
     }
     // kneeling: once she is down, the kneeling drawing cuts in over the seated rig (which then goes), as lying does
-    kneelK = lerp(kneelK, o.kneel && KNEEL && kneelOK() && !lieK ? smooth(.5, 1, sitK) : 0, ease(10, dt));
-    if (kneelK < 1e-3) kneelK = 0;
-    kneelB = KNEEL && kneelOK() ? kneelStep(kneelB, kneelK, dt) : 0;
-    const kneelA = kneelB;
+    const kneelA = seat.kneelB;
     if (KNEEL) {
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
       const shutK = eyesShut(o, fc.eyes, mode);
@@ -1371,7 +1386,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; kneelK = 0; kneelB = 0; sitB = 0; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

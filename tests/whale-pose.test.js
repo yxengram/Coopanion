@@ -1,8 +1,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { createPet, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
 const model = JSON.parse(readFileSync(new URL('model.json', WHALE), 'utf8'));
@@ -730,5 +730,39 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
     expect(Math.abs(y + h - 256)).toBeLessThan(3);
     expect(Math.abs(x + w / 2 - 128)).toBeLessThan(25);
     expect(p.z).toBeGreaterThan(Math.max(...model.parts.map(q => q.z)));
+  });
+  it('gets up from kneeling on the kneeling drawing, never the seated one; a sit word after a kneel does sit', () => {
+    // the kit's body (plus) running, and every frame it hands over stepped as the figure steps it
+    const el = () => ({ setAttribute() {}, innerHTML: '' });
+    let seat = { sitB: 0, kneelK: 0, kneelB: 0, prevSit: 0 }, sitK = 0;
+    const fig = {
+      draw(_g, _fc, o) {
+        sitK += (Math.min(1, Math.max(0, o.sit ?? 0)) - sitK) * (1 - Math.exp(-12 / 60));
+        seat = seatStep(seat, o, { sitK, airborne: o.mode === 'air', kneelOK: true }, 1 / 60);
+      },
+      poses: { kneel: true },
+    };
+    const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    pet.resize();
+    const run = (s, each = () => {}) => { for (let i = 0; i < s * 60; i++) { pet.step(1 / 60); pet.render(); each(); } };
+    run(.5);
+    // standing up (the kit wakes her, a second at sit 1), walking off, or sent somewhere (a startled wake, sit at once
+    // to 0): kneeling until the seated body is gone
+    for (const up of ['stand', 'walk', 'walkTo']) {
+      pet.doWord('kneel'); run(3);
+      expect(seat.kneelB, up).toBe(1);
+      if (up === 'walkTo') pet.walkTo(pet.pet.x + 300, false, 1); else pet.doWord(up);
+      let seatedShown = 0;
+      run(4, () => { if (seat.sitB > 0 && seat.kneelB < 1) seatedShown++; });
+      expect(seatedShown, up).toBe(0);
+      expect(seat.kneelB, up).toBe(0);
+      expect(seat.sitB, up).toBe(0);
+    }
+    pet.doWord('kneel'); run(3);
+    pet.doWord('sit'); run(2);
+    expect(seat.kneelB).toBe(0);
+    expect(seat.sitB).toBe(1);
+    // without the drawing she kneels as the seated rig
+    expect(seatStep({ sitB: 1, kneelK: 1, kneelB: 1, prevSit: 1 }, { sit: 1, kneel: true, mode: 'sit' }, { sitK: 1 }, 1 / 60).kneelB).toBe(0);
   });
 });

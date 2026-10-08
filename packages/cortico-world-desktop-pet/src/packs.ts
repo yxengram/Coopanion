@@ -1,7 +1,7 @@
 /**
  * Figure packs: the pet's body, as a directory with a `figure.json` manifest. Coo is one, built in
- * (`web/coo/`), and so are the whale maid (`web/whale/`), Claude-chan (`web/claude-chan/`) and GPT-chan
- * (`web/gpt-chan/`).
+ * (`web/coo/`), and so are the whale maid (`web/whale/`), Claude-chan (`web/claude-chan/`), GPT-chan
+ * (`web/gpt-chan/`) and Gemini-chan (`web/gemini-chan/`).
  *
  * A pack's code runs only inside the sandboxed figure frame (`web/figure-frame.html`): an opaque
  * origin with no network access, talking to the pet page by `postMessage` alone. The body there is
@@ -29,12 +29,14 @@ export const FIGURE_API = 2;
 /** The built-in body, and the one shown when the skin names a pack that is not there. */
 export const COO = 'coo';
 /**
- * Installed pack ids that stand for a built-in pack: our whale, Claude-chan and GPT-chan exported for other copies of
- * the app (`coopanion-whale`, `coopanion-claude-chan`, `coopanion-gpt-chan`, scripts/export-*-pack.mjs) are the
- * built-in ones here, with the same scheme ids. Such a pack is not listed, and a skin naming it shows the built-in one.
+ * Installed pack ids that stand for a built-in pack: our whale, Claude-chan, GPT-chan and Gemini-chan exported for
+ * other copies of the app (`coopanion-whale`, `coopanion-claude-chan`, `coopanion-gpt-chan`, `coopanion-gemini-chan`,
+ * scripts/export-*-pack.mjs) are the built-in ones here, with the same scheme ids. Such a pack is not listed, and a
+ * skin naming it shows the built-in one.
  */
 export const PACK_ALIASES: Readonly<Record<string, string>> = {
   'coopanion-whale': 'whale', 'coopanion-claude-chan': 'claude-chan', 'coopanion-gpt-chan': 'gpt-chan',
+  'coopanion-gemini-chan': 'gemini-chan',
 };
 /** The pack id a skin's `figure` stands for: an alias's built-in, Coo when there is none. */
 export const figureOf = (figure: string | undefined): string => {
@@ -247,6 +249,7 @@ export const BUILTIN_PACKS: ReadonlyArray<{ dir: string; base: string }> = [
   { dir: fileURLToPath(new URL('../web/whale/', import.meta.url)), base: '/web/whale/' },
   { dir: fileURLToPath(new URL('../web/claude-chan/', import.meta.url)), base: '/web/claude-chan/' },
   { dir: fileURLToPath(new URL('../web/gpt-chan/', import.meta.url)), base: '/web/gpt-chan/' },
+  { dir: fileURLToPath(new URL('../web/gemini-chan/', import.meta.url)), base: '/web/gemini-chan/' },
 ];
 
 /** The built-in packs and those installed under `roots` (each subdirectory one pack). */

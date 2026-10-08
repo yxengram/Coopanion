@@ -2,8 +2,8 @@
  * Exports a built-in figure (web/<dir>/) as a figure pack other copies of the desktop pet can install, upstream's
  * v0.1.17 included. Each figure has a thin wrapper with its descriptor and CLI: scripts/export-whale-pack.mjs
  * (`coopanion-whale`), scripts/export-claude-pack.mjs (`coopanion-claude-chan`), scripts/export-gpt-pack.mjs
- * (`coopanion-gpt-chan`); `node <wrapper> [outDir] [--upstream <ref>]` (default `build/packs` under the repository
- * root) writes `<outDir>/<pack id>/`.
+ * (`coopanion-gpt-chan`), scripts/export-gemini-pack.mjs (`coopanion-gemini-chan`); `node <wrapper> [outDir]
+ * [--upstream <ref>]` (default `build/packs` under the repository root) writes `<outDir>/<pack id>/`.
  *
  * A pack carries its own kit: the figure's modules (every one its entry imports, transitively) keep their path under
  * web/, so `<dir>/figure.js` still imports `../kit/body.js` and `../kit/rig.js` (copied unchanged), and in an app whose

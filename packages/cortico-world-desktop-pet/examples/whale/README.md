@@ -112,7 +112,7 @@ Coo 和大肥鱼用的 kit 比原版多一些词、表情和姿势，只在打�
 在应用里它和 `opts.kit` 是同一个模块；导出成形象包时把 `whale/figure.js` 和 `kit/body.js`、`kit/rig.js` 放在一起，包就带着自己的 kit，
 在原版的桌宠里也是同样的词和姿势。`figure.js` 不联网（形象包的沙箱也不让）：`model.json` 由调用方读好传进 `opts.model`，
 没给就直接报错；贴图都经 `opts.loadImage` 载入。`kit/rig.js` 比原版多一个 `st.stone`（0 到 1，整张褪成灰白的石头色，石化用）。
-展示页（`serve.mjs`）同样用 `plus: true`，按 `figure.json` 的词表给每个词一个按钮；加 `?figure=coo` 换成 Coo、`?figure=claude-chan` 换成 Claude 娘（`web/claude-chan/`）、`?figure=gpt-chan` 换成 GPT 娘（`web/gpt-chan/`），`?scheme=<id>` 选配色。
+展示页（`serve.mjs`）同样用 `plus: true`，按 `figure.json` 的词表给每个词一个按钮；加 `?figure=coo` 换成 Coo、`?figure=claude-chan` 换成 Claude 娘（`web/claude-chan/`）、`?figure=gpt-chan` 换成 GPT 娘（`web/gpt-chan/`）、`?figure=gemini-chan` 换成 Gemini 娘（`web/gemini-chan/`），`?scheme=<id>` 选配色。
 
 下面是这些扩展在大肥鱼（和 Coo）身上的样子。
 
@@ -202,7 +202,9 @@ Claude 娘用同一套办法导出：`pnpm run export:claude [输出目录]`（`
 在 Coopanion 自己里 `coopanion-claude-chan` 同样是内置 Claude 娘的别名；`tests/claude-pack-export.test.js` 还用 `git show v0.1.17:` 取原版的 `packs.ts` 检查清单。
 GPT 娘也一样：`pnpm run export:gpt [输出目录]`（`scripts/export-gpt-pack.mjs`）写出 `coopanion-gpt-chan/`，名字「GPT 娘」，词表、模块、音效的算法和 Claude 娘相同，
 贴图同样只限非商业使用；`coopanion-gpt-chan` 是内置 GPT 娘的别名，`tests/gpt-pack-export.test.js` 做同样的检查。
-三个脚本只是各自的描述（id、名字、许可、README），导出的活都在 `scripts/export-pack.mjs` 里。
+Gemini 娘同理：`pnpm run export:gemini [输出目录]`（`scripts/export-gemini-pack.mjs`）写出 `coopanion-gemini-chan/`，名字「Gemini 娘」，
+贴图只限非商业使用；`coopanion-gemini-chan` 是内置 Gemini 娘的别名，`tests/gemini-pack-export.test.js` 做同样的检查。
+四个脚本只是各自的描述（id、名字、许可、README），导出的活都在 `scripts/export-pack.mjs` 里。
 
 ## 贴图来源
 

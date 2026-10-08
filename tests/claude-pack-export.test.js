@@ -151,7 +151,7 @@ describe('exported Claude-chan pack', () => {
     const { root } = writePack(await buildManifest({ upstreamTones }));
     const { packs, problems } = figurePacks([root]);
     expect(problems).toEqual([]);
-    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan']);
+    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
     expect(packFor(packs, PACK_ID)).toMatchObject({ id: 'claude-chan', builtin: true });
     expect(unaliasSkin({ figure: PACK_ID, scheme: 'original' })).toEqual({ figure: 'claude-chan', scheme: 'original' });
   });

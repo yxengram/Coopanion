@@ -612,6 +612,7 @@ export function createMotion(model, R) {
   };
   springs();
   let prevTilt = 0, prevYaw = 0, prevLow = 0, wTilt = 0, wLean = 0, sitK = 0, danceK = 0, lieK = 0;
+  let prevSit = 0;  // the kit's sit last frame (rising out of a kneel she stays kneeling)
   let sitOwnK = 1, raiseNow = 0;  // (sit) the seated arms' share; how far her points rise over the kit's sink
   let bodyB = { from: 'stand', to: 'stand', x: 1 }, dropNow = null;  // the body hand-over; the head's sink seated (eased)
   let perk = 0, swish = 0, droop = 0, fold = 0, curl = 0, wagPh = 0, browLift = 0, browInner = 0, browSide = 0, backA = 0, backOn = 1, awayA = 0, faceArmT = 0, sinceArmG = 9, lastFaceArm = null, lastArmG = null;
@@ -635,12 +636,18 @@ export function createMotion(model, R) {
     const kneelOK = !!KNEEL && caps.pose('kneel'), sitOK = !!SIT && caps.pose('sit');
     const kneeling = !!o.kneel && kneelOK && !lieK;
     // the body she shows (see bodyStep); kneeling, her live head sinks to the kneeling drawing's, so it takes over in place
-    bodyB = bodyStep(bodyB, bodyWant(bodyB.to, o.sit ?? 0, { kneel: kneeling, sitOK }), dt);
+    // getting up from a kneel the kit's kneel is already off while she wakes (a second at sit 1) and its sit comes
+    // down: she keeps the kneeling drawing until she stands, rather than showing the seated one on the way up
+    const rising = (o.sit ?? 0) < prevSit - 1e-4;
+    prevSit = o.sit ?? 0;
+    const keepKneel = bodyB.to === 'kneel' && !kneeling && kneelOK && !lieK && (mode === 'wake' || rising);
+    bodyB = bodyStep(bodyB, bodyWant(bodyB.to, o.sit ?? 0, { kneel: kneeling || keepKneel, sitOK }), dt);
     const bodyA = bodyAlphas(bodyB);
-    const dropT = kneeling && KNEEL.pose.headDrop != null ? KNEEL.pose.headDrop : sitOK ? SIT.drop : null;
+    const kneelNow = kneeling || keepKneel;
+    const dropT = kneelNow && KNEEL.pose.headDrop != null ? KNEEL.pose.headDrop : sitOK ? SIT.drop : null;
     dropNow = dropT == null ? null : dropNow == null || bodyA.kneel >= 1 ? dropT : approach(dropNow, dropT, dt, 1 / 8);
     const sitDrop = dropNow == null ? 0 : sitRaise(o.sit, dropNow);
-    raiseNow = kneeling ? 0 : sitDrop;
+    raiseNow = kneelNow ? 0 : sitDrop;
     const lowB = low - sitDrop;
 
     /* the kit's short gestures, as she does them */
@@ -859,7 +866,7 @@ export function createMotion(model, R) {
     // the skirt: its top goes down with the waist, seated its hem settles on the floor and spreads; it bulges over a lifted foot
     // sinking toward a seated drawing, the hem reaches the floor and spreads to its outline by the time it takes over
     // (SIT_CUT, on the kit's own sit: the figure's sitK lags it)
-    const toward = kneeling ? 'kneel' : sitOK ? 'sit' : 'none';
+    const toward = kneelNow ? 'kneel' : sitOK ? 'sit' : 'none';
     const sinkK = toward === 'none' ? sitK : Math.max(sitK, clamp((o.sit ?? 0) / SIT_CUT.down, 0, 1));
     const hemK = sinkK * hemDrop, spread = 16 * sitK + SKIRT_SPREAD[toward] * smooth(.25, 1, sinkK);
     st.skirt = {

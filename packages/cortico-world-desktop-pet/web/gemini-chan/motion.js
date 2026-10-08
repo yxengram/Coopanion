@@ -1,0 +1,1127 @@
+/**
+ * Gemini-chan's motion (Gemini 娘): the rig she is built from, and what each frame of the kit (web/kit/body.js) does to it.
+ *
+ * buildRig(model) turns model.json into kit/rig.js deformers and parts; createMotion(model, rig) turns every frame the
+ * kit hands over into deformer states and part alphas. Nothing here touches the DOM: figure.js draws, tests run it bare.
+ *
+ * She faces the viewer; the kit mirrors the whole group to turn her. Rig space = the kit's space (x=128 under her,
+ * soles at y=256); model.json keeps the master drawing's pixels for the face (U/V convert). `armL` is the arm on the
+ * viewer's left (her right), the one that gestures; `armR` the other. Standing calmly her arms just hang; a one-arm
+ * gesture is armL's drawing (armR hangs meanwhile), a two-arm gesture is one drawing of both. Whatever drawing is
+ * missing, the plain hanging arms (arm_l, arm_r) stand in, turned roughly into the gesture.
+ *
+ * Her cat ears (earL, earR, turning about their bases on the back of her head) carry her mood the way the whale's fins
+ * do: up when glad or listening, flat out sideways when low, scared or cross, sagging when sleepy, with a flick now and
+ * then and a twitch when something happens to her. Her cat tail (tailRot, with the warp `tail` along it) swishes in a
+ * slow S at rest, wags fast when she is glad, puffs up when startled and droops when she is sad.
+ */
+
+export const f1 = n => Math.round(n * 100) / 100;
+export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const lerp = (a, b, k) => a + (b - a) * k;
+export const ease = (rate, dt) => 1 - Math.exp(-rate * dt);
+export const bump = u => Math.sin(Math.PI * clamp(u, 0, 1));
+export const smooth = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+/** `v` moved toward `to` at a pace that crosses 0..1 in `dur` seconds. */
+export const approach = (v, to, dt, dur) => v + clamp(to - v, -dt / dur, dt / dur);
+
+/* ---------- springs ---------- */
+// `lim` bounds the output: a hard throw may overshoot, the hair must not fold over itself
+export function spring(k, c, lim = Infinity) {
+  return {
+    x: 0, v: 0,
+    step(target, dt) {
+      this.v += ((target - this.x) * k - this.v * c) * dt;
+      this.x += this.v * dt;
+      if (Math.abs(this.x) > lim) { this.x = Math.sign(this.x) * lim; this.v = 0; }
+      return this.x;
+    },
+  };
+}
+
+/** Master pixels → rig units: U(x), V(y), and the scale S (rig units per master pixel). */
+export function unitsOf(model) {
+  const { S, X0, FEET } = model.units;
+  return { S, U: x => 128 + (x - X0) * S, V: y => 256 - (FEET - y) * S };
+}
+
+/* ---------- whole-body drawings (lie, kneel, sit, back, roll), as the whale has them ---------- */
+/**
+ * Lying down (the kit's `lie`, 0..1) as an over-dissolve: the lying drawing fades in over the seated rig, which stays
+ * fully drawn until the drawing is opaque and goes in one step then. `poseA` is the drawing's alpha, `standA` the rig's.
+ */
+export function poseMix(lieK) {
+  const poseA = smooth(.2, .45, lieK), standA = poseA >= 1 ? 0 : 1;
+  return { poseA, standA, hide: standA <= 0 };
+}
+/** Faces that smile with an open mouth (the floor drawings' smile patches show for them). */
+export const SMILING = ['happy', 'love', 'excited', 'wink', 'giggle', 'coax', 'moved', 'tongue', 'dragged'];
+/** Which mouth patch a floor drawing shows (0..1 each): talking opens it on the beat, a smiling face smiles. */
+export function lyingMouth(o, face, mode) {
+  if (mode === 'sleep' || face === 'petrify') return { talk: 0, smile: 0 };
+  const talk = smooth(.5, .75, (o.talk || 0) * (.45 + .45 * Math.abs(Math.sin((o.t || 0) * 17))));
+  return { talk, smile: SMILING.includes(face) ? 1 - talk : 0 };
+}
+/**
+ * How far a floor drawing's eyes are shut (0..1), for its eyes-shut patch. The patch is a whole drawn face over open
+ * eyes, so it nearly cuts (a half-faded patch over open eyes reads as a grey smear mid-blink).
+ */
+export function eyesShut(o, eyes, mode) {
+  const e = eyes?.[0] || {};
+  return smooth(.35, .65, Math.max(o.blink || 0, o.eyeClose || 0, mode === 'sleep' ? 1 : 0, smooth(.6, 1, o.drowse || 0),
+    e.shape === 'up' || e.shape === 'down' ? 1 : 0, e.shape === 'lid' ? 1 - smooth(1.5, 4, e.ry ?? 16) : 0));
+}
+/** How far the cup comes up to her mouth (0..1) at `k` of the sip. */
+export const sipLift = k => smooth(.38, .5, k) * (1 - smooth(.56, .66, k));
+/** A roll turns once, eased, over this part of the gesture (as the kit's rollTurn). */
+export const rollTurn = k => smooth(.2, .8, k);
+/** How far one roll carries her (kit/body.js ROLL_D, rig units). */
+export const ROLL_D = 2 * Math.PI * 100;
+/**
+ * The ball's turn (degrees) at `k` of a roll, rolling without slipping: it turns `travel` / `around` (its perimeter)
+ * times while the kit carries her `travel` (the frame's gesture.travel, + forward: short of ROLL_D near a screen edge).
+ * Past whole turns, the rest is split: it curls up tilted back by half of it and comes up tilted forward by the other
+ * half (a ball the size of the old one, around = ROLL_D, turns 0 → 360 on a full roll). A kit that gives no travel
+ * (upstream's) rolls her the full ROLL_D.
+ */
+export function ballAngle(k, around = ROLL_D, travel = ROLL_D) {
+  const way = Number.isFinite(travel) ? travel : ROLL_D;
+  const turns = way / Math.max(1, around), frac = turns - Math.round(turns);
+  return 360 * turns * rollTurn(k) - 180 * frac;
+}
+/** The curled-up drawing's share of a roll: almost a cut in the crouch, and out again as she springs up. */
+export const ballMix = k => smooth(.13, .165, k) * (1 - smooth(.835, .87, k));
+/** How far the ball's middle sits above the floor turned by `deg` (poses.roll.support, every 5°). */
+export function ballLift(support, deg) {
+  const n = support.length, x = (((deg % 360) + 360) % 360) / 360 * n, i = Math.floor(x) % n;
+  return lerp(support[i], support[(i + 1) % n], x - Math.floor(x));
+}
+/**
+ * Her back hair's swing (poses.back.rects.hair: v = 0 at the nape, 1 at the lowest tips): the head above stays put,
+ * the tips move most. `hair`, `hairY`, `swish` are the front hair's springs; `flip` is -1 while the drawing is mirrored,
+ * so the hair trails the same way the front hair does.
+ */
+export function backHairField(hair, hairY, swish, t, flip = 1) {
+  return (u, v) => {
+    const w = v * Math.sqrt(v);
+    return [flip * (hair * 7 * w + Math.sin(t * 1.6 + v * 3) * w + swish * 1.2 * Math.sin(t * (3 + 4 * swish) + v * 2) * w * w),
+      hairY * 10 * w * w - Math.abs(hair) * 1.2 * w];
+  };
+}
+/** The away gesture's share of her back carried over frames: dropped early, she turns round over .3 s. */
+export function awayStep(awayA, awayBack, g, dt) {
+  return g?.kind === 'away' && g.k > .5 ? awayBack : Math.max(awayBack, awayA - dt / .3);
+}
+/** How much of her back shows (0..1) from the frame's `facing` and the away turn, and whether it is mirrored. */
+export function backView(facing, awayA) {
+  const turn = 1 - smooth(.3, .6, Math.abs(facing ?? 1));
+  return { k: Math.max(turn, awayA), flip: turn > awayA };
+}
+/** The lying drawing's deformers (poses.lie), from the floor up; `inner` is the innermost, where its parts hang. */
+export function lieDeformers(LIE) {
+  const r = LIE.rects || {}, pv = LIE.pivots || {};
+  const d = { lie: { kind: 'rot', pivot: pv.lie || [128, 256] } };
+  let inner = 'lie';
+  for (const [id, rect] of [['lieBack', r.back], ['lieHead', r.head], ['lieLegs', r.legs]]) {
+    if (!rect) continue;
+    d[id] = { kind: 'warp', parent: inner, rect };
+    inner = id;
+  }
+  return { deformers: d, inner };
+}
+/** The lying kick as a warp field: the raised shins turn about the knee (poses.lie.legAxis), more toward the shoes. */
+export function kickField(ax, kc, kd) {
+  const [kx, ky] = ax.knee, lx = ax.shoe[0] - kx, ly = ax.shoe[1] - ky, len2 = lx * lx + ly * ly, len = Math.sqrt(len2);
+  return (u, v, x, y) => {
+    const dx = x - kx, dy = y - ky, along = clamp((dx * lx + dy * ly) / len2, 0, 1), side = (dx * ly - dy * lx) / len;
+    const hi = smooth(.4, .6, along), edge = lerp(ax.gap - 4, ax.far, hi), fall = lerp(6, 14, hi);
+    const w = along * along * smooth(edge - fall, edge, side);
+    const a = (kc + kd * (2 * smooth(ax.gap - 8, ax.gap + 8, side) - 1)) * w;
+    return [-a * dy, a * dx];
+  };
+}
+export const KICK = { amp: 10, apart: 1.25 };
+
+/* ---------- facing the viewer ---------- */
+/** The share of the kit's [tilt, lean] the whole group takes, by mode; the rest she bends herself. */
+export const GROUP = { air: [1, .3], drag: [1, .3], crouch: [1, .3], land: [1, .3], walk: [.5, .15], run: [.8, .3], dance: [.6, 0] };
+/**
+ * A forward lean (degrees, + toward the viewer) the way a figure facing you shows it: the head pitches down, the neck
+ * dips, the upper body shortens a little about the waist; `share` of it (at most 6°) stays an in-plane turn.
+ */
+export function pitchFromLean(deg, share = 0) {
+  const k = clamp(deg / 20, -.6, 1.4);
+  return { pitch: .55 * k, neckTy: 3 * k, waistSy: 1 - .08 * k, waistTy: 2 * k, rot: clamp(deg * share, -6, 6) };
+}
+/**
+ * A bow (0..1, deepest at 1) as a figure facing you shows it: the upper body pitches toward you about the waist (it
+ * foreshortens, a little wider for being nearer, and drops), the head drops further and pitches down (shorter about
+ * the chin, the crown toward you), and the arms go with the upper body; the skirt stays.
+ */
+export function bowPose(k) {
+  k = clamp(k, 0, 1);
+  return { pitch: 1.05 * k, neckTy: 9 * k, neckSy: 1 - .1 * k, neckSx: 1 + .02 * k, waistSy: 1 - .2 * k, waistSx: 1 + .035 * k, waistTy: 3 * k };
+}
+/** The kit's foot at rest (y of a foot's centre on the floor). */
+export const FOOT_Y = 241;
+/** The kit's hip→foot segments (sized for Coo) as her shoes under the skirt: a lifted foot rises, a stride shifts it a little. */
+export function feetFromLegs(legs) {
+  return legs.map(([hx, , fx, fy]) => { const lift = clamp(FOOT_Y - fy, 0, 30); return { tx: clamp((fx - hx) * .12, -4, 4), ty: -lift * .8, lift }; });
+}
+
+/* ---------- arms ---------- */
+/** One-arm gestures (armL does them; armR hangs meanwhile): kit gesture → pose. */
+export const ARM_ONE = { wave: 'wave', scratch: 'scratch', idea: 'idea', salute: 'salute', vsign: 'vsign', point: 'point', cover: 'cover' };
+/** Two-arm gestures, one drawing of both arms each: kit gesture → pose. */
+export const ARM_BOTH = {
+  cheer: 'cheer', heart: 'heart', read: 'read', sip: 'cup', serve: 'cup', pray: 'pray', hips: 'hips', hug: 'hug', cross: 'cross',
+  stretch: 'stretch', curtsy: 'curtsy', flinch: 'oops', peek: 'search', shiver: 'cross',
+};
+/** Faces she holds her arms for, standing or sitting still with no gesture going. */
+export const FACE_ARMS = {
+  thinking: 'chin', listening: 'write', determined: 'hips', angry: 'hips', excited: 'fist', shy: 'shy', flustered: 'shy',
+  awkward: 'scratch', scared: 'oops', nervous: 'oops', pout: 'cross', disgusted: 'cross', singing: 'pray', pleading: 'pray',
+};
+/** Which arms a pose drawing replaces, unless model.poses.<id>.kind says. */
+export const POSE_KIND = {
+  wave: 'armL', chin: 'armL', scratch: 'armL', idea: 'armL', salute: 'armL', vsign: 'armL', point: 'armL', cover: 'armL', fist: 'armL',
+};
+/** A missing drawing stands in for another that is there (the book and the notebook for each other). */
+export const POSE_ALT = { read: ['write'], write: ['read'], search: ['read'], fist: ['vsign'], shy: ['pray'], oops: ['cover'] };
+/** The calm modes, where faces pose her arms. */
+export const CALM_MODES = ['idle', 'look', 'sit', 'sleep', 'wake'];
+/** The plain arms' spring (stiffness, damping) and limit. */
+export const ARM_SPRING = { k: 60, c: 9, lim: 170 };
+/** The arms' crossfade between drawings (seconds), and how far a drawing rises into place as it comes. */
+export const ARM_FADE = .15, ARM_RISE = 6;
+/** How long her back drawing takes to go when it may no longer show (s). */
+export const BACK_FADE = .15;
+/**
+ * How the plain arms do a gesture whose drawing is missing: [armL, armR] angles (degrees; + turns armL out and up,
+ * - turns armR out and up; null leaves that arm be).
+ */
+export const ARM_FALLBACK = {
+  wave: [108, null], scratch: [150, null], idea: [160, null], salute: [145, null], vsign: [95, null], point: [90, null],
+  cover: [-32, null], chin: [-32, null], fist: [120, null],
+  cheer: [115, -115], heart: [-28, 28], read: [-26, 26], cup: [-28, 28], pray: [-30, 30], hips: [24, -24],
+  hug: [70, -70], cross: [-34, 34], stretch: [165, -165], curtsy: [16, -16], oops: [-36, 36], search: [-26, 26], shy: [-30, 30],
+  write: [-26, 26],
+};
+
+/**
+ * Which drawing each arm shows: `{ L, R, fallback }`, where L and R are 'hangL' / 'hangR' (the plain arms) or pose ids
+ * (a two-arm pose is both), and `fallback` names the gesture the plain arms act out when its drawing is missing.
+ * `has(id)` says a pose can show now; `faceOK` lets the face pose her arms (it has settled). With nothing asked of
+ * them her arms hang.
+ */
+export function armPlan({ mode, gesture, face, faceOK = true }, has) {
+  const hang = { L: 'hangL', R: 'hangR', fallback: null };
+  // carried, or reeling: her arms are free
+  if (mode === 'drag' || mode === 'dizzy') return hang;
+  const g = gesture && gesture.k > .02 && gesture.k < .9 ? gesture.kind : null;
+  const armG = g ? ARM_BOTH[g] || ARM_ONE[g] : null;
+  const faceArm = !armG && faceOK && CALM_MODES.includes(mode) ? FACE_ARMS[face] : null;
+  const want = armG || faceArm;
+  if (want) {
+    const got = [want, ...(POSE_ALT[want] || [])].find(has);
+    if (got) {
+      const kind = has.kind?.(got) || POSE_KIND[got] || 'both';
+      if (kind === 'armL') return { L: got, R: 'hangR', fallback: null };
+      if (kind === 'armR') return { L: 'hangL', R: got, fallback: null };
+      return { L: got, R: got, fallback: null };
+    }
+    if (armG) return { ...hang, fallback: want };
+  }
+  return hang;
+}
+
+/* ---------- moods (her ears and tail, as the whale's fins and tail) ---------- */
+// by face: perk (+ up and lively, - low), tail wag (0..1), and how far the tail droops (-1 = full); she is cheerful, so
+// even her calm faces swish
+export const MOOD = {
+  happy: [.8, .85], love: [.8, .8], wink: [.5, .6], surprised: [1, .2], angry: [.6, .3], sad: [-1, 0, -1.6], shy: [-.3, .35],
+  sleepy: [-.6, .05], sleep: [-.9, 0, -1], dizzy: [-.3, 0], dragged: [.3, .5], content: [0, .25], listening: [.5, .25],
+  thinking: [.2, .2], run: [.4, .6], waking: [-.3, .1], squeeze: [-.4, 0], neutral: [.1, .3],
+  smug: [.5, .5], pout: [.1, .1], worried: [-.4, .1], determined: [.7, .3], flustered: [.3, .7], scared: [-1, 0, -1],
+  excited: [1, 1], cry: [-1, 0, -1], confused: [.2, .2], bowing: [-.2, .15], disgusted: [-.4, .05], nervous: [-.4, .1], peeking: [.6, .5],
+  gentle: [.2, .25], awkward: [-.3, .1], giggle: [.4, .6], pleading: [.2, .4], moved: [.3, .45], sighing: [-.3, 0, -.5], petrify: [.6, 0],
+  coax: [.6, .9], singing: [.5, .55], saluting: [.7, .3], tongue: [.6, .7], stretching: [.3, .3], pointing: [.6, .4],
+  sipping: [.1, .2], reading: [.1, .15],
+};
+/**
+ * Her ears by face: [up, flat, droop] (0..1 each). Up stands them tall, turned a touch outward (glad, startled,
+ * listening); flat turns them well out sideways and presses them down (low, scared, cross: a cat's flattened ears);
+ * droop lets them sag outward (sleepy). A face not listed holds them neutral.
+ */
+export const EAR_MOOD = {
+  happy: [.8, 0, 0], love: [.7, 0, 0], wink: [.5, 0, 0], surprised: [1, 0, 0], excited: [1, 0, 0], listening: [1, 0, 0],
+  peeking: [.9, 0, 0], determined: [.6, 0, 0], saluting: [.6, 0, 0], pointing: [.7, 0, 0], run: [.4, 0, 0], petrify: [1, 0, 0],
+  smug: [.4, 0, 0], coax: [.5, 0, 0], tongue: [.5, 0, 0], giggle: [.4, 0, 0], singing: [.5, 0, 0], stretching: [.5, 0, 0],
+  thinking: [.3, 0, 0], confused: [.3, 0, 0], moved: [.3, 0, 0], reading: [.3, 0, 0], gentle: [.2, 0, .1], neutral: [.1, 0, 0],
+  sad: [0, .8, 0], cry: [0, 1, 0], scared: [0, 1, 0], angry: [0, .9, 0], squeeze: [0, .7, 0], disgusted: [0, .6, 0],
+  worried: [0, .5, 0], nervous: [0, .5, 0], awkward: [0, .4, 0], pout: [0, .4, 0], shy: [0, .4, 0], flustered: [0, .3, 0],
+  dragged: [0, .3, 0], bowing: [0, .2, 0], pleading: [0, .3, .2], sighing: [0, .3, .4], dizzy: [0, 0, .6],
+  sleepy: [0, 0, .8], sleep: [0, 0, 1], waking: [0, 0, .5], content: [0, 0, .25], sipping: [.1, 0, .1],
+};
+/**
+ * How far her ears move: degrees out from her head and the height they take (sy) when up, flat or drooping; the idle
+ * flick's and the twitch's degrees; `max` bounds the whole turn. Each ear is its own texture turned about its base, so
+ * these stay small enough that nothing tears.
+ */
+export const EAR = { up: 4, upSy: 1.08, flat: 20, flatSy: .85, droop: 13, droopSy: .92, flick: 10, twitch: 6, max: 30 };
+/**
+ * Both ears' states from `up`, `flat` and `droop` (0..1 each), each ear's own extra turn out (`extraL`, `extraR`,
+ * degrees: flicks, twitches) and a `lag` (degrees) that turns both the same way (they trail a swing of her head). They
+ * mirror each other: out from her head is − for earL (the viewer's left) and + for earR.
+ */
+export function earStates(up, flat, droop, extraL = 0, extraR = extraL, lag = 0) {
+  up = clamp(up, 0, 1); flat = clamp(flat, 0, 1); droop = clamp(droop, 0, 1);
+  const base = EAR.up * up + EAR.flat * flat + EAR.droop * droop;
+  const out = k => clamp(base + k, -EAR.max / 2, EAR.max);
+  const sy = clamp(1 + (EAR.upSy - 1) * up - (1 - EAR.flatSy) * flat - (1 - EAR.droopSy) * droop, EAR.flatSy, EAR.upSy);
+  const sx = 1 + .04 * flat;
+  return { earL: { a: -out(extraL) + lag, sx, sy }, earR: { a: out(extraR) + lag, sx, sy } };
+}
+/** A number in 0..1 from `n`, the same every run (the flicks are random-looking but deterministic in t). */
+export const hash01 = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+/**
+ * An ear's idle flick at time `t` (degrees out; 0 most of the time). Each ear (`side` 0 or 1) has its own slots of a
+ * few seconds; in most of them it flicks out and back once in .22 s at a random-looking moment, now and then twice.
+ */
+export function earFlick(t, side) {
+  const every = side ? 4.3 : 3.4, n = Math.floor(t / every), r = hash01(n * 2 + side);
+  if (r < .3) return 0;
+  const at = (n + .1 + .65 * hash01(n * 2 + side + .5)) * every, u = (t - at) / .22, twice = r > .8;
+  if (u < 0 || u >= (twice ? 2 : 1)) return 0;
+  return EAR.flick * Math.sin(Math.PI * (u % 1));
+}
+/**
+ * Her cat tail: the swing at the tip (degrees) at rest and how much more a full wag adds, the swing's pace (radians a
+ * second) at rest and at a full wag, how far behind the tip runs the middle (`lag`: past ~3 the tail shows an S), how
+ * much it puffs up startled (scale), and the tip's flick (degrees).
+ */
+export const TAIL = { swing: 5, wag: 11, rate: 1.2, wagRate: 9, lag: 3.4, puff: .12, flick: 14 };
+/** The tail tip's flick at time `t` (degrees; 0 most of the time): a quick one every few seconds, most slots. */
+export function tailFlick(t) {
+  const every = 2.9, n = Math.floor(t / every), r = hash01(n * 2 + 7);
+  if (r < .35) return 0;
+  const u = (t - (n + .15 + .6 * hash01(n * 2 + 7.5)) * every) / .3;
+  return u < 0 || u >= 1 ? 0 : TAIL.flick * Math.sin(Math.PI * u) * (r > .7 ? 1 : -.7);
+}
+/**
+ * Her tail's warp field about its root `pv` (rig units): each point turns about the root by an angle that grows toward
+ * the tip (`reach`, the root's distance to the farthest corner), so the tail bends as a whole (`bend`, degrees at the
+ * tip; + the way a + turn goes, so on her right side down), a swing (`swing`, degrees at the tip) runs out along it
+ * from the root at `phase`, reaching the tip `lag` radians later, and the tip alone flicks (`tip`, degrees).
+ */
+export function tailField(pv, reach, bend, swing, phase, lag = 2.2, tip = 0) {
+  const [px, py] = pv;
+  return (u, v, x, y) => {
+    const dx = x - px, dy = y - py, d = clamp(Math.hypot(dx, dy) / reach, 0, 1);
+    const a = (bend * d * d + swing * d * Math.sin(phase - lag * d) + tip * d ** 4) * Math.PI / 180, c = Math.cos(a) - 1, s = Math.sin(a);
+    return [dx * c - dy * s, dx * s + dy * c];
+  };
+}
+// brows by face, master pixels: [lift of both brows, extra lift of their inner ends, extra lift of the right brow]
+export const BROW = {
+  surprised: [6, 0], angry: [-1, -5], sad: [1, 5], shy: [1, 2.5], happy: [2, 0], love: [2, 0], wink: [1, 0],
+  sleepy: [-1.5, 0], sleep: [-1.5, 0], dizzy: [1, 3], dragged: [2, 3.5], thinking: [0, 2], waking: [2, 1],
+  listening: [1, 0], content: [-1, 0], squeeze: [-1, -2], run: [1, 0],
+  smug: [1, -1], pout: [-1, -3], worried: [2, 4.5], determined: [0, -3], flustered: [2, 3.5], scared: [3, 4],
+  excited: [3, 0], cry: [1, 5], confused: [1, 0, 5], disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
+  gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5],
+  singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
+};
+// the head by face: in-plane tilt (degrees, toward +x) and pitch (angleY, down +)
+export const HEAD_TILT = { shy: 6, thinking: -7, smug: -5, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -6, gentle: 5, awkward: -4, giggle: 4, pleading: 4, coax: 4, tongue: -5 };
+export const HEAD_PITCH = { singing: -.25, sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3, reading: .4, giggle: .2, sipping: .15 };
+// the head's parallax gains [x, y] per layer, front to back
+export const PARALLAX = { headFront: [5, 3], headFeat: [3.5, 2], headMid: [2, 1.4], headBack: [-2, -1.2] };
+/** Poses whose drawing rides the neck (the hand stays on her face as the head moves). */
+export const NECK_POSES = ['cover'];
+/** Whole-body drawings: kept out of the arm machinery. */
+export const WHOLE_POSES = ['lie', 'kneel', 'back', 'roll', 'sit'];
+
+/* ---------- sitting: a seated body under her live head (poses.sit) ---------- */
+// poses.sit is not a whole-figure drawing: it is her body below the collar seated (skirt pool and shoes on `sitBase`,
+// bodice and arms on `sitTop`, which rides the waist). Her head, face, fringe, ears, star ornament and long hair stay
+// the live rig's, the head sunk by poses.sit.headDrop; so does her tail unless the drawing has its own
+// (poses.sit.hides names the standing parts it draws itself). While seated a gesture's (or a face's) arm drawings show
+// over the standing torso, sunk with the waist, and the seated arms fade out meanwhile.
+/** How far down her long hair's tips may go (rig units): just above the floor. */
+export const HAIR_FLOOR = 254;
+/** How far the kit sinks her points seated (kit/body.js: `low = sitK * 29`). */
+export const SIT_LOW = 29;
+/** Standing parts the seated body replaces: under the pool (gone once it is opaque), and beside the seated arms. */
+export const SIT_UNDER = ['skirt'], SIT_BESIDE = ['torso'];
+/** How much less than the kit's sink her head goes down with the seated body (rig units), at the kit's `sit` (0..1). */
+export function sitRaise(sit, headDrop) {
+  return Math.max(0, SIT_LOW - (headDrop ?? SIT_LOW)) * clamp(sit || 0, 0, 1);
+}
+/** The kit's anchors raised by `raise`, so its points (bubble, tears, Zs, hearts) stay on her head seated. */
+export function sitAnchors(A, raise) {
+  if (!(raise > 0)) return A;
+  const up = p => [p[0], f1(p[1] - raise)];
+  const out = { ...A };
+  for (const k of ['gaze', 'tear', 'z', 'bubble', 'spout', 'bulb']) if (A[k]) out[k] = up(A[k]);
+  for (const k of ['tears', 'glints']) if (A[k]) out[k] = A[k].map(up);
+  if (A.hearts) out.hearts = [A.hearts[0], A.hearts[1], f1(A.hearts[2] - raise)];
+  return out;
+}
+/** Whether her arms are the seated body's own (resting in her lap): nothing but the plain arms planned. */
+export const sitOwnArms = plan => [plan.L, plan.R].every(k => k === 'hangL' || k === 'hangR');
+/** The seated body's alphas: `sitA` the pool (its body's share, bodyAlphas), `topA` its arms (`own` 0..1). */
+export function sitMix(k, own) {
+  const sitA = clamp(k, 0, 1);
+  return { sitA, topA: sitA * smooth(0, 1, own) };
+}
+
+/* ---------- which body shows: standing, seated (poses.sit) or kneeling (poses.kneel) ---------- */
+// The three never crossfade slowly (two bodies half there read as a double exposure): she sinks as the standing rig,
+// its skirt spreading toward the drawing's, and at SIT_CUT the drawing takes over in BODY_CUT seconds. Of the two
+// bodies in a hand-over, the upper (BODY_Z) dissolves and the lower stays opaque under it.
+export const BODY_Z = { stand: 0, sit: 1, kneel: 2 };
+/** The kit's sit (0..1) above which she shows the seated (or kneeling) body, and below which she stands again. */
+export const SIT_CUT = { down: .86, up: .8 };
+/** How long a hand-over between bodies takes (s): a frame, a cut where the shapes meet (more frames on a faster screen). */
+export const BODY_CUT = 1 / 60;
+/** How far the standing hem spreads (rig units, edge to edge, on top of its own) as she sinks, by the body to come. */
+export const SKIRT_SPREAD = { sit: 98, kneel: 46, none: 0 };
+/** The body she should show: `sit` the kit's sit, `kneel` a kneel with its drawing, `sitOK` the seated drawing there. */
+export function bodyWant(cur, sit, { kneel = false, sitOK = false } = {}) {
+  const seated = cur === 'stand' ? sit > SIT_CUT.down : sit > SIT_CUT.up;
+  if (!seated) return 'stand';
+  if (kneel) return 'kneel';
+  return sitOK ? 'sit' : 'stand';
+}
+/** A hand-over `{ from, to, x }` stepped toward the body `want`: a change of mind halfway runs it back. */
+export function bodyStep(B, want, dt) {
+  if (want !== B.to) {
+    if (want === B.from) B = { from: B.to, to: want, x: 1 - B.x };
+    else B = { from: B.x >= .5 ? B.to : B.from, to: want, x: 0 };
+  }
+  return { ...B, x: B.from === B.to ? 1 : approach(B.x, 1, dt, BODY_CUT) };
+}
+/** Each body's alpha in a hand-over: the upper one dissolves over the lower, which is opaque throughout. */
+export function bodyAlphas(B) {
+  const a = { stand: 0, sit: 0, kneel: 0 };
+  if (B.x >= 1 || B.from === B.to) { a[B.to] = 1; return a; }
+  const up = BODY_Z[B.to] > BODY_Z[B.from];
+  a[B.to] = up ? B.x : 1;
+  a[B.from] = up ? 1 : 1 - B.x;
+  return a;
+}
+/** The seated body's deformers and parts: `sitBase` on the floor under `body`, `sitTop` on the waist. */
+function sitRig(pose, deformers, parts) {
+  const pv = pose.pivots || {};
+  deformers.sitBase = { kind: 'rot', parent: 'body', pivot: pv.sitBase || [128, 256] };
+  deformers.sitTop = { kind: 'rot', parent: 'waist', pivot: pv.sitTop || deformers.waist.pivot };
+  const ps = [...(pose.required || []), ...(pose.overlays || [])].map(p => {
+    const q = { ...p, parent: p.parent === 'sitTop' ? 'sitTop' : 'sitBase', alpha: 0 };
+    parts.push(q);
+    return q;
+  });
+  return { pose, parts: ps, drop: pose.headDrop ?? SIT_LOW, hides: Array.isArray(pose.hides) ? pose.hides : [] };
+}
+
+/* ---------- the rig ---------- */
+const rectOfBox = b => b && [b[0], b[1], b[0] + b[2], b[1] + b[3]];
+function unionRect(boxes) {
+  const rs = boxes.filter(Boolean).map(rectOfBox);
+  if (!rs.length) return null;
+  return [Math.min(...rs.map(r => r[0])), Math.min(...rs.map(r => r[1])), Math.max(...rs.map(r => r[2])), Math.max(...rs.map(r => r[3]))];
+}
+const asRect = r => (Array.isArray(r) ? { x: r[0], y: r[1], w: r[2], h: r[3] } : r);
+
+/**
+ * The rig from model.json: deformers (each acts in rest space; parents act after children), parts, which parts are
+ * the standing figure (hidden whole when a floor drawing covers her), and the pose drawings found.
+ */
+export function buildRig(model) {
+  const { S, U, V } = unitsOf(model);
+  const PV = model.pivots || {}, R = model.rects || {};
+  const box = Object.fromEntries(model.parts.map(p => [p.id, p.box]));
+  const rectOf = id => rectOfBox(box[id]);
+  const HEAD = R.head || [58, 20, 198, 130];
+  const HAIR = R.hair || rectOf('hair_back') || HEAD;
+  const SKIRT = R.skirt || rectOf('skirt') || rectOf('body') || [60, 150, 196, 256];
+  const piv = (k, d) => PV[k] || d;
+  const deformers = {
+    body: { kind: 'rot', pivot: piv('body', [128, 256]) },
+    skirt: { kind: 'warp', parent: 'body', rect: SKIRT },
+    waist: { kind: 'rot', parent: 'body', pivot: piv('waist', [128, SKIRT[1]]) },
+    armL: { kind: 'rot', parent: 'waist', pivot: piv('armL', [104, 160]) },
+    armR: { kind: 'rot', parent: 'waist', pivot: piv('armR', [152, 160]) },
+    footL: { kind: 'rot', parent: 'body', pivot: piv('footL', [119, 253]) },
+    footR: { kind: 'rot', parent: 'body', pivot: piv('footR', [137, 253]) },
+    neck: { kind: 'rot', parent: 'waist', pivot: piv('neck', [128, HEAD[3]]) },
+    headBack: { kind: 'warp', parent: 'neck', rect: HEAD },
+    headMid: { kind: 'warp', parent: 'neck', rect: HEAD },
+    headFeat: { kind: 'warp', parent: 'neck', rect: HEAD },
+    headFront: { kind: 'warp', parent: 'neck', rect: HEAD },
+    hairSway: { kind: 'warp', parent: 'headBack', rect: HAIR },
+    bangsSway: { kind: 'warp', parent: 'headFront', rect: rectOf('bangs') || HEAD },
+    ornament: { kind: 'rot', parent: 'headFront', pivot: piv('ornament', [HEAD[2] - 20, HEAD[1] + 30]) },
+  };
+  const orn = piv('ornament', deformers.ornament.pivot);
+  // the little stars hang from the big one: a warp under its turn swings them, the big star itself stays pinned
+  deformers.charms = { kind: 'warp', parent: 'ornament', rect: rectOf('ornament') || [orn[0] - 15, orn[1] - 15, orn[0] + 15, orn[1] + 60] };
+  // the ears turn about their bases on the back of her head (behind the fringe); without pivots, the middle of each ear
+  // drawing's lower edge, and without the drawings either, up on either side of the crown
+  const [hx0, hy0, hx1, hy1] = HEAD;
+  const earBase = (id, fx) => { const b = rectOf(id); return b ? [(b[0] + b[2]) / 2, b[3]] : [lerp(hx0, hx1, fx), hy0 + (hy1 - hy0) * .22]; };
+  deformers.earL = { kind: 'rot', parent: 'headBack', pivot: piv('earL', earBase('ear_l', .22)) };
+  deformers.earR = { kind: 'rot', parent: 'headBack', pivot: piv('earR', earBase('ear_r', .78)) };
+  // the tail turns about its root under the skirt, and bends along its length on a warp under that turn
+  const tailPv = piv('tail', [150, SKIRT[1] + 25]);
+  deformers.tailRot = { kind: 'rot', parent: 'body', pivot: tailPv };
+  deformers.tail = { kind: 'warp', parent: 'tailRot', rect: R.tail || rectOf('tail') || [tailPv[0] - 10, tailPv[1] - 50, tailPv[0] + 70, tailPv[1] + 60] };
+
+  const unknownParents = [];
+  const parts = model.parts.map(p => {
+    let parent = p.parent === 'ornament' ? 'charms' : p.parent;
+    if (!deformers[parent]) { unknownParents.push(`${p.id}:${p.parent}`); parent = 'body'; }
+    return { ...p, parent };
+  });
+  // the eyes, mouth and blush are painted live into this texture over the face (one texel per master pixel)
+  // (without feat.face.rect: over the face part)
+  const fb = box.face || HEAD.map((v, i) => (i < 2 ? v : v - HEAD[i - 2]));
+  const { X0, FEET } = model.units;
+  const FACE = asRect(model.feat?.face?.rect || [Math.round(X0 + (fb[0] - 128) / S), Math.round(FEET - (256 - fb[1]) / S), Math.round(fb[2] / S), Math.round(fb[3] / S)]);
+  parts.push({ id: 'faceFx', tex: 'faceFx', box: [U(FACE.x), V(FACE.y), FACE.w * S, FACE.h * S], z: 9, parent: 'headFeat', grid: [4, 4] });
+  // the brows lie on the skin under the fringe and show through it: drawn again over the fringe, faint;
+  // each lifts and tilts by the face (the warp splits them at feat.face.browSplit)
+  const brows = parts.find(p => p.id === 'brows');
+  if (brows) {
+    deformers.brows = { kind: 'warp', parent: 'headFeat', rect: rectOf('brows') };
+    brows.parent = 'brows';
+    parts.push({ ...brows, id: 'brows_through', z: 13.2, alpha: .4 });
+  }
+  const STANDING = Object.fromEntries(parts.map(p => [p.id, true]));
+  const byParent = d => parts.filter(p => p.parent === d).map(p => p.id);
+  const HANG = { hangL: byParent('armL'), hangR: byParent('armR') };
+  const SHOES = [...byParent('footL'), ...byParent('footR')];
+
+  // every arm drawing: a turn about its shoulder (or elbow) with the upper body, and a warp over it for the hands
+  const ARM = {};
+  for (const [id, pose] of Object.entries(model.poses || {})) {
+    if (WHOLE_POSES.includes(id) || !pose?.required?.length) continue;
+    const rect = unionRect(pose.required.map(p => p.box));
+    const first = Object.entries(pose.pivots || {})[0];
+    const rot = first && !deformers[first[0]] ? first[0] : `pose_${id}`;
+    const pivot = first ? first[1] : pose.wrist || [(rect[0] + rect[2]) / 2, rect[3]];
+    deformers[rot] = { kind: 'rot', parent: NECK_POSES.includes(id) ? 'neck' : 'waist', pivot };
+    const lift = `${rot}Lift`;
+    deformers[lift] = { kind: 'warp', parent: rot, rect };
+    const ps = pose.required.map(p => ({ ...p, parent: lift, alpha: 0 }));
+    for (const p of ps) { parts.push(p); STANDING[p.id] = true; }
+    ARM[id] = { id, rot, lift, pivot, rect, wrist: pose.wrist || [(rect[0] + rect[2]) / 2, rect[1]], kind: pose.kind || POSE_KIND[id] || 'both', parts: ps };
+  }
+
+  // the whole-body drawings stand on the floor on their own deformers, outside the standing tree
+  const P = model.poses || {};
+  // (a part keeps the parent model.json gives it if that is one of its own drawing's deformers)
+  const floorParts = (pose, inner, own) => [...(pose.required || []), ...(pose.overlays || [])].map(p => {
+    const q = { ...p, parent: own.includes(p.parent) ? p.parent : inner, alpha: 0 };
+    parts.push(q);
+    return q;
+  });
+  const W = {};
+  if (P.lie?.required?.length) {
+    const L = lieDeformers(P.lie);
+    Object.assign(deformers, L.deformers);
+    W.lie = { pose: P.lie, parts: floorParts(P.lie, L.inner, Object.keys(L.deformers)) };
+  }
+  if (P.back?.required?.length) {
+    deformers.backFlip = { kind: 'rot', parent: 'body', pivot: [128, 256] };
+    deformers.backHair = { kind: 'warp', parent: 'backFlip', rect: P.back.rects?.hair || unionRect(P.back.required.map(p => p.box)) };
+    W.back = { pose: P.back, parts: floorParts(P.back, 'backHair', ['backFlip', 'backHair']) };
+  }
+  if (P.roll?.required?.length) {
+    deformers.rollBall = { kind: 'rot', pivot: P.roll.pivots?.rollBall || [128, 160] };
+    W.roll = { pose: P.roll, parts: floorParts(P.roll, 'rollBall', ['rollBall']) };
+  }
+  if (P.kneel?.required?.length) {
+    deformers.kneel = { kind: 'rot', pivot: P.kneel.pivots?.kneel || [128, 256] };
+    W.kneel = { pose: P.kneel, parts: floorParts(P.kneel, 'kneel', ['kneel']) };
+  }
+  // (sit) her seated body, under the live head
+  if (P.sit?.required?.length) W.sit = sitRig(P.sit, deformers, parts);
+  return { S, U, V, deformers, parts, STANDING, HEAD, HAIR, SKIRT, FACE, ARM, HANG, SHOES, W, unknownParents, rectOf, hasBrows: !!brows };
+}
+
+/** Where a rest point lands with this frame's states (kit/rig.js's point, without a GL context). */
+export function pointOf(deformers, id, st, x, y) {
+  for (let d = id; d; d = deformers[d].parent) {
+    const df = deformers[d], s = st[d];
+    if (!s) continue;
+    if (df.kind === 'rot') {
+      const [px, py] = df.pivot, a = (s.a || 0) * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+      const lx = (x - px) * (s.sx ?? s.s ?? 1), ly = (y - py) * (s.sy ?? s.s ?? 1);
+      x = px + (s.tx || 0) + lx * c - ly * sn;
+      y = py + (s.ty || 0) + lx * sn + ly * c;
+    } else if (df.kind === 'warp' && s.fn) {
+      const [x0, y0, x1, y1] = df.rect;
+      const r = s.fn(clamp((x - x0) / (x1 - x0), 0, 1), clamp((y - y0) / (y1 - y0), 0, 1), x, y);
+      x += r[0]; y += r[1];
+    }
+  }
+  return [x, y];
+}
+
+/* ---------- points the kit and the effects use ---------- */
+/** The kit's anchors (kit units): model.anchors over defaults from the head rect and the eyes. */
+export function anchorsOf(model, R) {
+  const [x0, y0, x1] = R.HEAD, cx = (x0 + x1) / 2, eyes = model.feat?.eyes || {};
+  const under = k => { const b = eyes[k]?.ball; return b ? [f1(R.U((b[0] + b[2]) / 2)), f1(R.V(b[3]) + 2)] : [k === 'eyeL' ? cx - 14 : cx + 14, y0 + 70]; };
+  const [l, r] = [under('eyeL'), under('eyeR')];
+  const out = {
+    gaze: [f1((l[0] + r[0]) / 2), f1((l[1] + r[1]) / 2 - 8)], tear: l, tears: [l, r], z: [x1 - 8, y0 + 20],
+    hearts: [x0 + 30, x1 - 30, y0 + 40], bubble: [128, y0 - 4], glints: [[x0 + 8, y0 + 24], [x1 - 8, y0 + 36]],
+    spout: [cx, y0 + 10], bulb: [x0 + 4, y0 + 6],
+    ...(model.anchors || {}),
+  };
+  const KNEEL = R.W.kneel?.pose;
+  if (KNEEL && KNEEL.headDrop != null) out.kneelRaise = f1(29 - KNEEL.headDrop);
+  const LIE = R.W.lie?.pose;
+  // lying, the same points on the lying drawing (none without it: the kit keeps her seated)
+  if (LIE?.anchors) {
+    const h = LIE.rects?.head;
+    out.lie = { ...LIE.anchors, ...(h && !LIE.anchors.spout ? { spout: [(h[0] + h[2]) / 2, h[1] + 12] } : {}) };
+  } else if (!LIE) delete out.lie;
+  return out;
+}
+/** Where the effects over her go (rig units): model.fx over defaults from the head rect, brows and mouth. */
+export function fxPointsOf(model, R) {
+  const [x0, y0, x1, y1] = R.HEAD, cx = (x0 + x1) / 2, h = y1 - y0;
+  const bb = R.rectOf('brows'), m = model.feat?.face?.mouth;
+  const gy = bb ? bb[1] - 2 : y0 + h * .5;
+  const neckY = R.deformers.neck.pivot[1];
+  // a jagged crack down her middle, from the crown to the hem
+  const crack = [];
+  for (let i = 0; i <= 8; i++) crack.push([f1(cx + (i % 2 ? -8 : 8) + (i === 0 ? -2 : 0)), f1(y0 + 4 + i * (R.SKIRT[3] - 20 - y0) / 8)]);
+  const out = {
+    crack, orbit: [cx, y0 + 14], orbitR: (x1 - x0) * .42, think: [x1 - 4, y0 + 30], listen: [x1 + 8, y0 + h * .55],
+    sweat: [x1 - 16, y0 + h * .55], anger: [x1 - 22, y0 + 26], bang: [x1 - 6, y0 + 10], question: [x1 - 6, y0 + 10],
+    gloom: [[cx - 11, gy - 14, gy], [cx, gy - 14, gy + 4], [cx + 11, gy - 14, gy]],
+    puff: m ? [f1(R.U(m[0])), f1(R.V(m[1]))] : [cx, y0 + h * .75],
+    neckY,
+  };
+  // model.fx may use the whale's names: `top` (the stars' orbit), `side` (thought bubbles), gloom strokes as [x, y1] under `gloomTop`
+  const M = { ...(model.fx || {}) };
+  if (M.top && !M.orbit) M.orbit = M.top;
+  if (M.side && !M.think) M.think = M.side;
+  if (M.gloom) M.gloom = M.gloom.map(g => (g.length === 2 ? [g[0], M.gloomTop ?? g[1] - 14, g[1]] : g));
+  for (const k of ['top', 'side', 'gloomTop']) delete M[k];
+  return { ...out, ...M };
+}
+/** Her box and hit circles (kit units). */
+export function extentOf(model, R) {
+  if (model.extent) return model.extent;
+  const r = unionRect(model.parts.map(p => p.box)) || [20, 12, 236, 256];
+  return r.map(f1);
+}
+export function hitsOf(model, R) {
+  if (model.hits) return model.hits;
+  const [x0, y0, x1, y1] = R.HEAD, [sx0, sy0, sx1] = R.SKIRT;
+  const head = [f1((x0 + x1) / 2), f1((y0 + y1) / 2), f1(Math.max(x1 - x0, y1 - y0) * .5)];
+  const body = [128, f1((sy0 + 256) / 2), f1(Math.max((sx1 - sx0) * .5, (256 - sy0) * .5))];
+  return [head, body];
+}
+
+/* ---------- frame by frame ---------- */
+/**
+ * The motion: `step(fc, o, dt, caps)` turns the kit's face `fc` and frame `o` into `{ st, hideFront, look, turn, steam,
+ * steamAt, puffK, poseShown }` for the rig. `caps.pose(id)` says a pose's drawing can show now (its files are loaded),
+ * `caps.tex(name)` that a texture is there.
+ */
+export function createMotion(model, R) {
+  const feat = model.feat || {};
+  const { S, U, ARM, HANG, SHOES, W, deformers } = R;
+  const LIE = W.lie, BACK = W.back, ROLL = W.roll, KNEEL = W.kneel, SIT = W.sit;
+  const neckPv = deformers.neck.pivot;
+  const browSplit = feat.face?.browSplit != null ? U(feat.face.browSplit) : 128;
+  const hemDrop = Math.max(0, 256 - R.SKIRT[3]);
+  // where each foot is across the skirt (0..1), for the hem's bulge over a lifted foot
+  const footU = ['footL', 'footR'].map(k => clamp((deformers[k].pivot[0] - R.SKIRT[0]) / (R.SKIRT[2] - R.SKIRT[0]), 0, 1));
+  // her "shoes" are her whole legs, thigh to sole, under a short skirt: where their tops are across the skirt's warp
+  // (0..1 down it) and how long they are from there to the floor (legs too short to squash, plain shoes, stay as they are)
+  const legTop = Math.min(...R.parts.filter(p => SHOES.includes(p.id)).map(p => p.box[1]), Infinity);
+  const legFloor = Math.max(deformers.footL.pivot[1], deformers.footR.pivot[1]), legLen = legFloor - legTop;
+  const legV = clamp((legTop - R.SKIRT[1]) / (R.SKIRT[3] - R.SKIRT[1]), 0, 1), squashLegs = legLen > 25;
+  // the point drawing's finger goes this way (x): she looks where she points
+  const pointDir = ARM.point ? Math.sign(ARM.point.wrist[0] - ARM.point.pivot[0]) || -1 : -1;
+  // the tail's root, its place across the skirt (it rides the skirt there) and its reach to the tail's far corner
+  const tailPv = deformers.tailRot.pivot, tailRect = deformers.tail.rect;
+  const tailUV = [clamp((tailPv[0] - R.SKIRT[0]) / (R.SKIRT[2] - R.SKIRT[0]), 0, 1), clamp((tailPv[1] - R.SKIRT[1]) / (R.SKIRT[3] - R.SKIRT[1]), 0, 1)];
+  const tailReach = Math.max(1, ...[[0, 1], [2, 1], [0, 3], [2, 3]].map(([i, j]) => Math.hypot(tailRect[i] - tailPv[0], tailRect[j] - tailPv[1])));
+  const sp = {};
+  const springs = () => {
+    Object.assign(sp, {
+      hair: spring(55, 7, 1.8), hairY: spring(50, 8, 1.2), bangs: spring(110, 10, 1.6), skirt: spring(100, 9, 1.6), skirtY: spring(90, 10, 1.1),
+      orn: spring(140, 6, 38), charms: spring(90, 9, 30), head: spring(70, 10, 16),
+      earLag: spring(70, 8, 8), tail: spring(55, 6, 28),
+      armL: spring(ARM_SPRING.k, ARM_SPRING.c, ARM_SPRING.lim), armR: spring(ARM_SPRING.k, ARM_SPRING.c, ARM_SPRING.lim),
+    });
+  };
+  springs();
+  let prevTilt = 0, prevYaw = 0, prevLow = 0, wTilt = 0, wLean = 0, sitK = 0, danceK = 0, lieK = 0;
+  let sitOwnK = 1, raiseNow = 0;  // (sit) the seated arms' share; how far her points rise over the kit's sink
+  let bodyB = { from: 'stand', to: 'stand', x: 1 }, dropNow = null;  // the body hand-over; the head's sink seated (eased)
+  let prevSit = 0;  // the kit's sit last frame (rising out of a kneel she stays kneeling)
+  let perk = 0, swish = 0, droop = 0, curl = 0, wagPh = 0, puff = 0, earUp = 0, earFlat = 0, earDroop = 0, twitchT = 9, lastFace = null, lastMode = null, browLift = 0, browInner = 0, browSide = 0, backA = 0, backOn = 1, awayA = 0, faceArmT = 0, sinceArmG = 9, lastFaceArm = null, lastArmG = null;
+  let armA = { hangL: 1, hangR: 1 };
+  const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
+  const posable = (caps, id) => !!ARM[id] && caps.pose(id);
+
+  function step(fc, o, dt, caps) {
+    const t = o.t || 0, mode = o.mode || 'idle', face = o.face || 'neutral';
+    const walking = mode === 'walk' || mode === 'run', held = mode === 'drag', airborne = mode === 'air';
+    const st = { alpha: {} };
+    sitK = lerp(sitK, clamp(o.sit ?? 0, 0, 1), ease(12, dt));
+    const low = o.low || 0;
+    const lowV = (low - prevLow) / Math.max(dt, 1e-3); prevLow = low;
+    const breath = Math.sin(t * (mode === 'sleep' ? 1.7 : 2.4));
+    lieK = LIE && caps.pose('lie') ? lerp(lieK, clamp(o.lie ?? 0, 0, 1), ease(14, dt)) : 0;
+    if (lieK < 1e-3) lieK = 0;
+    const { poseA, hide } = poseMix(lieK);
+    // (sit) seated she shows the seated body, her head sunk less than `low`; a kneel with its own drawing shows that
+    // instead (cut in from the standing rig, never through the seated body), and the kit's points follow its head (kneelRaise)
+    const kneelOK = !!KNEEL && caps.pose('kneel'), sitOK = !!SIT && caps.pose('sit');
+    const kneeling = !!o.kneel && kneelOK && !lieK;
+    // the body she shows (see bodyStep); kneeling, her live head sinks to the kneeling drawing's, so it takes over in place
+    // getting up from a kneel the kit's kneel is already off while she wakes (a second at sit 1) and its sit comes
+    // down: she keeps the kneeling drawing until she stands, rather than showing the seated one on the way up
+    const rising = (o.sit ?? 0) < prevSit - 1e-4;
+    prevSit = o.sit ?? 0;
+    const keepKneel = bodyB.to === 'kneel' && !kneeling && kneelOK && !lieK && (mode === 'wake' || rising);
+    bodyB = bodyStep(bodyB, bodyWant(bodyB.to, o.sit ?? 0, { kneel: kneeling || keepKneel, sitOK }), dt);
+    const bodyA = bodyAlphas(bodyB);
+    const kneelNow = kneeling || keepKneel;
+    const dropT = kneelNow && KNEEL.pose.headDrop != null ? KNEEL.pose.headDrop : sitOK ? SIT.drop : null;
+    dropNow = dropT == null ? null : dropNow == null || bodyA.kneel >= 1 ? dropT : approach(dropNow, dropT, dt, 1 / 8);
+    const sitDrop = dropNow == null ? 0 : sitRaise(o.sit, dropNow);
+    raiseNow = kneelNow ? 0 : sitDrop;
+    const lowB = low - sitDrop;
+
+    /* the kit's short gestures, as she does them */
+    const g = o.gesture, gk = g ? g.k : 0, gkind = g?.kind;
+    const env = (a, b) => smooth(0, a, gk) * (1 - smooth(b, 1, gk));
+    const is = k => gkind === k;
+    const nod = is('nod') ? Math.sin(gk * Math.PI * 2) ** 2 * (1 - .3 * gk) : 0;
+    const shake = is('shake') ? Math.sin(gk * Math.PI * 6) * smooth(0, .12, gk) * (1 - gk) : 0;
+    const wave = is('wave') ? env(.15, .8) : 0;
+    const bow = is('bow') ? env(.25, .7) : 0;
+    const shiver = is('shiver') ? env(.08, .85) : 0;
+    const flap = is('flap') ? env(.05, .75) : 0;
+    const cheer = is('cheer') ? env(.12, .6) : 0;
+    const away = is('away') ? env(.12, .88) : 0;
+    const heart = is('heart') ? env(.1, .85) : 0;
+    const flinch = is('flinch') ? env(.04, .45) : 0;
+    const peek = is('peek') ? env(.2, .8) : 0;
+    const spoutC = is('spout') ? Math.sin(Math.PI * clamp(gk / .25, 0, 1)) : 0;
+    const spoutP = is('spout') ? Math.sin(Math.PI * clamp((gk - .25) / .2, 0, 1)) : 0;
+    const spoutOn = is('spout') ? env(.1, .7) : 0;
+    const inh = is('sigh') ? Math.sin(Math.PI * clamp(gk / .45, 0, 1)) : 0;
+    const exh = is('sigh') ? smooth(.35, .55, gk) * (1 - smooth(.8, 1, gk)) : 0;
+    const puffK = is('sigh') ? clamp((gk - .38) / .45, 0, 1) : 0;
+    const hold = ARM_BOTH[gkind] || ARM_ONE[gkind] ? env(.1, .88) : 0;
+    const sip = is('sip') ? sipLift(gk) * hold : 0;
+    const curt = is('curtsy') ? Math.sin(Math.PI * clamp((gk - .15) / .7, 0, 1)) * hold : 0;
+    const titter = fc.titter || 0;
+    const canBackDraw = !!BACK && caps.pose('back') && sitK < .5 && !lieK;
+    // the back drawing's share fades over .15 s when it stops being allowed (sitting down turned away), not in a frame
+    backOn = approach(backOn, canBackDraw ? 1 : 0, dt, BACK_FADE);
+    const awayFace = away * (1 - backOn);
+
+    /* arms: which drawings show, crossfading between them */
+    const armG = ARM_BOTH[gkind] || ARM_ONE[gkind];
+    sinceArmG = armG && gk < .9 ? 0 : sinceArmG + dt;
+    if (armG) lastArmG = armG;
+    const faceArm = CALM_MODES.includes(mode) ? FACE_ARMS[face] || null : null;
+    faceArmT = faceArm && faceArm === lastFaceArm ? faceArmT + dt : 0;
+    lastFaceArm = faceArm;
+    // a face poses her arms once it has settled, and not right after a gesture (unless it keeps the gesture's pose)
+    const faceOK = faceArm != null && ((faceArmT > .3 && sinceArmG > .4) || (faceArm === lastArmG && sinceArmG < .5));
+    const has = Object.assign(id => posable(caps, id), { kind: id => ARM[id]?.kind });
+    const plan = lieK > .5 ? { L: 'hangL', R: 'hangR', fallback: null } : armPlan({ mode, gesture: g, face, faceOK }, has);
+    const want = new Set([plan.L, plan.R]);
+    for (const k of new Set([...Object.keys(armA), ...want])) {
+      armA[k] = approach(armA[k] || 0, want.has(k) ? 1 : 0, dt, ARM_FADE);
+      if (armA[k] <= 0 && !want.has(k)) delete armA[k];
+    }
+    const up = k => smooth(0, 1, armA[k] || 0);
+    const chinA = up('chin');
+
+    /* where she looks: pointing, at what she points at */
+    const look = (is('point') || face === 'pointing') && pointDir < 0 ? [-(o.look?.[0] || 0), o.look?.[1] || 0] : [o.look?.[0] || 0, o.look?.[1] || 0];
+
+    /* head: tilt toward what it looks at, droop asleep, wobble dizzy */
+    let tiltT = (look[0] * .5 + look[1] * .3) * (1 - .6 * chinA) + Math.sin(t * .9) * 1.2;
+    if (mode === 'sleep') tiltT += 6;
+    tiltT += (HEAD_TILT[face] || 0) * (1 - .7 * chinA);
+    if (face === 'dizzy') tiltT += 3 * Math.sin(t * 4.5);
+    if (held) tiltT += (o.swing || 0) * .25;
+    const headTilt = sp.head.step(tiltT, dt);
+    // what the kit meant for the whole group and the group did not take: tilt stays in-plane on the neck, lean pitches
+    const [gT, gL] = GROUP[mode] || [0, 0];
+    const tiltRest = (o.tilt ?? 0) * (1 - wTilt), leanRest = (o.lean ?? 0) * Math.sign(o.facing || 1) * (1 - wLean);
+    wTilt = lerp(wTilt, gT, ease(10, dt)); wLean = lerp(wLean, gL, ease(10, dt));
+    const gNeck = shake * 2.5 - wave * 3 + (gkind === 'vsign' ? -5 * hold : 0) + (gkind === 'scratch' ? 5 * hold : 0) + (gkind === 'heart' ? 3 * Math.sin(gk * Math.PI * 4) * heart : 0);
+    const gYaw = shake * 1.1 - awayFace * 1.3;
+    const fwd = -flinch * 8 + peek * (9 + 1.5 * Math.sin(t * 5)) + 3 * titter - 3 * inh + 6 * exh
+      + (is('read') ? 5 * hold : 0) + sip * 4 + (is('serve') || is('hug') ? 5 * hold : 0) + (is('pray') ? 4 * hold * (.6 + .4 * Math.sin(gk * Math.PI * 4)) : 0)
+      - (is('hips') || is('cross') ? 3 * hold : 0) + (is('point') ? 3 * hold : 0) + awayFace * 4;
+    const P = pitchFromLean(fwd), PL = pitchFromLean(leanRest, .3), B = bowPose(Math.max(bow, .45 * curt));
+    const headA = headTilt + gNeck;
+    const tiltVel = (headA - prevTilt) / Math.max(dt, 1e-3); prevTilt = headA;
+    const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
+    // facing you, the head turns a touch toward +x at rest; angleY + pitches the face down
+    const angleX = clamp(clamp(look[0] / 5, -1, 1) * .9 + gYaw + .12, -1.4, 1.4);
+    const angleY = clamp(clamp(look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + P.pitch + PL.pitch + B.pitch
+      - flinch * .3 - .1 * inh + .3 * exh + awayFace * .35, -1.4, 1.4);
+
+    /* springs */
+    const sway = clamp((o.swing || 0) / 26, -1.6, 1.6);
+    const upK = airborne || held ? 1 : 0;
+    const hair = sp.hair.step(sway * 1.1 - tiltVel * .004 - yawVel * .02, dt);
+    const hairY = sp.hairY.step(upK * -1 + lowV * .006, dt);
+    const bangs = sp.bangs.step(sway * .7 - tiltVel * .004 - yawVel * .03, dt);
+    const skirt = sp.skirt.step(sway * .8, dt);
+    danceK = lerp(danceK, mode === 'dance' ? 1 : 0, ease(4, dt));
+    const flare = sp.skirtY.step(upK * .8 + clamp(-lowV * .01, -.3, .6), dt);
+    const [pk, sw, dr = 0] = MOOD[face] || MOOD.neutral;
+    perk = lerp(perk, lerp(pk, -.6, Math.max(shiver, exh)), ease(6, dt));
+    swish = lerp(swish, sw, ease(3, dt));
+    const droopT = mode === 'sleep' ? -1 : Math.min(dr, -exh);
+    droop = lerp(droop, droopT, ease(droopT < droop ? 1.1 : 3, dt));
+    // the tail's swing runs slow at rest and fast glad (TAIL)
+    wagPh += dt * (TAIL.rate + (TAIL.wagRate - TAIL.rate) * clamp(swish, 0, 1) ** 1.5);
+    // startled she puffs her tail at once, and it settles slowly
+    const puffT = face === 'surprised' || face === 'scared' || mode === 'wake' ? 1 : flinch;
+    puff = lerp(puff, puffT, ease(puffT > puff ? 14 : 1.5, dt));
+    // the ears: up, flat or drooping with the face (asleep they droop; shivering or reeling they flatten), quick to
+    // perk or flatten and slow to sag; they trail a swing of her head
+    const [eu, ef, ed] = mode === 'sleep' ? [0, 0, 1] : EAR_MOOD[face] || [0, 0, 0];
+    const eUp = Math.max(eu * (1 - shiver), airborne ? .3 : 0, spoutP), eFlat = Math.max(ef, shiver, mode === 'dizzy' ? .3 : 0, exh * .3);
+    earUp = lerp(earUp, eUp, ease(8, dt)); earFlat = lerp(earFlat, eFlat, ease(10, dt)); earDroop = lerp(earDroop, ed, ease(ed > earDroop ? 1.5 : 4, dt));
+    const earLag = sp.earLag.step(sway * 5 - tiltVel * .03, dt);
+    // a twitch whenever something happens to her (a new face, woken, picked up, a poke's hop): a quick shiver of both
+    // ears, out of step, dying away in half a second
+    if ((lastFace != null && face !== lastFace) || (lastMode != null && mode !== lastMode && ['wake', 'drag', 'crouch', 'dizzy'].includes(mode))) twitchT = 0;
+    lastFace = face; lastMode = mode; twitchT += dt;
+    const twitch = k => EAR.twitch * Math.exp(-twitchT * 7) * Math.sin(twitchT * 42 + 1.7 * k);
+    // fast moves go on after the springs, which would smooth them away: idle flicks (only while calm), a jitter
+    // flustered or shy, a buzz angry, the beat singing or dancing, flapping with a flap, flailing when carried
+    const calmEars = !held && !walking && mode !== 'sleep' && earFlat < .3 && earDroop < .4;
+    const earExtra = k => (calmEars ? earFlick(t, k) : 0) + twitch(k)
+      + (face === 'flustered' || face === 'shy' ? 2.4 * Math.sin(t * 29 + 2 * k) + 1.2 * Math.sin(t * 17.3 + k) : 0)
+      + (face === 'angry' ? 1.5 * Math.sin(t * 40 + k) : 0) + (face === 'singing' ? 2 * Math.sin(t * Math.PI * 2.5) : 0)
+      + danceK * 3 * Math.sin(t * 7 + k) + flap * 6 * Math.sin(t * 24 + k) + titter * 2 + (held ? 4 * Math.sin(t * 13 + 1.3 * k) : 0);
+    // sway turns the big star counter-clockwise, so the little stars trail the same way as the hair and skirt
+    const orn = sp.orn.step(-tiltVel * .12 - yawVel * .5 - sway * 18 - spoutP * 20 + (face === 'surprised' ? -16 : 0) + (face === 'confused' ? 20 : 0)
+      + (mode === 'sleep' ? 14 : 0) - hairY * 12, dt) + flap * 12 * Math.sin(t * 19) - titter * 6;
+    const charms = sp.charms.step(perk * 4 - sway * 10, dt);
+
+    /* feet under the skirt; sitting the skirt settles on the floor */
+    const feet = feetFromLegs(o.legs || [[104, 212, 104, FOOT_Y], [150, 212, 150, FOOT_Y]]);
+    const plop = Math.sin(Math.PI * smooth(.3, .8, sitK));
+
+    /* plain arms: hang a little out, sway walking, out in the air, flailing when held */
+    const walkS = clamp((feet[0].lift - feet[1].lift) / 12, -1, 1);
+    let aL = 3, aR = -3;
+    if (walking) { const amp = mode === 'run' ? 10 : 3; aL = 3 + amp * walkS; aR = -3 + amp * walkS; }
+    if (airborne) { aL = 40; aR = -40; }
+    if (held) { aL = 70 + 16 * Math.sin(t * 13); aR = -70 - 12 * Math.sin(t * 13 + 1.3); }
+    if (mode === 'dizzy') { aL = 16 + 10 * Math.sin(t * 4.5); aR = -16 + 10 * Math.sin(t * 4.5 + 1); }
+    if (sitK > .5 && !walking) { aL = lerp(aL, 10, sitK); aR = lerp(aR, -10, sitK); }
+    if (face === 'happy' || face === 'love') { aL += 8 + 4 * Math.sin(t * 8); aR -= 8 + 4 * Math.sin(t * 8); }
+    if (face === 'excited') { aL += 14; aR -= 14; }
+    if (mode === 'dance') { const b = Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1); aL = 16 + 24 * Math.max(0, b); aR = -16 - 24 * Math.max(0, -b); }
+    if (plan.fallback) {
+      const [fl, fr] = ARM_FALLBACK[plan.fallback] || [null, null], k = hold || env(.12, .85);
+      if (fl != null) aL = lerp(aL, fl, k);
+      if (fr != null) aR = lerp(aR, fr, k);
+    }
+    if (shiver && !armA.cross) { aL = lerp(aL, -10, shiver); aR = lerp(aR, 10, shiver); }
+    if (flinch && !armA.oops) { aL = lerp(aL, -16, flinch); aR = lerp(aR, 16, flinch); }
+    const baseL = sp.armL.step(aL, dt), baseR = sp.armR.step(aR, dt);
+    const fbWave = plan.fallback === 'wave' ? wave * 13 * Math.sin(t * 15) : 0;
+    st.armL = { a: baseL + fbWave + shiver * 1.4 * Math.sin(t * 47) + flap * 9 * Math.sin(t * 24) + (fc.shake && face === 'nervous' ? Math.sin(t * 47) : 0) };
+    st.armR = { a: baseR - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1) };
+    for (const id of HANG.hangL) st.alpha[id] = up('hangL');
+    for (const id of HANG.hangR) st.alpha[id] = up('hangR');
+
+    /* the arm drawings: each rises a little into place as it fades in, then moves its own way */
+    let steam = 0, steamAt = null;
+    for (const [id, A] of Object.entries(ARM)) {
+      const k = up(id), s = { ty: ARM_RISE * (1 - k), a: 0, sx: 1, sy: 1 };
+      let lift = null;
+      if (k > 0) {
+        const own = (ARM_ONE[gkind] || ARM_BOTH[gkind]) === id;
+        switch (id) {
+          case 'wave': {
+            // past the wrist (along shoulder→wrist) the hand waves about the wrist; the sleeve stays
+            const [qx, qy] = A.wrist, ux = qx - A.pivot[0], uy = qy - A.pivot[1], ul = Math.hypot(ux, uy) || 1;
+            const hand = 16 * Math.sin(t * 13) * Math.PI / 180;
+            s.a = 3 * Math.sin(t * 13 - .8);
+            lift = (u, v, x, y) => { const w = smooth(-2, 4, ((x - qx) * ux + (y - qy) * uy) / ul); return [-hand * w * (y - qy), hand * w * (x - qx)]; };
+            break;
+          }
+          case 'scratch': s.a = 3 * Math.sin(t * 16); break;
+          case 'idea': if (own) s.a = -4 * Math.sin(Math.PI * smooth(.2, .45, gk)); break;
+          case 'vsign': if (own) s.a = -3 * Math.sin(Math.PI * smooth(.2, .4, gk)); break;
+          case 'point': if (own) s.a = 3 * Math.sin(Math.PI * smooth(.3, .45, gk)); break;
+          case 'salute': if (own) s.a = 5 * Math.sin(Math.PI * clamp((gk - .1) / .1, 0, 1)); break;
+          case 'chin': s.a = .8 * Math.sin(t * 1.3); break;
+          case 'fist': s.ty -= 2.5 * Math.abs(Math.sin(t * 7)); break;
+          case 'cheer': s.ty -= 3 * Math.abs(Math.sin(t * 11)); break;
+          case 'heart': { const b = .025 * Math.sin(t * 8); s.sx = s.sy = 1 + b; break; }
+          case 'pray': s.ty += 1.5 * Math.abs(Math.sin(t * 6)); break;
+          case 'hug': s.sx = 1 + .02 * Math.sin(t * 2.2); break;
+          case 'cross': s.a = shiver * 1.2 * Math.sin(t * 43); break;
+          case 'oops': s.a = .6 * Math.sin(t * 31) * (flinch || .3); break;
+          case 'shy': s.ty += .6 * Math.sin(t * 9); break;
+          case 'search': s.a = 1.6 * Math.sin(t * 1.7); break;
+          case 'write': {
+            // the pen scribbles along the page
+            const [qx, qy] = A.wrist, d = .9 * Math.sin(t * 23), e = .4 * Math.sin(t * 9);
+            lift = (u, v, x, y) => { const w = Math.exp(-((x - qx) ** 2 + (y - qy) ** 2) / 120); return [d * w, e * w]; };
+            break;
+          }
+          case 'cup': {
+            // sipping, the hands and cup (the drawing's top half) come up toward her mouth, the sleeves after them
+            s.a = 1.2 * Math.sin(t * 1.3) * k - .4 * 11 * sip;
+            const l = 11 * sip;
+            lift = (u, v) => [0, -l * (1 - smooth(.5, .95, v))];
+            if (own || !steam) { steam = k * hold; steamAt = [A.lift, A.wrist]; }
+            break;
+          }
+          default: s.a = .6 * Math.sin(t * 1.3) + (walking ? .8 * walkS : 0); s.ty += .3 * breath;
+        }
+      }
+      st[A.rot] = s;
+      if (lift) st[A.lift] = { fn: lift };
+      for (const p of A.parts) st.alpha[p.id] = caps.tex(p.tex) ? k : 0;
+    }
+
+    /* deformer states */
+    // a breath, the sit's plop, a shiver and a flinch squash the body about her feet; walking sways it a little
+    st.body = {
+      a: -sway * 1.2 + (held ? (o.swing || 0) * .15 : 0) + (walking ? 1.5 * walkS : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA),
+      ty: 0, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch),
+    };
+    if (is('stretch')) st.body.sy *= 1 + .05 * smooth(.2, .45, gk) * hold;
+    if (curt) { st.body.sy *= 1 - .07 * curt; st.body.sx *= 1 + .03 * curt; }
+    if (cheer) st.body.ty -= 4 * Math.abs(Math.sin(t * 11)) * cheer;
+    if (is('salute')) st.body.sy *= 1 + .03 * Math.sin(Math.PI * clamp(gk / .15, 0, 1));
+    if (fc.rock && face === 'coax') st.body.a += 3 * fc.rock;
+    if (spoutC || spoutP) { st.body.sy *= 1 - .1 * spoutC + .05 * spoutP; st.body.sx *= 1 + .05 * spoutC - .02 * spoutP; }
+    if (is('roll') && ROLL && caps.pose('roll')) {
+      const c = Math.sin(Math.PI * clamp(gk / .2, 0, 1)), pop = Math.sin(Math.PI * clamp((gk - .82) / .18, 0, 1));
+      // (without the ball drawing the roll is the kit's, squash and all: figure.roll = 'spin')
+      st.body.sy *= 1 - .16 * c + .07 * pop; st.body.sx *= 1 + .08 * c - .03 * pop;
+    }
+    // the upper body sinks with the kit's `low` (sitting, the walk's bob); a bow shortens it instead of turning it
+    st.waist = {
+      a: P.rot + PL.rot, ty: lowB + P.waistTy + PL.waistTy + B.waistTy, sx: B.waistSx,
+      sy: (1 - .07 * titter) * (1 + .03 * inh - .03 * exh) * P.waistSy * PL.waistSy * B.waistSy,
+    };
+    // the skirt: its top goes down with the waist, seated its hem settles on the floor and spreads; it bulges over a lifted foot
+    // sinking toward a seated drawing, the hem reaches the floor and spreads to its outline by the time it takes over
+    // (SIT_CUT, on the kit's own sit: the figure's sitK lags it)
+    const toward = kneelNow ? 'kneel' : sitOK ? 'sit' : 'none';
+    const sinkK = toward === 'none' ? sitK : Math.max(sitK, clamp((o.sit ?? 0) / SIT_CUT.down, 0, 1));
+    const hemK = sinkK * hemDrop, spread = 16 * sitK + SKIRT_SPREAD[toward] * smooth(.25, 1, sinkK);
+    st.skirt = {
+      fn: (u, v) => {
+        const k = v * v;
+        let bulge = 0;
+        for (let i = 0; i < 2; i++) bulge += feet[i].lift * Math.exp(-(((u - footU[i]) / .16) ** 2));
+        return [skirt * (4 + 4 * danceK) * k + flare * (u - .5) * 9 * v + (u - .5) * spread * v + curt * (u - .5) * 14 * v,
+          lerp(lowB, hemK, v) - flare * k * 3 - curt * 6 * k * Math.abs(u - .5) * 2 - bulge * .35 * smooth(.6, 1, v)];
+      },
+    };
+    // her legs shorten as the skirt over them comes down (sinking, the walk's bob, a crouch), their tops keeping to the
+    // skirt's warp; sinking toward a seated or kneeling drawing they stay until it takes over (it hides them), and only
+    // with no drawing to come do they fade as she sits
+    const legSy = squashLegs ? clamp(1 - Math.max(0, lerp(lowB, hemK, legV)) / legLen, .3, 1) : 1;
+    const shoeA = toward === 'none' ? 1 - smooth(.35, .6, sitK) : 1;
+    for (const id of SHOES) st.alpha[id] = shoeA;
+    st.footL = { tx: feet[0].tx, ty: feet[0].ty, sy: legSy };
+    st.footR = { tx: feet[1].tx, ty: feet[1].ty, sy: legSy };
+    // the tail rides the skirt at its root, an S-shaped swish running along it that wags faster and wider with the
+    // mood (and the step, the dance, a flap), its tip flicking now and then; it curls up glad, stands up startled and
+    // puffs, hangs low when down or carried, floats up in the air and lies out seated
+    curl = lerp(curl, clamp(pk * sw, 0, 1), ease(3, dt));
+    const startle = face === 'surprised' ? puff : 0;
+    const tailA = sp.tail.step(sway * 9 - droop * 7 + hairY * 6 + (held ? 6 : 0) - 10 * sitK + spoutP * 6 - 8 * startle, dt)
+      + (walking ? (mode === 'run' ? 6 : 3) * walkS : 0) + danceK * 8 * Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1) + flap * 10 * Math.sin(t * 17);
+    const [rootX, rootY] = st.skirt.fn(tailUV[0], tailUV[1]);
+    const puffS = 1 + TAIL.puff * puff;
+    st.tailRot = { a: tailA * .6, tx: rootX, ty: rootY, sx: puffS, sy: puffS };
+    const asleep = mode === 'sleep', swing = asleep ? 1.2 : (TAIL.swing + TAIL.wag * clamp(swish, 0, 1)) * (1 - .6 * clamp(-droop, 0, 1)) * (1 - .7 * startle);
+    const tip = asleep ? 0 : tailFlick(t) * (1 - clamp(-droop, 0, 1)) + 8 * clamp(swish - .7, 0, .3) / .3 * Math.sin(wagPh * 2);
+    st.tail = { fn: tailField(tailPv, tailReach, tailA * .4 - curl * 16 - 10 * startle, swing, wagPh, TAIL.lag, tip) };
+
+    st.neck = {
+      a: headA + clamp(tiltRest * .8, -10, 12),
+      ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + B.neckTy + nod * 2,
+      sx: B.neckSx, sy: B.neckSy,
+    };
+    const turn = [angleX, angleY];
+    const parallax = ([kx, ky]) => (u, v) => [angleX * kx * bump(u) * (.4 + .6 * bump(v)), angleY * ky * bump(v) * (.4 + .6 * bump(u))];
+    for (const [id, gains] of Object.entries(PARALLAX)) st[id] = { fn: parallax(gains) };
+    if (R.hasBrows) {
+      const [bl, bi, bs = 0] = BROW[face] || [0, 0];
+      browLift = lerp(browLift, bl - 1.5 * (o.blink || 0), ease(14, dt));
+      browInner = lerp(browInner, bi, ease(10, dt));
+      browSide = lerp(browSide, bs, ease(10, dt));
+      const [bx0, , bx1] = deformers.brows.rect;
+      st.brows = {
+        fn: (u, v, x) => {
+          // 0 at a brow's outer end, 1 at its inner end
+          const k = x < browSplit ? clamp((x - bx0) / (browSplit - bx0), 0, 1) : clamp((bx1 - x) / (bx1 - browSplit), 0, 1);
+          return [0, -(browLift + browInner * k * k + (x < browSplit ? 0 : browSide)) * S];
+        },
+      };
+    }
+    // the long hair hangs from the head but its lower part keeps to the body when the head tilts; its tips swish with the mood.
+    // It reaches nearly to the floor: sunk (seated), or trailing as she sinks, its lower part gathers up, so the tips
+    // stay above the floor
+    const na = headA * Math.PI / 180, gather = Math.max(0, R.HAIR[3] + lowB + Math.max(0, hairY) * 12 - HAIR_FLOOR);
+    st.hairSway = {
+      fn: (u, v, x, y) => {
+        const w = smooth(.3, .8, v), a = -na * w, c = Math.cos(a), s = Math.sin(a);
+        const dx = x - neckPv[0], dy = y - neckPv[1], wv = Math.pow(v, 1.6);
+        return [neckPv[0] + dx * c - dy * s - x + hair * 8 * wv + Math.sin(t * 1.6 + v * 3) * wv + swish * 1.2 * Math.sin(wagPh + v * 2) * wv * wv,
+          neckPv[1] + dx * s + dy * c - y + hairY * 12 * wv * wv - Math.abs(hair) * 1.5 * wv - gather * smooth(.45, 1, v)];
+      },
+    };
+    st.bangsSway = { fn: (u, v) => [bangs * 3.2 * v * v + Math.sin(t * 1.9 + u * 2) * .5 * v * v, hairY * 3 * v * v] };
+    // the big star is pinned in her hair: it only rocks; the little stars swing from it, a little livelier with the mood
+    st.ornament = { a: orn * .2 + Math.sin(t * 2.1) * .8 };
+    const [opx, opy] = deformers.ornament.pivot, ry1 = deformers.charms.rect[3];
+    const ra = (charms + orn * .5) * Math.PI / 180 * .6, rdy = -perk * .8 - droop * .8;
+    st.charms = {
+      fn: (u, v, x, y) => {
+        const w = smooth(0, 1, (y - opy) / Math.max(1, ry1 - opy)), sw2 = Math.sin(t * 1.7 + v * 2) * .6 * w;
+        return [(-ra * (y - opy) + sw2 + swish * Math.sin(wagPh) * .8 * w) * w, (ra * (x - opx) * .3 + rdy) * w];
+      },
+    };
+    // the ears, mirrored about her middle
+    Object.assign(st, earStates(earUp, earFlat, earDroop, earExtra(0), earExtra(1), earLag));
+
+    /* whole-body drawings */
+    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap }, g, gk, caps);
+    const awayBack = is('away') ? smooth(.05, .07, gk) * (1 - smooth(.93, .95, gk)) : 0;
+    awayA = awayStep(awayA, awayBack, g, dt);
+    const view = backView(o.facing, awayA), backK = BACK && caps.pose('back') ? view.k : 0;
+    backA = smooth(0, .5, backK) * backOn;
+    if (BACK) {
+      st.backFlip = { sx: view.flip ? -1 : 1 };
+      // only the hair hangs on the warp (her body, hem and shoes stay on the flip); it swings like the front hair
+      st.backHair = { fn: backHairField(hair, hairY, swish, t, view.flip ? -1 : 1) };
+      // (the under layer is all but hidden while the body over it fades, or it would tint her through it)
+      for (const p of BACK.parts) st.alpha[p.id] = caps.tex(p.tex) ? (p.under ? backA ** 3 : backA) : 0;
+      const sq = Math.max(away ? .3 * Math.sin(Math.PI * smooth(0, .12, gk)) + .3 * Math.sin(Math.PI * smooth(.88, 1, gk)) : 0, awayA > awayBack ? .3 * bump(awayA) : 0);
+      st.body.sx *= 1 - sq * backOn;
+    }
+    // no back drawing to show: the body turns off too (narrower, leaning away), not just the head
+    if (awayFace) { st.body.sx *= 1 - .12 * awayFace; st.body.a -= 3 * awayFace; }
+    const ballA = is('roll') && ROLL && caps.pose('roll') ? ballMix(gk) : 0;
+    if (ROLL) {
+      const a = ballAngle(gk, ROLL.pose.around, g?.travel), land = Math.sin(Math.PI * clamp((gk - .12) / .12, 0, 1)), sup = ROLL.pose.support;
+      st.rollBall = { a, ty: sup?.length ? sup[0] - ballLift(sup, a) : 0, sx: 1 + .05 * land, sy: 1 - .05 * land };
+      for (const p of ROLL.parts) st.alpha[p.id] = caps.tex(p.tex) ? ballA : 0;
+    }
+    // kneeling with a kneeling drawing: once she is down it takes over (bodyAlphas)
+    let kneelA = 0;
+    if (KNEEL) {
+      const a = kneelA = kneelOK ? bodyA.kneel : 0, shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, face, mode);
+      st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
+      for (const p of KNEEL.parts) {
+        const use = p.use ? (p.use === 'shut' ? shut : m[p.use] || 0) : 1;
+        st.alpha[p.id] = caps.tex(p.tex) ? a * use : 0;
+      }
+    }
+    // an opaque drawing over her (lying, her back, the ball, kneeling) hides the standing and the seated body alike
+    const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
+    if (SIT) seated(st, o, fc, face, mode, dt, caps, hideFront ? 0 : bodyA.sit, plan);
+    return { st, hideFront, look, turn, steam, steamAt, puffK, poseShown: poseA, plan };
+  }
+
+  /* ---------- (sit) the seated body ---------- */
+  const SIT_ARMS = [...HANG.hangL, ...HANG.hangR, ...Object.values(ARM).flatMap(A => A.parts.map(p => p.id))];
+  // (and the standing parts the seated drawing draws itself, her tail curled in front of the pool)
+  const SIT_UNDER_IDS = [...SIT_UNDER, ...SHOES, ...(SIT?.hides || [])];
+  /**
+   * The seated body's alphas at `bodyK`, its share of the hand-over (bodyAlphas; 0 under an opaque whole-body drawing):
+   * its pool comes in over the standing skirt (which goes once the pool is opaque); its arms over every standing arm
+   * drawing, and give way to a gesture's or a face's arms (the standing torso shows again under those).
+   */
+  function seated(st, o, fc, face, mode, dt, caps, bodyK, plan) {
+    sitOwnK = approach(sitOwnK, sitOwnArms(plan) ? 1 : 0, dt, ARM_FADE);
+    const { sitA, topA } = sitMix(bodyK, sitOwnK);
+    const shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, face, mode);
+    st.sitBase = {};
+    st.sitTop = {};
+    for (const p of SIT.parts) {
+      const use = p.use ? (p.use === 'shut' ? shut : m[p.use] || 0) : 1;
+      st.alpha[p.id] = caps.tex(p.tex) ? (p.parent === 'sitTop' ? topA : sitA) * use : 0;
+    }
+    if (sitA >= 1) for (const id of SIT_UNDER_IDS) st.alpha[id] = 0;
+    // what the drawing draws itself out beyond the pool (her tail) goes as it comes, so the two never show together
+    else for (const id of SIT.hides) st.alpha[id] = (st.alpha[id] ?? 1) * (1 - sitA);
+    if (topA >= 1) for (const id of SIT_BESIDE) st.alpha[id] = 0;
+    if (topA > 0) for (const id of SIT_ARMS) st.alpha[id] = (st.alpha[id] ?? 1) * (1 - topA);
+  }
+
+  /** The lying drawing's states and the dissolve's alphas; its face is drawn in, with eyes-shut and mouth patches. */
+  const MOOD_KICK = { happy: [1.6, 1.4], love: [1.6, 1.2], excited: [1.9, 1.7], wink: [1.3, 1.2], angry: [1.2, 2], sad: [.3, .6], cry: [.2, .6], sleepy: [.4, .7], scared: [.2, 1], worried: [.5, .8] };
+  let kickPh = 0;
+  function lying(st, o, fc, face, mode, t, dt, breath, poseA, gs, g, gk, caps) {
+    const { nod, shake, bow, flinch, peek, flap } = gs, L = LIE.pose;
+    const pv = L.pivots || {}, still = mode === 'sleep' || fc.listen;
+    const fid = kind => (g?.kind === kind ? Math.sin(Math.PI * gk) : 0);
+    const flopUp = 1 - smooth(.2, .6, lieK);
+    st.lie = { a: -14 * flopUp, sx: 1 + .006 * breath, sy: (1 - .012 * breath) * (1 - .04 * flinch) };
+    st.lieBack = { fn: (u, v) => [0, -.8 * (.5 + .5 * breath) * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)] };
+    const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look?.[0] || 0, -6, 6) * .3 + (mode === 'sleep' ? 3 : 0)
+      + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + fid('chin') * 6) * Math.PI / 180;
+    const hx = shake * 2.5 + peek * 3, [cx, cy] = pv.lieChin || [L.rects?.head?.[0] ?? 128, L.rects?.head?.[3] ?? 200];
+    st.lieHead = {
+      fn: (u, v, x, y) => { const w = smooth(0, .35, u) * (1 - smooth(.7, 1, v)); return [(-th * (y - cy) + hx) * w, th * (x - cx) * w]; },
+    };
+    if (L.legAxis) {
+      const [mk, mr] = MOOD_KICK[face] || [1, 1];
+      const amp = Math.min(KICK.amp, (still ? 0 : 5 * mk) + 9 * fid('kick') + 8 * flap), rad = Math.PI / 180;
+      kickPh += dt * (2.1 * mr + 3 * fid('kick'));
+      st.lieLegs = { fn: kickField(L.legAxis, amp * Math.sin(kickPh) * rad, Math.min(KICK.apart, amp * .35) * Math.sin(kickPh + 1.6) * rad) };
+    }
+    const shut = eyesShut(o, fc.eyes, mode), mouth = lyingMouth(o, face, mode);
+    for (const p of LIE.parts) st.alpha[p.id] = !caps.tex(p.tex) ? 0 : !p.use ? poseA : p.use === 'shut' ? poseA * shut : poseA * (mouth[p.use] || 0);
+  }
+
+  function reset() {
+    springs();
+    prevTilt = prevYaw = prevLow = wTilt = wLean = sitK = danceK = lieK = 0;
+    perk = swish = droop = curl = wagPh = puff = earUp = earFlat = earDroop = browLift = browInner = browSide = backA = awayA = faceArmT = kickPh = 0;
+    backOn = 1;
+    sinceArmG = 9; lastFaceArm = lastArmG = null;
+    twitchT = 9; lastFace = lastMode = null;
+    sitOwnK = 1; raiseNow = 0; dropNow = null;
+    bodyB = { from: 'stand', to: 'stand', x: 1 }; prevSit = 0;
+    armA = { hangL: 1, hangR: 1 };
+  }
+
+  return {
+    step, reset, groupTilt,
+    /** The arm drawings' alphas now (for tests and tools). */
+    get arms() { return { ...armA }; },
+    get lieK() { return lieK; },
+    get sitK() { return sitK; },
+    /** (sit) How far the kit's points must rise seated (figure.anchors). */
+    get sitRaise() { return raiseNow; },
+  };
+}

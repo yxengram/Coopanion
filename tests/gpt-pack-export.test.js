@@ -156,7 +156,7 @@ describe('exported GPT-chan pack', () => {
     const { root } = writePack(await buildManifest({ upstreamTones }));
     const { packs, problems } = figurePacks([root]);
     expect(problems).toEqual([]);
-    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan']);
+    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
     expect(packFor(packs, PACK_ID)).toMatchObject({ id: 'gpt-chan', builtin: true });
     expect(unaliasSkin({ figure: PACK_ID, scheme: 'original' })).toEqual({ figure: 'gpt-chan', scheme: 'original' });
   });

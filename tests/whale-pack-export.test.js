@@ -44,7 +44,7 @@ describe('exported whale pack', () => {
     const m = await buildManifest({ upstreamTones, volumes: { song: .05 } });
     expect(m).toMatchObject({ manifest: 2, api: 2, id: PACK_ID, entry: 'whale/figure.js', export: 'createWhaleBody', model: 'model.json' });
     const builtinIds = BUILTIN_PACKS.map((b) => JSON.parse(readFileSync(join(b.dir, 'figure.json'), 'utf8')).id);
-    expect(builtinIds).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan']);
+    expect(builtinIds).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
     expect(builtinIds).not.toContain(m.id);
     expect(m.name).toEqual({ zh: 'Coopanion 大肥鱼', en: 'Coopanion Whale' });
     const whale = builtin('whale');

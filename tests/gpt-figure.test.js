@@ -600,6 +600,21 @@ describe('GPT-chan: sitting and bowing', () => {
       expect(alpha('tail')).toBe(1);
     }
   });
+  it('gets up from kneeling on the kneeling drawing, never the seated one', () => {
+    const { fig, seen } = stubFigure(SYNTH);
+    const pet = barePet(fig);
+    const alpha = id => seen.last.st.alpha[id] ?? 0;
+    run(pet, .5);
+    pet.doWord('kneel'); run(pet, 3);
+    expect(alpha('kneel_body')).toBe(1);
+    pet.doWord('stand');
+    for (let i = 0; i < 120; i++) { run(pet, 1 / 60); expect(alpha('sit_skirt')).toBe(0); }
+    expect(alpha('kneel_body')).toBe(0);
+    // and from kneeling to sitting the seated drawing does take over
+    pet.doWord('kneel'); run(pet, 3);
+    pet.doWord('sit'); run(pet, 2);
+    expect(alpha('sit_skirt')).toBe(1);
+  });
   it('sits on the seated drawing when there is one, and as the standing rig when not', () => {
     for (const model of [SYNTH, BARE]) {
       const { fig, seen } = stubFigure(model);

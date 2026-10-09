@@ -986,6 +986,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (face === 'determined') { aN = 14; aF = -10; }
     if (face === 'excited') { aN += 18; aF -= 12; }
     if (mode === 'dance') { const b = Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1); aN = 16 + 24 * Math.max(0, b); aF = -8 - 22 * Math.max(0, -b); }
+    // nervous, the arms held stiffly in at her sides, fidgeting; a gesture's arms go on from there (it hands over
+    // from the fist arms by their angle: set after it, this would hold them down and its drawing would never show)
+    if (face === 'nervous') { aN = -7 + 2.5 * Math.sin(t * 5); aF = 6; }
     // with the open-hand drawing she raises the arm on toward the drawing's own angle, and it takes over halfway up
     const { openHand } = waveHandover(wave, 0, lieK, !!WAVE && waveOK());
     if (wave) aN = lerp(aN, openHand ? WAVE.rest : 108, wave);
@@ -1005,7 +1008,6 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     if (raise && !farRaise) aN = lerp(aN, BENT_RAISES.includes(raiseG) ? 30 : raiseOn ? RAISE_TO : 100, raise);
     if (raise && farRaise) aF = lerp(aF, raiseOn ? -RAISE_TO : -100, raise);
     if (shiver) { aN = lerp(aN, -10, shiver); aF = lerp(aF, 8, shiver); }
-    if (face === 'nervous') { aN = -7 + 2.5 * Math.sin(t * 5); aF = 6; }
     // coaxing, the hands come in together in front, swaying with her
     if (face === 'coax' && !g) { aN = -9 + 3 * (fc.rock || 0); aF = 9 + 3 * (fc.rock || 0); }
     // a flinch hugs the arms in tight; a peek holds them a little back and out, out of the way

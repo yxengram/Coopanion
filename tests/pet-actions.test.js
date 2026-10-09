@@ -4,6 +4,7 @@ import { createBody, createPet, FACES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRES
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
+import { createActs, WALK_MAX } from '../packages/cortico-world-desktop-pet/web/acts.js';
 import { figurePacks } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 
 const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
@@ -1535,5 +1536,86 @@ describe('a body without plus is the kit as any other pack knows it', () => {
     const o = frames.at(-1);
     expect(o).toMatchObject({ lie: 0, prone: false, kneel: false, away: 0 });
     expect(pet.lying).toBe(0);
+  });
+});
+
+describe("the page's queue of words (web/acts.js)", () => {
+  const seconds = new Map(vocabOf('coo').map((v) => [v.id, v.seconds]));
+  const secondsOf = (w) => seconds.get(w) ?? 1;
+  /** A layout as the page reads it, for a body that only says what mode it is in. */
+  const lay = (mode, busy = false) => ({ mode, busy });
+
+  it('a walk asked for as a word holds the next word until it stops, though the walk outlasts its seconds on a wide stage', () => {
+    let T = 0;
+    const acts = createActs();
+    const done = [];
+    const pet = barePet((kind, d) => { if (kind === 'done') { done.push([d.word, T]); acts.done(d.word, T); } }, { bounds: () => ({ W: 2560, H: 400, floorY: 380, S: .42 }) });
+    run(pet, 1);
+    // from the left edge a walk goes past the middle of the stage: more than 1300 px at 78 px/s
+    pet.pet.x = 100;
+    const started = [];
+    acts.push('walk', 'nod');
+    for (let i = 0; i < 40 * 60 && started.length < 2; i++) {
+      T += 1 / 60;
+      acts.step(T, pet.layout(), (w) => { started.push([w, T, pet.pet.mode]); pet.doWord(w); }, secondsOf);
+      pet.step(1 / 60); pet.render();
+    }
+    expect(secondsOf('walk')).toBe(12);
+    const [walk, nod] = started;
+    expect(walk[0]).toBe('walk');
+    expect(done.map(([w]) => w)).toEqual(['walk']);
+    // the walk ran past its 12 s, and the nod waited for it to end rather than cutting in on the way
+    expect(done[0][1] - walk[1]).toBeGreaterThan(14);
+    expect(nod[0]).toBe('nod');
+    expect(nod[1]).toBeGreaterThanOrEqual(done[0][1]);
+    expect(nod[2]).toBe('idle');
+  });
+
+  it('a body that never says a walk is done holds the queue only while it walks, and never past WALK_MAX', () => {
+    const acts = createActs();
+    const played = [];
+    const play = (w) => played.push(w);
+    acts.push('walk', 'nod');
+    expect(acts.step(0, lay('idle'), play, secondsOf)).toBe('walk');
+    expect(acts.step(12.5, lay('walk'), play, secondsOf)).toBe(null);
+    expect(acts.step(WALK_MAX - .1, lay('walk'), play, secondsOf)).toBe(null);
+    expect(acts.step(WALK_MAX + .1, lay('walk'), play, secondsOf)).toBe('nod');
+
+    // ...and one that has stopped walking lets the next word go at its seconds, as before
+    acts.push('run', 'wave');
+    const at = WALK_MAX + 1;
+    expect(acts.step(at, lay('idle'), play, secondsOf)).toBe('run');
+    expect(acts.step(at + 12.1, lay('idle'), play, secondsOf)).toBe('wave');
+    expect(played).toEqual(['walk', 'nod', 'run', 'wave']);
+  });
+
+  it('a word reported done lets the next one start at once; words wait while the body is busy or not there', () => {
+    const acts = createActs();
+    const play = () => {};
+    acts.push('walk', 'nod', 'happy');
+    expect(acts.step(0, null, play, secondsOf)).toBe(null);
+    expect(acts.step(0, lay('crouch', true), play, secondsOf)).toBe(null);
+    expect(acts.step(0, lay('idle'), play, secondsOf)).toBe('walk');
+    // a done for some other word changes nothing
+    acts.done('wave', 3);
+    expect(acts.step(3.1, lay('walk'), play, secondsOf)).toBe(null);
+    acts.done('walk', 3);
+    expect(acts.step(3.1, lay('walk'), play, secondsOf)).toBe('nod');
+    expect(acts.step(3.2, lay('idle'), play, secondsOf)).toBe(null);
+    expect(acts.step(3.1 + secondsOf('nod'), lay('idle'), play, secondsOf)).toBe('happy');
+    expect(acts.length).toBe(0);
+  });
+
+  it('a body busy in the air turns a walk down, so the page can say so at once (figure-frame.js reports it interrupted by busy)', () => {
+    const body = bareBody({ plus: true });
+    stepBody(body, 1);
+    expect(body.do('jump')).toBe(true);
+    stepBody(body, .1);
+    expect(body.layout().busy).toBe(true);
+    expect(body.walk(100, false, 'w1')).toBe(false);
+    stepBody(body, 3);
+    expect(body.layout().busy).toBe(false);
+    expect(body.walk(100, false, 'w2')).toBe(true);
+    body.dispose();
   });
 });

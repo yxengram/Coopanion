@@ -234,6 +234,11 @@ function recCanvas(w = 1, h = 1) {
 
 describe('Gemini-chan: the source', () => {
   const src = Object.fromEntries(SRC.map(f => [f, readFileSync(new URL(f, DIR), 'utf8')]));
+  it('has no spout: her words leave it out, so none of her code draws one', () => {
+    expect(JSON.parse(readFileSync(new URL('figure.json', DIR), 'utf8')).vocab.map(w => w.id)).not.toContain('spout');
+    expect(GESTURES).not.toContain('spout');
+    for (const [f, s] of Object.entries(src)) expect(s, f).not.toMatch(/spout/i);
+  });
   it('enters the kit statically with the plus body, and never fetches', () => {
     expect(src['figure.js']).toMatch(/^import \* as kit from '\.\.\/kit\/body\.js';$/m);
     expect(src['figure.js']).toMatch(/export async function createGeminiBody\(base, opts\) \{\s*return kit\.createBody\(opts\.host, \{ figure: await createGeminiFigure\(base, opts\), plus: true \}\);/);

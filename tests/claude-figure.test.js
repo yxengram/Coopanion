@@ -195,6 +195,11 @@ function recCanvas(w = 1, h = 1) {
 
 describe('Claude-chan: the source', () => {
   const src = Object.fromEntries(SRC.map(f => [f, readFileSync(new URL(f, DIR), 'utf8')]));
+  it('has no spout: her words leave it out, so none of her code draws one', () => {
+    expect(JSON.parse(readFileSync(new URL('figure.json', DIR), 'utf8')).vocab.map(w => w.id)).not.toContain('spout');
+    expect(GESTURES).not.toContain('spout');
+    for (const [f, s] of Object.entries(src)) expect(s, f).not.toMatch(/spout/i);
+  });
   it('enters the kit statically with the plus body, and never fetches', () => {
     expect(src['figure.js']).toMatch(/^import \* as kit from '\.\.\/kit\/body\.js';$/m);
     expect(src['figure.js']).toMatch(/export async function createClaudeBody\(base, opts\) \{\s*return kit\.createBody\(opts\.host, \{ figure: await createClaudeFigure\(base, opts\), plus: true \}\);/);
@@ -632,7 +637,7 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
     for (const k of ['gaze', 'bubble', 'tear', 'z']) expect(inside(L.anchors[k], view), k).toBe(true);
     const A = anchorsOf(real, R);
     expect(A.lie.hit).toEqual(L.anchors.hit);
-    expect(A.lie.spout).toHaveLength(2);
+    expect(A.lie.spout).toBeUndefined();
     // kneeling: her head sits a little higher than the kit's seated sink
     expect(P.kneel.headDrop).toBeGreaterThan(0);
     expect(P.kneel.headDrop).toBeLessThanOrEqual(SIT_LOW);

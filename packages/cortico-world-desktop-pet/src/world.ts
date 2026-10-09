@@ -35,7 +35,7 @@ import { Packer, Segmenter, rmsDb, type SegmentConfig, type SegmentSink, type Ut
 import { comboLabel, hotkeyBadge, hotkeyLabel, parseHotkey, splitTaps, watchHotkey, type KeyWatcher } from './asr/hotkey.ts';
 import { joinSpeech, looksHallucinated } from './asr/result.ts';
 import { toSimplified } from './asr/simplify.ts';
-import { estimateSeconds, parseActions, parseScript, vocabTable, type VocabWord } from './script.ts';
+import { estimateSeconds, lastingNote, parseActions, parseScript, vocabTable, type VocabWord } from './script.ts';
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack } from './packs.ts';
@@ -139,6 +139,8 @@ export interface PetDialogUpdate {
 
 export interface PetDialogHandle {
   readonly answer: Promise<PetDialogAnswer>;
+  /** Words of `actions` the body on screen does not know (not in its vocabulary): left out, and logged. */
+  readonly dropped: readonly string[];
   update(patch: PetDialogUpdate): void;
   /** Takes the step off the bubble; an unanswered one resolves `done`. */
   close(): void;
@@ -733,7 +735,10 @@ export class DesktopPetWorld implements World {
         w.resolve(msg.t === 'arrived'
           ? `走到了屏幕横向 ${at} 处。`
           : w.stopping ? `走到屏幕横向 ${at} 处停下了。`
-          : msg.by === 'drag' ? `没走到:走到 ${at} 处时被${this.cfg.user}拎起来了。` : `没走到:走到 ${at} 处时换成了别的动作(${String(msg.by)})。`);
+          : msg.by === 'drag' ? `没走到:走到 ${at} 处时被${this.cfg.user}拎起来了。`
+          : msg.by === 'busy' ? `没走:身体正忙(被拎着、在跳、在空中或在翻滚),没法起步,还在屏幕横向 ${at} 处。等它落地站稳再走。`
+          : msg.by === 'none' ? '没走:桌宠的身体还没准备好。'
+          : `没走到:走到 ${at} 处时换成了别的动作(${String(msg.by)})。`);
         return;
       }
       case 'answer': return this.onAnswer(msg, 'pet');
@@ -818,7 +823,8 @@ export class DesktopPetWorld implements World {
    */
   dialog(d: PetDialog): PetDialogHandle {
     const id = nextId('d');
-    const { actions } = parseActions(d.actions ?? [], this.vocab());
+    const { actions, dropped } = parseActions(d.actions ?? [], this.vocab());
+    if (dropped.length) this.log?.warn(`气泡对话里有当前形象的词表没有的词,已略过:${dropped.join('、')}`);
     let settle: (a: PetDialogAnswer) => void = () => {};
     const answer = new Promise<PetDialogAnswer>((resolve) => { settle = resolve; });
     if (!this.server.sendPet({ t: 'dialog', id, ...d, actions })) settle({ unavailable: true });
@@ -830,6 +836,7 @@ export class DesktopPetWorld implements World {
     }
     return {
       answer,
+      dropped,
       update: (patch) => { if (this.dialogs.has(id)) this.server.sendPet({ t: 'dialog-update', id, ...patch }); },
       close: () => {
         const s = this.dialogs.get(id);
@@ -1422,7 +1429,8 @@ export class DesktopPetWorld implements World {
     if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions })) return this.notConnected('pet_act');
     const lasting = actions.filter((a) => vocab.find((v) => v.id === a)?.lasting);
     const note = dropped.length ? `\n[执行参数] 当前形象的词表里没有这些,已略过:${dropped.join('、')}。` : '';
-    return { text: `开始依次做:${actions.join(' → ')}。${lasting.length ? `${lasting.join('、')} 会一直保持到下一个动作。` : ''}${note}` };
+    const held = [...new Set(lasting)].map((a) => `${a} ${lastingNote(a)}。`).join('');
+    return { text: `开始依次做:${actions.join(' → ')}。${held}${note}` };
   }
 
   /* ---------- prompt ---------- */

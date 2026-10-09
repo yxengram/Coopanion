@@ -6,7 +6,8 @@
  *
  * The words are the vocabulary of the body on screen (its pack's `vocab`, src/packs.ts), by id or
  * by any of their names; unknown words are dropped and reported back. An inline marker longer than
- * `INLINE_TAG_MAX` or spanning a line is text.
+ * `INLINE_TAG_MAX` or spanning a line is text. Inline markers in a bubble with no text (`【开心】<眨眼>`,
+ * or a script of `<眨眼>` alone) have nothing to wait for: they join the bubble's blocking words, in order.
  */
 
 /** One word of a body's vocabulary. */
@@ -19,7 +20,7 @@ export interface VocabWord {
   about: Record<string, string>;
   /** Seconds the page waits after it before the next word in a row. */
   seconds: number;
-  /** Held until the next word (sitting, sleeping). */
+  /** A posture she stays in (sitting, lying, sleeping, kneeling); see `vocabTable` for what ends it. */
   lasting?: boolean;
 }
 
@@ -107,6 +108,11 @@ export function parseScript(script: string, vocab: readonly VocabWord[]): Parsed
     const lead = b.text.length - b.text.trimStart().length;
     b.text = b.text.trim();
     for (const a of b.anchors) a.at = Math.max(0, Math.min(b.text.length, a.at - lead));
+    // no typing to reach them: they start with the bubble, after its blocking words
+    if (!b.text && b.anchors.length) {
+      for (const a of b.anchors) b.actions.push(...a.actions);
+      b.anchors = [];
+    }
   }
   return { beats, dropped };
 }
@@ -134,11 +140,22 @@ export function parseActions(list: readonly unknown[], vocab: readonly VocabWord
   return { actions, dropped };
 }
 
+/**
+ * How long a lasting word holds, as the prompt and `pet_act`'s receipt say it (web/kit/body.js `act`): sitting,
+ * lying and sleeping stay through gestures and expressions and end on another posture or a move of the whole
+ * body (walking, jumping, dancing...); kneeling ends on any other motion, a nod too, back to plain sitting.
+ */
+export function lastingNote(id: string): string {
+  return id === 'kneel'
+    ? '保持到下一个动作(点头也算),然后变回普通坐着;换表情不影响'
+    : '一直保持:做手势、换表情不影响,换别的姿势或走、跑、跳这类全身动作才结束';
+}
+
 /** The vocabulary as the bot's prompt shows it: expressions, then motions, with names and looks in `language`. */
 export function vocabTable(vocab: readonly VocabWord[], language = 'zh'): string {
   const pick = <T>(by: Record<string, T>): T | undefined => by[language] ?? by.zh ?? Object.values(by)[0];
   const rows = (kind: VocabWord['kind']) => vocab.filter((v) => v.kind === kind)
-    .map((v) => `| ${v.id} | ${(pick(v.names) ?? []).join(' / ')} | ${pick(v.about) ?? ''}${v.lasting ? ',保持到下一个动作' : ''} |`).join('\n');
+    .map((v) => `| ${v.id} | ${(pick(v.names) ?? []).join(' / ')} | ${pick(v.about) ?? ''}${v.lasting ? `,${lastingNote(v.id)}` : ''} |`).join('\n');
   return `表情(持续几秒后回到平常的脸):\n\n| 词 | 中文 | 样子 |\n|---|---|---|\n${rows('expression')}\n\n`
     + `动作:\n\n| 词 | 中文 | 样子 |\n|---|---|---|\n${rows('motion')}`;
 }

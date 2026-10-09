@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
-import { estimateSeconds, parseActions as actionsIn, parseScript as scriptIn, vocabId, INLINE_TAG_MAX } from '../src/script.ts';
+import { estimateSeconds, parseActions as actionsIn, parseScript as scriptIn, vocabId, vocabTable, INLINE_TAG_MAX } from '../src/script.ts';
 
 // Coo's words, as the body on screen gives them
 const VOCAB = figurePacks([]).packs.find((p) => p.id === 'coo')!.manifest.vocab;
@@ -35,6 +35,33 @@ describe('parseScript', () => {
 
   it('allows a beat with actions only', () => {
     expect(parseScript('【sleep】').beats).toEqual([{ actions: ['sleep'], text: '', anchors: [] }]);
+  });
+
+  it('starts inline words in a bubble with no text along with its blocking words, in order', () => {
+    // there is no typing to reach them, so the page would never get to them as anchors
+    expect(parseScript('【开心】<眨眼>【点头】好').beats).toEqual([
+      { actions: ['happy', 'wink'], text: '', anchors: [] },
+      { actions: ['nod'], text: '好', anchors: [] },
+    ]);
+    expect(parseScript('<眨眼> <点头, 开心>').beats).toEqual([{ actions: ['wink', 'nod', 'happy'], text: '', anchors: [] }]);
+    // a bubble with text keeps them where they are
+    expect(parseScript('<眨眼>你好').beats).toEqual([{ actions: [], text: '你好', anchors: [{ at: 0, actions: ['wink'] }] }]);
+  });
+});
+
+describe('vocabTable', () => {
+  const row = (id: string) => vocabTable(VOCAB).split('\n').find((l) => l.startsWith(`| ${id} |`))!;
+
+  it('says sitting, lying and sleeping last through gestures and expressions, and end on another posture or a move', () => {
+    for (const id of ['sit', 'lie', 'sleep']) {
+      expect(row(id)).toContain('一直保持:做手势、换表情不影响,换别的姿势或走、跑、跳这类全身动作才结束');
+      expect(row(id)).not.toContain('下一个动作');
+    }
+  });
+
+  it('says kneeling ends on any other motion, and leaves other words alone', () => {
+    expect(row('kneel')).toContain('保持到下一个动作(点头也算),然后变回普通坐着');
+    expect(row('nod')).not.toContain('保持');
   });
 });
 

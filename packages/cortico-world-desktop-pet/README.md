@@ -18,15 +18,15 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 
 | 工具 | 作用 | 回执 |
 |---|---|---|
-| `pet_say(script)` | 冒气泡说话;`【词】` 先做动作再换新气泡,`<词>` 打字到那里时做 | 立即返回,报约显示多久、前面排了多久 |
+| `pet_say(script)` | 冒气泡说话;`【词】` 先做动作再换新气泡,`<词>` 打字到那里时做(没有文字的气泡里的 `<词>` 跟着这个气泡开始) | 立即返回,报约显示多久、前面排了多久 |
 | `pet_ask(question, options, allowOwnAnswer)` | 提问气泡,最多 3 个选项,默认再加一格自己写 | 立即返回;回答以 `[回答]` 事件送达 |
-| `pet_walk_to(to, run)` | 走(跑)到桌宠所在屏幕横向 0–1 处,或 `left` `center` `right` `cursor` | 走到或被打断才返回,最多 30 秒;`interruptible`,收到 interrupt 时停在原地并写明位置 |
-| `pet_act(actions)` | 不说话,依次做一串表情或动作 | 立即返回;词表里标着保持的词(Coo、大肥鱼、Claude 娘、GPT 娘和 Gemini 娘的 `sit` `sleep` `lie` `kneel`)保持到下个动作 |
+| `pet_walk_to(to, run)` | 走(跑)到桌宠所在屏幕横向 0–1 处,或 `left` `center` `right` `cursor` | 走到或被打断才返回,最多 30 秒;身体正忙(被拎着、在空中、在翻滚)起不了步时马上返回;`interruptible`,收到 interrupt 时停在原地并写明位置 |
+| `pet_act(actions)` | 不说话,依次做一串表情或动作 | 立即返回;词表里标着保持的词(Coo、大肥鱼、Claude 娘、GPT 娘和 Gemini 娘的 `sit` `sleep` `lie` `kneel`)会写明保持多久:坐、趴、睡做手势和换表情时不变,换姿势或走、跳这类全身动作才结束;跪坐做下一个动作就变回普通坐着 |
 | `pet_set(…)` | 改自己的外观和习惯,见「自己调整」 | 自己能改的立即返回;要问的等对方回答 |
 | `pet_quiet(minutes, sound, roam)` | 临时安静:默认关音效、站着不动,到点恢复,设置不变 | 立即返回 |
 
 表情和动作的词表是当前形象包的 `vocab`(解析在 `src/script.ts`),词的 id 与各语言的名字都认;环境提示词 `src/ENV_PROMPT.md` 把它渲染成表格,换了形象就跟着换。
-词表里没有的词,`pet_say` 和 `pet_act` 的回执会写明略过了哪些。
+词表里没有的词,`pet_say` 和 `pet_act` 的回执会写明略过了哪些;`world.dialog` 的 `actions` 里没有的词记一条警告,也列在返回值的 `dropped` 里。
 
 ## 事件
 
@@ -155,7 +155,7 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 | `model` | 交给工厂的 JSON(`opts.model`),可省 |
 | `axes` | 打扮的维度,每维一组选项(`id`、`name`、`thumb`);装扮页每维一行 |
 | `presets` | 维度组合的命名,可带 `accent` 和设置窗口配色 `console` |
-| `vocab` | 这个身体做的全部表情和动作,也就是它在场时 bot 的整张词表:每个词 `id`、`kind`(`expression` / `motion`)、`names`(按语言的名字列表)、`about`(它做这个词的样子)、`seconds`(连着做时等多久再做下一个),`lasting: true` 表示保持到下一个动作 |
+| `vocab` | 这个身体做的全部表情和动作,也就是它在场时 bot 的整张词表:每个词 `id`、`kind`(`expression` / `motion`)、`names`(按语言的名字列表)、`about`(它做这个词的样子)、`seconds`(连着做时最多等多久再做下一个;`walk`、`run` 过了这个时间还在走就等它停下,最多 90 秒),`lasting: true` 表示这是一个保持下去的姿势 |
 | `sounds` | 包自带的音频:名字 → `{ file, kind, volume }`,文件是包里的 `.ogg` `.mp3` `.wav`,`kind` 是 `move` `touch` `face` `snore` 之一;不存在的文件在扫描时记一条问题,那个声音不响 |
 | `can` | `{ walk: false }` 表示不会走,`pet_walk_to` 会拒绝 |
 | `author`、`license`、`credits`、`thumb`、`version` | 署名与展示 |

@@ -133,6 +133,22 @@ describe('with a pet page', () => {
     expect(await interrupted).toEqual({ text: '没走到:走到 40% 处时被伙伴拎起来了。' });
   });
 
+  it('pet_walk_to returns at once with a plain reason when the body cannot start walking', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const started = Date.now();
+    const refused = tool(world, 'pet_walk_to').handler({ to: 'left' }, ctx);
+    const walk = await page.next((m) => m.t === 'walk');
+    // carried, in the air or rolling: the figure frame reports the walk interrupted by 'busy' in its next frame
+    page.send({ t: 'interrupted', walkId: walk.id, x: .6, by: 'busy' });
+    expect(await refused).toEqual({ text: '没走:身体正忙(被拎着、在跳、在空中或在翻滚),没法起步,还在屏幕横向 60% 处。等它落地站稳再走。' });
+    expect(Date.now() - started).toBeLessThan(5000);
+    const early = tool(world, 'pet_walk_to').handler({ to: 'right' }, ctx);
+    page.send({ t: 'interrupted', walkId: (await page.next((m) => m.t === 'walk')).id, x: .5, by: 'none' });
+    expect(await early).toEqual({ text: '没走:桌宠的身体还没准备好。' });
+  });
+
   it('pet_walk_to rejects a target it cannot read', async () => {
     const { world } = await mounted();
     const page = await FakePage.open(origin(world));
@@ -146,17 +162,22 @@ describe('with a pet page', () => {
     cleanup.push(() => page.close());
     const out = await tool(world, 'pet_act').handler({ actions: ['跳', 'happy', 'sit', 'fly'] }, ctx) as { text: string };
     expect((await page.next((m) => m.t === 'act')).actions).toEqual(['jump', 'happy', 'sit']);
-    expect(out.text).toContain('sit 会一直保持到下一个动作');
+    expect(out.text).toContain('sit 一直保持:做手势、换表情不影响');
     expect(out.text).toContain('fly');
   });
 
-  it('pet_act says lying down lasts until the next action', async () => {
+  it('pet_act says lying down lasts through gestures and kneeling only until the next motion', async () => {
     const { world } = await mounted();
     const page = await FakePage.open(origin(world));
     cleanup.push(() => page.close());
-    const out = await tool(world, 'pet_act').handler({ actions: ['趴下'] }, ctx) as { text: string };
-    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['lie']);
-    expect(out.text).toContain('lie 会一直保持到下一个动作');
+    const out = await tool(world, 'pet_act').handler({ actions: ['趴下', '点头', 'lie'] }, ctx) as { text: string };
+    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['lie', 'nod', 'lie']);
+    // said once, and not "until the next motion": a nod does not get her up
+    expect(out.text.match(/lie 一直保持/g)).toHaveLength(1);
+    expect(out.text).toContain('换别的姿势或走、跑、跳这类全身动作才结束');
+    expect(out.text).not.toContain('保持到下一个动作');
+    const kneel = await tool(world, 'pet_act').handler({ actions: ['跪坐'] }, ctx) as { text: string };
+    expect(kneel.text).toContain('kneel 保持到下一个动作(点头也算),然后变回普通坐着');
   });
 
   it('takes the words of the body on screen: a pack\'s own, and Coo\'s once the page says the pack would not run', async () => {
@@ -375,6 +396,8 @@ describe('with a pet page', () => {
 
   it('dialog steps resolve from the bubble without an event to the bot', async () => {
     const { world, host } = await mounted();
+    const warned: string[] = [];
+    host.log.warn = ((m: string) => { warned.push(m); }) as typeof host.log.warn;
     expect(await world.dialog({ text: '在吗?' }).answer).toEqual({ unavailable: true });
     const page = await FakePage.open(origin(world));
     cleanup.push(() => page.close());
@@ -383,10 +406,15 @@ describe('with a pet page', () => {
     const d1 = await page.next((m) => m.t === 'dialog');
     // vocabulary words arrive as ids, unknown ones are left out
     expect(d1).toMatchObject({ text: '怎么称呼你?', actions: ['thinking'], step: [1, 5], closable: true, input: { kind: 'text' } });
+    expect(name.dropped).toEqual(['不存在']);
+    expect(warned).toEqual(['气泡对话里有当前形象的词表没有的词,已略过:不存在']);
     page.send({ t: 'dialog', id: d1.id, text: '小明' });
     expect(await name.answer).toEqual({ text: '小明' });
 
-    const pick = world.dialog({ text: '选一个', input: { kind: 'buttons', options: [{ label: 'A' }, { label: 'B' }] } });
+    const pick = world.dialog({ text: '选一个', actions: ['happy'], input: { kind: 'buttons', options: [{ label: 'A' }, { label: 'B' }] } });
+    // all of them known: nothing left out, nothing logged
+    expect(pick.dropped).toEqual([]);
+    expect(warned).toHaveLength(1);
     page.send({ t: 'dialog', id: (await page.next((m) => m.t === 'dialog')).id, index: 1 });
     expect(await pick.answer).toEqual({ index: 1 });
 

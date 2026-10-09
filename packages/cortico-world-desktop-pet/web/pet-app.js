@@ -13,6 +13,7 @@ import { applyTheme, clamp, f, ICONS } from './ui.js';
 import { createSfx, OWN_PACKS } from './sound.js';
 import { COO_CSS, mini, normalizeSkin, skinCss } from './coo/coo.js';
 import { loadBody } from './body-host.js';
+import { createActs } from './acts.js';
 
 const $ = (s) => document.querySelector(s);
 const host = window.petHost || null;
@@ -229,10 +230,14 @@ function onBody(kind, d) {
     reportPosition();
   } else if (kind === 'done') {
     // a word that ends on its own (a walk across the screen) lets the next one start at once
-    if (d.word === actWord) actUntil = T;
+    acts.done(d.word, T);
   }
 }
 
+/**
+ * A walk the World asked for. A body that cannot take it now (carried, in the air, rolling) says so in its next
+ * frame: figure-frame.js reports it `interrupted` by `busy`, which goes back to the World at once like any other.
+ */
 function walk(m) {
   const x = m.to === 'cursor' ? (pointerSeen ? lastPointer.x : innerWidth / 2) : clamp(Number(m.to), 0, 1) * innerWidth;
   holdRoam(20);
@@ -241,19 +246,10 @@ function walk(m) {
   body.walk(x, !!m.run, m.id);
 }
 
-/* ---------- actions: words of the body's vocabulary, one after another ---------- */
-const acts = [];
-/** When the word playing lets the next one start (its `seconds`, or its `done`), and which word it is. */
-let actUntil = 0, actWord = null;
+/* ---------- actions: words of the body's vocabulary, one after another (acts.js) ---------- */
+const acts = createActs();
 function stepActs() {
-  if (T < actUntil || !acts.length) return;
-  const l = at();
-  if (!l || l.busy) return;
-  const a = acts.shift();
-  body.do(a);
-  actWord = a;
-  actUntil = T + (words.get(a)?.seconds ?? 1);
-  holdRoam(15);
+  if (acts.step(T, at(), (a) => body.do(a), (a) => words.get(a)?.seconds ?? 1)) holdRoam(15);
 }
 
 /* ---------- say / ask ---------- */
@@ -326,7 +322,11 @@ function stepDialog(dt) {
     }
     const b = it.beats[it.i];
     if (T < it.startAt) return;
-    if (!b.text) { it.beatDone = true; it.holdUntil = T + .8; return; }
+    if (!b.text) {
+      // inline words with no typing to reach them start with the beat (the World already folds them in)
+      for (const a of b.anchors || []) acts.push(...a.actions);
+      it.beatDone = true; it.holdUntil = T + .8; return;
+    }
     typeText(it, b.text, dt, b.anchors || []);
     if (it.shown >= b.text.length && !it.beatDone) {
       it.beatDone = true;

@@ -374,7 +374,7 @@ export function sitAnchors(A, raise) {
   if (!(raise > 0)) return A;
   const up = p => [p[0], f1(p[1] - raise)];
   const out = { ...A };
-  for (const k of ['gaze', 'tear', 'z', 'bubble', 'spout', 'bulb']) if (A[k]) out[k] = up(A[k]);
+  for (const k of ['gaze', 'tear', 'z', 'bubble', 'bulb']) if (A[k]) out[k] = up(A[k]);
   for (const k of ['tears', 'glints']) if (A[k]) out[k] = A[k].map(up);
   if (A.hearts) out.hearts = [A.hearts[0], A.hearts[1], f1(A.hearts[2] - raise)];
   return out;
@@ -596,17 +596,15 @@ export function anchorsOf(model, R) {
   const out = {
     gaze: [f1((l[0] + r[0]) / 2), f1((l[1] + r[1]) / 2 - 8)], tear: l, tears: [l, r], z: [x1 - 8, y0 + 20],
     hearts: [x0 + 30, x1 - 30, y0 + 40], bubble: [128, y0 - 4], glints: [[x0 + 8, y0 + 24], [x1 - 8, y0 + 36]],
-    spout: [cx, y0 + 10], bulb: [x0 + 4, y0 + 6],
+    bulb: [x0 + 4, y0 + 6],
     ...(model.anchors || {}),
   };
   const KNEEL = R.W.kneel?.pose;
   if (KNEEL && KNEEL.headDrop != null) out.kneelRaise = f1(29 - KNEEL.headDrop);
   const LIE = R.W.lie?.pose;
   // lying, the same points on the lying drawing (none without it: the kit keeps her seated)
-  if (LIE?.anchors) {
-    const h = LIE.rects?.head;
-    out.lie = { ...LIE.anchors, ...(h && !LIE.anchors.spout ? { spout: [(h[0] + h[2]) / 2, h[1] + 12] } : {}) };
-  } else if (!LIE) delete out.lie;
+  if (LIE?.anchors) out.lie = { ...LIE.anchors };
+  else if (!LIE) delete out.lie;
   return out;
 }
 /** Where the effects over her go (rig units): model.fx over defaults from the head rect, brows and mouth. */
@@ -747,9 +745,6 @@ export function createMotion(model, R) {
     const heart = is('heart') ? env(.1, .85) : 0;
     const flinch = is('flinch') ? env(.04, .45) : 0;
     const peek = is('peek') ? env(.2, .8) : 0;
-    const spoutC = is('spout') ? Math.sin(Math.PI * clamp(gk / .25, 0, 1)) : 0;
-    const spoutP = is('spout') ? Math.sin(Math.PI * clamp((gk - .25) / .2, 0, 1)) : 0;
-    const spoutOn = is('spout') ? env(.1, .7) : 0;
     const inh = is('sigh') ? Math.sin(Math.PI * clamp(gk / .45, 0, 1)) : 0;
     const exh = is('sigh') ? smooth(.35, .55, gk) * (1 - smooth(.8, 1, gk)) : 0;
     const puffK = is('sigh') ? clamp((gk - .38) / .45, 0, 1) : 0;
@@ -831,7 +826,7 @@ export function createMotion(model, R) {
     // the ears: up, flat or drooping with the face (asleep they droop; shivering or reeling they flatten), quick to
     // perk or flatten and slow to sag; they trail a swing of her head
     const [eu, ef, ed] = mode === 'sleep' ? [0, 0, 1] : EAR_MOOD[face] || [0, 0, 0];
-    const eUp = Math.max(eu * (1 - shiver), airborne ? .3 : 0, spoutP), eFlat = Math.max(ef, shiver, mode === 'dizzy' ? .3 : 0, exh * .3);
+    const eUp = Math.max(eu * (1 - shiver), airborne ? .3 : 0), eFlat = Math.max(ef, shiver, mode === 'dizzy' ? .3 : 0, exh * .3);
     earUp = lerp(earUp, eUp, ease(8, dt)); earFlat = lerp(earFlat, eFlat, ease(10, dt)); earDroop = lerp(earDroop, ed, ease(ed > earDroop ? 1.5 : 4, dt));
     const earLag = sp.earLag.step(sway * 5 - tiltVel * .03, dt);
     // a twitch whenever something happens to her (a new face, woken, picked up, a poke's hop): a quick shiver of both
@@ -847,7 +842,7 @@ export function createMotion(model, R) {
       + (face === 'angry' ? 1.5 * Math.sin(t * 40 + k) : 0) + (face === 'singing' ? 2 * Math.sin(t * Math.PI * 2.5) : 0)
       + danceK * 3 * Math.sin(t * 7 + k) + flap * 6 * Math.sin(t * 24 + k) + titter * 2 + (held ? 4 * Math.sin(t * 13 + 1.3 * k) : 0);
     // sway turns the big star counter-clockwise, so the little stars trail the same way as the hair and skirt
-    const orn = sp.orn.step(-tiltVel * .12 - yawVel * .5 - sway * 18 - spoutP * 20 + (face === 'surprised' ? -16 : 0) + (face === 'confused' ? 20 : 0)
+    const orn = sp.orn.step(-tiltVel * .12 - yawVel * .5 - sway * 18 + (face === 'surprised' ? -16 : 0) + (face === 'confused' ? 20 : 0)
       + (mode === 'sleep' ? 14 : 0) - hairY * 12, dt) + flap * 12 * Math.sin(t * 19) - titter * 6;
     const charms = sp.charms.step(perk * 4 - sway * 10, dt);
 
@@ -944,7 +939,6 @@ export function createMotion(model, R) {
     if (cheer) st.body.ty -= 4 * Math.abs(Math.sin(t * 11)) * cheer;
     if (is('salute')) st.body.sy *= 1 + .03 * Math.sin(Math.PI * clamp(gk / .15, 0, 1));
     if (fc.rock && face === 'coax') st.body.a += 3 * fc.rock;
-    if (spoutC || spoutP) { st.body.sy *= 1 - .1 * spoutC + .05 * spoutP; st.body.sx *= 1 + .05 * spoutC - .02 * spoutP; }
     if (is('roll') && ROLL && caps.pose('roll')) {
       const c = Math.sin(Math.PI * clamp(gk / .2, 0, 1)), pop = Math.sin(Math.PI * clamp((gk - .82) / .18, 0, 1));
       // (without the ball drawing the roll is the kit's, squash and all: figure.roll = 'spin')
@@ -983,7 +977,7 @@ export function createMotion(model, R) {
     // puffs, hangs low when down or carried, floats up in the air and lies out seated
     curl = lerp(curl, clamp(pk * sw, 0, 1), ease(3, dt));
     const startle = face === 'surprised' ? puff : 0;
-    const tailA = sp.tail.step(sway * 9 - droop * 7 + hairY * 6 + (held ? 6 : 0) - 10 * sitK + spoutP * 6 - 8 * startle, dt)
+    const tailA = sp.tail.step(sway * 9 - droop * 7 + hairY * 6 + (held ? 6 : 0) - 10 * sitK - 8 * startle, dt)
       + (walking ? (mode === 'run' ? 6 : 3) * walkS : 0) + danceK * 8 * Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1) + flap * 10 * Math.sin(t * 17);
     const [rootX, rootY] = st.skirt.fn(tailUV[0], tailUV[1]);
     const puffS = 1 + TAIL.puff * puff;

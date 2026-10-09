@@ -1,8 +1,14 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
-import { describe, expect, it } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { describe, expect, it, vi } from 'vitest';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { createPet, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+
+// the whale's own figure.js runs below without WebGL: its rig keeps the last frame's deformer states for the tests
+const rigSeen = vi.hoisted(() => ({ st: null }));
+vi.mock('../packages/cortico-world-desktop-pet/web/kit/rig.js', () => ({
+  createRig: () => ({ upload() {}, render(st) { rigSeen.st = st; }, point: (_d, _st, x, y) => [x, y], dispose() {} }),
+}));
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
 const model = JSON.parse(readFileSync(new URL('model.json', WHALE), 'utf8'));
@@ -825,5 +831,62 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
     expect(seatStep({ sitB: 1, kneelK: 0, kneelB: 0, prevSit: .5 }, { sit: .5, kneel: true, mode: 'sit' }, { ...opt, kneelOK: false }, 1 / 60).up).toBeCloseTo(K / 2);
     expect(seatStep({ sitB: 1, kneelK: 0, kneelB: 0, prevSit: 1 }, { sit: 1, mode: 'sit' }, opt, 1 / 60).up).toBe(0);
     expect(seatStep({ sitB: 1, kneelK: 0, kneelB: 0, prevSit: 1 }, { sit: 1, kneel: true, mode: 'sit' }, { ...opt, kneelRaise: 0 }, 1 / 60).up).toBe(0);
+  });
+});
+
+describe('a face and a gesture at once, as the whale draws them', () => {
+  /** The whale's own figure.js on the kit's body (plus), without a GPU: every frame's deformer states, and the frame. */
+  async function whaleOnKit() {
+    // a do-nothing stand-in for whatever DOM or 2D canvas call the figure makes (numbers read as 0)
+    const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
+    const doc = globalThis.document;
+    globalThis.document = { createElement: () => any, createElementNS: () => any };
+    const fig = await createWhaleFigure(WHALE, { model, loadImage: async () => ({ width: 1, height: 1 }) });
+    const el = () => ({ setAttribute() {}, innerHTML: '' });
+    const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
+    let frame = null;
+    const figure = { ...fig, draw(g, fc, o) { frame = o; fig.draw(g, fc, o); } };
+    Object.defineProperty(figure, 'anchors', { get: () => fig.anchors });
+    Object.defineProperty(figure, 'poses', { get: () => fig.poses });
+    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    pet.resize();
+    const run = (s, each = () => {}) => { for (let i = 0; i < s * 60; i++) { pet.step(1 / 60); pet.render(); each(rigSeen.st, frame); } };
+    return { pet, run, done: () => { globalThis.document = doc; } };
+  }
+  // each arm gesture's drawn arms, and the plain arm(s) they take over from
+  const DRAWN = {
+    wave: { parts: model.poses.wave.required, plain: ['arm_near'] },
+    cheer: { parts: [...model.poses.cheer.arms.near.required, ...model.poses.cheer.arms.far.required], plain: ['arm_near', 'arm_far'] },
+    stretch: { parts: model.poses.stretch.required, plain: ['arm_near', 'arm_far'] },
+    scratch: { parts: model.poses.scratch.required, plain: ['arm_near'] },
+    point: { parts: model.poses.point.required, plain: ['arm_far'] },
+  };
+
+  it("draws a gesture's arms over a nervous or coaxing face's idle arms, handing over from the fist arms as without it", async () => {
+    const { pet, run, done } = await whaleOnKit();
+    try {
+      run(.5);
+      for (const face of ['nervous', 'coax']) {
+        for (const [gesture, { parts, plain }] of Object.entries(DRAWN)) {
+          // (seated the cheer has no hop, which would turn the face away while she is in the air)
+          if (gesture === 'cheer') { pet.doWord('sit'); run(2); } else { pet.doWord('stand'); run(2.5); }
+          // the face asked for once the gesture is under way (the kit keeps the gesture and shows the face)
+          expect(pet.doWord(gesture), gesture).toBe(true);
+          run(.1);
+          expect(pet.doWord(face), `${face} over ${gesture}`).toBe(true);
+          let shown = 0, plainLeft = 1, frames = 0;
+          run(2.8, (st, o) => {
+            if (o.gesture?.kind !== gesture || o.face !== face) return;
+            frames++;
+            const k = Math.min(...parts.map(p => st.alpha[p.id]));
+            if (k > shown) { shown = k; plainLeft = Math.max(...plain.map(id => st.alpha[id])); }
+          });
+          expect(frames, `${face} shows during ${gesture}`).toBeGreaterThan(30);
+          expect(shown, `${gesture}'s drawn arms while ${face}`).toBe(1);
+          expect(plainLeft, `${gesture}'s plain arms gone while ${face}`).toBe(0);
+          pet.doWord('neutral'); run(1.5);
+        }
+      }
+    } finally { done(); }
   });
 });

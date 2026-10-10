@@ -119,6 +119,8 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
       hit: (p) => onBody(layout, p),
       tick(dt) { if (ready) post({ t: 'tick', dt }); },
       do: (word) => post({ t: 'do', word }),
+      /** A group of words done at once (a body without doAll of its own takes them one by one, see figure-frame.js). */
+      doAll: (words) => post({ t: 'do-all', words: words.slice(0, 8) }),
       walk: (x, run, id) => post({ t: 'walk', x, run, id }),
       stopWalk: (id) => post({ t: 'stop-walk', id }),
       /** `type`: down, move, up, cancel, leave; `p` in stage pixels with `t` (ms). */

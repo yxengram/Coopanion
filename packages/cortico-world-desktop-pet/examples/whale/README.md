@@ -50,7 +50,7 @@ B 站 DeepSeek 二创里的蓝发鲸鱼女仆，做成 Coo 的另一个身体。
 `HEAD_PITCH` 的正值是低头（五官下移、头顶露出更多），往下看、睡觉、难过、大哭都是正值。
 kit 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎时整个圆身体歪过去）在她身上换成低头、歪头，脚不离地；
 只有腾空、被拎着、起跳下蹲和落地时整组倾斜，跑步保留一半前倾，跳舞的摇摆六成给整组。
-点头、摇头、招手、鞠躬由她自己画：点头是低头两下，摇头是脸左右转，招手把近侧手臂举到肩高挥动（远侧手臂举起来会被身体和头发挡住），
+点头、摇头、招手、鞠躬由她自己画：点头是低头两下，摇头是脸左右转（点头、摇头、叹气按 `frame.head` 自己的进度画，和招手这类手上的动作可以同时；没有 `frame.head` 的 kit 照旧从 `frame.gesture` 取），招手把近侧手臂举到肩高挥动（远侧手臂举起来会被身体和头发挡住），
 鞠躬时上身（衣身、两只手臂和头）绕腰部枢轴 `waist` 前倾，裙子和腿不动；探头前倾一半，后缩时往后仰、手臂收紧。发抖、扑腾在 kit 的动作之外加上收紧手臂、垂下鲸鳍，或鲸鳍、尾巴、呆毛一起扑动。
 
 ## 写一个形象包
@@ -62,7 +62,7 @@ kit 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎时�
 
 **词表**（`vocab`）：这个身体在场时 bot 能用的全部表情和动作，没列的词 bot 用不了。每个词写清 `names`（bot 可以用哪些名字写它）、
 `about`（在这个身体上是什么样子，原样进 bot 的提示词），`seconds`（连着做时等多久再做下一个）。
-用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；大肥鱼和 Coo 还列了 kit 的扩展词（见下一节），一共 72 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词，只是没有喷水（`spout`），一共 71 个。
+用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；大肥鱼和 Coo 还列了 kit 的扩展词（见下一节，包括 23 个组合表情），一共 95 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词，只是没有喷水（`spout`），一共 94 个。
 
 **入口**：`figure.json` 的 `entry` 和 `export` 指向一个工厂，按 `factory(base, { model, scheme, kit, loadImage, asset, host })` 调用，
 在沙箱里返回一个身体。契约在 `web/figure-frame.js` 开头。最省事的写法是交给 kit：
@@ -99,10 +99,17 @@ Coo、大肥鱼和三个娘（Claude 娘、GPT 娘、Gemini 娘）用的 kit 比
 `createBody(host, { figure, plus: true })`。不开时 kit 和原版的 kit 行为完全一样（只认 `KIT_EXPRESSIONS`、`KIT_MOTIONS` 和包自己的 `words`，
 表情用原版的 `FACES`），所以照上面写的形象包在这里照常能用。打开后：
 
-- 多出的词：`PLUS_EXPRESSIONS`（9 个表情）和 `PLUS_MOTIONS`（26 个动作），扩展的表情参数在 `PLUS_FACES`（害羞、难过两个表情也换成了它的）。
+- 多出的词：`PLUS_EXPRESSIONS`（32 个表情）和 `PLUS_MOTIONS`（26 个动作），扩展的表情参数在 `PLUS_FACES`（害羞、难过两个表情也换成了它的）。
+  32 个表情里有 23 个是组合表情（`PLUS_MIXES`，由 `mixFace` 拼成 `PLUS_MIX_FACES`）：眼睛取一种表情的，嘴取另一种的，眉、身体语言和符号可以另指；
+  脸对象带 `parts: { eyes, brows, mouth, body }`（kit 的表情名），画了五官的形象按部位查自己的表，没有 `parts` 时都按 `frame.face` 查。
   找词的顺序是 kit 的词、包的 `words`、扩展词，所以包自己的同名词（比如上面例子里的 `salute`）优先。
 - `frame` 多带 `lie`、`prone`（趴下）、`kneel`（跪坐）、`talkShape`（说话口型 0–3）、`away`（背过身的程度）；不开 `plus` 时它们都是 0 或 false。
-- figure 可以声明的能力：`poses`（`lie`、`back`，随帧报告）、`anchors` 里的 `lie`、`glints`（开心、得意时星光冒出的几处，没给就在气泡位置两侧）、`spout`、`kneelRaise`、`tears`，
+  还多一个 `head`（`{ kind, k }` 或 `null`）：点头、摇头、叹气（`HEAD_GESTURES`）走头部自己的通道，和 `frame.gesture` 里的手势同时播、各有各的进度；不开 `plus` 时没有这个字段，它们照旧作为 `frame.gesture` 送来。
+- 表情的规则：主动要的表情（词或 `setExpr`）不会被后面的动作清掉（石化遇到任何动作都解除，睡觉也清掉），动作自带的脸等它到期后再接着显示；
+  被拎、晕、起身、倾听、睡着盖住时它暂停倒计时，连续盖住超过 5 秒才丢掉；唱歌、叹气、看书这类「脸就是身体」的手势遇到主动要的表情时，
+  脸名是 `表情+嘴+动作脸`（如 `angry+singing+singing`），眼睛是表情的，身体语言（和唱歌、叹气的嘴）是手势的。
+- `doGroup(words)` / 身体的 `doAll(words)`：一组词在同一帧里做（姿势、手势、头部手势、起跳、表情的顺序），做不了的立刻报 `done`。
+- figure 可以声明的能力：`poses`（`lie`、`back`，随帧报告）、`anchors` 里的 `lie`、`glints`（开心、得意时星光冒出的几处，没给就在气泡位置两侧）、`spout`、`kneelRaise`、`tears`、`kneelArms`（跪坐时也画得出手势，手势就不结束跪坐；内置形象都没有声明），
   以及在 `gestures` 里列出自己画的扩展手势；Coo 专用的几项由 `cooFigure()` 声明。每一项的说明在 `web/kit/body.js` 里 `createPet` 的注释。
 - `talk(ch)` 可以带上正在说的字，口型由字的编码决定；不带时每说一下换下一个口型。
 - 带 `plus` 的身体做不了的词（不认识的，或此刻做不了的，比如倾听时唱歌）`do(word)` 会立刻报 `done`，页面的动作队列不用干等；不带 `plus` 的身体和上游一样，等满这个词的 `seconds`。
@@ -169,9 +176,9 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 吐舌（`tongue`）是表情：一只眼眨着，嘴边吐出一点舌尖（画出来的，`tongue`）。
 趴着时，说话会换上张嘴的贴片（随说话一开一合）、笑的表情换上笑嘴的贴片（`poses.lie.overlays` 的 `talk`、`smile`，和闭眼贴片一样是对趴姿图只改嘴那一块的编辑，嘴里的红色在各配色里不变），睡着、石化时不张嘴。
 跪坐（`kneel`）对身体来说是坐下（`frame.sit`），另外带 `frame.kneel`；大肥鱼坐稳后换成一张跪坐的画（`poses.kneel`），站姿在它完全不透明后才隐去，和趴下一样；
-眨眼、打盹、闭眼的表情用它的闭眼贴片，说话、笑用它的嘴贴片（同趴姿）。下一个动作（任何动作，包括坐着也能做的）就结束跪坐、回到普通坐姿，所以手势总是画在坐姿上。跪坐时头比坐姿高，`anchors.kneelRaise` 告诉 kit 头上的点（气泡、眼泪、星光等）少往下沉多少。Coo 没有跪坐的样子，就坐着。
+眨眼、打盹、闭眼的表情用它的闭眼贴片，说话、笑用它的嘴贴片（同趴姿）。换表情、点头、摇头、叹气不结束跪坐：头挂在跪坐图上的一个网格变形 `kneelHead`（`poses.kneel.head` 框）上，点头往下沉、摇头横向滑、叹气随呼吸起落，框的两侧和下沿不动；下一个手上或全身的动作才结束跪坐、回到普通坐姿，所以手势总是画在坐姿上。跪坐时头比坐姿高，`anchors.kneelRaise` 告诉 kit 头上的点（气泡、眼泪、星光等）少往下沉多少。Coo 没有跪坐的样子，就坐着。
 叹气（`sigh`，约 2 秒）：前 0.35 先吸一口气（眼睛睁大往上看，上身挺一点），之后长长呼出来：半闭眼、八字眉、嘴是小小的「哈」（脸的 `puff`），
-上身和头往前一塌，鲸鳍和尾巴垂下，嘴前飘出两小团白气。脸 `sighing` 按 kit 的 `pulse` 计时，叹气被别的动作打断就回到平常的脸。
+上身和头往前一塌，鲸鳍和尾巴垂下，嘴前飘出两小团白气。脸 `sighing` 按 kit 的头部通道（`frame.head`；没有它的 kit 是 `pulse`）计时，叹气被别的动作打断就回到平常的脸。
 转身和转圈转到侧对你的那一下（`facing` 绝对值小于约 0.45），以及背过身（`away`）时，换成背面那张画；站着时才有（坐着、趴着照旧），
 所以 `poses.back` 只在站着且当前配色有这张图时为真。背过身时她先往中间一挤，在最窄的那一刻正背面交换，转回来也一样；
 没有背面图（坐着、缺图的配色）时只把脸转开、低一点头。
@@ -185,7 +192,7 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 `pnpm run export:whale [输出目录]`（即 `node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs`，默认输出到仓库的 `build/packs`）
 把大肥鱼导出成 `coopanion-whale/` 形象包，原版 v0.1.17 起的 Coopanion 也能装：放进数据目录的 `home/companion/data/figures/`。
 
-- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 72 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
+- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 95 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色、每个姿势、五官、缩略图），缺一个就报错。
 - 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 18 个，三个娘的包没有 spout，是 17 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），

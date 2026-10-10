@@ -151,6 +151,52 @@ export function kickField(ax, kc, kd) {
 }
 export const KICK = { amp: 10, apart: 1.25 };
 
+/* ---------- a face made of others, and the head's own gestures ---------- */
+/**
+ * The faces a face's parts come from: a face the kit made of others (`fc.parts`, e.g. an asked-for face over a song)
+ * takes its eyes, brows, mouth and body language each from its own face; any other face is its own name for all four.
+ */
+export function partsOf(fc, name = 'neutral') {
+  const p = fc?.parts || {};
+  return { eyes: p.eyes ?? name, brows: p.brows ?? name, mouth: p.mouth ?? name, body: p.body ?? name };
+}
+/** Gestures of the head alone (nod, shake, sigh): a plus kit plays them in the frame's `head`, beside its `gesture`. */
+export const HEAD_GESTURES = ['nod', 'shake', 'sigh'];
+/**
+ * The frame's two gestures, each on its own clock: `head` (a nod, a shake, a sigh) and `arm` (anything else). A kit
+ * with a head channel hands the head's in `o.head`; one without it (upstream's) plays them as the gesture.
+ */
+export function gesturesOf(o) {
+  const g = o.gesture || null, ofHead = HEAD_GESTURES.includes(g?.kind);
+  return { head: o.head || (ofHead ? g : null), arm: ofHead ? null : g };
+}
+/** The head gesture's moves at its own k: a nod's two dips, a shake's turns, a sigh's breath in and out, and its puff. */
+export function headMoves(h) {
+  const k = h ? h.k : 0, is = n => h?.kind === n;
+  return {
+    nod: is('nod') ? Math.sin(k * Math.PI * 2) ** 2 * (1 - .3 * k) : 0,
+    shake: is('shake') ? Math.sin(k * Math.PI * 6) * smooth(0, .12, k) * (1 - k) : 0,
+    inh: is('sigh') ? Math.sin(Math.PI * clamp(k / .45, 0, 1)) : 0,
+    exh: is('sigh') ? smooth(.35, .55, k) * (1 - smooth(.8, 1, k)) : 0,
+    puffK: is('sigh') ? clamp((k - .38) / .45, 0, 1) : 0,
+  };
+}
+/** How far the kneeling head moves (rig units): a shake's slide, a nod's drop and squash (per unit above the chin), a sigh. */
+export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5 };
+/**
+ * Kneeling, the head's gestures on the kneeling drawing, a warp over its head (poses.kneel.head): she faces you, so
+ * rather than turning (which would read as a roll of the head) a nod drops the head and squashes its top toward the
+ * chin, a shake slides it sideways, a sigh lifts it on the breath in and lets it sink on the breath out. Nothing moves
+ * at the rect's sides and bottom, so the hair and body beyond it never shear against what is inside.
+ */
+export function kneelHeadField(rect, { nod = 0, shake = 0, inh = 0, exh = 0 }) {
+  const y1 = rect[3], K = KNEEL_HEAD;
+  return (u, v, x, y) => {
+    const w = smooth(0, .18, u) * (1 - smooth(.82, 1, u)) * (1 - smooth(.7, 1, v));
+    return [w * shake * K.shake, w * (nod * (K.nod + K.squash * (y1 - y)) + K.exh * exh - K.inh * inh)];
+  };
+}
+
 /* ---------- facing the viewer ---------- */
 /** The share of the kit's [tilt, lean] the whole group takes, by mode; the rest she bends herself. */
 export const GROUP = { air: [1, .3], drag: [1, .3], crouch: [1, .3], land: [1, .3], walk: [.5, .15], run: [.8, .3], dance: [.6, 0] };
@@ -512,7 +558,10 @@ export function buildRig(model) {
   }
   if (P.kneel?.required?.length) {
     deformers.kneel = { kind: 'rot', pivot: P.kneel.pivots?.kneel || [128, 256] };
-    W.kneel = { pose: P.kneel, parts: floorParts(P.kneel, 'kneel', ['kneel']) };
+    // (its head on a warp of its own, for the head's gestures: kneelHeadField)
+    if (P.kneel.head) deformers.kneelHead = { kind: 'warp', parent: 'kneel', rect: P.kneel.head };
+    const inner = P.kneel.head ? 'kneelHead' : 'kneel';
+    W.kneel = { pose: P.kneel, parts: floorParts(P.kneel, inner, [inner]) };
   }
   // (sit) her seated body, under the live head
   if (P.sit?.required?.length) W.sit = sitRig(P.sit, deformers, parts);
@@ -638,7 +687,9 @@ export function createMotion(model, R) {
   const posable = (caps, id) => !!ARM[id] && caps.pose(id);
 
   function step(fc, o, dt, caps) {
-    const t = o.t || 0, mode = o.mode || 'idle', face = o.face || 'neutral';
+    // `face` is the face's body language (the arms, the head's tilt and pitch, the moods); a face made of others takes
+    // its brows and mouth from their own faces (partsOf)
+    const t = o.t || 0, mode = o.mode || 'idle', FP = partsOf(fc, o.face || 'neutral'), face = FP.body;
     const walking = mode === 'walk' || mode === 'run', held = mode === 'drag', airborne = mode === 'air';
     const st = { alpha: {} };
     sitK = lerp(sitK, clamp(o.sit ?? 0, 0, 1), ease(12, dt));
@@ -677,11 +728,11 @@ export function createMotion(model, R) {
     const lowB = low - sitDrop;
 
     /* the kit's short gestures, as she does them */
-    const g = o.gesture, gk = g ? g.k : 0, gkind = g?.kind;
+    // (a nod, a shake or a sigh is the head's, on its own clock beside the arms' gesture: gesturesOf, headMoves)
+    const G = gesturesOf(o), g = G.arm, gk = g ? g.k : 0, gkind = g?.kind;
     const env = (a, b) => smooth(0, a, gk) * (1 - smooth(b, 1, gk));
     const is = k => gkind === k;
-    const nod = is('nod') ? Math.sin(gk * Math.PI * 2) ** 2 * (1 - .3 * gk) : 0;
-    const shake = is('shake') ? Math.sin(gk * Math.PI * 6) * smooth(0, .12, gk) * (1 - gk) : 0;
+    const { nod, shake, inh, exh, puffK } = headMoves(G.head);
     const wave = is('wave') ? env(.15, .8) : 0;
     const bow = is('bow') ? env(.25, .7) : 0;
     const shiver = is('shiver') ? env(.08, .85) : 0;
@@ -691,9 +742,6 @@ export function createMotion(model, R) {
     const heart = is('heart') ? env(.1, .85) : 0;
     const flinch = is('flinch') ? env(.04, .45) : 0;
     const peek = is('peek') ? env(.2, .8) : 0;
-    const inh = is('sigh') ? Math.sin(Math.PI * clamp(gk / .45, 0, 1)) : 0;
-    const exh = is('sigh') ? smooth(.35, .55, gk) * (1 - smooth(.8, 1, gk)) : 0;
-    const puffK = is('sigh') ? clamp((gk - .38) / .45, 0, 1) : 0;
     const hold = ARM_BOTH[gkind] || ARM_ONE[gkind] ? env(.1, .88) : 0;
     const sip = is('sip') ? sipLift(gk) * hold : 0;
     const curt = is('curtsy') ? Math.sin(Math.PI * clamp((gk - .15) / .7, 0, 1)) * hold : 0;
@@ -924,7 +972,7 @@ export function createMotion(model, R) {
     const parallax = ([kx, ky]) => (u, v) => [angleX * kx * bump(u) * (.4 + .6 * bump(v)), angleY * ky * bump(v) * (.4 + .6 * bump(u))];
     for (const [id, gains] of Object.entries(PARALLAX)) st[id] = { fn: parallax(gains) };
     if (R.hasBrows) {
-      const [bl, bi, bs = 0] = BROW[face] || [0, 0];
+      const [bl, bi, bs = 0] = BROW[FP.brows] || [0, 0];
       browLift = lerp(browLift, bl - 1.5 * (o.blink || 0), ease(14, dt));
       browInner = lerp(browInner, bi, ease(10, dt));
       browSide = lerp(browSide, bs, ease(10, dt));
@@ -964,7 +1012,7 @@ export function createMotion(model, R) {
     Object.assign(st, wingStates(wing, fold, flutter(0), flutter(1), wingLag));
 
     /* whole-body drawings */
-    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap }, g, gk, caps);
+    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh }, g, gk, caps);
     const awayBack = is('away') ? smooth(.05, .07, gk) * (1 - smooth(.93, .95, gk)) : 0;
     awayA = awayStep(awayA, awayBack, g, dt);
     const view = backView(o.facing, awayA), backK = BACK && caps.pose('back') ? view.k : 0;
@@ -989,8 +1037,9 @@ export function createMotion(model, R) {
     // kneeling with a kneeling drawing: once she is down it takes over (bodyAlphas)
     let kneelA = 0;
     if (KNEEL) {
-      const a = kneelA = kneelOK ? bodyA.kneel : 0, shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, face, mode);
+      const a = kneelA = kneelOK ? bodyA.kneel : 0, shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, FP.mouth, mode);
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
+      if (deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(deformers.kneelHead.rect, { nod, shake, inh, exh }) };
       for (const p of KNEEL.parts) {
         const use = p.use ? (p.use === 'shut' ? shut : m[p.use] || 0) : 1;
         st.alpha[p.id] = caps.tex(p.tex) ? a * use : 0;
@@ -1014,7 +1063,7 @@ export function createMotion(model, R) {
   function seated(st, o, fc, face, mode, dt, caps, bodyK, plan) {
     sitOwnK = approach(sitOwnK, sitOwnArms(plan) ? 1 : 0, dt, ARM_FADE);
     const { sitA, topA } = sitMix(bodyK, sitOwnK);
-    const shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, face, mode);
+    const shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, partsOf(fc, o.face).mouth, mode);
     st.sitBase = {};
     st.sitTop = {};
     for (const p of SIT.parts) {
@@ -1032,14 +1081,14 @@ export function createMotion(model, R) {
   const MOOD_KICK = { happy: [1.6, 1.4], love: [1.6, 1.2], excited: [1.9, 1.7], wink: [1.3, 1.2], angry: [1.2, 2], sad: [.3, .6], cry: [.2, .6], sleepy: [.4, .7], scared: [.2, 1], worried: [.5, .8] };
   let kickPh = 0;
   function lying(st, o, fc, face, mode, t, dt, breath, poseA, gs, g, gk, caps) {
-    const { nod, shake, bow, flinch, peek, flap } = gs, L = LIE.pose;
+    const { nod, shake, bow, flinch, peek, flap, inh, exh } = gs, L = LIE.pose;
     const pv = L.pivots || {}, still = mode === 'sleep' || fc.listen;
     const fid = kind => (g?.kind === kind ? Math.sin(Math.PI * gk) : 0);
     const flopUp = 1 - smooth(.2, .6, lieK);
     st.lie = { a: -14 * flopUp, sx: 1 + .006 * breath, sy: (1 - .012 * breath) * (1 - .04 * flinch) };
     st.lieBack = { fn: (u, v) => [0, -.8 * (.5 + .5 * breath) * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)] };
     const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look?.[0] || 0, -6, 6) * .3 + (mode === 'sleep' ? 3 : 0)
-      + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + fid('chin') * 6) * Math.PI / 180;
+      + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + 4 * exh - 2 * inh + fid('chin') * 6) * Math.PI / 180;
     const hx = shake * 2.5 + peek * 3, [cx, cy] = pv.lieChin || [L.rects?.head?.[0] ?? 128, L.rects?.head?.[3] ?? 200];
     st.lieHead = {
       fn: (u, v, x, y) => { const w = smooth(0, .35, u) * (1 - smooth(.7, 1, v)); return [(-th * (y - cy) + hx) * w, th * (x - cx) * w]; },
@@ -1050,7 +1099,7 @@ export function createMotion(model, R) {
       kickPh += dt * (2.1 * mr + 3 * fid('kick'));
       st.lieLegs = { fn: kickField(L.legAxis, amp * Math.sin(kickPh) * rad, Math.min(KICK.apart, amp * .35) * Math.sin(kickPh + 1.6) * rad) };
     }
-    const shut = eyesShut(o, fc.eyes, mode), mouth = lyingMouth(o, face, mode);
+    const shut = eyesShut(o, fc.eyes, mode), mouth = lyingMouth(o, partsOf(fc, o.face).mouth, mode);
     for (const p of LIE.parts) st.alpha[p.id] = !caps.tex(p.tex) ? 0 : !p.use ? poseA : p.use === 'shut' ? poseA * shut : poseA * (mouth[p.use] || 0);
   }
 

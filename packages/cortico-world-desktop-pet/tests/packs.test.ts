@@ -131,12 +131,12 @@ describe('figure packs', () => {
     expect(unaliasSkin({ figure: 'coopanion-gemini-chan', scheme: 'original' })).toEqual({ figure: 'gemini-chan', scheme: 'original' });
   });
 
-  it('Coo and the whale know the same 72 words, Claude-chan, GPT-chan and Gemini-chan all but spout, sit, sleep, lie and kneel lasting', () => {
+  it('Coo and the whale know the same 95 words (72 and 23 faces made of parts), Claude-chan, GPT-chan and Gemini-chan all but spout, sit, sleep, lie and kneel lasting', () => {
     const { packs } = figurePacks([]);
     const [coo, whale, claude, gpt, gemini] = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab);
     expect(coo!.map((w) => w.id)).toEqual(whale!.map((w) => w.id));
-    expect(coo).toHaveLength(72);
-    expect(coo!.filter((w) => w.kind === 'expression')).toHaveLength(28);
+    expect(coo).toHaveLength(95);
+    expect(coo!.filter((w) => w.kind === 'expression')).toHaveLength(51);
     expect(claude!.map((w) => w.id)).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'spout'));
     expect(claude!.map((w) => [w.id, w.seconds])).toEqual(whale!.filter((w) => w.id !== 'spout').map((w) => [w.id, w.seconds]));
     // her words say what she does, nothing of the whale's body

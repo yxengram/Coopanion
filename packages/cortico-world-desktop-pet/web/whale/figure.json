@@ -737,6 +737,335 @@
       "seconds": 0.9
     },
     {
+      "id": "smirk",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "坏笑",
+          "贼笑"
+        ]
+      },
+      "about": {
+        "zh": "眯眼斜看,咧嘴坏坏地笑"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "sly",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "俏皮",
+          "抛媚眼"
+        ]
+      },
+      "about": {
+        "zh": "眨一只眼,猫咪 ω 嘴,脸红红地卖个萌"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "blissful",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "美滋滋",
+          "满足"
+        ]
+      },
+      "about": {
+        "zh": "眯着眼,嘴角翘成 ω,脸红红的,一脸满足"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "lol",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "哈哈",
+          "笑出声",
+          "乐坏了"
+        ]
+      },
+      "about": {
+        "zh": "笑得眼睛挤成 > <,张嘴哈哈大笑,笑得一抖一抖"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "laughcry",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "笑哭",
+          "笑出眼泪"
+        ]
+      },
+      "about": {
+        "zh": "笑得眼泪都出来了,张着嘴边哭边笑,一抖一抖"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "bashful",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "腼腆",
+          "不好意思"
+        ]
+      },
+      "about": {
+        "zh": "红着脸躲开你的目光,又忍不住咧嘴笑"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "flutter",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "心动",
+          "小鹿乱撞"
+        ]
+      },
+      "about": {
+        "zh": "心形眼,满脸通红,抿着嘴害羞地笑"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "smitten",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "花痴",
+          "看呆了"
+        ]
+      },
+      "about": {
+        "zh": "眼睛变成心形,张着小嘴看呆了,冒小心心"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "wow",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "哇",
+          "哇塞",
+          "惊喜"
+        ]
+      },
+      "about": {
+        "zh": "眼里闪着星星,张大嘴“哇”一声,头顶感叹号"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "crave",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "馋",
+          "眼馋",
+          "想吃"
+        ]
+      },
+      "about": {
+        "zh": "眼睛亮晶晶的,舌尖都伸出来了,左右晃着馋得不行"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "dreamy",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "憧憬",
+          "向往"
+        ]
+      },
+      "about": {
+        "zh": "眼里闪着光望向远处,嘴角带着笑"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "eager",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "跃跃欲试",
+          "看我的",
+          "包在我身上"
+        ]
+      },
+      "about": {
+        "zh": "眼神坚定,咧嘴一笑,准备大干一场"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "innocent",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "无辜",
+          "不是我"
+        ]
+      },
+      "about": {
+        "zh": "睁着亮晶晶的大眼睛往上看,小嘴一嘟,一脸无辜"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "huff",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "气鼓鼓",
+          "气呼呼"
+        ]
+      },
+      "about": {
+        "zh": "皱着眉嘟起嘴,脸红红的,头顶冒怒气"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "frantic",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "抓狂",
+          "崩溃"
+        ]
+      },
+      "about": {
+        "zh": "眼睛挤成 > <,咬着牙,头顶冒怒气,气得直抖"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "ragecry",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "气哭",
+          "气哭了"
+        ]
+      },
+      "about": {
+        "zh": "闭着眼眼泪直流,咬着牙,头顶冒怒气"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "sulk",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "瘪嘴",
+          "委屈巴巴"
+        ]
+      },
+      "about": {
+        "zh": "八字眉含着泪,嘴巴瘪起来,委屈得快哭了"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "whimper",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "哭唧唧",
+          "呜呜"
+        ]
+      },
+      "about": {
+        "zh": "闭着眼眼泪直流,嘴巴瘪着呜呜地哭"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "brave",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "强颜欢笑",
+          "强撑"
+        ]
+      },
+      "about": {
+        "zh": "八字眉冒着冷汗,嘴上却挤出一个笑"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "pained",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "苦恼",
+          "头疼",
+          "头大"
+        ]
+      },
+      "about": {
+        "zh": "紧闭着眼皱着眉,嘴角往下撇,冒汗"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "doubt",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "狐疑",
+          "怀疑",
+          "真的吗"
+        ]
+      },
+      "about": {
+        "zh": "眯着眼斜看你,撇着嘴,头顶一个问号"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "blank",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "懵",
+          "发愣",
+          "一脸懵"
+        ]
+      },
+      "about": {
+        "zh": "一只眼大一只眼小,张着嘴愣住,头顶问号"
+      },
+      "seconds": 0.9
+    },
+    {
+      "id": "meh",
+      "kind": "expression",
+      "names": {
+        "zh": [
+          "呵呵",
+          "皮笑肉不笑"
+        ]
+      },
+      "about": {
+        "zh": "半眯着眼斜看,嘴角扯成一条线,身子往后仰"
+      },
+      "seconds": 0.9
+    },
+    {
       "id": "stand",
       "kind": "motion",
       "names": {

@@ -229,7 +229,7 @@ function onBody(kind, d) {
   } else if (kind === 'mode') {
     reportPosition();
   } else if (kind === 'done') {
-    // a word that ends on its own (a walk across the screen) lets the next one start at once
+    // a word that ends on its own (a walk across the screen) lets the next one start at once (in a group, once all have)
     acts.done(d.word, T);
   }
 }
@@ -248,8 +248,10 @@ function walk(m) {
 
 /* ---------- actions: words of the body's vocabulary, one after another (acts.js) ---------- */
 const acts = createActs();
+/** A word, or a group of words done at once (ids joined by '+', body first, face last; see src/script.ts). */
+const playEntry = (a) => { const ws = a.split('+'); if (ws.length === 1) body.do(a); else body.doAll(ws); };
 function stepActs() {
-  if (acts.step(T, at(), (a) => body.do(a), (a) => words.get(a)?.seconds ?? 1)) holdRoam(15);
+  if (acts.step(T, at(), playEntry, (a) => words.get(a)?.seconds ?? 1)) holdRoam(15);
 }
 
 /* ---------- say / ask ---------- */

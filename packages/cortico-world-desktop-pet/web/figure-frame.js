@@ -18,13 +18,15 @@
  *   busy, moving, pressing, cursor, box, hit, bubble, side }, see the kit's `layout`); `resize()` takes new
  *   bounds (`set({ bounds })` from the page changes what `host.bounds()` returns, then calls it); `do(word)`, `walk(x, run, id)`, `stopWalk(id)`, `pointer(type, p)`, `drop(p)`, `shift(dx, dy)`, `place(x, facing)`,
  *   `set(state)`, `cue(kind)`, `talk(ch?)` (`ch`: the character being said; pages that do not send it
- *   leave it undefined), `setScheme(id, { fade, at })`, `z` (the colour of its sleep z's)
- *   and `dispose()`. Only `step`, `layout` and `do` are required.
+ *   leave it undefined), `setScheme(id, { fade, at })`, `z` (the colour of its sleep z's), `doAll(words)` (a group
+ *   of words done at once; a body without it gets them one by one through `do`, each it turns down (returns false
+ *   for) tried again every frame for up to RETRY_MAX seconds) and `dispose()`. Only `step`, `layout` and `do` are
+ *   required.
  * - events (`emit`): `arrived` and `interrupted` ({ walkId, x, by }) for `walk`, `done` ({ word }) for a word
  *   that ends on its own, `touch` ({ kind: poke | pet | grab | drop | throw | crash, ... }), `mode` ({ mode }).
  *
  * Messages in: `init { entry, export, base, model, scheme, start, theme, bounds }`, then `tick { dt }`
- * once a frame and the calls above by name. Out: `loaded`, `ready { z }`, `frame { layout, events: [{ kind,
+ * once a frame and the calls above by name (`do-all { words }` for doAll). Out: `loaded`, `ready { z }`, `frame { layout, events: [{ kind,
  * detail }], sounds: [{ name, kind, args }], z }` after each tick, `scheme { seq, z }`, and `error { message }`
  * once, after which it stops.
  */
@@ -34,6 +36,10 @@ const root = document.getElementById('root');
 let body = null, dead = false, bounds = { W: 0, H: 0, floorY: 0, S: .42 };
 let events = [], sounds = [];
 const post = (m) => parent.postMessage(m, '*');
+/** Seconds a word of a group, turned down by a body without doAll (busy after a hop in the same group), is tried again. */
+const RETRY_MAX = 2;
+// those words, and the frame's own clock they expire by
+let retry = [], clock = 0;
 function fail(err) {
   if (dead) return;
   dead = true;
@@ -77,12 +83,20 @@ addEventListener('message', async (e) => {
       // calls that come before the body is ready have nothing to act on
     } else if (m.t === 'tick') {
       body.step(m.dt);
+      clock += m.dt;
+      // what is taken now or has waited long enough goes (silently: the page's queue moves on by seconds or by done)
+      if (retry.length) retry = retry.filter((r) => clock < r.until && body.do(r.w) === false);
       post({ t: 'frame', layout: body.layout(), events, sounds, z: body.z ?? null });
       events = []; sounds = [];
     } else if (m.t === 'scheme') {
       await body.setScheme?.(m.id, { fade: m.fade, at: m.at });
       post({ t: 'scheme', seq: m.seq, z: body.z ?? null });
     } else if (m.t === 'do') body.do(m.word);
+    else if (m.t === 'do-all') {
+      const ws = (Array.isArray(m.words) ? m.words : []).filter((w) => typeof w === 'string');
+      if (typeof body.doAll === 'function') body.doAll(ws);
+      else for (const w of ws) if (body.do(w) === false) retry.push({ w, until: clock + RETRY_MAX });
+    }
     else if (m.t === 'walk') { if (!body.walk?.(m.x, m.run, m.id)) events.push({ kind: 'interrupted', detail: { walkId: m.id, by: 'busy' } }); }
     else if (m.t === 'stop-walk') body.stopWalk?.(m.id);
     else if (m.t === 'pointer') body.pointer?.(m.type, m.p);

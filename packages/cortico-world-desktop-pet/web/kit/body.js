@@ -7,9 +7,9 @@
  * the body contract (web/figure-frame.js) on its own.
  *
  * With `opts.plus` the body does more: it lies down on its front and kneels, and knows the faces and
- * motions in PLUS_EXPRESSIONS / PLUS_MOTIONS (a song, a spout, a roll, a cup of tea…) with their
- * particles (glints, rings of song, a bulb, chips of stone, spray). Coo, the whale and the three
- * girls ask for it; without it the body is the kit as any other pack knows it.
+ * motions in PLUS_EXPRESSIONS / PLUS_MOTIONS (a song, a spout, a roll, a cup of tea…; faces made of the eyes of
+ * one and the mouth of another, PLUS_MIXES) with their particles (glints, rings of song, a bulb, chips of stone,
+ * spray). Coo, the whale and the three girls ask for it; without it the body is the kit as any other pack knows it.
  *
  * Coordinates: the figure is drawn in logo units, facing right, ground at y=256, inside a 256 square.
  * The stage places it with translate(AX AY) rotate(rot) scale(kx ky) translate(-ax -ay); `toStage`
@@ -174,10 +174,10 @@ export const PLUS_FACES = {
   peeking:   { label: '探头', f: () => ({ gap: [44, 44], eyes: [ring({ rx: 17, ry: 18 }), ring({ rx: 17, ry: 18 })], lookAt: [5, -1] }) },
   // ...a sip: eyes half shut over the cup, shut for the sip itself (1.4–2.3 s in), a little warm blush
   sipping:   { label: '喝茶', f: (t, p) => { const s = t - (p ? p.exprAt : 0), r = s > 1.4 && s < 2.3 ? 0 : 10; return { gap: [46, 46], eyes: [{ shape: 'lid', ry: r }, { shape: 'lid', ry: r }], blush: .3 }; } },
-  // ...a sigh (the `sigh` pulse's own beats): eyes up a little drawing breath, then drooping half shut as it goes out,
-  // the mouth open for the "ha"; once the sigh is over (or cut short) a plain face
+  // ...a sigh (the `sigh` gesture's own beats, in the head's channel): eyes up a little drawing breath, then drooping
+  // half shut as it goes out, the mouth open for the "ha"; once the sigh is over (or cut short) a plain face
   sighing:   { label: '叹气', f: (t, p) => {
-    const g = p?.pulse?.kind === 'sigh' ? p.pulse : null, k = g ? (t - g.t0) / g.dur : 1;
+    const g = p?.head?.kind === 'sigh' ? p.head : p?.pulse?.kind === 'sigh' ? p.pulse : null, k = g ? (t - g.t0) / g.dur : 1;
     if (!g || k >= 1) return { gap: [50, 50], eyes: [ring(), ring()] };
     if (k < .35) return { gap: [50, 50], eyes: [ring({ ry: 17 }), ring({ ry: 17 })], lookAt: [0, -2] };
     const r = 14 - 8 * smooth(clamp((k - .35) / .25, 0, 1));
@@ -201,14 +201,105 @@ export const PLUS_FACES = {
   // ...reading: eyes down on the page, running along a line and back to the start of the next
   reading:   { label: '看书', f: t => ({ gap: [48, 48], eyes: [{ shape: 'lid', ry: 11 }, { shape: 'lid', ry: 11 }], lookAt: [-3.5 + 7 * ((t * .55) % 1), 3.5] }) },
 };
+/**
+ * (plus) Faces to ask for made of parts of others (see `mixFace`): kit face names for `eyes` and `mouth`, and
+ * optionally `brows`, `body` (lean, sag, titter, rock, shake) and `marks`, which default to the eyes' face; `add`
+ * sets fields from ADD_KEYS; `glint` flashes that many glints as the face comes on. A figure with drawn eyes and
+ * mouths draws each part as it draws that face alone (art it lacks falls back the same way); Coo, whose mouth is its
+ * ring's gap, shows the eyes, marks and gap.
+ */
+export const PLUS_MIXES = {
+  smirk:    { label: '坏笑', kao: '(¬ ▽ ¬', eyes: 'smug', mouth: 'happy', glint: 1 },
+  sly:      { label: '俏皮', kao: '(0 ω ^', eyes: 'wink', mouth: 'coax', add: { blush: .6 } },
+  blissful: { label: '美滋滋', kao: '(˘ ω ˘', eyes: 'gentle', mouth: 'coax', add: { blush: .6 } },
+  lol:      { label: '哈哈', kao: '(> ▽ <', eyes: 'flustered', mouth: 'happy', body: 'giggle', marks: 'giggle', add: { blush: .7 } },
+  laughcry: { label: '笑哭', kao: '(T ▽ T', eyes: 'cry', mouth: 'happy', brows: 'happy', body: 'giggle' },
+  bashful:  { label: '腼腆', kao: '(o ▽ o *', eyes: 'shy', mouth: 'happy' },
+  flutter:  { label: '心动', kao: '(♡ ~ ♡ *', eyes: 'love', mouth: 'shy', add: { blush: 1 } },
+  smitten:  { label: '花痴', kao: '(♡ O ♡', eyes: 'love', mouth: 'surprised' },
+  wow:      { label: '哇', kao: '(☆ O ☆', eyes: 'excited', mouth: 'surprised', add: { bang: true } },
+  crave:    { label: '馋', kao: '(☆ ڡ ☆', eyes: 'excited', mouth: 'tongue', body: 'coax', add: { blush: .4 } },
+  dreamy:   { label: '憧憬', kao: '(☆ ▽ ☆', eyes: 'excited', mouth: 'gentle', body: 'gentle', add: { lookAt: [2, -3] } },
+  eager:    { label: '跃跃欲试', kao: '(ò ▽ ó', eyes: 'determined', mouth: 'happy', glint: 1 },
+  innocent: { label: '无辜', kao: '(o 3 o', eyes: 'pleading', mouth: 'pout' },
+  // (huff: the body of a pout, which crosses her arms on a figure that has them)
+  huff:     { label: '气鼓鼓', kao: '(ò 3 ó', eyes: 'angry', mouth: 'pout', body: 'pout', add: { blush: .6 } },
+  frantic:  { label: '抓狂', kao: '(> 皿 <', eyes: 'flustered', mouth: 'angry', body: 'angry', marks: 'angry' },
+  ragecry:  { label: '气哭', kao: '(T 皿 T', eyes: 'cry', mouth: 'angry', brows: 'angry', marks: 'angry' },
+  sulk:     { label: '瘪嘴', kao: '(ó 3 ò', eyes: 'sad', mouth: 'pout' },
+  whimper:  { label: '哭唧唧', kao: '(T 3 T', eyes: 'cry', mouth: 'pout' },
+  brave:    { label: '强颜欢笑', kao: '(ó ▽ ò;', eyes: 'worried', mouth: 'gentle' },
+  pained:   { label: '苦恼', kao: '(> ~ <;', eyes: 'bowing', mouth: 'worried', brows: 'sad', body: 'worried', add: { sweat: true } },
+  doubt:    { label: '狐疑', kao: '(¬ ~ ¬ ?', eyes: 'smug', mouth: 'confused', marks: 'confused' },
+  blank:    { label: '懵', kao: '(0 O o ?', eyes: 'confused', mouth: 'surprised' },
+  meh:      { label: '呵呵', kao: '(- _ -', eyes: 'disgusted', mouth: 'awkward', add: { gloom: false } },
+};
 /** The faces and motions a plus body adds to the kit's words. `lie` and `kneel` last until something else happens. */
-export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue'];
+export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue', ...Object.keys(PLUS_MIXES)];
 export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh',
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel'];
 /** The tones of the plus faces, filed as face sounds like the kit's. */
 const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
+  smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
+  crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
+  brave: 'wry', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
 };
+/** (plus) Gestures of the head alone: they play in their own channel (`pet.head`, the frame's `head`), alongside any other gesture. */
+export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh']);
+/** (plus) Gestures of the arms: a figure that draws arms kneeling (`figure.kneelArms`) keeps kneeling through them. */
+export const ARM_GESTURES = ['wave', 'shiver', 'heart', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch',
+  'pray', 'scratch', 'idea', 'hug', 'hips', 'spout', 'sip', 'read'];
+/**
+ * (plus) The motions' own faces that are their gesture's body language for a figure (pray arms for a song, the chin up
+ * reading…): under an asked-for face such a gesture keeps them, the face becoming `asked+mouth+own` (see `mixFace`).
+ * The value says whether the gesture's mouth goes with it (a song's beat, a sigh's "ha").
+ */
+const BODY_OWN = { singing: true, sighing: true, reading: false, sipping: false, stretching: false, saluting: false,
+  pointing: false, peeking: false, bowing: false, pleading: false };
+/** (plus) Seconds an asked-for face may stay covered (carried, dizzy, asleep, listening…) before it is dropped. */
+const COVER_MAX = 5;
+/** (plus) In a group of words done at once: words that leave her busy (in the air, rolling), and words that set her mode. */
+const BUSY_WORDS = new Set(['jump', 'hop', 'flap', 'roll', 'cheer']);
+const MODE_WORDS = new Set(['stand', 'sit', 'kneel', 'lie', 'sleep', 'walk', 'run', 'look', 'dizzy', 'dance']);
+/*
+ * (plus) A face made of parts of others: the eyes (eyes, sparkle, gaze, tears, blush) of one, the brows of another, the
+ * mouth (gap, ω, tongue, puff, sing) of a third, body language (lean, sag, titter, rock, shake) and marks (sweat, anger,
+ * bang, question, gloom, think) of others. `add` may set only ADD_KEYS, the fields every figure reads from the face
+ * object rather than by its name. Stone (stone, crack, freeze) is in no list: petrify is never a part.
+ */
+const EYE_KEYS = ['eyes', 'sparkle', 'wide', 'lookAt', 'lookLock', 'streams', 'emit', 'emitEvery', 'blush'];
+const BROW_KEYS = ['brows'];
+const MOUTH_KEYS = ['gap', 'cat', 'tongue', 'puff', 'sing'];
+const BODY_KEYS = ['lean', 'sag', 'titter', 'rock', 'shake'];
+const MARK_KEYS = ['sweat', 'anger', 'bang', 'question', 'gloom', 'think'];
+export const ADD_KEYS = ['blush', 'sweat', 'anger', 'bang', 'question', 'gloom', 'think', 'lookAt'];
+/**
+ * (plus) The face of mix `d` ({ eyes, mouth, brows?, body?, marks?, add?, label?, kao? }, kit face names; brows, body
+ * and marks default to the eyes' face) over `def` (a body's whole face lookup); `name` turns a pack word into the kit
+ * face it is like. The face carries `parts: { eyes, brows, mouth, body }` (kit face names), so a figure with drawn
+ * eyes and mouths takes each part from its own tables by name.
+ */
+export function mixFace(d, def, name = n => n) {
+  const part = k => name(d[k] ?? d.eyes);
+  const parts = { eyes: name(d.eyes), brows: part('brows'), mouth: name(d.mouth), body: part('body') };
+  const src = [[def(parts.eyes), EYE_KEYS], [def(parts.brows), BROW_KEYS], [def(parts.mouth), MOUTH_KEYS], [def(parts.body), BODY_KEYS], [def(part('marks')), MARK_KEYS]];
+  return {
+    label: d.label ?? `${src[0][0].label}+${src[2][0].label}`, kao: d.kao,
+    f: (t, p) => {
+      const seen = new Map(), o = {};
+      for (const [F, keys] of src) {
+        if (!seen.has(F)) seen.set(F, F.f(t, p));
+        const r = seen.get(F);
+        for (const x of keys) if (r[x] !== undefined) o[x] = r[x];
+      }
+      return { ...o, ...d.add, parts };
+    },
+  };
+}
+/** (plus) The faces of PLUS_MIXES, by name (made of the kit's faces, the plus ones standing in for theirs). */
+export const PLUS_MIX_FACES = Object.fromEntries(Object.entries(PLUS_MIXES)
+  .map(([n, d]) => [n, mixFace(d, x => PLUS_FACES[x] ?? FACES[x] ?? FACES.neutral)]));
 /** A forward roll (`roll`) turns once, eased, over this part of the gesture; the body travels the same way. */
 export const rollTurn = k => smooth(clamp((k - .2) / .6, 0, 1));
 // how far one roll goes, in logo units: once round a ball of radius 100 (Coo's ring is 102 to its outer edge)
@@ -262,9 +353,15 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  * same name wins), PLUS_FACES (standing in for the kit's shy and sad), lying down in free roaming, glints on a happy or
  * smug face. Its frame fields: `lie` (0..1) is how far the body lies on its front (always over a full sit, so a figure
  * that cannot lie just stays seated), `prone` says the rest it is in (lying, or a sleep begun lying, until it is up) is a
- * lying one, `kneel` that its sit is a kneel, `away` (0..1) how far its back is turned. While lying, the fidgets kick,
- * chin and thump come as gestures; the body itself does nothing with them but kick the legs. What a figure may declare
- * for a plus body:
+ * lying one, `kneel` that its sit is a kneel, `away` (0..1) how far its back is turned, `head` ({ kind, k: 0..1 }, or
+ * null) the head's own gesture (HEAD_GESTURES: nod, shake, sigh), which plays beside `gesture` on its own clock (a
+ * figure reading `gesture` alone, made for a kit without it, misses them). While lying, the fidgets kick, chin and
+ * thump come as gestures; the body itself does nothing with them but kick the legs.
+ * A plus body's faces: an expression asked for (a word, or setExpr) outlives the motions that come after it (stone
+ * does not, nor does falling asleep), waits under what covers it (carried, dizzy, asleep, listening: COVER_MAX at
+ * most), and over a gesture whose own face is its body (a song, a sigh, reading…) becomes a face made of both, named
+ * `asked+mouth+own` and carrying `parts` (see `mixFace`). `doGroup(words)` does several words in one frame.
+ * What a figure may declare for a plus body:
  * - `anchors.lie`: the anchors again for the lying pose (gaze, tear, z, hearts, bubble, glints, spout), plus `hit`
  *   ([cx, cy, rx, ry], the lying body's hit ellipse) and `halfW` (its half width), in logo units with the hips' sink in;
  *   a figure without it stays seated where it would lie.
@@ -284,6 +381,8 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  * - `squashFaces: true`: the faces' `sag` and `titter` squash the whole group.
  * - `liePoint(x, y, lie)`: where a standing point is in the lying drawing, for a figure that lies by turning its standing
  *   one (the bubble's spot and the box's top follow it).
+ * - `kneelArms: true`: the figure draws arm gestures kneeling, so ARM_GESTURES do not end a kneel (none of ours does;
+ *   the World would also need to know, to group them with kneeling).
  */
 export function createPet(els, opts) {
   const { petG, shadowEl, fxG } = els;
@@ -311,6 +410,11 @@ export function createPet(els, opts) {
     // when the held face began and whether a motion holds it; the mouth's shape; lying, kneeling, fidgets, the back turned
     talkShape: 0, exprAt: 0, exprOwn: false, kneel: false, lieK: 0, prone: false, fidgetAt: 0, kickPh: 0,
     backK: 0, awayK: 0, breathK: 1, chipFor: null,
+    // (plus) the face in the slot was asked for (a word, or a direct setExpr), not one she gave herself; how many faces
+    // have been set (what a petrify's chips are keyed on: exprAt moves while a face is covered); the own faces of the
+    // motions playing, by channel ({ n, at, until }); how long the asked-for face has been covered in a row; the head's
+    // gesture (nod, shake, sigh: { kind, t0, dur }), played beside `pulse`
+    exprAsked: false, exprN: 0, own: { arm: null, head: null, body: null }, coverT: 0, head: null,
   };
   const pointer = { x: -1e4, y: -1e4, inside: false, vx: 0, samples: [] };
   let press = null, strokeAcc = 0, petCool = 0;
@@ -318,13 +422,34 @@ export function createPet(els, opts) {
   const anchors = () => ({ ...ANCHORS, ...custom?.anchors });
   let A = anchors();
   // a plus body's faces stand in for the kit's of the same name and come after the pack's own words
+  // (plus) `eyes+mouth` and `eyes+mouth+body` name faces made of parts (mixFace): built once each, an unknown part plain
+  const mixes = new Map();
+  const likeName = x => (FACES[x] || PLUS_FACES[x] ? x : words[x]?.expression?.like ?? 'neutral');
+  /** (plus) The mix a word names, if it is one of PLUS_MIXES (and not a pack word of that name, or like one). */
+  const mixOf = x => (words[x] ? PLUS_MIXES[words[x].expression?.like] : PLUS_MIXES[x]);
   const faceDef = (n) => {
     if (!plus) return FACES[n] ?? FACES[words[n]?.expression?.like] ?? FACES.neutral;
+    if (typeof n === 'string' && n.includes('+')) {
+      if (!mixes.has(n)) {
+        // a face made of parts in a part brings its own: as the eyes, its eyes (brows, marks, what it adds), as the
+        // mouth its mouth, as the body its body (so a smirk asked over a song is the smirk's eyes on the song's body)
+        const [e, m = e, b = e] = n.split('+'), d = mixOf(e) ?? { eyes: e };
+        const part = (x, k) => (mixOf(x) ? mixOf(x)[k] ?? mixOf(x).eyes : x);
+        mixes.set(n, mixFace({ ...d, label: undefined, mouth: part(m, 'mouth'), body: part(b, 'body') }, faceDef, x => likeName(part(x, 'eyes'))));
+      }
+      return mixes.get(n);
+    }
     const like = words[n]?.expression?.like;
-    return (FACES[n] ? PLUS_FACES[n] ?? FACES[n] : null) ?? (like ? PLUS_FACES[like] ?? FACES[like] : null) ?? PLUS_FACES[n] ?? FACES.neutral;
+    return (FACES[n] ? PLUS_FACES[n] ?? FACES[n] : null) ?? (like ? PLUS_FACES[like] ?? FACES[like] ?? PLUS_MIX_FACES[like] : null) ?? PLUS_FACES[n] ?? PLUS_MIX_FACES[n] ?? FACES.neutral;
   };
   /** Whether the gesture playing is the plus body's own `kind` (not a pack word's of the same name). */
   const ours = kind => plus && pet.pulse?.kind === kind && !pet.pulse.pack;
+  /** (plus) An asked-for expression is showing (not a motion's own face, not one she gave herself). */
+  const askedNow = () => plus && !!pet.expr && pet.exprAsked && T < pet.exprUntil;
+  /** (plus) The most recent own face still in time, of any channel (of those `ok` takes). */
+  const topOwn = (ok = () => true) => ['arm', 'head', 'body'].map(c => pet.own[c]).filter(x => x && T < x.until && ok(x.n)).sort((x, y) => y.at - x.at)[0];
+  /** (plus) No motion's own face is left to come back (picked up, dizzy, a plain face asked for). */
+  const clearOwn = () => { pet.own.arm = pet.own.head = pet.own.body = null; };
 
   /** The lying points (plus), while the figure can show the pose. */
   const lieSet = () => (!plus || (custom?.poses && !custom.poses.lie) ? null : A.lie);
@@ -390,13 +515,16 @@ export function createPet(els, opts) {
     if (plus) {
       // a flinch's step back is over once anything but standing takes over (a walk, a drag, a fall)
       if (ours('flinch') && m !== 'idle') pet.pulse.dx = 0;
-      // ...and a roll is over (picked up mid-roll, say); a song ends once she does anything but stand or sit
-      if (ours('roll') && m !== 'idle') pet.pulse = null;
+      // ...and a roll is over (picked up mid-roll, say), and its face with it; a song ends once she does anything but
+      // stand or sit
+      if (ours('roll') && m !== 'idle') { pet.pulse = null; pet.own.arm = null; }
       if (ours('song') && m !== 'idle' && m !== 'sit') endSong();
       // a back turned in a huff lasts through standing and sitting about; anything else turns her round again
-      if (ours('away') && m !== 'idle' && m !== 'sit' && m !== 'sleep') pet.pulse = null;
+      if (ours('away') && m !== 'idle' && m !== 'sit' && m !== 'sleep') { pet.pulse = null; pet.own.arm = null; }
       // kneeling is a way of sitting: anything but sitting ends it
       if (m !== 'sit') pet.kneel = false;
+      // a whole-body motion's own face (a dance's) goes with its mode
+      if (m !== prev) pet.own.body = null;
     }
     pet.mode = m; pet.modeT = 0; pet.turned = false; pet.startle = false; pet.skid = false; pet.cue = 0;
     if (plus) {
@@ -411,6 +539,8 @@ export function createPet(els, opts) {
   }
   // (with plus a roll is under way too: the next order waits for her to be up again)
   const busy = () => pet.mode === 'drag' || pet.mode === 'air' || pet.mode === 'crouch' || ours('roll');
+  // (plus) inside doGroup: the words after the first are taken though one before made her busy (a hop and a face at once)
+  let grouped = false;
   function pickTarget(minDist) {
     for (let i = 0; i < 12; i++) {
       const x = rnd(minX(0), maxX(0));
@@ -421,16 +551,20 @@ export function createPet(els, opts) {
 
   /** Runs a motion. Returns false when the body cannot take it now (in the air, being dragged). */
   function act(a) {
-    if (busy()) return false;
+    if (busy() && !grouped) return false;
     // a word the pack has of its own (not one of the kit's motions)
     const own = KIT_MOTIONS.includes(a) ? null : words[a]?.motion;
     // (a song needs her standing or sitting, awake and not being talked to)
     if (plus && a === 'song' && !own && (pet.listening || (pet.mode !== 'idle' && pet.mode !== 'sit'))) return false;
-    // (an asked-for expression still showing, not a motion's own face: hands on hips keeps it)
-    const prevExpr = pet.exprOwn ? null : pet.expr, prevUntil = pet.exprUntil;
-    // kneeling lasts until the next motion: any other one (even one done seated) ends it, back to plain sitting
-    if (plus && (a !== 'kneel' || own)) pet.kneel = false;
-    pet.expr = null; pet.lastAct = a;
+    // (plus) kneeling lasts until a motion moves more than her head: nod, shake and sigh keep it (expressions are no
+    // motion), and so does an arm gesture for a figure that draws arms kneeling; anything else is plain sitting again
+    const keepKneel = !own && (a === 'kneel' || HEAD_GESTURES.has(a) || (!!custom?.kneelArms && ARM_GESTURES.includes(a)));
+    if (plus && !keepKneel) pet.kneel = false;
+    // (plus) an asked-for expression outlives the motion (stone does not: any motion ends it; nor does falling asleep).
+    // Anything else in the slot goes; the own face of a motion still playing in another channel comes back from `own`
+    // on the next frame (a wave, then sitting down: happy until the wave ends)
+    if (!askedNow() || !keepsFace(pet.expr) || a === 'sleep') pet.expr = null;
+    pet.lastAct = a;
     const seated = REST.has(pet.mode);
     switch (a) {
       case 'stand': setMode(seated ? 'wake' : 'idle', seated ? { startle: false } : {}); pet.nextAt = T + 3; break;
@@ -447,54 +581,54 @@ export function createPet(els, opts) {
       // (plus) asked to sleep while lying, she sleeps lying down
       case 'sleep': pet.prone = plus && (pet.mode === 'lie' || (pet.mode === 'sleep' && pet.prone)); setMode('sleep', { dur: 1e9 }); break;
       case 'dizzy': setMode('dizzy'); break;
-      case 'wave': pulse('wave', 1.6); holdFace('happy', 1.8); break;
-      case 'bow': if (!seated) setMode('idle'); pulse('bow', 1.6); holdFace('bowing', 1.5); play('tick', 'move'); break;
+      case 'wave': pulse('wave', 1.6); holdFace('happy', 1.8, 'arm'); break;
+      case 'bow': if (!seated) setMode('idle'); pulse('bow', 1.6); holdFace('bowing', 1.5, 'arm'); play('tick', 'move'); break;
       case 'shiver': pulse('shiver', 1.8); play('shiver', 'move'); break;
-      case 'flap': setMode('crouch', { jumpV: 540, jumpVx: 0 }); pulse('flap', 1.4); holdFace('happy', 1.6); play('chirps', 'move'); break;
-      case 'dance': setMode('dance', { dur: 3.2 }); holdFace('happy', 3.4); play('dance', 'move'); break;
+      case 'flap': setMode('crouch', { jumpV: 540, jumpVx: 0 }); pulse('flap', 1.4); holdFace('happy', 1.6, 'arm'); play('chirps', 'move'); break;
+      case 'dance': setMode('dance', { dur: 3.2 }); holdFace('happy', 3.4, 'body'); play('dance', 'move'); break;
       default: {
         // a gesture of the pack's own, drawn by its figure from frame.gesture
         if (own) {
           if (!seated) setMode('idle');
           pulse(a, own.seconds, true);
-          if (own.face) holdFace(own.face, own.seconds);
+          if (own.face) holdFace(own.face, own.seconds, 'arm');
           if (own.sound) play(own.sound, 'move');
-        } else if (!plus || !plusAct(a, seated, prevExpr, prevUntil)) return false;
+        } else if (!plus || !plusAct(a, seated)) return false;
       }
     }
     return true;
   }
-  /** Whether `n`, an asked-for face still showing, is one hands on hips or folded arms keep (not stone). */
+  /** Whether `n`, an asked-for face still showing, is one a motion keeps (an expression, not stone). */
   const keepsFace = n => n !== 'petrify' && (KIT_EXPRESSIONS.includes(n) || PLUS_EXPRESSIONS.includes(n) || !!words[n]?.expression);
-  /** The plus body's own motions (act() has cleared the held face). Returns false for a word it does not know. */
-  function plusAct(a, seated, prevExpr, prevUntil) {
+  /** The plus body's own motions (act() has cleared the held face unless it was asked for). Returns false for a word it does not know. */
+  function plusAct(a, seated) {
     switch (a) {
       // kneeling politely (seiza): a sit to the body, which a figure with its own drawing of it shows instead (Coo just sits)
       case 'kneel': pet.prone = false; setMode('sit', { dur: 1e9, kneel: true }); play('tick', 'move'); break;
       case 'lie': pet.prone = true; setMode('lie', { dur: 1e9, fidgetAt: T + rnd(4, 8) }); break;
       // hands made into a heart for a figure that has hands; hearts float up from the love face either way
-      case 'heart': pulse('heart', 2.2); holdFace('love', 2.4); play('love', 'face'); break;
+      case 'heart': pulse('heart', 2.2); holdFace('love', 2.4, 'arm'); play('love', 'face'); break;
       // a hooray: a little hop (none while seated), arms up for a figure that has them, a couple of glints
-      case 'cheer': if (!seated) setMode('crouch', { jumpV: 420, jumpVx: 0 }); pulse('cheer', 1.8); holdFace('happy', 2); emitGlint(2); play('chirps', 'move'); break;
+      case 'cheer': if (!seated) setMode('crouch', { jumpV: 420, jumpVx: 0 }); pulse('cheer', 1.8); holdFace('happy', 2, 'arm'); emitGlint(2); play('chirps', 'move'); break;
       case 'flinch': {
         // a startled step back (less near the screen edge, none while seated) and back to normal
         if (!seated) setMode('idle');
         const room = pet.facing > 0 ? pet.x - minX() : maxX() - pet.x;
         pulse('flinch', .9);
         Object.assign(pet.pulse, { x0: pet.x, dx: seated || room < 4 ? 0 : -pet.facing * Math.min(room, 30 * S) });
-        holdFace('surprised', 1.1); play('flinch', 'move'); break;
+        holdFace('surprised', 1.1, 'arm'); play('flinch', 'move'); break;
       }
       case 'peek':
         // lean in and look ahead; first turn to the pointer if it is behind
         if (!seated) setMode('idle');
         if (pointer.inside && (pointer.x - pet.x) * pet.facing < -40) pet.facing *= -1;
-        pulse('peek', 2.4); holdFace('peeking', 2.4); play('peek', 'move'); break;
+        pulse('peek', 2.4); holdFace('peeking', 2.4, 'arm'); play('peek', 'move'); break;
       // back turned in a huff for a while, then round again (Coo hides her face, a figure with a back view shows it,
       // any other figure looks the other way); lying on her front, only the pout
       case 'away':
-        if (pet.prone && lieSet() && pet.mode !== 'wake') { holdFace('pout', 3.2); play('away', 'move'); break; }
+        if (pet.prone && lieSet() && pet.mode !== 'wake') { holdFace('pout', 3.2, 'arm'); play('away', 'move'); break; }
         if (!seated) setMode('idle');
-        pulse('away', 3.2); holdFace('pout', 3.2); play('away', 'move'); break;
+        pulse('away', 3.2); holdFace('pout', 3.2, 'arm'); play('away', 'move'); break;
       // a forward roll along the floor and up again (from sitting or lying she gets up into it);
       // with little room ahead and more behind she turns round first
       case 'roll': {
@@ -507,87 +641,103 @@ export function createPet(els, opts) {
         const dx = pet.facing * clamp(room(pet.facing), 0, far);
         // how far she rolls (logo units, the way she faces), all of it on screen: the figure turns her ball that far
         Object.assign(pet.pulse, { x0, dx, travel: Math.abs(dx) / S });
-        holdFace('happy', 1.9); play('roll', 'move'); break;
+        holdFace('happy', 1.9, 'arm'); play('roll', 'move'); break;
       }
       // a whale's song: eyes shut, swaying, rings of sound spreading out and notes rising (not while someone is talking to her)
-      case 'song': pulse('song', 4); holdFace('singing', 4.1); play('song', 'move'); break;
+      case 'song': pulse('song', 4); holdFace('singing', 4.1, 'arm'); play('song', 'move'); break;
       // a cup of tea on a tray offered to you; a crisp salute (yes ma'am); a V sign by her cheek, with a wink and a glint
-      case 'serve': pulse('serve', 2.6); holdFace('gentle', 2.7); play('clink', 'move'); break;
-      case 'salute': pulse('salute', 1.8); holdFace('saluting', 1.9); play('snap', 'move'); break;
-      case 'vsign': pulse('vsign', 1.8); holdFace('wink', 1.9); emitGlint(1); play('cheese', 'move'); break;
-      // pointing ahead where she faces; giggling behind her hand; arms folded (keeping her face, or a pout);
-      // a big stretch with a yawn; a curtsy, holding out her skirt (seated, she stands up for it)
-      case 'point': pulse('point', 2); holdFace('pointing', 2.1); play('tick', 'move'); break;
-      case 'cover': pulse('cover', 2.4); holdFace('giggle', 2.5); play('hehe', 'face'); break;
-      case 'cross': {
-        pulse('cross', 2.6);
-        if (prevExpr && T < prevUntil && keepsFace(prevExpr)) { pet.expr = prevExpr; pet.exprOwn = false; pet.exprUntil = Math.max(prevUntil, T + 2.7); pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); }
-        else holdFace('pout', 2.7);
-        play('hips', 'move'); break;
-      }
-      case 'stretch': pulse('stretch', 2.6); holdFace('stretching', 2.7); play('yawn', 'face'); break;
-      case 'curtsy': setMode('idle'); pulse('curtsy', 2.2); holdFace('bowing', 2); play('tick', 'move'); break;
+      case 'serve': pulse('serve', 2.6); holdFace('gentle', 2.7, 'arm'); play('clink', 'move'); break;
+      case 'salute': pulse('salute', 1.8); holdFace('saluting', 1.9, 'arm'); play('snap', 'move'); break;
+      case 'vsign': pulse('vsign', 1.8); holdFace('wink', 1.9, 'arm'); emitGlint(1); play('cheese', 'move'); break;
+      // pointing ahead where she faces; giggling behind her hand; arms folded (keeping an asked-for face, like any
+      // motion, or a pout); a big stretch with a yawn; a curtsy, holding out her skirt (seated, she stands up for it)
+      case 'point': pulse('point', 2); holdFace('pointing', 2.1, 'arm'); play('tick', 'move'); break;
+      case 'cover': pulse('cover', 2.4); holdFace('giggle', 2.5, 'arm'); play('hehe', 'face'); break;
+      case 'cross': pulse('cross', 2.6); holdFace('pout', 2.7, 'arm'); play('hips', 'move'); break;
+      case 'stretch': pulse('stretch', 2.6); holdFace('stretching', 2.7, 'arm'); play('yawn', 'face'); break;
+      case 'curtsy': setMode('idle'); pulse('curtsy', 2.2); holdFace('bowing', 2, 'arm'); play('tick', 'move'); break;
       // hands pressed together, pleading (also thanks or sorry); a sheepish scratch at the head when praised;
       // a finger up as an idea lands, a bulb lighting over her head; open arms for a hug
-      case 'pray': pulse('pray', 2.2); holdFace('pleading', 2.3); play('shy', 'face'); break;
-      case 'scratch': pulse('scratch', 2.1); holdFace('happy', 2.2); play('hehe', 'face'); break;
-      case 'idea': pulse('idea', 1.8); holdFace('excited', 1.9); break;
-      case 'hug': pulse('hug', 2.6); holdFace('gentle', 2.7); play('soft', 'face'); break;
-      // hands on hips goes with whatever face she had (cross, smug, determined), or a determined one
-      // (only an asked-for expression, not a motion's own face, and it goes on from where it was, not restarted)
-      case 'hips': {
-        pulse('hips', 2.5);
-        if (prevExpr && T < prevUntil && keepsFace(prevExpr)) { pet.expr = prevExpr; pet.exprOwn = false; pet.exprUntil = Math.max(prevUntil, T + 2.6); pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); }
-        else holdFace('determined', 2.6);
-        play('hips', 'move'); break;
-      }
+      case 'pray': pulse('pray', 2.2); holdFace('pleading', 2.3, 'arm'); play('shy', 'face'); break;
+      case 'scratch': pulse('scratch', 2.1); holdFace('happy', 2.2, 'arm'); play('hehe', 'face'); break;
+      case 'idea': pulse('idea', 1.8); holdFace('excited', 1.9, 'arm'); break;
+      case 'hug': pulse('hug', 2.6); holdFace('gentle', 2.7, 'arm'); play('soft', 'face'); break;
+      // hands on hips goes with an asked-for face (cross, smug, determined), as any motion does, or a determined one
+      case 'hips': pulse('hips', 2.5); holdFace('determined', 2.6, 'arm'); play('hips', 'move'); break;
       // a sigh: drawing a breath, then sagging as it goes out
-      case 'sigh': pulse('sigh', 2); holdFace('sighing', 2.1); play('sigh', 'move'); break;
+      case 'sigh': pulse('sigh', 2); holdFace('sighing', 2.1, 'head'); play('sigh', 'move'); break;
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
-      case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9); play('spout', 'move'); break;
+      case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9, 'arm'); play('spout', 'move'); break;
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
       // (a figure with hands draws them; Coo holds a little one of its own)
-      case 'sip': pulse('sip', 3.6); holdFace('sipping', 3.7); play('sip', 'move'); break;
-      case 'read': pulse('read', 4.4); holdFace('reading', 4.4); play('page', 'move'); break;
+      case 'sip': pulse('sip', 3.6); holdFace('sipping', 3.7, 'arm'); play('sip', 'move'); break;
+      case 'read': pulse('read', 4.4); holdFace('reading', 4.4, 'arm'); play('page', 'move'); break;
       default: return false;
     }
     return true;
   }
-  /** Starts a short gesture (`pack`: one of the pack's own words); a plus body's song is cut short by any other one. */
+  /**
+   * Starts a short gesture (`pack`: one of the pack's own words); a plus body's song is cut short by any other one.
+   * (plus) A nod, a shake or a sigh plays in the head's own channel instead, beside whatever gesture is playing (a song
+   * goes on); any other gesture takes the place of the one before and of its face (a lying fidget has none).
+   */
   function pulse(kind, dur, pack = false) {
+    if (plus && !pack && HEAD_GESTURES.has(kind)) { pet.head = { kind, t0: T, dur }; pet.own.head = null; return; }
     if (ours('song') && (kind !== 'song' || pack)) play('stop:song', 'move');
+    if (plus && !FIDGETS[kind]) pet.own.arm = null;
     pet.pulse = pack ? { kind, t0: T, dur, pack } : { kind, t0: T, dur };
   }
   /** Stops a song: its rings and notes, its face, and what is left of its tune. */
-  function endSong() { pet.pulse = null; if (pet.expr === 'singing') pet.expr = null; play('stop:song', 'move'); }
-  /** A motion's own face, without the expression's sound and bounce (act() has just cleared any held face). */
-  function holdFace(n, seconds) { pet.expr = n; pet.exprAt = T; pet.exprUntil = T + seconds; pet.exprOwn = true; pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); }
+  function endSong() { pet.pulse = null; pet.own.arm = null; if (pet.expr === 'singing') pet.expr = null; play('stop:song', 'move'); }
+  /**
+   * A motion's own face, in channel `ch` ('arm' | 'head' | 'body'), without the expression's sound and bounce.
+   * (plus) An asked-for face showing stays instead, and lasts at least through the gesture; the own face is kept in
+   * `pet.own` and shows once no asked-for face does, for what is left of it.
+   */
+  function holdFace(n, seconds, ch) {
+    if (plus) {
+      pet.own[ch] = { n, at: T, until: T + seconds };
+      if (askedNow()) { pet.exprUntil = Math.max(pet.exprUntil, T + seconds); pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6); return; }
+    }
+    pet.expr = n; pet.exprAt = T; pet.exprUntil = T + seconds; pet.exprOwn = true; pet.exprAsked = false; pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6);
+  }
 
-  function setExpr(n, seconds) {
+  /**
+   * Shows face `n` for `seconds` (by default its word's, or the usual 3.2 s). `asked` (plus): a face asked for, which
+   * motions keep; the faces she gives herself (roaming, a poke, a pat, the page's cues) pass false.
+   */
+  function setExpr(n, seconds, asked = true) {
     if (n === 'sleep') { act('sleep'); return; }
-    if (busy()) return;
+    if (busy() && !grouped) return;
     if (n === 'dragged') {
       pet.expr = null;
+      if (plus) clearOwn();
       pet.vy = -1150; pet.vx = rnd(-120, 120); pet.airKind = 'throw'; pet.sqv -= 3;
       play('whoosh', 'move'); play('jump', 'move');
       setMode('air'); return;
     }
-    if (n === 'dizzy') { pet.expr = null; setMode('dizzy'); return; }
-    if (pet.mode === 'look' || pet.mode === 'land') setMode('idle');
+    if (n === 'dizzy') { pet.expr = null; if (plus) clearOwn(); setMode('dizzy'); return; }
+    // (plus) a face no longer cuts a look round short (only a landing)
+    if ((!plus && pet.mode === 'look') || pet.mode === 'land') setMode('idle');
     const own = words[n]?.expression;
     if (plus && n === 'petrify' && !own) {
       // asked again while already stone, she stays as she is (starting over would flash her colour back)
       if (pet.expr === 'petrify' && T < pet.exprUntil) return;
-      // turned to stone she stops where she is
+      // turned to stone she stops where she is, and stops singing
       if (pet.mode === 'walk' || pet.mode === 'run' || pet.mode === 'dance') setMode('idle');
+      if (ours('song')) endSong();
     }
+    // (plus) a plain face asked for is plain: no motion's own face comes back after it
+    if (plus && n === 'neutral') clearOwn();
     pet.expr = n; pet.exprAt = T; pet.exprUntil = T + (seconds ?? own?.seconds ?? (n === 'sleepy' ? 4.4 : 3.2)); pet.exprOwn = false;
+    pet.exprAsked = plus && asked; pet.exprN++;
     pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6);
     pet.sqv += n === 'surprised' ? -2.2 : .8;
     const tone = own?.sound ?? FACE_TONES[n] ?? (plus && !own ? PLUS_FACE_TONES[n] : undefined);
     if (tone) play(tone, 'face');
     if (n === 'love') for (let i = 0; i < 4; i++) emitHeart();
-    if (plus && (n === 'happy' || n === 'smug')) emitGlint(n === 'happy' ? 2 : 1);
+    const glints = !plus ? 0 : n === 'happy' ? 2 : n === 'smug' ? 1 : (!words[n] && PLUS_MIXES[n]?.glint) || 0;
+    if (glints) emitGlint(glints);
   }
 
   /**
@@ -608,19 +758,39 @@ export function createPet(els, opts) {
     const face = KIT_EXPRESSIONS.includes(w) || words[w]?.expression;
     if (plus && !face && PLUS_MOTIONS.includes(w)) return act(w);
     if (face || (plus && PLUS_EXPRESSIONS.includes(w))) {
-      if (busy()) return false;
+      if (busy() && !grouped) return false;
       setExpr(w);
       return true;
     }
     return false;
   }
 
+  /** (plus) Where a word goes in a group: posture and mode first, then arm and head gestures, then what leaves her busy, then the face. */
+  const groupRank = w => (KIT_EXPRESSIONS.includes(w) || PLUS_EXPRESSIONS.includes(w) || words[w]?.expression ? 4
+    : BUSY_WORDS.has(w) ? 3 : HEAD_GESTURES.has(w) ? 2 : MODE_WORDS.has(w) ? 0 : 1);
+  /**
+   * (plus) Does the words of a group in one frame, in that order (a mode word after a gesture would cut a song, an away or
+   * a roll short; what leaves her busy comes late so a stance gesture's stand-up does not cancel its crouch; the face last,
+   * asked for, over the gestures' own faces). Returns what each did (doWord's answers, in the order given); all false
+   * when she is busy to begin with.
+   */
+  function doGroup(ws) {
+    if (busy()) return ws.map(() => false);
+    const out = [];
+    grouped = true;
+    try {
+      for (const [w, i] of ws.map((x, j) => [x, j]).sort((a, b) => groupRank(a[0]) - groupRank(b[0]) || a[1] - b[1])) out[i] = doWord(w);
+    } finally { grouped = false; }
+    return out;
+  }
+
   /** Walks (or runs) to stage x. Resolves the walk through onEvent('arrived' | 'interrupted'). */
   function walkTo(x, run, walkId) {
-    if (busy()) return false;
+    if (busy() && !grouped) return false;
     if (REST.has(pet.mode)) setMode('wake', { startle: true });
     const target = clamp(x, minX(0), maxX(0));
-    pet.expr = null;
+    // (plus) an asked-for expression walks with her
+    if (!askedNow() || !keepsFace(pet.expr)) pet.expr = null;
     if (Math.abs(target - pet.x) < 2) { onEvent('arrived', { walkId, x: Math.round(pet.x) }); return true; }
     setMode(run ? 'run' : 'walk', { target, walkId });
     return true;
@@ -631,7 +801,8 @@ export function createPet(els, opts) {
     if ((pet.mode === 'walk' || pet.mode === 'run') && pet.walkId === walkId) setMode('idle');
   }
 
-  function faceName() {
+  /** The face that shows over any expression, or null: carried, thrown or dropped, dizzy, getting up, listening, asleep. */
+  function coverFace() {
     const m = pet.mode;
     if (m === 'drag') return 'dragged';
     if (m === 'air' && pet.airKind === 'throw') return pet.vy < 0 ? 'dragged' : 'surprised';
@@ -640,7 +811,18 @@ export function createPet(els, opts) {
     if (m === 'wake') return pet.startle ? 'surprised' : 'waking';
     if (pet.listening && m !== 'sleep') return 'listening';
     if (m === 'sleep') return 'sleep';
-    if (pet.expr && T < pet.exprUntil) return pet.expr;
+    return null;
+  }
+  function faceName() {
+    const m = pet.mode, cover = coverFace();
+    if (cover) return cover;
+    if (pet.expr && T < pet.exprUntil) {
+      // (plus) under an asked-for face, a gesture whose own face is its body keeps that body (and a song or a sigh its
+      // mouth): the face is made of the asked one's eyes, that mouth and the gesture's body (never over stone)
+      const o = askedNow() && keepsFace(pet.expr) ? topOwn(n => n in BODY_OWN) : null;
+      if (o) return `${pet.expr}+${BODY_OWN[o.n] ? o.n : pet.expr}+${o.n}`;
+      return pet.expr;
+    }
     if (pet.thinking) return 'thinking';
     if (m === 'sit' || m === 'lie') return 'content';
     if (m === 'run') return 'run';
@@ -654,7 +836,7 @@ export function createPet(els, opts) {
     let r = Math.random() * opts2.reduce((a, o) => a + o[1], 0), pick = 'wait';
     for (const o of opts2) { if ((r -= o[1]) < 0) { pick = o[0]; break; } }
     if (pick === 'look') { setMode('look'); pet.lastAct = 'look'; }
-    else if (pick === 'expr') { setExpr(['happy', 'wink', 'love', 'sleepy', 'surprised', 'shy'][Math.floor(Math.random() * 6)]); pet.lastAct = 'expr'; }
+    else if (pick === 'expr') { setExpr(['happy', 'wink', 'love', 'sleepy', 'surprised', 'shy'][Math.floor(Math.random() * 6)], undefined, false); pet.lastAct = 'expr'; }
     else if (pick === 'sit') { setMode('sit', { dur: rnd(6, 9), kneel: false }); pet.lastAct = 'sit'; }
     else if (pick === 'lie') { pet.prone = true; setMode('lie', { dur: rnd(6, 10), fidgetAt: T + rnd(4, 8) }); pet.lastAct = 'lie'; }
     else if (pick !== 'wait') act(pick);
@@ -791,7 +973,7 @@ export function createPet(els, opts) {
         if (T > pet.fidgetAt) {
           pet.fidgetAt = T + rnd(4, 8);
           const kinds = Object.keys(FIDGETS), k = kinds[Math.floor(Math.random() * kinds.length)];
-          if (!pet.listening && pet.talkK < .1 && !pet.pulse && Math.abs(pet.faceVis - pet.facing) < .05) pulse(k, FIDGETS[k]);
+          if (!pet.listening && pet.talkK < .1 && !pet.pulse && !pet.head && Math.abs(pet.faceVis - pet.facing) < .05) pulse(k, FIDGETS[k]);
         }
         if (free && mt > pet.dur) {
           if (Math.random() < .5) setMode('sleep', { dur: rnd(8, 12) });
@@ -920,6 +1102,20 @@ export function createPet(els, opts) {
       pet.x = clamp(pet.pulse.x0 + pet.pulse.dx * rollTurn((T - pet.pulse.t0) / pet.pulse.dur), minX(), maxX());
     }
 
+    // (plus) the head's gesture, beside whatever else she does (a figure that lists it in `figure.gestures` draws it
+    // itself, from the frame's `head`)
+    if (pet.head) {
+      const g = pet.head, k = (T - g.t0) / g.dur;
+      if (k >= 1) pet.head = null;
+      else if (custom?.gestures?.includes(g.kind)) { /* the figure's own */ }
+      else if (g.kind === 'nod') leanT += 9 * Math.abs(Math.sin(k * Math.PI * 2));
+      else if (g.kind === 'shake') tiltT += 10 * Math.sin(k * Math.PI * 6) * (1 - k);
+      else if (g.kind === 'sigh') {
+        // a breath drawn in (taller), then let out (sagging, leaning in)
+        const inh = envelope(clamp(k / .45, 0, 1), .5, .7), exh = envelope(clamp((k - .35) / .6, 0, 1), .3, .7);
+        sqT += -.05 * inh + .07 * exh; leanT += 6 * exh;
+      }
+    }
     // short gestures layered over whatever the body is doing
     // (a figure that lists a gesture in `figure.gestures` draws it itself, from the frame's `gesture`)
     if (pet.pulse) {
@@ -950,11 +1146,6 @@ export function createPet(els, opts) {
           case 'roll': sqT += .22 * Math.sin(Math.PI * clamp(k / .22, 0, 1)) - .12 * Math.sin(Math.PI * clamp((k - .8) / .2, 0, 1)); break;
           case 'sip': { const e = envelope(k, .1, .9); leanT += 3 * e + 4 * envelope(clamp((k - .38) / .26, 0, 1), .3, .6); break; }
           case 'read': leanT += 4 * envelope(k, .1, .9); break;
-          // a breath drawn in (taller), then let out (sagging, leaning in)
-          case 'sigh': {
-            const inh = envelope(clamp(k / .45, 0, 1), .5, .7), exh = envelope(clamp((k - .35) / .6, 0, 1), .3, .7);
-            sqT += -.05 * inh + .07 * exh; leanT += 6 * exh; break;
-          }
           // pleading bows twice; a scratch tips the head; an idea pops up; hands on hips leans back, chest out; a hug leans in
           case 'pray': leanT += 5 * envelope(k, .15, .85) * (.6 + .4 * Math.sin(k * Math.PI * 4)); break;
           case 'scratch': tiltT += 6 * envelope(k, .15, .85); break;
@@ -979,6 +1170,21 @@ export function createPet(els, opts) {
       }
     }
 
+    if (plus) {
+      // no asked-for face showing: the most recent motion's own face still in time shows (wave, then sit: happy until
+      // the wave ends), unless a face she gave herself (a poke, a pat) came after it
+      const o = askedNow() ? null : topOwn();
+      const self = pet.expr && !pet.exprOwn && T < pet.exprUntil ? pet.exprAt : -1;
+      if (o && o.at >= self && (pet.expr !== o.n || !pet.exprOwn || pet.exprAt !== o.at || pet.exprUntil !== o.until)) {
+        pet.expr = o.n; pet.exprAt = o.at; pet.exprUntil = o.until; pet.exprOwn = true; pet.exprAsked = false;
+      }
+      // an asked-for face under a cover (carried, dizzy, asleep, listening…) waits it out, its time stopped; covered for
+      // longer than COVER_MAX in a row, it is dropped
+      if (coverFace() && askedNow()) {
+        pet.exprUntil += dt; pet.exprAt += dt; pet.coverT += dt;
+        if (pet.coverT > COVER_MAX) pet.expr = null;
+      } else pet.coverT = 0;
+    }
     const fname = faceName(), fc = faceDef(fname).f(T, pet);
     if (fc.freeze) lookT = [...pet.look];
     else if (fc.lookLock || pet.mode === 'sleep' || pet.mode === 'drag') lookT = [0, 0];
@@ -1055,7 +1261,7 @@ export function createPet(els, opts) {
 
     pet.low = pet.sitK * 29 + pet.bob * Math.abs(Math.sin(pet.phase));
     // (plus) lying, the raised foot kicks; the kick fidget is a burst of it
-    let [kAmp, kRate] = pet.listening ? [0, 1] : KICK[fname] || [1, 1];
+    let [kAmp, kRate] = pet.listening ? [0, 1] : KICK[fc.parts?.body ?? fname] || [1, 1];
     if (ours('kick')) { const e = envelope((T - pet.pulse.t0) / pet.pulse.dur, .15, .6); kAmp += 2 * e; kRate += 1.5 * e; }
     pet.kickPh += dt * 2.1 * kRate;
     const kick = 10 * kAmp * Math.sin(pet.kickPh) * proneK();
@@ -1079,9 +1285,10 @@ export function createPet(els, opts) {
       ft[0] = lerp(ft[0], tx, ease(r, dt)); ft[1] = lerp(ft[1], ty, ease(r, dt));
     });
 
-    // (plus) the crack running down a petrified body knocks a few chips of stone off, once per petrify
-    if (fc.crack > .05 && pet.chipFor !== pet.exprAt) {
-      pet.chipFor = pet.exprAt; play('crack', 'face');
+    // (plus) the crack running down a petrified body knocks a few chips of stone off, once per petrify (keyed on the face's
+    // serial: its exprAt moves on while it waits under a cover)
+    if (fc.crack > .05 && pet.chipFor !== pet.exprN) {
+      pet.chipFor = pet.exprN; play('crack', 'face');
       for (let i = 0; i < 5; i++) emit('chip', toStage(rnd(100, 160), rnd(60, 200) + pet.low), { vx: rnd(-60, 60), vy: rnd(-90, -30), life: 1.2, r: rnd(0, 6) });
     }
     if (fc.emit && T > pet.emitAt) {
@@ -1119,8 +1326,8 @@ export function createPet(els, opts) {
     dustAt(128, impact > 900 ? 7 : 3, 70);
     if (kind === 'throw' && impact > 1000) { setMode('dizzy'); onEvent('touch', { kind: 'crash' }); return; }
     setMode('land');
-    if (kind === 'throw') { pet.expr = 'surprised'; pet.exprUntil = T + .9; pet.exprOwn = true; pet.nextAt = T + 2; }
-    else if (kind === 'drop') { pet.expr = 'happy'; pet.exprUntil = T + 1.6; pet.exprOwn = true; pet.nextAt = T + 2.6; }
+    if (kind === 'throw') { pet.expr = 'surprised'; pet.exprUntil = T + .9; pet.exprOwn = true; pet.exprAsked = false; pet.nextAt = T + 2; }
+    else if (kind === 'drop') { pet.expr = 'happy'; pet.exprUntil = T + 1.6; pet.exprOwn = true; pet.exprAsked = false; pet.nextAt = T + 2.6; }
     else pet.nextAt = T + rnd(.8, 2);
   }
 
@@ -1164,13 +1371,15 @@ export function createPet(els, opts) {
     else if (pet.swapAge < .16) eyeClose = 1 - (pet.swapAge - .07) / .09;
     // (stone does not talk)
     const face = { ...fc, eyes, gap: pet.gap.map(g => Math.min(64, g + (fc.freeze ? 0 : pet.talkK) * 12)), blush: pet.blushK };
+    // (plus) the head's gesture in its own field, beside the arms' and body's
+    const head = pet.head ? { kind: pet.head.kind, k: clamp((T - pet.head.t0) / pet.head.dur, 0, 1) } : null;
     const gesture = pet.pulse ? { kind: pet.pulse.kind, k: clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1) } : null;
     // (plus) how far the roll carries her, so a figure's ball turns only that far round
     if (ours('roll')) gesture.travel = pet.pulse.travel;
     custom.draw(petG, face, {
       look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing,
       face: fname, mode: pet.mode, modeT: pet.modeT, talk: pet.talkK, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot, gesture,
-      talkShape: pet.talkShape, lie: pet.lieK, prone: pet.prone, kneel: !!pet.kneel, away: pet.awayK,
+      talkShape: pet.talkShape, lie: pet.lieK, prone: pet.prone, kneel: !!pet.kneel, away: pet.awayK, ...(plus ? { head } : {}),
     });
 
     const footY = drag ? pet.dy + 220 * S * 1.09 : pet.fy;
@@ -1263,6 +1472,7 @@ export function createPet(els, opts) {
     if (press && pet.mode !== 'drag' && Math.hypot(p.x - press.x, p.y - press.y) > 6) {
       const scruff = toStage(128, 36);
       pet.expr = null;
+      if (plus) clearOwn();
       setMode('drag', { dx: scruff.x, dy: scruff.y });
       play('grab', 'touch');
       pet.sqv -= 1.2; pet.tiltV = 0;
@@ -1276,7 +1486,7 @@ export function createPet(els, opts) {
         strokeAcc = 0; petCool = 2.5;
         play('purr', 'touch');
         if (pet.mode === 'sleep') emitHeart();
-        else setExpr(Math.random() < .5 ? 'love' : 'shy');
+        else setExpr(Math.random() < .5 ? 'love' : 'shy', undefined, false);
         onEvent('touch', { kind: 'pet', asleep: pet.mode === 'sleep' });
       }
     }
@@ -1306,7 +1516,7 @@ export function createPet(els, opts) {
       } else if (pet.mode !== 'dizzy') {
         play('poke', 'touch');
         const r = ['happy', 'wink', 'surprised', 'love', 'angry'][Math.floor(Math.random() * 5)];
-        setExpr(r);
+        setExpr(r, undefined, false);
         if (Math.random() < .5 && pet.mode === 'idle') setMode('crouch', { jumpV: 480, jumpVx: 0 });
         onEvent('touch', { kind: 'poke' });
       }
@@ -1360,7 +1570,7 @@ export function createPet(els, opts) {
   }
   /** Pressed, carried, airborne, walking, running, dancing, turning round, or in a short gesture (not a lying fidget). */
   const isMoving = () => !!press || MOVING_MODES.has(pet.mode) || (!!pet.pulse && !(plus && FIDGETS[pet.pulse.kind] && !pet.pulse.pack))
-    || Math.abs(pet.faceVis - pet.facing) > .05;
+    || !!pet.head || Math.abs(pet.faceVis - pet.facing) > .05;
 
   /**
    * Where the body is and what it is doing, in stage pixels, for the page around it: its box and hit
@@ -1391,6 +1601,7 @@ export function createPet(els, opts) {
   return {
     pet, step, render, resize, act, setExpr, doWord, walkTo, stopWalk, toStage, hitPet, busy, layout,
     pointerDown, pointerMove, pointerUp, pointerLeave, dropAt, shiftDrag,
+    ...(plus ? { doGroup } : {}),
     get pressing() { return !!press; },
     /** Pressed, carried, airborne, walking, running, dancing, turning round, or in a short gesture (nod, wave, bow…; with plus not a lying fidget): motion that frames far apart show as jumps. */
     get moving() { return isMoving(); },
@@ -1450,7 +1661,8 @@ const SVGNS = 'http://www.w3.org/2000/svg';
  *
  * The body takes these calls from the page: step(dt), layout(), do(word), walk(x, run, id), stopWalk(id), pointer(type, p),
  * drop(p), shift(dx, dy), place(x, facing), set({ roam, hold, dialogOpen, listening, thinking, skin, theme }),
- * cue(kind), talk(ch?), setScheme(id, o), dispose(). A word it does not know or cannot take now is `done` at once.
+ * cue(kind), talk(ch?), setScheme(id, o), dispose(), and with `plus` doAll(words) (a group done at once). A word it does
+ * not know or cannot take now is `done` at once.
  */
 export function createBody(host, opts) {
   const doc = host.root.ownerDocument;
@@ -1490,6 +1702,14 @@ export function createBody(host, opts) {
       if (!ok && opts.plus) host.emit('done', { word });
       return ok;
     },
+    /** (plus) Does a group of words at once (the kit's doGroup); each one it could not take is reported done at once. */
+    ...(opts.plus ? {
+      doAll(ws) {
+        const ok = ctl.doGroup(ws);
+        ws.forEach((w, i) => { if (!ok[i]) host.emit('done', { word: w }); });
+        return ok;
+      },
+    } : {}),
     walk: (x, run, id) => ctl.walkTo(x, run, id),
     stopWalk: (id) => ctl.stopWalk(id),
     pointer(type, p) {
@@ -1518,9 +1738,9 @@ export function createBody(host, opts) {
     },
     /** The page's own moments: a talk key tapped (`perk`), speech heard (`heard`), an answer sent (`cheer`), a dress pick (`bounce`). */
     cue(kind) {
-      if (kind === 'perk') { ctl.pet.sqv += .6; ctl.setExpr('surprised', .5); }
+      if (kind === 'perk') { ctl.pet.sqv += .6; ctl.setExpr('surprised', .5, false); }
       else if (kind === 'heard') ctl.pet.sqv += .9;
-      else if (kind === 'cheer') ctl.setExpr('happy');
+      else if (kind === 'cheer') ctl.setExpr('happy', undefined, false);
       else if (kind === 'bounce') ctl.pet.sqv += 1.2;
     },
     /** The mouth opens for a spoken character `ch` (optional: without it the mouth's shape just moves on). */

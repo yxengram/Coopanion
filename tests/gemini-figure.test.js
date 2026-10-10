@@ -1,12 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import {
   anchorsOf, approach, ARM_BOTH, ARM_FALLBACK, ARM_ONE, armPlan, ballAngle, bowPose, buildRig, createMotion, extentOf, FACE_ARMS, feetFromLegs,
   fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, ROLL_D, SIT_BESIDE, SIT_LOW, sitAnchors, sitOwnArms, sitRaise,
   tailField, WHOLE_POSES, EAR, EAR_MOOD, earFlick, earStates, TAIL, tailFlick, liveAnchors,
 } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
+import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gemini-chan/fx.js';
 import { createGeminiFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/figure.js';
 
@@ -1123,5 +1124,165 @@ describe.skipIf(!real)('Gemini-chan: the figure', () => {
     expect(fig.poses).toEqual({ lie: false, back: true });
     expect(fig.roll).toBe('spin');
     expect(fig.gestures).not.toContain('roll');
+  });
+});
+
+describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces made of others', () => {
+  const R0 = buildRig(real);
+  const caps = { pose: id => !!R0.ARM[id] || !!R0.W[id], tex: () => true };
+  const sprites = new Set(Object.keys(real.feat?.sprites || {})), has = n => sprites.has(n);
+  /** A still frame of the kit's, standing, with `x` over it. */
+  const frame = (x = {}) => ({ t: 1, mode: 'idle', face: 'neutral', look: [0, 0], legs: [[104, 212, 104, 241], [150, 212, 150, 241]], low: 0, sit: 0, tilt: 0, lean: 0, facing: 1, swing: 0, gesture: null, ...x });
+  /** One frame on a fresh motion. */
+  const once = (o, fc = FACES[o.face]?.f(0) ?? FACES.neutral.f(0)) => createMotion(real, R0).step(fc, o, 1 / 60, caps);
+  /** The pet with the figure on it, keeping the last frame's face and frame. */
+  function watched() {
+    const s = stubFigure(real), draw = s.fig.draw, seen = { ...s, fc: null, o: null };
+    s.fig.draw = (g, fc, o) => { seen.fc = fc; seen.o = o; draw(g, fc, o); };
+    seen.pet = barePet(s.fig);
+    return seen;
+  }
+
+  it('plays a nod on its own clock beside a wave: the arms wave at the wave\'s k, the head nods at the nod\'s', () => {
+    const both = once(frame({ gesture: { kind: 'wave', k: .2 }, head: { kind: 'nod', k: .6 } }));
+    const arms = once(frame({ gesture: { kind: 'wave', k: .2 }, head: null }));
+    const nod = headMoves({ kind: 'nod', k: .6 }).nod;
+    expect(nod).toBeCloseTo(Math.sin(1.2 * Math.PI) ** 2 * (1 - .3 * .6), 9);
+    expect(both.plan).toEqual(arms.plan);
+    expect(both.plan.L).toBe('wave');
+    expect(both.turn[1] - arms.turn[1]).toBeCloseTo(.9 * nod, 6);
+    expect(both.st.neck.ty - arms.st.neck.ty).toBeCloseTo(2 * nod, 6);
+    expect(gesturesOf({ gesture: { kind: 'wave', k: .2 }, head: { kind: 'nod', k: .6 } })).toEqual({ arm: { kind: 'wave', k: .2 }, head: { kind: 'nod', k: .6 } });
+  });
+
+  it('takes a nod, a shake or a sigh from the gesture when the kit has no head channel (upstream\'s), as before it had one', () => {
+    const still = once(frame());
+    for (const kind of ['nod', 'shake', 'sigh']) {
+      for (const k of [.15, .4, .6, .85]) {
+        const old = once(frame({ gesture: { kind, k } })), now = once(frame({ head: { kind, k } }));
+        expect(now.turn, `${kind} ${k}`).toEqual(old.turn);
+        expect(now.st.neck, `${kind} ${k}`).toEqual(old.st.neck);
+        expect(now.st.waist, `${kind} ${k}`).toEqual(old.st.waist);
+        expect(now.puffK, `${kind} ${k}`).toBe(old.puffK);
+        expect(old.plan, `${kind} ${k}`).toEqual(still.plan);
+      }
+    }
+    expect(once(frame({ head: { kind: 'nod', k: .25 } })).turn[1]).not.toBe(still.turn[1]);
+    // v0.2.6's formulas, unchanged
+    const m = headMoves({ kind: 'sigh', k: .5 });
+    expect(m.inh).toBeCloseTo(0, 9);
+    expect(m.exh).toBeCloseTo(.84375, 9);
+    expect(m.puffK).toBeCloseTo(.12 / .45, 9);
+    expect(headMoves({ kind: 'shake', k: .3 }).shake).toBeCloseTo(Math.sin(1.8 * Math.PI) * .7, 9);
+    expect(headMoves(null)).toEqual({ nod: 0, shake: 0, inh: 0, exh: 0, puffK: 0 });
+  });
+
+  it('sings under an asked-for face with the song\'s body: pray hands, chin up, the singing mouth on the beat, the asked eyes', () => {
+    const w = watched();
+    run(w.pet, 1);
+    w.pet.setExpr('angry');
+    expect(w.pet.act('song')).toBe(true);
+    let mouths = new Set();
+    for (let i = 0; i < 90; i++) {
+      run(w.pet, 1 / 60);
+      mouths.add(planFace(w.fc, w.o.face, w.o, w.o.t, has).mouth.name);
+    }
+    expect(w.o.face).toBe('angry+singing+singing');
+    expect(w.seen.last.plan).toMatchObject({ L: 'pray', R: 'pray' });
+    expect(w.motion.arms.pray).toBeCloseTo(1);
+    expect(planFace(w.fc, w.o.face, w.o, w.o.t, has).eyes.map(e => e.name)).toEqual(['angry_eyeL', 'angry_eyeR']);
+    expect(mouths.has('mouth_u')).toBe(true);
+    // the song's chin up: the same frame as a plain angry face pitches the head by HEAD_PITCH.singing
+    const plain = once({ ...w.o, face: 'angry' }, { ...w.fc, parts: undefined }), mixed = once(w.o, w.fc);
+    expect(mixed.turn[1] - plain.turn[1]).toBeCloseTo(HEAD_PITCH.singing, 6);
+  });
+
+  it('nods, shakes and sighs kneeling: the kneeling drawing\'s head moves, its sides and bottom and the knees stay', () => {
+    const w = watched(), R = w.R;
+    expect(R.W.kneel.parts.every(p => p.parent === 'kneelHead')).toBe(true);
+    const [x0, y0, x1, y1] = R.deformers.kneelHead.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    /** How far the head's warp moves rest point (x, y) this frame. */
+    const off = (x, y) => {
+      const st = w.seen.last.st, a = pointOf(R.deformers, 'kneelHead', st, x, y), b = pointOf(R.deformers, 'kneelHead', { ...st, kneelHead: null }, x, y);
+      return [a[0] - b[0], a[1] - b[1]];
+    };
+    const still = () => { for (const [x, y] of [[x0, cy], [x1, cy], [cx, y1], [cx, 236]]) for (const d of off(x, y)) expect(Math.abs(d)).toBeLessThan(1e-9); };
+    run(w.pet, .5);
+    w.pet.doWord('kneel'); run(w.pet, 3);
+    expect(w.seen.last.st.alpha.kneel_body).toBe(1);
+    expect(off(cx, cy)).toEqual([0, 0]);
+    w.pet.doWord('nod'); run(w.pet, .17);
+    expect(w.o.kneel).toBe(true);
+    expect(w.o.head.kind).toBe('nod');
+    expect(off(cx, cy)[1]).toBeGreaterThan(3);
+    expect(Math.abs(off(cx, cy)[0])).toBeLessThan(1e-9);
+    // (the top of the head goes down further than the middle: it squashes toward the chin)
+    expect(off(cx, y0 + 4)[1]).toBeGreaterThan(off(cx, cy)[1]);
+    still();
+    run(w.pet, 1);
+    w.pet.doWord('shake'); run(w.pet, .08);
+    expect(Math.abs(off(cx, cy)[0])).toBeGreaterThan(2);
+    expect(Math.abs(off(cx, cy)[1])).toBeLessThan(1e-9);
+    still();
+    run(w.pet, 1);
+    w.pet.doWord('sigh'); run(w.pet, .5);
+    expect(off(cx, cy)[1]).toBeLessThan(-1);
+    run(w.pet, .7);
+    expect(off(cx, cy)[1]).toBeGreaterThan(1.5);
+    still();
+    expect(w.o.kneel).toBe(true);
+    expect(w.seen.bad).toEqual([]);
+    // (the field alone: nothing at the edges, all of a nod at the middle)
+    const f = kneelHeadField([0, 0, 100, 100], { nod: 1 });
+    expect(f(.5, .5, 50, 50)).toEqual([0, KNEEL_HEAD.nod + KNEEL_HEAD.squash * 50]);
+    expect(f(0, .5, 0, 50)).toEqual([0, 0]);
+    expect(f(1, .5, 100, 50)).toEqual([0, 0]);
+    expect(f(.5, 1, 50, 100)).toEqual([0, 0]);
+  });
+
+  it('draws a face made of others from its parts: the eyes, brows, mouth and body language of each', () => {
+    const w = watched();
+    run(w.pet, .5);
+    w.pet.setExpr('smug+happy', 3);
+    run(w.pet, .5);
+    expect(w.o.face).toBe('smug+happy');
+    expect(w.fc.parts).toEqual({ eyes: 'smug', brows: 'smug', mouth: 'happy', body: 'smug' });
+    const plan = planFace(w.fc, w.o.face, { ...w.o, blink: 0, eyeClose: 0 }, w.o.t, has);
+    expect(plan.eyes.map(e => e.name)).toEqual(['smug_eyeL', 'smug_eyeR']);
+    expect(plan.mouth.name).toBe('happy_mouth');
+    expect(partsOf({}, 'happy')).toEqual({ eyes: 'happy', brows: 'happy', mouth: 'happy', body: 'happy' });
+    // brows from one face, body language (the head's pitch) from another, frame after frame
+    const fc = { ...FACES.happy.f(0), parts: { eyes: 'happy', brows: 'angry', mouth: 'happy', body: 'reading' } };
+    const [m, a, r] = [0, 1, 2].map(() => createMotion(real, R0));
+    let mixed, angry, reading;
+    for (let i = 0; i < 60; i++) {
+      const o = frame({ t: 1 + i / 60 });
+      mixed = m.step(fc, { ...o, face: 'happy+happy+reading' }, 1 / 60, caps);
+      angry = a.step(FACES.happy.f(0), { ...o, face: 'angry' }, 1 / 60, caps);
+      reading = r.step(FACES.happy.f(0), { ...o, face: 'reading' }, 1 / 60, caps);
+    }
+    for (const x of [R0.deformers.brows.rect[0] + 2, 128, R0.deformers.brows.rect[2] - 2]) expect(mixed.st.brows.fn(.5, .5, x)).toEqual(angry.st.brows.fn(.5, .5, x));
+    expect(mixed.turn[1]).toBeCloseTo(reading.turn[1], 9);
+    expect(mixed.turn[1] - once(frame({ t: 2 }), FACES.happy.f(0)).turn[1]).toBeCloseTo(HEAD_PITCH.reading, 1);
+  });
+  it('draws every face made of parts (PLUS_MIXES) from her own art: the eyes of its eyes\' face, the mouth of its mouth\'s', () => {
+    const w = watched();
+    run(w.pet, .5);
+    const kitFace = n => PLUS_FACES[n] ?? FACES[n];
+    const shown = p => (p.kind === 'sprite' ? p.name : p.kind);
+    for (const [n, d] of Object.entries(PLUS_MIXES)) {
+      expect(w.pet.doWord(n), n).toBe(true);
+      run(w.pet, .4);
+      expect(w.o.face, n).toBe(n);
+      const o = { ...w.o, blink: 0, eyeClose: 0, talk: 0 }, p = w.pet.pet;
+      const plan = planFace(w.fc, n, o, o.t, has);
+      expect(plan.eyes, n).toHaveLength(2);
+      // every eye is drawn art (a sprite of hers, or her own eye with its lid), never the stroked stand-in
+      for (const e of plan.eyes) expect(e.kind, n).not.toBe('stroke');
+      for (const e of [...plan.eyes, plan.mouth]) if (e.kind === 'sprite') expect(sprites.has(e.name), `${n}: ${e.name}`).toBe(true);
+      const eyes = planFace(kitFace(d.eyes).f(o.t, p), d.eyes, o, o.t, has), mouth = planFace(kitFace(d.mouth).f(o.t, p), d.mouth, o, o.t, has);
+      expect(plan.eyes.map(shown), n).toEqual(eyes.eyes.map(shown));
+      expect(shown(plan.mouth), n).toEqual(shown(mouth.mouth));
+    }
   });
 });

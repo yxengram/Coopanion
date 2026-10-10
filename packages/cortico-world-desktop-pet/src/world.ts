@@ -35,7 +35,7 @@ import { Packer, Segmenter, rmsDb, type SegmentConfig, type SegmentSink, type Ut
 import { comboLabel, hotkeyBadge, hotkeyLabel, parseHotkey, splitTaps, watchHotkey, type KeyWatcher } from './asr/hotkey.ts';
 import { joinSpeech, looksHallucinated } from './asr/result.ts';
 import { toSimplified } from './asr/simplify.ts';
-import { estimateSeconds, lastingNote, parseActions, parseScript, vocabTable, type VocabWord } from './script.ts';
+import { estimateSeconds, lastingNote, membersOf, parseActions, parseScript, vocabTable, type VocabWord } from './script.ts';
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack } from './packs.ts';
@@ -213,9 +213,9 @@ let seq = 0;
 const nextId = (p: string) => `${p}${Date.now().toString(36)}${(seq++).toString(36)}`;
 const pct = (fraction: number) => `${Math.round(fraction * 100)}%`;
 
-/** The first expression among a beat's words for the chat page's tag: its id, and its first name in each language of the body's vocabulary. */
+/** The first expression among a beat's words (a group's members too) for the chat page's tag: its id, and its first name in each language of the body's vocabulary. */
 function moodOf(actions: readonly string[], vocab: readonly VocabWord[]): { mood?: Record<string, string> } {
-  const v = actions.map((a) => vocab.find((e) => e.id === a)).find((e) => e?.kind === 'expression' && e.id !== 'neutral');
+  const v = membersOf(actions).map((a) => vocab.find((e) => e.id === a)).find((e) => e?.kind === 'expression' && e.id !== 'neutral');
   if (!v) return {};
   return { mood: { id: v.id, ...Object.fromEntries(Object.entries(v.names).flatMap(([lang, names]) => (names[0] ? [[lang, names[0]]] : []))) } };
 }
@@ -823,8 +823,9 @@ export class DesktopPetWorld implements World {
    */
   dialog(d: PetDialog): PetDialogHandle {
     const id = nextId('d');
-    const { actions, dropped } = parseActions(d.actions ?? [], this.vocab());
+    const { actions, dropped, notes } = parseActions(d.actions ?? [], this.vocab());
     if (dropped.length) this.log?.warn(`气泡对话里有当前形象的词表没有的词,已略过:${dropped.join('、')}`);
+    if (notes.length) this.log?.info(`气泡对话的动作:${notes.join('')}`);
     let settle: (a: PetDialogAnswer) => void = () => {};
     const answer = new Promise<PetDialogAnswer>((resolve) => { settle = resolve; });
     if (!this.server.sendPet({ t: 'dialog', id, ...d, actions })) settle({ unavailable: true });
@@ -1294,7 +1295,7 @@ export class DesktopPetWorld implements World {
 
   private async say(args: Record<string, unknown>): Promise<ToolOutcome> {
     const script = typeof args.script === 'string' ? args.script : '';
-    const { beats, dropped } = parseScript(script, this.vocab());
+    const { beats, dropped, notes } = parseScript(script, this.vocab());
     if (!beats.some((b) => b.text || b.actions.length || b.anchors.length)) {
       return { text: '[pet_say 没执行] 脚本是空的。不想说话就不调用。', failed: true };
     }
@@ -1308,8 +1309,9 @@ export class DesktopPetWorld implements World {
     this.busyUntil = Math.max(now, this.busyUntil) + selfSec * 1000;
     const replaced = this.ask ? `替换了还没回答的提问「${this.ask.question}」。` : '';
     if (this.ask) this.ask = null;
-    const note = dropped.length ? `
-[执行参数] 当前形象的词表里没有这些标记,已略过:${dropped.join('、')}。` : '';
+    const params = `${dropped.length ? `当前形象的词表里没有这些标记,已略过:${dropped.join('、')}。` : ''}${notes.join('')}`;
+    const note = params ? `
+[执行参数] ${params}` : '';
     const shown = this.chat.size ? '对话页开着,这段也显示在那里。' : '';
     return { text: `${waitSec > .5 ? `已排队,前面还有约 ${Math.round(waitSec)} 秒` : '已开始显示'},这段约 ${Math.round(selfSec)} 秒。${shown}${replaced}${note}` };
   }
@@ -1424,11 +1426,12 @@ export class DesktopPetWorld implements World {
   private async act(args: Record<string, unknown>): Promise<ToolOutcome> {
     const list = Array.isArray(args.actions) ? args.actions : typeof args.actions === 'string' ? [args.actions] : [];
     const vocab = this.vocab();
-    const { actions, dropped } = parseActions(list, vocab);
+    const { actions, dropped, notes } = parseActions(list, vocab);
     if (!actions.length) return { text: `[pet_act 没执行] 当前形象的词表里没有这些动作${dropped.length ? `(${dropped.join('、')})` : ''}。`, failed: true };
     if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions })) return this.notConnected('pet_act');
-    const lasting = actions.filter((a) => vocab.find((v) => v.id === a)?.lasting);
-    const note = dropped.length ? `\n[执行参数] 当前形象的词表里没有这些,已略过:${dropped.join('、')}。` : '';
+    const lasting = membersOf(actions).filter((a) => vocab.find((v) => v.id === a)?.lasting);
+    const params = `${dropped.length ? `当前形象的词表里没有这些,已略过:${dropped.join('、')}。` : ''}${notes.join('')}`;
+    const note = params ? `\n[执行参数] ${params}` : '';
     const held = [...new Set(lasting)].map((a) => `${a} ${lastingNote(a)}。`).join('');
     return { text: `开始依次做:${actions.join(' → ')}。${held}${note}` };
   }

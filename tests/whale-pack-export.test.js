@@ -12,6 +12,7 @@ import {
 } from '../packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs';
 import { BUILTIN_PACKS, readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { TONES } from '../packages/cortico-world-desktop-pet/web/sound.js';
+import { PLUS_MIXES } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 
 const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
 const builtin = (id) => JSON.parse(readFileSync(new URL(`web/${id}/figure.json`, PKG), 'utf8'));
@@ -49,7 +50,9 @@ describe('exported whale pack', () => {
     expect(m.name).toEqual({ zh: 'Coopanion 大肥鱼', en: 'Coopanion Whale' });
     const whale = builtin('whale');
     expect(m.vocab).toEqual(whale.vocab);
-    expect(m.vocab.length).toBe(72);
+    // the 72 words of v0.2.6 and the faces made of parts (PLUS_MIXES), which the pack's own kit draws
+    expect(m.vocab.length).toBe(72 + Object.keys(PLUS_MIXES).length);
+    expect(m.vocab.filter((w) => w.id in PLUS_MIXES).map((w) => w.kind)).toEqual(Object.keys(PLUS_MIXES).map(() => 'expression'));
     expect(m.axes).toEqual(whale.axes);
     expect(m.presets).toEqual(whale.presets);
     expect(m.credits).toEqual(expect.arrayContaining(whale.credits));
@@ -74,7 +77,7 @@ describe('exported whale pack', () => {
     expect(typeof read === 'string' ? read : null).toBeNull();
     expect(missing).toEqual([]);
     expect(Object.keys(read.sounds).sort()).toEqual(Object.keys(m.sounds).sort());
-    expect(read.vocab.length).toBe(72);
+    expect(read.vocab.length).toBe(m.vocab.length);
 
     // and upstream's own packs.ts, when git has it
     if (fromGit) {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -177,7 +177,45 @@ describe('with a pet page', () => {
     expect(out.text).toContain('换别的姿势或走、跑、跳这类全身动作才结束');
     expect(out.text).not.toContain('保持到下一个动作');
     const kneel = await tool(world, 'pet_act').handler({ actions: ['跪坐'] }, ctx) as { text: string };
-    expect(kneel.text).toContain('kneel 保持到下一个动作(点头也算),然后变回普通坐着');
+    expect(kneel.text).toContain('kneel 保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气不影响');
+  });
+
+  it('pet_act sends words at once as one entry, and says what it had to do one after another', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const out = await tool(world, 'pet_act').handler({ actions: ['坐下+开心+招手', '招手+比心', '跪坐 + 开心'] }, ctx) as { text: string };
+    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['sit+wave+happy', 'wave', 'heart', 'kneel+happy']);
+    expect(out.text).toContain('开始依次做:sit+wave+happy → wave → heart → kneel+happy。');
+    expect(out.text).toContain('[执行参数] 招手 和 比心 不能同时做,改成先后做。');
+    // the lasting words inside groups are said once each
+    expect(out.text).toContain('sit 一直保持');
+    expect(out.text).toContain('kneel 保持到下一个手或全身动作');
+  });
+
+  it('pet_say reports split groups and dropped members, and a dialog sends a group', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const out = await tool(world, 'pet_say').handler({ script: '【开心+飞起来】好呀【招手+比心】再见' }, ctx) as { text: string };
+    const beats = (await page.next((m) => m.t === 'say')).beats as Array<{ actions: string[] }>;
+    expect(beats.map((b) => b.actions)).toEqual([['happy'], ['wave', 'heart']]);
+    expect(out.text).toContain('[执行参数] 当前形象的词表里没有这些标记,已略过:飞起来。招手 和 比心 不能同时做,改成先后做。');
+    const d = world.dialog({ text: '你好', actions: ['开心+跳', '飞'] });
+    expect((await page.next((m) => m.t === 'dialog')).actions).toEqual(['jump+happy']);
+    expect(d.dropped).toEqual(['飞']);
+    d.close();
+  });
+
+  it('tells the bot how to write words at once', () => {
+    const { world } = makeWorld();
+    const env = readFileSync(fileURLToPath(new URL('../src/ENV_PROMPT.md', import.meta.url)), 'utf8');
+    expect(env).toContain('| 词+词 |');
+    expect(env).toContain('石化除外');
+    expect(world.envPromptVars()['pet.vocab']).toContain('| nod | 点头');
+    const say = tool(world, 'pet_say');
+    expect(say.description).toContain('+');
+    expect(JSON.stringify(tool(world, 'pet_act').parameters)).toContain('同时做的用 + 连起来');
   });
 
   it('takes the words of the body on screen: a pack\'s own, and Coo\'s once the page says the pack would not run', async () => {
@@ -537,7 +575,8 @@ describe('chat page', () => {
     world.onEventsSettled([sent], 'delivered');
     await expect.poll(() => chat.last('settled')).toEqual({ t: 'settled', cursors: [sent.cursor], outcome: 'delivered' });
 
-    await tool(world, 'pet_say').handler({ script: '【开心】看到了' }, ctx);
+    // (the mood is the first expression, a group's members too)
+    await tool(world, 'pet_say').handler({ script: '【招手+开心】看到了' }, ctx);
     chat.send({ t: 'send', id: 2, text: '算了不用了' });
     await expect.poll(() => chat.last('sent')).toMatchObject({ id: 2 });
     const second = chat.last('sent')!.cursor as number;

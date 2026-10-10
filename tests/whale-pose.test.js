@@ -1,13 +1,14 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { createPet, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { createPet, FACES, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 
 // the whale's own figure.js runs below without WebGL: its rig keeps the last frame's deformer states for the tests
-const rigSeen = vi.hoisted(() => ({ st: null }));
+const rigSeen = vi.hoisted(() => ({ st: null, tree: null }));
 vi.mock('../packages/cortico-world-desktop-pet/web/kit/rig.js', () => ({
-  createRig: () => ({ upload() {}, render(st) { rigSeen.st = st; }, point: (_d, _st, x, y) => [x, y], dispose() {} }),
+  createRig: (_canvas, tree) => (rigSeen.tree = tree, { upload() {}, render(st) { rigSeen.st = st; }, point: (_d, _st, x, y) => [x, y], dispose() {} }),
 }));
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -851,8 +852,28 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
     pet.resize();
     const run = (s, each = () => {}) => { for (let i = 0; i < s * 60; i++) { pet.step(1 / 60); pet.render(); each(rigSeen.st, frame); } };
-    return { pet, run, done: () => { globalThis.document = doc; } };
+    return { pet, run, tree: rigSeen.tree, frame: () => frame, done: () => { globalThis.document = doc; } };
   }
+  /** A fresh whale figure drawing frames by hand (no kit): each call draws `o` with face `fc` and gives that frame's states. */
+  async function whaleByHand() {
+    const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
+    const doc = globalThis.document;
+    globalThis.document = { createElement: () => any, createElementNS: () => any };
+    try {
+      const fig = await createWhaleFigure(WHALE, { model, loadImage: async () => ({ width: 1, height: 1 }) });
+      const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
+      return (fc, o) => {
+        globalThis.document = { createElement: () => any, createElementNS: () => any };
+        try { fig.draw(petG, fc, o); } finally { globalThis.document = doc; }
+        const st = rigSeen.st;
+        // (the states are one object the figure reuses: keep what the tests read)
+        return { neck: { ...st.neck }, pitch: st.headFront.fn(.5, .5)[1] / 2.8, waist: { ...st.waist }, arm: st.armNear.a };
+      };
+    } finally { globalThis.document = doc; }
+  }
+  /** A still frame of the kit's, standing, with `x` over it. */
+  const frame = (x = {}) => ({ t: 1, mode: 'idle', face: 'neutral', look: [0, 0], legs: [[104, 212, 104, 241], [150, 212, 150, 241]], low: 0, sit: 0, tilt: 0, lean: 0, facing: 1, swing: 0, gesture: null, ...x });
+  const faceOf = n => FACES[n].f(0);
   // each arm gesture's drawn arms, and the plain arm(s) they take over from
   const DRAWN = {
     wave: { parts: model.poses.wave.required, plain: ['arm_near'] },
@@ -876,7 +897,8 @@ describe('a face and a gesture at once, as the whale draws them', () => {
           expect(pet.doWord(face), `${face} over ${gesture}`).toBe(true);
           let shown = 0, plainLeft = 1, frames = 0;
           run(2.8, (st, o) => {
-            if (o.gesture?.kind !== gesture || o.face !== face) return;
+            // (over a gesture whose own face is its body, a stretch, the face is made of both: `nervous+nervous+stretching`)
+            if (o.gesture?.kind !== gesture || o.face.split('+')[0] !== face) return;
             frames++;
             const k = Math.min(...parts.map(p => st.alpha[p.id]));
             if (k > shown) { shown = k; plainLeft = Math.max(...plain.map(id => st.alpha[id])); }
@@ -887,6 +909,140 @@ describe('a face and a gesture at once, as the whale draws them', () => {
           pet.doWord('neutral'); run(1.5);
         }
       }
+    } finally { done(); }
+  });
+
+  it('plays a nod on its own clock beside a wave, and takes it from the gesture when the kit has no head channel', async () => {
+    const nod = headMoves({ kind: 'nod', k: .6 }).nod;
+    const both = (await whaleByHand())(faceOf('neutral'), frame({ gesture: { kind: 'wave', k: .2 }, head: { kind: 'nod', k: .6 } }));
+    const arms = (await whaleByHand())(faceOf('neutral'), frame({ gesture: { kind: 'wave', k: .2 }, head: null }));
+    // (the wave's arm the same either way; the nod dips the neck and pitches the face)
+    expect(both.arm).toBeCloseTo(arms.arm, 9);
+    expect(both.neck.a - arms.neck.a).toBeCloseTo(7 * nod, 6);
+    expect(both.pitch - arms.pitch).toBeCloseTo(.9 * nod, 6);
+    for (const kind of ['nod', 'shake', 'sigh']) {
+      for (const k of [.15, .4, .6, .85]) {
+        const old = (await whaleByHand())(faceOf('neutral'), frame({ gesture: { kind, k } }));
+        const now = (await whaleByHand())(faceOf('neutral'), frame({ head: { kind, k } }));
+        expect(now, `${kind} ${k}`).toEqual(old);
+      }
+    }
+    expect(gesturesOf({ gesture: { kind: 'sigh', k: .3 } })).toEqual({ head: { kind: 'sigh', k: .3 }, arm: null });
+  });
+
+  it('on the kit, nods while she waves: both in the same frames, each on its own clock', async () => {
+    const { pet, run, frame: last, done } = await whaleOnKit();
+    try {
+      run(.5);
+      expect(pet.doGroup(['wave', 'nod'])).toEqual([true, true]);
+      let both = null, waved = 0;
+      run(.65, (st, o) => {
+        if (o.gesture?.kind !== 'wave' || o.head?.kind !== 'nod') return;
+        // (the drawn arm waving while she nods)
+        waved = Math.max(waved, Math.min(...model.poses.wave.required.map(p => st.alpha[p.id])));
+        if (headMoves(o.head).nod > (both ? headMoves(both.o.head).nod : 0)) both = { o: { ...o } };
+      });
+      expect(both).not.toBe(null);
+      expect(both.o.gesture.k).toBeLessThan(both.o.head.k);
+      expect(waved).toBe(1);
+      // that frame drawn again without the head's gesture: only the nod is gone
+      const fc = faceOf('happy'), withNod = (await whaleByHand())(fc, both.o), without = (await whaleByHand())(fc, { ...both.o, head: null });
+      expect(withNod.neck.a - without.neck.a).toBeCloseTo(7 * headMoves(both.o.head).nod, 6);
+      expect(withNod.neck.a - without.neck.a).toBeGreaterThan(4);
+      expect(withNod.arm).toBeCloseTo(without.arm, 9);
+      expect(last().gesture.kind).toBe('wave');
+    } finally { done(); }
+  });
+
+  it('nods, shakes and sighs kneeling: the kneeling drawing\'s head moves, its sides and bottom and the knees stay', async () => {
+    const { pet, run, tree, frame: last, done } = await whaleOnKit();
+    try {
+      const D = tree.deformers, [x0, y0, x1, y1] = D.kneelHead.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      expect(D.kneelHead.parent).toBe('kneel');
+      for (const p of [...model.poses.kneel.required, ...model.poses.kneel.overlays]) expect(tree.parts.find(q => q.id === p.id).parent, p.id).toBe('kneelHead');
+      let st = null;
+      const go = s => run(s, x => { st = x; });
+      const off = (x, y) => {
+        const a = pointOf(D, 'kneelHead', st, x, y), b = pointOf(D, 'kneelHead', { ...st, kneelHead: null }, x, y);
+        return [a[0] - b[0], a[1] - b[1]];
+      };
+      const still = () => { for (const [x, y] of [[x0, cy], [x1, cy], [cx, y1], [cx, 240]]) for (const d of off(x, y)) expect(Math.abs(d)).toBeLessThan(1e-9); };
+      go(.5);
+      pet.doWord('kneel'); go(3);
+      expect(st.alpha.kneel_body).toBe(1);
+      pet.doWord('nod'); go(.17);
+      expect(last().kneel).toBe(true);
+      expect(off(cx, cy)[1]).toBeGreaterThan(3);
+      expect(off(cx, y0 + 4)[1]).toBeGreaterThan(off(cx, cy)[1]);
+      still();
+      go(1);
+      pet.doWord('shake'); go(.08);
+      expect(Math.abs(off(cx, cy)[0])).toBeGreaterThan(2);
+      expect(Math.abs(off(cx, cy)[1])).toBeLessThan(1e-9);
+      still();
+      go(1);
+      pet.doWord('sigh'); go(.5);
+      expect(off(cx, cy)[1]).toBeLessThan(-1);
+      go(.7);
+      expect(off(cx, cy)[1]).toBeGreaterThan(1.5);
+      expect(last().kneel).toBe(true);
+      expect(st.alpha.kneel_body).toBe(1);
+      const f = kneelHeadField([0, 0, 100, 100], { shake: 1 });
+      expect(f(.5, .5, 50, 50)).toEqual([KNEEL_HEAD.shake, 0]);
+      expect(f(0, .5, 0, 50)).toEqual([0, 0]);
+    } finally { done(); }
+  });
+
+  it('paints a face made of others with the eyes of its eyes\' face and the mouth of its mouth\'s', async () => {
+    // a 2D context that notes the images drawn into it (each loaded image keeps its file name)
+    const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
+    const drawn = [];
+    const ctx = new Proxy({}, { get: (_, k) => (k === 'drawImage' ? im => drawn.push(im?.src) : k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : any), set: () => true });
+    const canvas = new Proxy({}, { get: (_, k) => (k === 'getContext' ? () => ctx : any), set: () => true });
+    const doc = globalThis.document, fake = { createElement: () => canvas, createElementNS: () => any };
+    globalThis.document = fake;
+    try {
+      const fig = await createWhaleFigure(WHALE, { model, loadImage: async url => ({ width: 1, height: 1, src: String(url).split('/').pop() }) });
+      const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
+      const paint = (fc, o) => { drawn.length = 0; fig.draw(petG, fc, o); return [...drawn]; };
+      paint(faceOf('neutral'), frame());
+      const fc = { ...faceOf('surprised'), gap: faceOf('happy').gap, parts: { eyes: 'surprised', brows: 'surprised', mouth: 'happy', body: 'surprised' } };
+      const mixed = paint(fc, frame({ face: 'surprised+happy' }));
+      expect(mixed).toContain('surprised_eyeL.png');
+      expect(mixed).toContain('happy_mouth.png');
+      expect(mixed).not.toContain('surprised_mouth.png');
+      // (the same face named but without parts would take neither: no such name in her tables)
+      const bare = paint({ ...fc, parts: undefined }, frame({ face: 'surprised+happy' }));
+      expect(bare).not.toContain('happy_mouth.png');
+      // every face made of parts (PLUS_MIXES): the eye art of its eyes' face and the mouth art of its mouth's, all loaded
+      const kitFace = n => PLUS_FACES[n] ?? FACES[n], t = .5, p = { exprAt: 0, exprUntil: 9, modeT: 1 };
+      const eyesOf = list => list.filter(n => /eye[LR]/.test(n)), mouthOf = list => list.filter(n => /mouth/.test(n));
+      for (const [n, d] of Object.entries(PLUS_MIXES)) {
+        const all = paint(PLUS_MIX_FACES[n].f(t, p), frame({ face: n, t }));
+        expect(all.every(Boolean), n).toBe(true);
+        expect(eyesOf(all).length, n).toBeGreaterThanOrEqual(2);
+        expect(eyesOf(all), n).toEqual(eyesOf(paint(kitFace(d.eyes).f(t, p), frame({ face: d.eyes, t }))));
+        expect(mouthOf(all), n).toEqual(mouthOf(paint(kitFace(d.mouth).f(t, p), frame({ face: d.mouth, t }))));
+      }
+    } finally { globalThis.document = doc; }
+  });
+
+  it('sings under an asked-for face with the song\'s chin up, and reads with her eyes on the book', async () => {
+    const { pet, run, frame: last, done } = await whaleOnKit();
+    try {
+      run(1);
+      pet.setExpr('angry');
+      expect(pet.act('song')).toBe(true);
+      run(1);
+      const o = last();
+      expect(o.face).toBe('angry+singing+singing');
+      // the face's body language is the song's: the same frame as a plain angry face pitches the head by the song's
+      const fc = { ...faceOf('angry'), parts: { eyes: 'angry', brows: 'angry', mouth: 'singing', body: 'singing' } };
+      const mixed = (await whaleByHand())(fc, o), plain = (await whaleByHand())(faceOf('angry'), { ...o, face: 'angry' });
+      expect(mixed.pitch - plain.pitch).toBeCloseTo(-.25, 6);
+      const reading = (await whaleByHand())({ ...faceOf('angry'), parts: { eyes: 'angry', brows: 'angry', mouth: 'angry', body: 'reading' } }, frame({ face: 'angry+angry+reading' }));
+      expect(reading.pitch - (await whaleByHand())(faceOf('angry'), frame({ face: 'angry' })).pitch).toBeCloseTo(.4, 6);
+      expect(partsOf({ parts: { eyes: 'smug', brows: 'smug', mouth: 'happy', body: 'smug' } }, 'smug+happy').mouth).toBe('happy');
     } finally { done(); }
   });
 });

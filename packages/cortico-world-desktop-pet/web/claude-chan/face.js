@@ -5,7 +5,7 @@
  *
  * planFace() says what goes where (pure, for tests); the painter draws a plan into a 2D context.
  */
-import { clamp, f1 } from './motion.js';
+import { clamp, f1, partsOf } from './motion.js';
 
 /** Her eyes: on the viewer's left, on the viewer's right. */
 export const EYES = ['eyeL', 'eyeR'];
@@ -87,9 +87,9 @@ function planEye(k, e, i, face, fc, o, t, has, lx, ly, tilt, shut) {
   return (fam && spr(fam, sprHow)) || { kind: 'stroke', k, shape: e.shape, ...how };
 }
 
-function planMouth(fc, face, o, t, has) {
+function planMouth(fc, face, o, t, has, whole = face) {
   // stone does not talk
-  const talk = face === 'petrify' ? 0 : o.talk || 0;
+  const talk = whole === 'petrify' ? 0 : o.talk || 0;
   const gap = fc.gap || [50, 50];
   const gapOpen = clamp((Math.max(gap[0], gap[1]) - 50) / 14, 0, 1);
   const open = Math.max(talk * (.45 + .45 * Math.abs(Math.sin(t * 17))), face === 'sleepy' || face === 'waking' ? gapOpen : 0);
@@ -119,13 +119,15 @@ function planMouth(fc, face, o, t, has) {
  * What to paint for face `fc` (named `face`) with frame `o` at time `t`: `{ eyes: [plan, plan], mouth: plan }`. An eye is
  * a sprite (`name`, scale), the open eye (`open` 0..1, iris shift, lid tilt, glints) or strokes for its `shape`; a
  * mouth is a sprite, a drawn line (`form`, `w`), an open oval, a cat's ω or a tongue. `has(name)` says a sprite is there.
+ * A face the kit made of others (`fc.parts`) has the drawn eyes of its eyes' face and the mouth of its mouth's.
  */
 export function planFace(fc, face, o, t, has) {
   const shut = Math.max(o.blink || 0, o.eyeClose || 0), look = o.look || [0, 0];
   const lx = clamp(look[0], -6, 6), ly = clamp(look[1], -5, 5);
   const tilt = fc.brows === 'angry' ? .2 : fc.brows === 'sad' ? -.16 : 0;
-  const eyes = (fc.eyes || []).slice(0, 2).map((e, i) => planEye(EYES[i], e, i, face, fc, o, t, has, lx, ly, tilt, shut));
-  return { eyes, mouth: planMouth(fc, face, o, t, has) };
+  const P = partsOf(fc, face);
+  const eyes = (fc.eyes || []).slice(0, 2).map((e, i) => planEye(EYES[i], e, i, P.eyes, fc, o, t, has, lx, ly, tilt, shut));
+  return { eyes, mouth: planMouth(fc, P.mouth, o, t, has, face) };
 }
 
 const asRect = r => (Array.isArray(r) ? { x: r[0], y: r[1], w: r[2], h: r[3] } : r);

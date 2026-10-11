@@ -5,11 +5,11 @@ export const DESKTOP_PET_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_say',
     tags: ['speak'],
-    description: '在桌宠头顶冒出对话气泡说话。表情和动作写成标记放进 script:【】先做动作再换一个新气泡,<> 打字到那里时做,标记里用 + 连起来的词同时做。回执报告大约显示多久;窗口没连接时失败。',
+    description: '在桌宠头顶冒出对话气泡说话,表情和动作写成标记放进 script。回执报告大约显示多久;窗口没连接时失败。',
     parameters: {
       type: 'object',
       properties: {
-        script: { type: 'string', description: '要说的话,可夹带【表情,动作】与 <表情> 标记,同时做的用 + 连起来(如【开心+招手】)。一个气泡一两句。不想说话就不要调用。' },
+        script: { type: 'string', description: '要说的话,一个气泡一两句,夹带标记:【】先做再换新气泡,<> 打字到那里时做;+ 连起来的词同时做,逗号隔开的先后做,如【开心+招手】。不想说话就不要调用。' },
       },
       required: ['script'],
     },
@@ -77,11 +77,11 @@ export const DESKTOP_PET_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_act',
     tags: ['act'],
-    description: '不说话,依次做一串表情或动作(当前形象的词表见环境说明);用 + 连起来的几个词同时做,如 "坐下+开心+招手"。立即返回;坐、趴、睡、跪这类姿势会保持下去,词表里写了什么时候结束。',
+    description: '不说话,只做表情或动作(当前形象的词表见环境说明):每项一个词或用 + 连起来同时做的一组,如 "坐下+开心+招手",几项依次做。立即返回;坐、趴、睡、跪这类姿势会保持下去,词表里写了什么时候结束。',
     parameters: {
       type: 'object',
       properties: {
-        actions: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 6, description: '表情或动作的词,按顺序执行;同时做的用 + 连起来。' },
+        actions: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 6, description: '一项一个词,或同时做的几个词用 + 连起来;几项按顺序做。' },
       },
       required: ['actions'],
     },

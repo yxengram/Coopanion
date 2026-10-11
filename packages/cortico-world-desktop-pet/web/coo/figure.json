@@ -1602,6 +1602,32 @@
       "seconds": 1.7
     }
   ],
+  "pairs": {
+    "angry+cry": "ragecry",
+    "angry+flustered": "frantic",
+    "angry+tongue": "angry+tongue",
+    "awkward+tongue": "awkward+tongue",
+    "coax+gentle": "blissful",
+    "coax+wink": "sly",
+    "cry+happy": "laughcry",
+    "determined+happy": "eager",
+    "determined+tongue": "determined+tongue",
+    "disgusted+tongue": "disgusted+tongue",
+    "excited+tongue": "crave",
+    "flustered+happy": "lol",
+    "flustered+tongue": "flustered+tongue",
+    "gentle+tongue": "gentle+tongue",
+    "happy+pout": "happy+pout",
+    "happy+shy": "bashful",
+    "happy+smug": "smirk",
+    "love+shy": "flutter",
+    "love+surprised": "smitten",
+    "love+tongue": "love+tongue",
+    "pout+sad": "sulk",
+    "pout+wink": "wink+pout",
+    "shy+tongue": "shy+tongue",
+    "smug+tongue": "smug+tongue"
+  },
   "sounds": {},
   "can": {
     "walk": true

@@ -5,8 +5,8 @@ import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-wo
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
 import { createActs, WALK_MAX } from '../packages/cortico-world-desktop-pet/web/acts.js';
-import { figurePacks } from '../packages/cortico-world-desktop-pet/src/packs.ts';
-import { CHANNELS } from '../packages/cortico-world-desktop-pet/src/script.ts';
+import { figurePacks, readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
+import { CHANNELS, parseActions } from '../packages/cortico-world-desktop-pet/src/script.ts';
 
 const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
 const vocabOf = (pack) => JSON.parse(readFileSync(new URL(`web/${pack}/figure.json`, PKG), 'utf8')).vocab;
@@ -2172,6 +2172,16 @@ describe('a body without plus keeps upstream\'s faces and words', () => {
     const body = bareBody();
     expect(body.doAll).toBeUndefined();
     body.dispose();
+    // a face composed of two (`eyes+mouth`) is a name a body without plus does not know: upstream's plain face, no sound
+    const heard = [];
+    const plain = barePet(undefined, { plus: false, sfx: { play: (n, k) => heard.push([n, k]) } });
+    run(plain, 1);
+    plain.setExpr('surprised+happy');
+    run(plain, .2);
+    expect(plain.pet._fc.parts).toBeUndefined();
+    expect(plain.pet._fc.eyes).toEqual(FACES.neutral.f(0).eyes);
+    expect(heard.filter(([, k]) => k === 'face')).toEqual([]);
+    expect(plain.doWord('surprised+happy')).toBe(false);
   });
 
   it("frames and faces are upstream's (v0.1.17) through faces, gestures, postures, covers, a poke and a pat, frame by frame", async () => {
@@ -2344,5 +2354,294 @@ describe('faces made of parts of others (plus)', () => {
     // the whale and the girls say the same of them (Coo has no mouth to describe)
     const about = (v) => ids.map((id) => v.find((w) => w.id === id).about);
     for (const [p, v] of vocabs.slice(2)) expect(about(v), p).toEqual(about(vocabs[1][1]));
+  });
+});
+
+describe('two faces of one group shown as one (plus)', () => {
+  const paired = (opts = {}) => { const pet = hearingPet(opts); run(pet, 1); pet.heard.length = 0; return pet; };
+  const glintsIn = (pet) => (pet.fxHtml().match(/#e0a100/g) || []).length;
+  /** The plain faces two of which make one: every face asked for alone, less neutral, stone and the faces made of parts. */
+  const PLAIN = [...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS.filter((n) => !PLUS_MIXES[n])].filter((n) => n !== 'neutral' && n !== 'petrify');
+
+  it("two faces are one asked-for face, `eyes+mouth`: the first one's eyes, the second one's mouth", () => {
+    for (const [eyes, mouth] of [['surprised', 'happy'], ['happy', 'surprised']]) {
+      const pet = paired();
+      expect(pet.doGroup([eyes, mouth]), eyes).toEqual([true, true]);
+      run(pet, .3);
+      expect(pet.pet.expr, eyes).toBe(`${eyes}+${mouth}`);
+      expect(pet.pet.exprAsked, eyes).toBe(true);
+      expect(pet.pet._fname, eyes).toBe(`${eyes}+${mouth}`);
+      const fc = pet.pet._fc;
+      expect(fc.parts, eyes).toEqual({ eyes, brows: eyes, mouth, body: eyes });
+      expect(fc.gap, eyes).toEqual(FACES[mouth].f(0).gap);
+    }
+    const pet = paired();
+    pet.doGroup(['surprised', 'happy']);
+    run(pet, .3);
+    expect(pet.pet._fc.eyes).toEqual(FACES.surprised.f(0).eyes);
+    expect(pet.pet._fc.eyes[0].rx).toBe(20);
+    expect(pet.pet._fc.bang).toBe(true);
+  });
+
+  it('a group with one face, or the plain face or stone as the other, is done as before', () => {
+    for (const [ws, name] of [[['happy', 'happy'], 'happy'], [['happy', 'neutral'], 'neutral'], [['sit', 'happy'], 'happy']]) {
+      const pet = paired();
+      pet.doGroup(ws);
+      run(pet, .05);
+      expect(pet.pet.expr, ws.join()).toBe(name);
+    }
+    const stone = paired();
+    stone.doGroup(['happy', 'petrify']);
+    expect(stone.pet.expr).toBe('petrify');
+  });
+
+  it('of three faces, the first two make the face, shown over the third, wherever the others are', () => {
+    for (const [ws, name] of [[['surprised', 'happy', 'sad'], 'surprised+happy'], [['sad', 'surprised', 'happy'], 'sad+surprised'],
+      [['surprised', 'sit', 'happy', 'sad'], 'surprised+happy']]) {
+      const pet = paired();
+      expect(pet.doGroup(ws), ws.join()).toEqual(ws.map(() => true));
+      run(pet, .2);
+      expect(pet.pet._fname, ws.join()).toBe(name);
+    }
+  });
+
+  it('is kept by the motions after it, over a book or a song keeps its eyes, and goes with sleep or a plain face', () => {
+    const pet = paired();
+    pet.doGroup(['surprised', 'happy']);
+    run(pet, .2);
+    pet.act('nod');
+    run(pet, .3);
+    expect(pet.pet._fname).toBe('surprised+happy');
+    pet.act('wave');
+    run(pet, .3);
+    expect(pet.pet._fname).toBe('surprised+happy');
+    pet.act('read');
+    run(pet, .3);
+    expect(pet.pet._fname).toBe('surprised+happy+reading');
+    expect(pet.pet._fc.parts).toEqual({ eyes: 'surprised', brows: 'surprised', mouth: 'happy', body: 'reading' });
+    expect(pet.pet._fc.gap).toEqual(FACES.happy.f(0).gap);
+    const singer = paired();
+    singer.doGroup(['surprised', 'happy']);
+    singer.act('song');
+    run(singer, .5);
+    expect(singer.pet._fname).toBe('surprised+singing+singing');
+    expect(singer.pet._fc.parts.eyes).toBe('surprised');
+    singer.act('sleep');
+    expect(singer.pet.expr).toBe(null);
+    const plain = paired();
+    plain.doGroup(['surprised', 'happy']);
+    run(plain, .2);
+    plain.setExpr('neutral');
+    run(plain, .2);
+    expect(plain.pet._fname).toBe('neutral');
+  });
+
+  it('waits under a cover like any asked-for face', () => {
+    const pet = paired();
+    pet.doGroup(['surprised', 'happy']);
+    run(pet, .5);
+    pet.setListening(true);
+    run(pet, 1);
+    expect(pet.pet._fname).toBe('listening');
+    pet.setListening(false);
+    let t = 0;
+    while (t < 8) { run(pet, 1 / 60); if (pet.pet._fname !== 'surprised+happy') break; t += 1 / 60; }
+    expect(t).toBeGreaterThan(2.6);
+    expect(t).toBeLessThan(2.8);
+  });
+
+  it("sounds, glints and bounces as its eyes' face (else the mouth's tone), and lasts as long as either would", () => {
+    const pet = paired();
+    pet.doGroup(['surprised', 'happy']);
+    expect(pet.heard.filter(([, k]) => k === 'face')).toEqual([['surprised', 'face']]);
+    expect(pet.pet.sqv).toBeLessThan(0);
+    expect(pet.pet.exprUntil - pet.time).toBeCloseTo(3.2, 5);
+    run(pet, .2);
+    expect(glintsIn(pet)).toBe(0);
+    for (const ws of [['sleepy', 'gentle'], ['gentle', 'sleepy']]) {
+      const sleepy = paired();
+      sleepy.doGroup(ws);
+      expect(sleepy.heard.filter(([, k]) => k === 'face'), ws.join()).toEqual([[ws[0] === 'sleepy' ? 'yawn' : 'soft', 'face']]);
+      expect(sleepy.pet.exprUntil - sleepy.time, ws.join()).toBeCloseTo(4.4, 5);
+    }
+    // thinking has no tone of its own: the mouth's plays
+    const thinking = paired();
+    thinking.doGroup(['thinking', 'happy']);
+    expect(thinking.heard.filter(([, k]) => k === 'face')).toEqual([['happy', 'face']]);
+    // happy eyes glint twice, smug eyes once, as those faces do
+    for (const [ws, n] of [[['happy', 'sad'], 2], [['smug', 'sad'], 1], [['sad', 'happy'], 0]]) {
+      const g = paired();
+      g.doGroup(ws);
+      run(g, .1);
+      expect(glintsIn(g), ws.join()).toBe(n);
+    }
+  });
+
+  it("a pack's own face and a face made of parts give their eyes or their mouth like any other", () => {
+    const pet = paired({ words: { grin: { expression: { like: 'happy', sound: 'pop' } } } });
+    pet.doGroup(['grin', 'surprised']);
+    expect(pet.heard.filter(([, k]) => k === 'face')).toEqual([['pop', 'face']]);
+    run(pet, .2);
+    expect(pet.pet._fname).toBe('grin+surprised');
+    expect(pet.pet._fc.parts).toMatchObject({ eyes: 'happy', mouth: 'surprised' });
+    pet.doGroup(['surprised', 'grin']);
+    run(pet, .2);
+    expect(pet.pet._fc.parts).toMatchObject({ eyes: 'surprised', mouth: 'happy' });
+    const mix = paired();
+    mix.doGroup(['smirk', 'cry']);
+    run(mix, .2);
+    expect(mix.pet._fc.parts).toMatchObject({ eyes: PLUS_MIXES.smirk.eyes, mouth: 'cry' });
+  });
+
+  it('is no word, but setExpr shows it', () => {
+    const pet = paired();
+    expect(pet.doWord('surprised+happy')).toBe(false);
+    pet.setExpr('surprised+happy');
+    run(pet, .2);
+    expect(pet.pet._fname).toBe('surprised+happy');
+    expect(pet.pet._fc.parts.mouth).toBe('happy');
+  });
+
+  it('every two plain faces (26), either way round, make a face of the first one\'s eyes and the second one\'s mouth, and no stone', () => {
+    expect(PLAIN.length).toBe(26);
+    for (const n of PLAIN) expect(PLUS_FACES[n] ?? FACES[n], n).toBeDefined();
+    const pet = barePet();
+    run(pet, 1);
+    let n = 0;
+    for (const eyes of PLAIN) {
+      for (const mouth of PLAIN) {
+        if (eyes === mouth) continue;
+        n++;
+        expect(pet.doGroup([eyes, mouth]), `${eyes}+${mouth}`).toEqual([true, true]);
+        run(pet, 1 / 30);
+        expect(pet.pet._fname, `${eyes}+${mouth}`).toBe(`${eyes}+${mouth}`);
+        const fc = pet.pet._fc;
+        expect(fc.parts, `${eyes}+${mouth}`).toEqual({ eyes, brows: eyes, mouth, body: eyes });
+        expect(fc.gap, `${eyes}+${mouth}`).toBeDefined();
+        for (const k of ['stone', 'crack', 'freeze']) expect(fc[k], `${eyes}+${mouth}.${k}`).toBeUndefined();
+        pet.setExpr('neutral', .01);
+        run(pet, 1 / 30);
+      }
+    }
+    expect(n).toBe(650);
+  });
+
+  it("the built-in figures' pairs: the World sends each as its manifest says, and the kit shows those eyes and that mouth (the three girls the same)", () => {
+    const maps = {};
+    const mixes = new Set(Object.values(PLUS_MIXES).map((d) => `${d.eyes}+${d.mouth}`));
+    for (const p of ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']) {
+      const m = readManifest(new URL(`web/${p}/`, PKG).pathname, true);
+      expect(typeof m, p).toBe('object');
+      maps[p] = m.pairs;
+      const pet = barePet();
+      run(pet, 1);
+      for (const [k, v] of Object.entries(m.pairs)) {
+        const [a, b] = k.split('~');
+        if ('as' in v) {
+          const mix = PLUS_MIXES[v.as];
+          expect(mix, `${p} ${k}`).toBeDefined();
+          expect([mix.eyes, mix.mouth].sort(), `${p} ${k}`).toEqual([a, b].sort());
+          continue;
+        }
+        // plain faces only, and none a mix's eyes and mouth (that pair is listed as the mix)
+        expect(PLAIN, `${p} ${k}`).toContain(v.eyes);
+        expect(PLAIN, `${p} ${k}`).toContain(v.mouth);
+        expect(mixes.has(`${v.eyes}+${v.mouth}`), `${p} ${k}`).toBe(false);
+        for (const ws of [[a, b], [b, a]]) {
+          const { actions, notes } = parseActions([ws.join('+')], m.vocab, m.pairs);
+          expect(actions, `${p} ${ws}`).toEqual([`${v.eyes}+${v.mouth}`]);
+          expect(notes[0], `${p} ${ws}`).toMatch(/合成了一张脸/);
+          pet.doGroup(actions[0].split('+'));
+          run(pet, 1 / 30);
+          expect(pet.pet._fc.parts, `${p} ${ws}`).toMatchObject({ eyes: v.eyes, mouth: v.mouth });
+          pet.setExpr('neutral', .01);
+          run(pet, 1 / 30);
+        }
+      }
+    }
+    expect(maps['gpt-chan']).toEqual(maps['claude-chan']);
+    expect(maps['gemini-chan']).toEqual(maps['claude-chan']);
+    // the whitelists as judged: Coo the fewest, the girls the most
+    expect(Object.keys(maps.coo).length).toBe(24);
+    expect(Object.keys(maps.whale).length).toBe(81);
+    expect(Object.keys(maps['claude-chan']).length).toBe(118);
+  });
+});
+
+describe("a face in a group lasts as long as the group's gestures (plus)", () => {
+  /** The face names shown, frame by frame, for `seconds` from now. */
+  const names = (pet, seconds) => { const out = []; for (let i = 0; i < seconds * 60; i++) { run(pet, 1 / 60); out.push(pet.pet._fname); } return out; };
+  const fresh = (opts) => { const pet = barePet(undefined, opts); run(pet, 1); return pet; };
+
+  it('a song, a book or a cup in the group: the asked face shows to the end of its own face, never the gesture\'s after it', () => {
+    const song = fresh();
+    song.doGroup(['song', 'smirk']);
+    run(song, 3.5);
+    expect(song.pet._fname).toBe('smirk+singing+singing');
+    run(song, .5);
+    expect(song.pet._fname).toBe('smirk+singing+singing');
+    run(song, .3);
+    expect(song.pet._fname).not.toMatch(/singing/);
+    const read = fresh();
+    read.doGroup(['read', 'angry']);
+    run(read, 4.2);
+    expect(read.pet._fname).toBe('angry+angry+reading');
+    const sip = fresh();
+    sip.doGroup(['sip', 'happy']);
+    run(sip, 3.6);
+    expect(sip.pet._fc.parts?.eyes ?? sip.pet._fname).toBe('happy');
+    expect(sip.pet.exprAsked).toBe(true);
+    for (const g of ['song', 'read', 'sip', 'serve', 'stretch', 'hug', 'cross', 'away', 'dance', 'sigh', 'cover']) {
+      const pet = fresh();
+      pet.doGroup([g, 'angry']);
+      const seen = names(pet, 6);
+      const last = seen.findLastIndex((n) => n.split('+')[0] === 'angry');
+      expect(last, g).toBeGreaterThan(3.1 * 60);
+      expect(seen.slice(0, last + 1).every((n) => n.split('+')[0] === 'angry'), g).toBe(true);
+      expect(seen.slice(last + 1).every((n) => n === 'neutral'), `${g}: ${[...new Set(seen.slice(last + 1))]}`).toBe(true);
+    }
+  });
+
+  it('a dance in the group: the face outlasts the dance\'s own happy face', () => {
+    const pet = fresh();
+    pet.doGroup(['dance', 'angry']);
+    run(pet, 3.3);
+    expect(pet.pet.exprAsked).toBe(true);
+    expect(pet.pet._fname).toBe('angry');
+  });
+
+  it('a walk or a look in the group does not stretch it', () => {
+    const walk = fresh();
+    const t0 = walk.time;
+    walk.doGroup(['walk', 'happy']);
+    expect(walk.pet.exprUntil - t0).toBeCloseTo(3.2, 5);
+    const look = fresh();
+    look.doGroup(['look', 'confused']);
+    expect(look.pet.exprUntil - look.time).toBeCloseTo(3.2, 5);
+  });
+
+  it('lasts as long as the face asked for and then the gesture done one after the other; a face asked mid-gesture is unchanged', () => {
+    const group = fresh(), seq = fresh();
+    group.doGroup(['song', 'smirk']);
+    seq.setExpr('smirk');
+    seq.act('song');
+    expect(group.time).toBe(seq.time);
+    expect(group.pet.exprUntil).toBeCloseTo(seq.pet.exprUntil, 9);
+    expect(group.pet.nextAt).toBeCloseTo(seq.pet.nextAt, 9);
+    // the gesture first and the face after, not in a group: the song's own face comes back for the rest of it
+    const after = fresh();
+    after.act('song');
+    after.setExpr('smirk');
+    run(after, 3.5);
+    expect(after.pet._fname).toBe('singing');
+  });
+
+  it('two faces composed in a group with a song last through the song', () => {
+    const pet = fresh();
+    pet.doGroup(['song', 'surprised', 'happy']);
+    run(pet, 4);
+    expect(pet.pet._fname).toBe('surprised+singing+singing');
+    run(pet, .3);
+    expect(pet.pet._fname).toBe('neutral');
   });
 });

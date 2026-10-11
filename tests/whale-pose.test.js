@@ -2,7 +2,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
 import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { createPet, FACES, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 
 // the whale's own figure.js runs below without WebGL: its rig keeps the last frame's deformer states for the tests
@@ -1024,6 +1025,20 @@ describe('a face and a gesture at once, as the whale draws them', () => {
         expect(eyesOf(all), n).toEqual(eyesOf(paint(kitFace(d.eyes).f(t, p), frame({ face: d.eyes, t }))));
         expect(mouthOf(all), n).toEqual(mouthOf(paint(kitFace(d.mouth).f(t, p), frame({ face: d.mouth, t }))));
       }
+      // two faces of one group shown as one (`eyes+mouth`, the face a plus kit composes of them): test samples, and every
+      // pair her manifest composes
+      const listed = Object.values(readManifest(new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url).pathname, true).pairs)
+        .filter((v) => !('as' in v));
+      const pairs = [{ eyes: 'surprised', mouth: 'happy' }, { eyes: 'smug', mouth: 'coax' }, ...listed];
+      for (const d of pairs) {
+        const k = `${d.eyes}+${d.mouth}`;
+        const all = paint(mixFace(d, n => kitFace(n) ?? FACES.neutral).f(t, p), frame({ face: k, t }));
+        expect(all.every(Boolean), k).toBe(true);
+        expect(eyesOf(all), k).toEqual(eyesOf(paint(kitFace(d.eyes).f(t, p), frame({ face: d.eyes, t }))));
+        expect(mouthOf(all), k).toEqual(mouthOf(paint(kitFace(d.mouth).f(t, p), frame({ face: d.mouth, t }))));
+      }
+      expect(eyesOf(paint(mixFace(pairs[0], kitFace).f(t, p), frame({ face: 'surprised+happy', t })))).toContain('surprised_eyeL.png');
+      expect(mouthOf(paint(mixFace(pairs[0], kitFace).f(t, p), frame({ face: 'surprised+happy', t })))).toContain('happy_mouth.png');
     } finally { globalThis.document = doc; }
   });
 

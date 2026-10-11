@@ -8,7 +8,12 @@
  * the pack's own (walking, falling, faces, drawing; most packs build it on the kit, `web/kit/body.js`).
  * What the World and the pages need without running it is in the manifest: names, the dress-up axes
  * and presets, what the bot is told the body looks like, the words it does (`vocab`, the whole of the
- * bot's vocabulary while it is on), its own sound files, and whether it walks.
+ * bot's vocabulary while it is on), its own sound files, and whether it walks. A pack may also list pairs of its
+ * expressions its body shows as one face when both are in one group (`pairs`: `"a+b": "eyes+mouth"` for a face the
+ * body composes, or `"a+b": "<expression>"` for one of its words); the World keeps such a pair in one group only for a
+ * pack that lists it, and sends a composed one eyes first, then mouth, which is how a plus kit body (doGroup) composes
+ * two faces of a group. A pack should list only what its body does (a composed pair on a body that cannot compose,
+ * such as one on upstream's kit, shows the second face alone).
  *
  * The embedding app names directories whose subdirectories are more packs (`packRoots`). A built-in
  * id wins over an installed pack with the same id, and `coo` is only ever the built-in one.
@@ -20,7 +25,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INLINE_TAG_MAX, type VocabWord } from './script.ts';
+import { INLINE_TAG_MAX, pairKey, type PairFace, type Pairs, type VocabWord } from './script.ts';
 
 export const MANIFEST_FILE = 'figure.json';
 /** The manifest version this World reads, and the figure frame's contract (`web/figure-frame.js`). */
@@ -107,6 +112,8 @@ export interface FigureManifest {
   presets: FigurePreset[];
   /** The words the bot may use while this body is on: every expression and motion it does. */
   vocab: VocabWord[];
+  /** Pairs of its expressions it shows as one face when both are in one group (script.ts PairFace); none by default. */
+  pairs: Pairs;
   /** Its own sound files by name; the body asks for them, the page plays them. */
   sounds: Record<string, PackSound>;
   /** `walk`: whether it goes where it is told (`pet_walk_to`). */
@@ -161,6 +168,33 @@ function readVocab(raw: unknown): VocabWord[] | string {
     if (!about) return `vocab.${id}.about 缺失`;
     if (typeof w.seconds !== 'number' || !(w.seconds > 0) || !Number.isFinite(w.seconds)) return `vocab.${id}.seconds 应为正数`;
     out.push({ id, kind: w.kind as VocabWord['kind'], names, about, seconds: w.seconds, ...(w.lasting === true ? { lasting: true } : {}) });
+  }
+  return out;
+}
+
+/** Expressions that are never one of a pair: a plain face with no look of its own, and stone. */
+const UNPAIRED = new Set(['neutral', 'petrify']);
+/**
+ * The pairs in `raw` (figure.json `pairs`: { "a+b": "eyes+mouth" | "<expression id>" }), checked against the
+ * vocabulary; a string says what is wrong. `a` and `b` are two different expressions, neither neutral nor petrify;
+ * the value names them both (which gives the eyes, which the mouth), or another expression the pair is shown as.
+ */
+function readPairs(raw: unknown, vocab: readonly VocabWord[]): Record<string, PairFace> | string {
+  if (raw === undefined) return {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'pairs 应为对象';
+  const faces = new Set(vocab.filter((v) => v.kind === 'expression' && !UNPAIRED.has(v.id)).map((v) => v.id));
+  const out: Record<string, PairFace> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const ids = k.split('+');
+    if (ids.length !== 2 || ids[0] === ids[1] || !ids.every((id) => faces.has(id))) return `pairs 里有不合法的一项:${JSON.stringify(k)}`;
+    const key = pairKey(ids[0], ids[1]);
+    if (Object.hasOwn(out, key)) return `pairs 里 ${k} 写了不止一次`;
+    const bad = `pairs.${k} 不合法:${JSON.stringify(v)}`;
+    if (typeof v !== 'string') return bad;
+    const parts = v.split('+');
+    if (parts.length === 2 && parts[0] !== parts[1] && parts.every((p) => ids.includes(p))) out[key] = { eyes: parts[0], mouth: parts[1] };
+    else if (parts.length === 1 && faces.has(v) && !ids.includes(v)) out[key] = { as: v };
+    else return bad;
   }
   return out;
 }
@@ -226,13 +260,15 @@ export function readManifest(dir: string, builtin = false, missing: string[] = [
   }
   const vocab = readVocab(raw.vocab);
   if (typeof vocab === 'string') return vocab;
+  const pairs = readPairs(raw.pairs, vocab);
+  if (typeof pairs === 'string') return pairs;
   const sounds = readSounds(raw.sounds, dir, missing);
   if (typeof sounds === 'string') return sounds;
   const can = (raw.can ?? {}) as Record<string, unknown>;
   if (can.walk !== undefined && typeof can.walk !== 'boolean') return 'can.walk 应为 true 或 false';
   return {
     manifest: MANIFEST_VERSION, api: FIGURE_API, id: raw.id, version: typeof raw.version === 'string' ? raw.version : '0.0.0',
-    name, about, entry: raw.entry, export: raw.export, axes, presets, vocab, sounds, can: { walk: can.walk !== false },
+    name, about, entry: raw.entry, export: raw.export, axes, presets, vocab, pairs, sounds, can: { walk: can.walk !== false },
     ...(typeof raw.author === 'string' ? { author: raw.author } : {}),
     ...(typeof raw.license === 'string' ? { license: raw.license } : {}),
     ...(Array.isArray(raw.credits) ? { credits: raw.credits as FigureManifest['credits'] } : {}),

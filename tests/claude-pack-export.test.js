@@ -36,6 +36,8 @@ function writePack(m) {
 describe('exported Claude-chan pack', () => {
   it('credits her design in its README exactly as the manifest does', async () => {
     const m = await buildManifest({ upstreamTones });
+    // expressions shown as one face in one group are ours alone: upstream's World has no groups
+    expect('pairs' in m).toBe(false);
     const readme = packReadme(m, []);
     expect(m.credits[0].name).toBe('ZipZipPipe（Bilibili）');
     expect(readme).toContain(`角色设定是 ${m.credits[0].name}`);

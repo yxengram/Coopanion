@@ -173,7 +173,9 @@ export function packExporter(d) {
 
   /**
    * The pack's figure.json: the built-in's, renamed, with the pack's own entry, licence and sounds.
-   * `volumes`: name → manifest volume from the render (left out = 1).
+   * `volumes`: name → manifest volume from the render (left out = 1). Fields are copied by name: the built-in's
+   * `pairs` (expressions shown as one face in one group) is left out, since upstream's World has no groups, and an
+   * installed copy here is shown as the built-in anyway.
    */
   async function buildManifest({ upstreamTones, volumes = {}, version } = {}) {
     const base = readJson(join(FIG, 'figure.json'));

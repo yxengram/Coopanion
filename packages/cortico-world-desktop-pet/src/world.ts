@@ -35,7 +35,7 @@ import { Packer, Segmenter, rmsDb, type SegmentConfig, type SegmentSink, type Ut
 import { comboLabel, hotkeyBadge, hotkeyLabel, parseHotkey, splitTaps, watchHotkey, type KeyWatcher } from './asr/hotkey.ts';
 import { joinSpeech, looksHallucinated } from './asr/result.ts';
 import { toSimplified } from './asr/simplify.ts';
-import { estimateSeconds, lastingNote, membersOf, parseActions, parseScript, vocabTable, type VocabWord } from './script.ts';
+import { estimateSeconds, lastingNote, membersOf, parseActions, parseScript, vocabTable, type Pairs, type VocabWord } from './script.ts';
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack } from './packs.ts';
@@ -349,6 +349,10 @@ export class DesktopPetWorld implements World {
   /** The words the body on screen does. */
   private vocab() {
     return this.currentPack()?.manifest.vocab ?? [];
+  }
+  /** The pairs of expressions the body on screen shows as one face when both are in one group (its pack's `pairs`). */
+  private pairs(): Pairs {
+    return this.currentPack()?.manifest.pairs ?? {};
   }
 
   /** What the body looks like now, with its picked options and the words it does not do. */
@@ -823,7 +827,7 @@ export class DesktopPetWorld implements World {
    */
   dialog(d: PetDialog): PetDialogHandle {
     const id = nextId('d');
-    const { actions, dropped, notes } = parseActions(d.actions ?? [], this.vocab());
+    const { actions, dropped, notes } = parseActions(d.actions ?? [], this.vocab(), this.pairs());
     if (dropped.length) this.log?.warn(`气泡对话里有当前形象的词表没有的词,已略过:${dropped.join('、')}`);
     if (notes.length) this.log?.info(`气泡对话的动作:${notes.join('')}`);
     let settle: (a: PetDialogAnswer) => void = () => {};
@@ -1295,7 +1299,7 @@ export class DesktopPetWorld implements World {
 
   private async say(args: Record<string, unknown>): Promise<ToolOutcome> {
     const script = typeof args.script === 'string' ? args.script : '';
-    const { beats, dropped, notes } = parseScript(script, this.vocab());
+    const { beats, dropped, notes } = parseScript(script, this.vocab(), this.pairs());
     if (!beats.some((b) => b.text || b.actions.length || b.anchors.length)) {
       return { text: '[pet_say 没执行] 脚本是空的。不想说话就不调用。', failed: true };
     }
@@ -1426,7 +1430,7 @@ export class DesktopPetWorld implements World {
   private async act(args: Record<string, unknown>): Promise<ToolOutcome> {
     const list = Array.isArray(args.actions) ? args.actions : typeof args.actions === 'string' ? [args.actions] : [];
     const vocab = this.vocab();
-    const { actions, dropped, notes } = parseActions(list, vocab);
+    const { actions, dropped, notes } = parseActions(list, vocab, this.pairs());
     if (!actions.length) return { text: `[pet_act 没执行] 当前形象的词表里没有这些动作${dropped.length ? `(${dropped.join('、')})` : ''}。`, failed: true };
     if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions })) return this.notConnected('pet_act');
     const lasting = membersOf(actions).filter((a) => vocab.find((v) => v.id === a)?.lasting);
@@ -1441,7 +1445,7 @@ export class DesktopPetWorld implements World {
   envPromptVars(): Record<string, string> {
     return {
       'pet.user': this.cfg.user,
-      'pet.vocab': vocabTable(this.vocab()),
+      'pet.vocab': vocabTable(this.vocab(), 'zh', this.pairs()),
       'pet.voice': this.cfg.asr.enabled ? '开着' : '关着',
       'pet.body': this.bodyText(this.currentPack()),
       'pet.dress': dressTable(this.packs()),
@@ -1490,7 +1494,7 @@ export class DesktopPetWorld implements World {
         role: 'envPrompt',
         vars: [
           { name: 'pet.user', description: '对使用者的称呼' },
-          { name: 'pet.vocab', description: '当前形象的表情与动作词表', multiline: true },
+          { name: 'pet.vocab', description: '当前形象的表情与动作词表(开头一句用这些词写的例子)', multiline: true },
           { name: 'pet.voice', description: '语音输入开着还是关着' },
           { name: 'pet.body', description: '当前形象的样子' },
           { name: 'pet.dress', description: 'pet_set 能选的形象与打扮', multiline: true },

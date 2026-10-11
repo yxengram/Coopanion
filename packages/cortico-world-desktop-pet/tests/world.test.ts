@@ -7,6 +7,7 @@ import { dryMountWorld } from 'cortico/extensions/dry-mount.ts';
 import { DESKTOP_PET } from '../src/definition.ts';
 import { DESKTOP_PET_DEFAULTS, type DesktopPetConfigSection } from '../src/config.ts';
 import { DesktopPetWorld, type DesktopPetWorldOptions, type PetBotControls } from '../src/world.ts';
+import { INLINE_TAG_MAX } from '../src/script.ts';
 import { FakeHost } from './helpers/fake-host.ts';
 import { FakePage } from './helpers/page.ts';
 
@@ -210,12 +211,17 @@ describe('with a pet page', () => {
   it('tells the bot how to write words at once', () => {
     const { world } = makeWorld();
     const env = readFileSync(fileURLToPath(new URL('../src/ENV_PROMPT.md', import.meta.url)), 'utf8');
-    expect(env).toContain('| 词+词 |');
+    expect(env).toContain('| 【词+词】 |');
+    expect(env).toContain('用 + 连起来的词同时做,用逗号隔开的先后做');
+    expect(env).toContain(`最多 ${INLINE_TAG_MAX} 字,不跨行`);
     expect(env).toContain('石化除外');
-    expect(world.envPromptVars()['pet.vocab']).toContain('| nod | 点头');
-    const say = tool(world, 'pet_say');
-    expect(say.description).toContain('+');
-    expect(JSON.stringify(tool(world, 'pet_act').parameters)).toContain('同时做的用 + 连起来');
+    // the worked example comes right after the rule, before the words
+    expect(env.indexOf('{{pet.vocab}}') - env.indexOf('用逗号隔开的先后做')).toBeLessThan(400);
+    expect(world.envPromptVars()['pet.vocab']).toMatch(/^例:`【[^`]+\+[^`]+】/);
+    expect(world.envPromptVars()['pet.vocab']).toContain('- nod 点头:');
+    expect(JSON.stringify(tool(world, 'pet_say').parameters)).toContain('+ 连起来的词同时做,逗号隔开的先后做');
+    expect(JSON.stringify(tool(world, 'pet_say').parameters)).not.toContain('【表情,动作】');
+    expect(JSON.stringify(tool(world, 'pet_act').parameters)).toContain('同时做的几个词用 + 连起来');
   });
 
   it('takes the words of the body on screen: a pack\'s own, and Coo\'s once the page says the pack would not run', async () => {
@@ -234,6 +240,68 @@ describe('with a pet page', () => {
     page.send({ t: 'figure', id: 'robot', ok: false, reason: 'broken' });
     await expect.poll(async () => (await act({ actions: ['坐下'] }, ctx) as { failed?: boolean }).failed).toBeUndefined();
     expect((await page.next((m) => m.t === 'act')).actions).toEqual(['sit']);
+  });
+
+  it('keeps two expressions of one group together for a figure that shows them as one face, says so, and tells the bot', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'packs-'));
+    const coo = JSON.parse(readFileSync(fileURLToPath(new URL('../web/coo/figure.json', import.meta.url)), 'utf8'));
+    mkdirSync(join(root, 'paired'));
+    writeFileSync(join(root, 'paired', 'figure.json'), JSON.stringify({ ...coo, id: 'paired', pairs: { 'happy+surprised': 'surprised+happy', 'smug+happy': 'smirk' } }));
+    const { world } = await mounted((c) => { c.skin.figure = 'paired'; }, { packRoots: () => [root] });
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const out = await tool(world, 'pet_act').handler({ actions: ['开心+惊讶'] }, ctx) as { text: string };
+    // eyes first, as the manifest says: the body composes the first face's eyes with the second's mouth
+    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['surprised+happy']);
+    expect(out.text).toContain('开始依次做:surprised+happy。');
+    expect(out.text).toContain('[执行参数] 开心 和 惊讶 合成了一张脸:惊讶的眼睛,开心的嘴。');
+    const said = await tool(world, 'pet_say').handler({ script: '【得意+开心】好' }, ctx) as { text: string };
+    expect(((await page.next((m) => m.t === 'say')).beats as Array<{ actions: string[] }>)[0]!.actions).toEqual(['smirk']);
+    expect(said.text).toContain('得意 和 开心 合成了一张脸:坏笑。');
+    const vocab = world.envPromptVars()['pet.vocab'];
+    expect(vocab).toContain('- smirk 坏笑/贼笑(=开心+得意):');
+    expect(vocab).toContain('表情对(写在同一组里会合成一张脸,先写哪个都行;如【开心+惊讶】是惊讶的眼睛配开心的嘴):开心+惊讶\n');
+  });
+
+  it('splits two expressions of one group for a figure that lists no pairs', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'packs-'));
+    const { pairs: _, ...coo } = JSON.parse(readFileSync(fileURLToPath(new URL('../web/coo/figure.json', import.meta.url)), 'utf8'));
+    mkdirSync(join(root, 'unpaired'));
+    writeFileSync(join(root, 'unpaired', 'figure.json'), JSON.stringify({ ...coo, id: 'unpaired' }));
+    const { world } = await mounted((c) => { c.skin.figure = 'unpaired'; }, { packRoots: () => [root] });
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const out = await tool(world, 'pet_act').handler({ actions: ['开心+惊讶'] }, ctx) as { text: string };
+    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['happy', 'surprised']);
+    expect(out.text).toContain('[执行参数] 开心 和 惊讶 不能同时做,改成先后做。');
+    await tool(world, 'pet_say').handler({ script: '【得意+开心】好' }, ctx);
+    expect(((await page.next((m) => m.t === 'say')).beats as Array<{ actions: string[] }>).map((b) => b.actions)).toEqual([['smug', 'happy']]);
+    expect(world.envPromptVars()['pet.vocab']).not.toContain('合成一张脸');
+  });
+
+  it("built-in Coo merges only the pairs on its own list and tells the bot which", async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    // happy+surprised is a pair of the girls and the whale, not of Coo (no mouth to show it with)
+    const out = await tool(world, 'pet_act').handler({ actions: ['开心+惊讶'] }, ctx) as { text: string };
+    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['happy', 'surprised']);
+    expect(out.text).toContain('[执行参数] 开心 和 惊讶 不能同时做,改成先后做。');
+    const said = await tool(world, 'pet_say').handler({ script: '【得意+开心】好【开心+嘟嘴】呀【嘟嘴+开心】' }, ctx) as { text: string };
+    expect(((await page.next((m) => m.t === 'say')).beats as Array<{ actions: string[] }>).map((b) => b.actions))
+      .toEqual([['smirk'], ['happy+pout'], ['happy+pout']]);
+    expect(said.text).toContain('得意 和 开心 合成了一张脸:坏笑。');
+    expect(said.text).toContain('开心 和 嘟嘴 合成了一张脸:开心的眼睛,嘟嘴的嘴。');
+    expect(said.text).toContain('嘟嘴 和 开心 合成了一张脸:开心的眼睛,嘟嘴的嘴。');
+    const vocab = world.envPromptVars()['pet.vocab'];
+    expect(vocab).toContain('- bashful 腼腆/不好意思(=开心+害羞):');
+    expect(vocab).toContain('如【开心+嘟嘴】是开心的眼睛配嘟嘴的嘴):开心+嘟嘴、眨眼+嘟嘴、');
+    expect(vocab).not.toMatch(/开心\+惊讶|惊讶\+开心/);
+  });
+
+  it('tells the bot a face in a group lasts until the group\'s gestures are done', () => {
+    const env = readFileSync(fileURLToPath(new URL('../src/ENV_PROMPT.md', import.meta.url)), 'utf8');
+    expect(env).toContain('同一组里的表情至少持续到同组的手势做完。');
   });
 
   it('shows the built-in whale for a skin naming our whale exported as a pack', async () => {

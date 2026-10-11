@@ -43,6 +43,8 @@ describe('exported whale pack', () => {
 
   it('builds a manifest an upstream app accepts', async () => {
     const m = await buildManifest({ upstreamTones, volumes: { song: .05 } });
+    // expressions shown as one face in one group are ours alone: upstream's World has no groups
+    expect('pairs' in m).toBe(false);
     expect(m).toMatchObject({ manifest: 2, api: 2, id: PACK_ID, entry: 'whale/figure.js', export: 'createWhaleBody', model: 'model.json' });
     const builtinIds = BUILTIN_PACKS.map((b) => JSON.parse(readFileSync(join(b.dir, 'figure.json'), 'utf8')).id);
     expect(builtinIds).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);

@@ -10,6 +10,7 @@
  * motions in PLUS_EXPRESSIONS / PLUS_MOTIONS (a song, a spout, a roll, a cup of tea…; faces made of the eyes of
  * one and the mouth of another, PLUS_MIXES) with their particles (glints, rings of song, a bulb, chips of stone,
  * spray). Coo, the whale and the three girls ask for it; without it the body is the kit as any other pack knows it.
+ * Two faces in one group are one asked-for face, the first one's eyes and the second one's mouth (`eyes+mouth`).
  *
  * Coordinates: the figure is drawn in logo units, facing right, ground at y=256, inside a 256 square.
  * The stage places it with translate(AX AY) rotate(rot) scale(kx ky) translate(-ax -ay); `toStage`
@@ -360,7 +361,9 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  * A plus body's faces: an expression asked for (a word, or setExpr) outlives the motions that come after it (stone
  * does not, nor does falling asleep), waits under what covers it (carried, dizzy, asleep, listening: COVER_MAX at
  * most), and over a gesture whose own face is its body (a song, a sigh, reading…) becomes a face made of both, named
- * `asked+mouth+own` and carrying `parts` (see `mixFace`). `doGroup(words)` does several words in one frame.
+ * `asked+mouth+own` and carrying `parts` (see `mixFace`). `doGroup(words)` does several words in one frame; two faces
+ * in it are one asked-for face, `eyes+mouth` (the first one's eyes, the second one's mouth), and a face of the group
+ * lasts at least as long as the own faces its gestures set.
  * What a figure may declare for a plus body:
  * - `anchors.lie`: the anchors again for the lying pose (gaze, tear, z, hearts, bubble, glints, spout), plus `hit`
  *   ([cx, cy, rx, ry], the lying body's hit ellipse) and `halfW` (its half width), in logo units with the hips' sink in;
@@ -599,7 +602,9 @@ export function createPet(els, opts) {
     return true;
   }
   /** Whether `n`, an asked-for face still showing, is one a motion keeps (an expression, not stone). */
-  const keepsFace = n => n !== 'petrify' && (KIT_EXPRESSIONS.includes(n) || PLUS_EXPRESSIONS.includes(n) || !!words[n]?.expression);
+  const keepsFace = n => n !== 'petrify' && (KIT_EXPRESSIONS.includes(n) || PLUS_EXPRESSIONS.includes(n) || !!words[n]?.expression
+    // (plus) two faces of a group composed (doGroup): `eyes+mouth`
+    || (plus && typeof n === 'string' && n.includes('+') && n.split('+').every(keepsFace)));
   /** The plus body's own motions (act() has cleared the held face unless it was asked for). Returns false for a word it does not know. */
   function plusAct(a, seated) {
     switch (a) {
@@ -720,6 +725,11 @@ export function createPet(els, opts) {
     // (plus) a face no longer cuts a look round short (only a landing)
     if ((!plus && pet.mode === 'look') || pet.mode === 'land') setMode('idle');
     const own = words[n]?.expression;
+    // (plus) two faces composed (doGroup, `eyes+mouth`): sounded, bounced and glinting as its eyes' face (else the
+    // mouth's tone), as long as either one would last
+    const [pe, pm] = plus && !own && typeof n === 'string' && n.includes('+') ? n.split('+') : [];
+    const members = pe ? [pe, pm] : [n];
+    const toneOf = x => words[x]?.expression?.sound ?? FACE_TONES[x] ?? PLUS_FACE_TONES[x];
     if (plus && n === 'petrify' && !own) {
       // asked again while already stone, she stays as she is (starting over would flash her colour back)
       if (pet.expr === 'petrify' && T < pet.exprUntil) return;
@@ -729,14 +739,15 @@ export function createPet(els, opts) {
     }
     // (plus) a plain face asked for is plain: no motion's own face comes back after it
     if (plus && n === 'neutral') clearOwn();
-    pet.expr = n; pet.exprAt = T; pet.exprUntil = T + (seconds ?? own?.seconds ?? (n === 'sleepy' ? 4.4 : 3.2)); pet.exprOwn = false;
+    const lastOf = x => words[x]?.expression?.seconds ?? (x === 'sleepy' ? 4.4 : 3.2);
+    pet.expr = n; pet.exprAt = T; pet.exprUntil = T + (seconds ?? own?.seconds ?? Math.max(...members.map(lastOf))); pet.exprOwn = false;
     pet.exprAsked = plus && asked; pet.exprN++;
     pet.nextAt = Math.max(pet.nextAt, pet.exprUntil + .6);
-    pet.sqv += n === 'surprised' ? -2.2 : .8;
-    const tone = own?.sound ?? FACE_TONES[n] ?? (plus && !own ? PLUS_FACE_TONES[n] : undefined);
+    pet.sqv += (pe ?? n) === 'surprised' ? -2.2 : .8;
+    const tone = own?.sound ?? FACE_TONES[n] ?? (plus && !own ? PLUS_FACE_TONES[n] ?? (pe ? toneOf(pe) ?? toneOf(pm) : undefined) : undefined);
     if (tone) play(tone, 'face');
     if (n === 'love') for (let i = 0; i < 4; i++) emitHeart();
-    const glints = !plus ? 0 : n === 'happy' ? 2 : n === 'smug' ? 1 : (!words[n] && PLUS_MIXES[n]?.glint) || 0;
+    const g = pe ?? n, glints = !plus ? 0 : g === 'happy' ? 2 : g === 'smug' ? 1 : (!words[g] && PLUS_MIXES[g]?.glint) || 0;
     if (glints) emitGlint(glints);
   }
 
@@ -765,21 +776,38 @@ export function createPet(els, opts) {
     return false;
   }
 
+  /** (plus) Whether word `w` is a face (the kit's, the plus body's, or one of the pack's own). */
+  const isFace = w => KIT_EXPRESSIONS.includes(w) || PLUS_EXPRESSIONS.includes(w) || !!words[w]?.expression;
   /** (plus) Where a word goes in a group: posture and mode first, then arm and head gestures, then what leaves her busy, then the face. */
-  const groupRank = w => (KIT_EXPRESSIONS.includes(w) || PLUS_EXPRESSIONS.includes(w) || words[w]?.expression ? 4
-    : BUSY_WORDS.has(w) ? 3 : HEAD_GESTURES.has(w) ? 2 : MODE_WORDS.has(w) ? 0 : 1);
+  const groupRank = w => (isFace(w) ? 4 : BUSY_WORDS.has(w) ? 3 : HEAD_GESTURES.has(w) ? 2 : MODE_WORDS.has(w) ? 0 : 1);
+  /** (plus) Whether word `w` is a face two of which in a group make one (any face but the plain one and stone). */
+  const composes = w => w !== 'neutral' && w !== 'petrify' && isFace(w);
   /**
    * (plus) Does the words of a group in one frame, in that order (a mode word after a gesture would cut a song, an away or
    * a roll short; what leaves her busy comes late so a stance gesture's stand-up does not cancel its crouch; the face last,
-   * asked for, over the gestures' own faces). Returns what each did (doWord's answers, in the order given); all false
-   * when she is busy to begin with.
+   * asked for, over the gestures' own faces). The first two faces of the group (neither neutral nor stone) are one face,
+   * `eyes+mouth`: the first one's eyes, the second one's mouth (the World sends a pair its figure.json lists eyes first),
+   * asked for after any other face of the group. A face of the group lasts at least as long as the own faces its
+   * gestures set (a song, a book, a cup, a dance), so the gesture's own face does not come back at its end. Returns
+   * what each did (doWord's answers, in the order given); all false when she is busy to begin with.
    */
   function doGroup(ws) {
     if (busy()) return ws.map(() => false);
-    const out = [];
+    // the first two faces, in the order given, are one asked-for face, done after any other face of the group (a
+    // stray third face cannot replace it)
+    const [fi, fj] = ws.flatMap((w, i) => (composes(w) && ws.indexOf(w) === i ? [i] : []));
+    const pair = fj === undefined ? null : { i: fi, j: fj, k: `${ws[fi]}+${ws[fj]}` };
+    const rank = (w, i) => (pair && (i === pair.i || i === pair.j) ? 5 : groupRank(w));
+    const out = [], before = { ...pet.own };
     grouped = true;
     try {
-      for (const [w, i] of ws.map((x, j) => [x, j]).sort((a, b) => groupRank(a[0]) - groupRank(b[0]) || a[1] - b[1])) out[i] = doWord(w);
+      for (const [w, i] of ws.map((x, j) => [x, j]).sort((a, b) => rank(...a) - rank(...b) || a[1] - b[1])) {
+        if (pair && i === pair.j) continue;
+        if (pair && i === pair.i) { setExpr(pair.k); out[i] = out[pair.j] = true; } else out[i] = doWord(w);
+      }
+      // a face of the group lasts at least as long as the own faces its gestures set (a song, a book, a dance)
+      const end = Math.max(0, ...['arm', 'head', 'body'].map(c => (pet.own[c] && pet.own[c] !== before[c] ? pet.own[c].until : 0)));
+      if (askedNow() && end > pet.exprUntil) { pet.exprUntil = end; pet.nextAt = Math.max(pet.nextAt, end + .6); }
     } finally { grouped = false; }
     return out;
   }
@@ -819,8 +847,9 @@ export function createPet(els, opts) {
     if (pet.expr && T < pet.exprUntil) {
       // (plus) under an asked-for face, a gesture whose own face is its body keeps that body (and a song or a sigh its
       // mouth): the face is made of the asked one's eyes, that mouth and the gesture's body (never over stone)
+      // (a face composed in a group, `eyes+mouth`, keeps its mouth unless the gesture brings one)
       const o = askedNow() && keepsFace(pet.expr) ? topOwn(n => n in BODY_OWN) : null;
-      if (o) return `${pet.expr}+${BODY_OWN[o.n] ? o.n : pet.expr}+${o.n}`;
+      if (o) { const [e, m = e] = pet.expr.split('+'); return `${e}+${BODY_OWN[o.n] ? o.n : m}+${o.n}`; }
       return pet.expr;
     }
     if (pet.thinking) return 'thinking';

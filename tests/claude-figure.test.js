@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import {
   anchorsOf, approach, ARM_BOTH, BODY_CUT, bodyAlphas, bodyStep, bodyWant, bowPose, SIT_CUT, ARM_FALLBACK, ARM_ONE, armPlan, BACK_HAIR_REACH, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
   feetFromLegs, fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, SIT_LOW, sitAnchors, sitMix, sitRaise,
@@ -172,9 +173,9 @@ function stubFigure(model, can = true, without = []) {
   };
   return { fig, motion, R, seen };
 }
-function barePet(fig) {
+function barePet(fig, opts = {}) {
   const el = () => ({ setAttribute() {}, innerHTML: '' });
-  const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', bounds: BOUNDS });
+  const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', bounds: BOUNDS, ...opts });
   pet.resize();
   return pet;
 }
@@ -979,10 +980,10 @@ describe('Claude-chan: a head gesture beside the arms\' one, kneeling, and faces
   /** One frame on a fresh motion. */
   const once = (o, fc = FACES[o.face]?.f(0) ?? FACES.neutral.f(0)) => createMotion(real, R0).step(fc, o, 1 / 60, caps);
   /** The pet with the figure on it, keeping the last frame's face and frame. */
-  function watched() {
+  function watched(opts = {}) {
     const s = stubFigure(real), draw = s.fig.draw, seen = { ...s, fc: null, o: null };
     s.fig.draw = (g, fc, o) => { seen.fc = fc; seen.o = o; draw(g, fc, o); };
-    seen.pet = barePet(s.fig);
+    seen.pet = barePet(s.fig, opts);
     return seen;
   }
 
@@ -1126,6 +1127,30 @@ describe('Claude-chan: a head gesture beside the arms\' one, kneeling, and faces
       const eyes = planFace(kitFace(d.eyes).f(o.t, p), d.eyes, o, o.t, has), mouth = planFace(kitFace(d.mouth).f(o.t, p), d.mouth, o, o.t, has);
       expect(plan.eyes.map(shown), n).toEqual(eyes.eyes.map(shown));
       expect(shown(plan.mouth), n).toEqual(shown(mouth.mouth));
+    }
+  });
+  it('draws two faces of one group shown as one (`eyes+mouth`: test samples, and every pair her manifest composes, as the World sends it) from her own art', () => {
+    const listed = Object.values(readManifest(DIR.pathname, true).pairs).filter((v) => !('as' in v));
+    const table = [{ eyes: 'surprised', mouth: 'happy' }, { eyes: 'smug', mouth: 'coax' }, ...listed];
+    const w = watched();
+    run(w.pet, .5);
+    const kitFace = n => PLUS_FACES[n] ?? FACES[n];
+    const shown = p => (p.kind === 'sprite' ? p.name : p.kind);
+    for (const d of table) {
+      const k = `${d.eyes}+${d.mouth}`;
+      expect(w.pet.doGroup([d.eyes, d.mouth]), k).toEqual([true, true]);
+      run(w.pet, .4);
+      expect(w.o.face, k).toBe(k);
+      expect(w.fc.parts, k).toEqual({ eyes: d.eyes, brows: d.eyes, mouth: d.mouth, body: d.eyes });
+      const o = { ...w.o, blink: 0, eyeClose: 0, talk: 0 }, p = w.pet.pet;
+      const plan = planFace(w.fc, k, o, o.t, has);
+      for (const e of plan.eyes) expect(e.kind, k).not.toBe('stroke');
+      for (const e of [...plan.eyes, plan.mouth]) if (e.kind === 'sprite') expect(sprites.has(e.name), `${k}: ${e.name}`).toBe(true);
+      const eyes = planFace(kitFace(d.eyes).f(o.t, p), d.eyes, o, o.t, has), mouth = planFace(kitFace(d.mouth).f(o.t, p), d.mouth, o, o.t, has);
+      expect(plan.eyes.map(shown), k).toEqual(eyes.eyes.map(shown));
+      expect(shown(plan.mouth), k).toEqual(shown(mouth.mouth));
+      w.pet.setExpr('neutral', .01);
+      run(w.pet, .2);
     }
   });
 });

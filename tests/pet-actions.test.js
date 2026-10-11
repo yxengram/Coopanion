@@ -2127,17 +2127,7 @@ describe('a group of words through the page and the frame', () => {
   });
 
   it("a body without doAll gets a group's words one by one, each it turns down tried again for up to 2 s", async () => {
-    const { pathToFileURL } = await import('node:url');
-    const { mkdtempSync, writeFileSync } = await import('node:fs');
-    const { tmpdir } = await import('node:os');
-    const { join } = await import('node:path');
-    // a body that turns words down while "busy", and one word (fly) always
-    const dir = mkdtempSync(join(tmpdir(), 'frame-body-'));
-    writeFileSync(join(dir, 'body.mjs'), `export function make() {
-      const b = { busy: true, did: [], step() {}, layout: () => ({}), do(w) { if (b.busy || w === 'fly') return false; b.did.push(w); return true; } };
-      globalThis.__frameBody = b;
-      return b;
-    }`);
+    // a body that turns words down while "busy", and one word (fly) always (an in-repo module: vitest loads it like any other)
     const handlers = [], posted = [];
     const saved = ['document', 'addEventListener', 'parent'].map((k) => [k, Object.getOwnPropertyDescriptor(globalThis, k)]);
     const parent = { postMessage: (m) => posted.push(m) };
@@ -2149,8 +2139,9 @@ describe('a group of words through the page and the frame', () => {
     try {
       await import('../packages/cortico-world-desktop-pet/web/figure-frame.js');
       const send = async (data) => { for (const h of handlers) await h({ source: parent, data }); };
-      await send({ t: 'init', entry: pathToFileURL(join(dir, 'body.mjs')).href, export: 'make', base: 'http://x/', bounds: {}, theme: 'light' });
+      await send({ t: 'init', entry: new URL('./fixtures/frame-body.js', import.meta.url).href, export: 'make', base: 'http://x/', bounds: {}, theme: 'light' });
       const b = globalThis.__frameBody;
+      expect(posted.find((m) => m.t === 'error')).toBeUndefined();
       expect(posted.some((m) => m.t === 'ready')).toBe(true);
       await send({ t: 'do-all', words: ['hop', 'happy', 'fly', 7] });
       expect(b.did).toEqual([]);

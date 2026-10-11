@@ -11,6 +11,8 @@ import {
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
 import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/claude-chan/fx.js';
+import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
+import { describeKneelArms } from './helpers/kneel-arms.js';
 import { createClaudeFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/claude-chan/figure.js';
 
 const DIR = new URL('../packages/cortico-world-desktop-pet/web/claude-chan/', import.meta.url);
@@ -784,7 +786,7 @@ describe('Claude-chan: sitting', () => {
     expect(bodyWant('stand', 1)).toBe('stand');
     // the upper body of the two dissolves; the lower stays opaque under it, so the two never both show part-way
     let B = { from: 'stand', to: 'stand', x: 1 };
-    expect(bodyAlphas(B)).toEqual({ stand: 1, sit: 0, kneel: 0 });
+    expect(bodyAlphas(B)).toEqual({ stand: 1, sit: 0, kneelArms: 0, kneel: 0 });
     for (const [want, up] of [['sit', 'sit'], ['kneel', 'kneel'], ['sit', 'kneel'], ['stand', 'sit']]) {
       let frames = 0;
       do {
@@ -1153,4 +1155,19 @@ describe('Claude-chan: a head gesture beside the arms\' one, kneeling, and faces
       run(w.pet, .2);
     }
   });
+});
+
+/* ---------- kneeling with her arms posed (the three girls share these: tests/helpers/kneel-arms.js) ---------- */
+describeKneelArms('Claude-chan', {
+  dir: DIR, M: KneelMotion, GESTURES,
+  make: async (missing = []) => {
+    const model = JSON.parse(readFileSync(new URL('model.json', DIR), 'utf8')), doc = globalThis.document;
+    globalThis.document = { createElement: () => recCanvas(), createElementNS: () => recCanvas() };
+    try {
+      return await createClaudeFigure(DIR, {
+        model, asset: p => String(p),
+        loadImage: url => (missing.some(n => String(url).endsWith(`tex/${n}.png`)) ? Promise.reject(new Error('missing')) : Promise.resolve({ url })),
+      });
+    } finally { globalThis.document = doc; }
+  },
 });

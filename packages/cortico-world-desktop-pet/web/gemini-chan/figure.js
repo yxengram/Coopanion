@@ -257,6 +257,11 @@ export async function createGeminiFigure(base = new URL('./', import.meta.url), 
      * (`back`): with a back drawing she shows it mid-turn, without one the turn is a quick flip.
      */
     get poses() { return { lie: !!R.W.lie && caps.pose('lie'), back: true }; },
+    /**
+     * (plus) She draws arm gestures kneeling (the kneeling hybrid: her live upper body over poses.kneelLow), so the kit
+     * keeps a kneel through its ARM_GESTURES; without the files (a scheme, an old pack) a gesture ends the kneel as before.
+     */
+    get kneelArms() { return !!R.W.kneelLow && caps.pose('kneelLow') && caps.pose('kneel'); },
     schemes: SCHEMES,
     /**
      * The kit's points (read every frame); seated or kneeling they rise by what her head sinks less than the kit's 29,

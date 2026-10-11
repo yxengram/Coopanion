@@ -269,8 +269,9 @@ export const ARM_FALLBACK = {
 /**
  * Which drawing each arm shows: `{ L, R, fallback }`, where L and R are 'hangL' / 'hangR' (the plain arms) or pose ids
  * (a two-arm pose is both), and `fallback` names the gesture the plain arms act out when its drawing is missing.
- * `has(id)` says a pose can show now; `faceOK` lets the face pose her arms (it has settled); `kneel` (a kneel with no
- * drawing of its own) puts the book aside: the plain arms rest down by her lap.
+ * `has(id)` says a pose can show now; `faceOK` lets the face pose her arms (it has settled); `kneel` (the kit's kneel)
+ * puts the book aside: the plain arms rest down by her lap, and a one-arm gesture's other arm hangs (kneeling with a
+ * drawing her arms show only in the hybrid).
  */
 export function armPlan({ mode, gesture, face, faceOK = true, kneel = false }, has) {
   const hang = { L: 'hangL', R: 'hangR', fallback: null };
@@ -284,7 +285,7 @@ export function armPlan({ mode, gesture, face, faceOK = true, kneel = false }, h
     const got = [want, ...(POSE_ALT[want] || [])].find(has);
     if (got) {
       const kind = has.kind?.(got) || POSE_KIND[got] || 'both';
-      if (kind === 'armL') return { L: got, R: has('bookside') ? 'bookside' : 'hangR', fallback: null };
+      if (kind === 'armL') return { L: got, R: !kneel && has('bookside') ? 'bookside' : 'hangR', fallback: null };
       if (kind === 'armR') return { L: 'hangL', R: got, fallback: null };
       return { L: got, R: got, fallback: null };
     }
@@ -324,7 +325,7 @@ export const PARALLAX = { headFront: [5, 3], headFeat: [3.5, 2], headMid: [2, 1.
 /** Poses whose drawing rides the neck (the hand stays on her face as the head moves). */
 export const NECK_POSES = ['cover'];
 /** Whole-body drawings: kept out of the arm machinery. */
-export const WHOLE_POSES = ['lie', 'kneel', 'back', 'roll', 'sit'];
+export const WHOLE_POSES = ['lie', 'kneel', 'kneelLow', 'back', 'roll', 'sit'];
 
 /* ---------- sitting: a seated body under her live head (poses.sit) ---------- */
 // poses.sit is not a whole-figure drawing: it is her body below the collar seated (skirt pool and shoes on `sitBase`,
@@ -364,22 +365,33 @@ export function sitMix(k, own) {
   return { sitA, topA: sitA * smooth(0, 1, own) };
 }
 
-/* ---------- which body shows: standing, seated (poses.sit) or kneeling (poses.kneel) ---------- */
-// The three never crossfade slowly (two bodies half there read as a double exposure): she sinks as the standing rig,
+/* ---------- which body shows: standing, seated (poses.sit), kneeling (poses.kneel) or kneeling with her arms posed ---------- */
+// (kneelArms: the kneeling hybrid, the live upper body over poses.kneelLow, the kneeling drawing's lower body, for a
+// gesture or a face that poses her arms while she kneels; she kneels in the drawing again once her arms are at rest.)
+// The four never crossfade slowly (two bodies half there read as a double exposure): she sinks as the standing rig,
 // its skirt spreading toward the drawing's, and at SIT_CUT the drawing takes over in BODY_CUT seconds. Of the two
 // bodies in a hand-over, the upper (BODY_Z) dissolves and the lower stays opaque under it.
-export const BODY_Z = { stand: 0, sit: 1, kneel: 2 };
+export const BODY_Z = { stand: 0, sit: 1, kneelArms: 1.5, kneel: 2 };
 /** The kit's sit (0..1) above which she shows the seated (or kneeling) body, and below which she stands again. */
 export const SIT_CUT = { down: .86, up: .8 };
 /** How long a hand-over between bodies takes (s): a frame, a cut where the shapes meet (more frames on a faster screen). */
 export const BODY_CUT = 1 / 60;
 /** How far the standing hem spreads (rig units, edge to edge, on top of its own) as she sinks, by the body to come. */
 export const SKIRT_SPREAD = { sit: 98, kneel: 46, none: 0 };
-/** The body she should show: `sit` the kit's sit, `kneel` a kneel with its drawing, `sitOK` the seated drawing there. */
-export function bodyWant(cur, sit, { kneel = false, sitOK = false } = {}) {
+/** (kneel) Her arms at rest kneeling: with nothing else planned (or still fading) she kneels in the drawing. */
+export const KNEEL_REST = ['hangL', 'hangR', 'book', 'bookside'];
+/** (kneel) How long (s) the hybrid stays once her arms are at rest, so a gesture and a face's pose after it are one stretch. */
+export const KNEEL_ARMS_HOLD = .25;
+/** (kneel) Faces whose arm pose she leaves out kneeling: listening she would write in a book that is not there. */
+export const KNEEL_FACE_SKIP = ['listening'];
+/**
+ * The body she should show: `sit` the kit's sit, `kneel` a kneel with its drawing, `kneelArms` her arms posed while
+ * she kneels (and the hybrid there), `sitOK` the seated drawing there.
+ */
+export function bodyWant(cur, sit, { kneel = false, kneelArms = false, sitOK = false } = {}) {
   const seated = cur === 'stand' ? sit > SIT_CUT.down : sit > SIT_CUT.up;
   if (!seated) return 'stand';
-  if (kneel) return 'kneel';
+  if (kneel) return kneelArms ? 'kneelArms' : 'kneel';
   return sitOK ? 'sit' : 'stand';
 }
 /** A hand-over `{ from, to, x }` stepped toward the body `want`: a change of mind halfway runs it back. */
@@ -392,7 +404,7 @@ export function bodyStep(B, want, dt) {
 }
 /** Each body's alpha in a hand-over: the upper one dissolves over the lower, which is opaque throughout. */
 export function bodyAlphas(B) {
-  const a = { stand: 0, sit: 0, kneel: 0 };
+  const a = { stand: 0, sit: 0, kneelArms: 0, kneel: 0 };
   if (B.x >= 1 || B.from === B.to) { a[B.to] = 1; return a; }
   const up = BODY_Z[B.to] > BODY_Z[B.from];
   a[B.to] = up ? B.x : 1;
@@ -526,6 +538,12 @@ export function buildRig(model) {
     const inner = P.kneel.head ? 'kneelHead' : 'kneel';
     W.kneel = { pose: P.kneel, parts: floorParts(P.kneel, inner, [inner]) };
   }
+  // (kneel) the kneeling drawing's lower body, for her arms posed while she kneels (the hybrid: the live upper body over
+  // it, sunk by poses.kneel.headDrop): on the floor like the drawing, on its box, turned and squashed with the body
+  if (P.kneelLow?.required?.length && W.kneel) {
+    deformers.kneelLow = { kind: 'rot', pivot: P.kneelLow.pivots?.kneelLow || [128, 256] };
+    W.kneelLow = { pose: P.kneelLow, parts: floorParts(P.kneelLow, 'kneelLow', ['kneelLow']), hides: Array.isArray(P.kneelLow.hides) ? P.kneelLow.hides : [] };
+  }
   // (sit) her seated body, under the live head
   if (P.sit?.required?.length) W.sit = sitRig(P.sit, deformers, parts);
   return { S, U, V, deformers, parts, STANDING, HEAD, HAIR, SKIRT, FACE, ARM, HANG, SHOES, W, unknownParents, rectOf, hasBrows: !!brows };
@@ -617,7 +635,7 @@ export function hitsOf(model, R) {
 export function createMotion(model, R) {
   const feat = model.feat || {};
   const { S, U, ARM, HANG, SHOES, W, deformers } = R;
-  const LIE = W.lie, BACK = W.back, ROLL = W.roll, KNEEL = W.kneel, SIT = W.sit;
+  const LIE = W.lie, BACK = W.back, ROLL = W.roll, KNEEL = W.kneel, SIT = W.sit, LOW = W.kneelLow;
   const neckPv = deformers.neck.pivot;
   const browSplit = feat.face?.browSplit != null ? U(feat.face.browSplit) : 128;
   const hemDrop = Math.max(0, 256 - R.SKIRT[3]);
@@ -637,6 +655,8 @@ export function createMotion(model, R) {
   let prevTilt = 0, prevYaw = 0, prevLow = 0, wTilt = 0, wLean = 0, sitK = 0, danceK = 0, lieK = 0;
   let prevSit = 0;  // the kit's sit last frame (rising out of a kneel she stays kneeling)
   let sitOwnK = 1, raiseNow = 0;  // (sit) the seated arms' share; how far her points rise over the kit's sink
+  let armsT = 9, kneelArmsK = 0;  // (kneel) how long her arms have been at rest; the hybrid's share (bodyAlphas)
+  let underKneel = false;  // (kneel) the kneeling drawing hid her whole last frame (her arms unseen)
   let bodyB = { from: 'stand', to: 'stand', x: 1 }, dropNow = null;  // the body hand-over; the head's sink seated (eased)
   let lieB = { on: false, a: 0 };  // the lying drawing's cut (lieStep)
   let perk = 0, swish = 0, droop = 0, browLift = 0, browInner = 0, browSide = 0, backA = 0, backOn = 1, awayA = 0, faceArmT = 0, sinceArmG = 9, lastFaceArm = null, lastArmG = null;
@@ -669,21 +689,11 @@ export function createMotion(model, R) {
     // down: she keeps the kneeling drawing until she stands, rather than showing the seated one on the way up
     const rising = (o.sit ?? 0) < prevSit - 1e-4;
     prevSit = o.sit ?? 0;
-    const keepKneel = bodyB.to === 'kneel' && !kneeling && kneelOK && !lieK && (mode === 'wake' || rising);
-    bodyB = bodyStep(bodyB, bodyWant(bodyB.to, o.sit ?? 0, { kneel: kneeling || keepKneel, sitOK }), dt);
-    const bodyA = bodyAlphas(bodyB);
+    const keepKneel = (bodyB.to === 'kneel' || bodyB.to === 'kneelArms') && !kneeling && kneelOK && !lieK && (mode === 'wake' || rising);
     const kneelNow = kneeling || keepKneel;
-    const dropT = kneelNow && KNEEL.pose.headDrop != null ? KNEEL.pose.headDrop : sitOK ? SIT.drop : null;
-    // (the head eases to its sink only while the standing rig shows: once a drawn body has taken over, its own sink
-    // holds at once, or kneel → sit would float the seated bodice over its lap for seconds)
-    dropNow = dropT == null ? null : dropNow == null || bodyA.kneel >= 1 || bodyA.sit >= 1 ? dropT : approach(dropNow, dropT, dt, 1 / 8);
-    const sitDrop = dropNow == null ? 0 : sitRaise(o.sit, dropNow);
-    // her points rise by what her head sinks less than the kit's `low`, kneeling too (so the kit gets no kneelRaise:
-    // liveAnchors): the kit's kneel goes off the moment she gets up, while the kneeling drawing stays a second or more,
-    // and the kit reads her points before she draws, so a raise of the kit's own would drop them onto her chest for that
-    // second (and for a frame whenever its kneel came or went)
-    raiseNow = sitDrop;
-    const lowB = low - sitDrop;
+    // (kneel) her arms posed while she kneels show the hybrid (poses.kneelLow): her arms are planned first, so the body
+    // she shows can follow them (below, after the arms)
+    const lowOK = kneelOK && !!LOW && caps.pose('kneelLow');
 
     /* the kit's short gestures, as she does them */
     // (a nod, a shake or a sigh is the head's, on its own clock beside the arms' gesture: gesturesOf, headMoves)
@@ -713,20 +723,58 @@ export function createMotion(model, R) {
     const armG = ARM_BOTH[gkind] || ARM_ONE[gkind];
     sinceArmG = armG && gk < .9 ? 0 : sinceArmG + dt;
     if (armG) lastArmG = armG;
-    const faceArm = CALM_MODES.includes(mode) ? FACE_ARMS[face] || null : null;
+    const faceArm = CALM_MODES.includes(mode) && !(lowOK && kneelNow && KNEEL_FACE_SKIP.includes(face)) ? FACE_ARMS[face] || null : null;
     faceArmT = faceArm && faceArm === lastFaceArm ? faceArmT + dt : 0;
     lastFaceArm = faceArm;
     // a face poses her arms once it has settled, and not right after a gesture (unless it keeps the gesture's pose)
     const faceOK = faceArm != null && ((faceArmT > .3 && sinceArmG > .4) || (faceArm === lastArmG && sinceArmG < .5));
     const has = Object.assign(id => posable(caps, id), { kind: id => ARM[id]?.kind });
-    const plan = lieK > .5 ? { L: 'hangL', R: 'hangR', fallback: null } : armPlan({ mode, gesture: g, face, faceOK, kneel: !!o.kneel && !(KNEEL && caps.pose('kneel')) }, has);
+    const planOf = kneel => lieK > .5 ? { L: 'hangL', R: 'hangR', fallback: null } : armPlan({ mode, gesture: g, face, faceOK, kneel }, has);
+    // (kneel) the book is put aside only where her arms show kneeling: kneeling with no drawing, or in the hybrid (her
+    // arms posed now, or the hybrid still showing). Under the kneeling drawing, and sinking into it, she holds the book
+    // as before; getting up in the hybrid (the kit's kneel already off) it stays aside till she is up.
+    // (whether her arms are posed does not depend on the book: KNEEL_REST holds both.) Unseen under the drawing, her
+    // arms at rest take the book up or put it down at once, so the hybrid opens on her arms as planned (no book fading
+    // out of her hands) and she stands up holding it, as before.
+    const inHybrid = bodyB.to === 'kneelArms' || (bodyB.from === 'kneelArms' && bodyB.x < 1);
+    const bookAside = !!o.kneel && !(KNEEL && caps.pose('kneel'));
+    let plan = planOf(bookAside);
+    const planPosed = !!plan.fallback || [plan.L, plan.R].some(k => !KNEEL_REST.includes(k));
+    if (!bookAside && lowOK && kneelNow && (planPosed || inHybrid)) plan = planOf(true);
     const want = new Set([plan.L, plan.R]);
     for (const k of new Set([...Object.keys(armA), ...want])) {
-      armA[k] = approach(armA[k] || 0, want.has(k) ? 1 : 0, dt, ARM_FADE);
+      armA[k] = underKneel && KNEEL_REST.includes(k) ? (want.has(k) ? 1 : 0) : approach(armA[k] || 0, want.has(k) ? 1 : 0, dt, ARM_FADE);
       if (armA[k] <= 0 && !want.has(k)) delete armA[k];
     }
     const up = k => smooth(0, 1, armA[k] || 0);
     const chinA = up('chin');
+
+    /* the body she shows: standing, seated, kneeling, or kneeling with her arms posed (see bodyStep) */
+    // (kneel) her arms posed: a drawing other than her arms at rest planned, or the plain arms acting out a missing
+    // drawing. That opens the hybrid; once in it, arm drawings still fading out and KNEEL_ARMS_HOLD after them keep it,
+    // so back-to-back gestures stay one stretch. A pose fading out does not open it (a kneel asked right after a
+    // gesture or a face's pose seated goes straight to the kneeling drawing, one cut).
+    const fading = Object.keys(armA).some(k => !KNEEL_REST.includes(k) && armA[k] > 0);
+    armsT = planPosed || fading ? 0 : armsT + dt;
+    const withArms = lowOK && (planPosed || (inHybrid && armsT < KNEEL_ARMS_HOLD));
+    bodyB = bodyStep(bodyB, bodyWant(bodyB.to, o.sit ?? 0, { kneel: kneelNow, kneelArms: withArms, sitOK }), dt);
+    const bodyA = bodyAlphas(bodyB);
+    kneelArmsK = bodyA.kneelArms;
+    underKneel = kneelOK && bodyA.kneel >= 1;
+    const dropT = kneelNow && KNEEL.pose.headDrop != null ? KNEEL.pose.headDrop : sitOK ? SIT.drop : null;
+    // (the head eases to its sink only while the standing rig shows: once a drawn body has taken over, its own sink
+    // holds at once, or kneel → sit would float the seated bodice over its lap for seconds)
+    dropNow = dropT == null ? null : dropNow == null || bodyA.kneel >= 1 || bodyA.kneelArms >= 1 || bodyA.sit >= 1 ? dropT : approach(dropNow, dropT, dt, 1 / 8);
+    const sitDrop = dropNow == null ? 0 : sitRaise(o.sit, dropNow);
+    // her points rise by what her head sinks less than the kit's `low`, kneeling too (so the kit gets no kneelRaise:
+    // liveAnchors): the kit's kneel goes off the moment she gets up, while the kneeling drawing stays a second or more,
+    // and the kit reads her points before she draws, so a raise of the kit's own would drop them onto her chest for that
+    // second (and for a frame whenever its kneel came or went)
+    // (kneel) in the hybrid her upper body sits on the drawing's lower body at once, sunk by all of headDrop even while
+    // the kit's sit still comes down (a kneel and a gesture at once from standing), so the waist never opens
+    const sink = bodyA.kneelArms > 0 && KNEEL.pose.headDrop != null ? low - KNEEL.pose.headDrop : sitDrop;
+    raiseNow = Math.max(0, sink);
+    const lowB = low - sink;
 
     /* where she looks: pointing, at what she points at */
     const look = (is('point') || face === 'pointing') && pointDir < 0 ? [-(o.look?.[0] || 0), o.look?.[1] || 0] : [o.look?.[0] || 0, o.look?.[1] || 0];
@@ -984,8 +1032,22 @@ export function createMotion(model, R) {
     }
     // an opaque drawing over her (lying, her back, the ball, kneeling) hides the standing and the seated body alike
     const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
+    if (LOW) kneeledLow(st, caps, hideFront ? 0 : bodyA.kneelArms);
     if (SIT) seated(st, o, fc, face, mode, dt, caps, hideFront ? 0 : bodyA.sit, plan);
     return { st, hideFront, look, turn, steam, steamAt, puffK, poseShown: poseA, plan };
+  }
+
+  /* ---------- (kneel) the kneeling hybrid's lower body ---------- */
+  const LOW_UNDER = LOW ? ['skirt', ...SHOES, ...LOW.hides] : [];
+  /**
+   * The kneeling drawing's lower body under her live upper body (poses.kneelLow) at `k`, its share of the hand-over
+   * (bodyAlphas; 0 under an opaque whole-body drawing): opaque, it hides the standing skirt and shoes and what it draws
+   * itself (poses.kneelLow.hides: her tail). It turns and squashes with the body, so the waist never opens.
+   */
+  function kneeledLow(st, caps, k) {
+    st.kneelLow = { a: st.body.a, ty: st.body.ty, sx: st.body.sx, sy: st.body.sy };
+    for (const p of LOW.parts) st.alpha[p.id] = caps.tex(p.tex) ? k : 0;
+    if (k >= 1) for (const id of LOW_UNDER) st.alpha[id] = 0;
   }
 
   /* ---------- (sit) the seated body ---------- */
@@ -1044,7 +1106,7 @@ export function createMotion(model, R) {
     perk = swish = droop = browLift = browInner = browSide = backA = awayA = faceArmT = kickPh = 0;
     backOn = 1;
     sinceArmG = 9; lastFaceArm = lastArmG = null;
-    sitOwnK = 1; raiseNow = 0; dropNow = null; lieB = { on: false, a: 0 };
+    sitOwnK = 1; raiseNow = 0; dropNow = null; lieB = { on: false, a: 0 }; armsT = 9; kneelArmsK = 0; underKneel = false;
     bodyB = { from: 'stand', to: 'stand', x: 1 }; prevSit = 0;
     armA = { hangL: 1, hangR: 1 };
   }
@@ -1054,6 +1116,8 @@ export function createMotion(model, R) {
     /** The arm drawings' alphas now (for tests and tools). */
     get arms() { return { ...armA }; },
     get lieK() { return lieK; },
+    /** (kneel) The kneeling hybrid's share now (0..1; for tests and tools). */
+    get kneelArmsK() { return kneelArmsK; },
     get sitK() { return sitK; },
     /** How far the kit's points must rise, seated or kneeling (figure.anchors). */
     get sitRaise() { return raiseNow; },

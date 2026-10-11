@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -776,7 +776,7 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
   it('keeps the kit\'s points on her kneeling head while she gets up, and seated after a sit word', () => {
     // her points as figure.js gives them: raised by seatStep's `up`, with no kneelRaise for the kit to add
     const src = readFileSync(new URL('figure.js', WHALE), 'utf8');
-    expect(src).toMatch(/seat = seatStep\(seat, o, \{[^}]*kneelRaise: KNEEL_RAISE \}, dt\);/);
+    expect(src).toMatch(/seat = seatStep\(seat, o, \{[^}]*kneelRaise: KNEEL_RAISE[^}]*\}, dt\);/);
     expect(src).toMatch(/get anchors\(\) \{ return liftAnchors\(POINTS, seat\.up\); \}/);
     expect(src).not.toMatch(/const POINTS = \{[^;]*kneelRaise/);
     const K = 29 - model.poses.kneel.headDrop, POINTS = { gaze: [140, 110], tears: [[120, 120], [150, 120]], hearts: [96, 176, 62], bubble: [128, 18] };
@@ -1061,3 +1061,149 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     } finally { done(); }
   });
 });
+
+describe('arm gestures kneeling: the kneeling hybrid (her live upper body over poses.kneelLow), as the whale draws it', () => {
+  const KL = model.poses.kneelLow, KD = model.poses.kneel;
+  /** The whale's own figure.js on the kit's body (plus), without a GPU (`missing`: textures that fail to load). */
+  async function onKit(missing = []) {
+    const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
+    const doc = globalThis.document;
+    globalThis.document = { createElement: () => any, createElementNS: () => any };
+    const fig = await createWhaleFigure(WHALE, { model, loadImage: async url => { if (missing.some(n => String(url).endsWith(`tex/${n}.png`))) throw new Error('missing'); return { width: 1, height: 1 }; } });
+    const el = () => ({ setAttribute() {}, innerHTML: '' });
+    const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
+    const seen = { fig, o: null, st: null };
+    const figure = { ...fig, draw(g, fc, o) { seen.o = o; fig.draw(g, fc, o); seen.st = rigSeen.st; } };
+    for (const k of ['anchors', 'poses', 'kneelArms', 'kneelArmsK']) Object.defineProperty(figure, k, { get: () => fig[k] });
+    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    pet.resize();
+    seen.pet = pet;
+    seen.run = (sec, each = () => {}) => { for (let i = 0; i < Math.round(sec * 60); i++) { pet.step(1 / 60); pet.render(); each(); } };
+    seen.alpha = id => seen.st.alpha[id] ?? 0;
+    seen.done = () => { globalThis.document = doc; };
+    return seen;
+  }
+  const kneelDown = s => { s.run(.5); s.pet.doWord('kneel'); s.run(3); expect(s.alpha('kneel_body')).toBe(1); };
+
+  it('is the kneeling drawing\'s lower body on its box, at her skirt\'s z, in every scheme', () => {
+    const [p] = KL.required;
+    expect(p).toMatchObject({ id: 'kneel_low', tex: 'kneel_low', parent: 'kneelLow', z: model.parts.find(q => q.id === 'skirt').z });
+    expect(p.box).toEqual(KD.required[0].box);
+    expect(KL.pivots.kneelLow).toEqual([128, 256]);
+    expect(KL.hides).toEqual(['tail']);
+    for (const id of SCHEMES) expectFile(id, p);
+    // (the same masks cut every scheme: the same pixels are there in each)
+    const a0 = alphaOf(new URL('tex/kneel_low.png', WHALE)).a;
+    for (const id of SCHEMES.slice(1)) {
+      const a = alphaOf(new URL(`${dir(id)}tex/kneel_low.png`, WHALE)).a;
+      let off = 0;
+      for (let i = 0; i < a.length; i++) if ((a[i] > 8) !== (a0[i] > 8)) off++;
+      expect(off / a.length, id).toBeLessThan(.002);
+    }
+  });
+
+  it('cuts the hybrid in for the drawing in a frame once she is down, and the drawing back over it', () => {
+    const down = { sitB: 1, kneelK: 1, kneelB: 1, armsB: 0, prevSit: 1, up: 14 }, o = { sit: 1, kneel: true, mode: 'sit' };
+    const arms = seatStep(down, o, { sitK: 1, kneelOK: true, kneelRaise: 14, withArms: true }, 1 / 60);
+    expect(arms.armsB).toBe(1);
+    expect(arms.kneelB).toBe(1);
+    expect(kneelAlphas(arms)).toEqual({ drawA: 0, lowA: 1 });
+    const back = seatStep(arms, o, { sitK: 1, kneelOK: true, kneelRaise: 14, withArms: false }, 1 / 60);
+    expect(back.armsB).toBe(0);
+    expect(kneelAlphas(back)).toEqual({ drawA: 1, lowA: 0 });
+    // half way (a faster screen): the drawing half over an opaque hybrid
+    expect(kneelAlphas({ kneelB: 1, armsB: .5 })).toEqual({ drawA: .5, lowA: 1 });
+    // not down yet: no hybrid; getting up she keeps kneeling (the drawing's share), arms or not
+    expect(seatStep({ ...down, kneelK: 0, kneelB: 0 }, { sit: .3, kneel: true, mode: 'sit' }, { sitK: .3, kneelOK: true, withArms: true }, 1 / 60).armsB).toBe(0);
+    const up = seatStep(arms, { sit: .9, kneel: false, mode: 'wake' }, { sitK: .95, kneelOK: true, kneelRaise: 14, withArms: true }, 1 / 60);
+    expect(up.kneelB).toBe(1);
+    expect(up.armsB).toBe(1);
+    expect(KNEEL_ARMS_HOLD).toBe(.25);
+  });
+
+  it('waves kneeling in the hybrid: her upper body raised to the drawing\'s head, the seated rig\'s lower body gone, the kneel kept', async () => {
+    const s = await onKit();
+    try {
+      expect(s.fig.kneelArms).toBe(true);
+      kneelDown(s);
+      const up0 = s.fig.anchors.bubble;
+      expect(s.st.waist.ty).toBe(0);
+      s.pet.doWord('wave');
+      let mixed = 0, hybrid = 0;
+      s.run(1.5, () => {
+        const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+        if (k > 0 && k < 1) mixed++;
+        expect(k >= 1 || l >= 1 || (k === 0 && l === 0)).toBe(true);
+        if (l >= 1) {
+          hybrid++;
+          // (the body sinks the seated rig's way; the upper body comes up to the kneeling drawing's head)
+          expect(s.st.body.ty + s.st.waist.ty).toBeCloseTo(KD.headDrop, 6);
+          for (const id of [...KNEEL_LOW_UNDER, 'tail']) expect(s.alpha(id), id).toBe(0);
+          for (const k2 of ['a', 'sx', 'sy']) expect(s.st.kneelLow[k2]).toBe(s.st.body[k2]);
+          expect(s.alpha('kneel_body')).toBe(0);
+        }
+      });
+      expect(mixed).toBeLessThanOrEqual(1);
+      expect(hybrid).toBeGreaterThan(30);
+      expect(s.o.kneel).toBe(true);
+      expect(s.fig.anchors.bubble).toEqual(up0);
+      s.run(2);
+      expect(s.alpha('kneel_body')).toBe(1);
+      expect(s.alpha('kneel_low')).toBe(0);
+      expect(s.st.waist.ty).toBe(0);
+    } finally { s.done(); }
+  });
+
+  it('opens the hybrid for her drawn arms (a heart, a held cup, a raised hand, her chin on her hand), not for a song, a spout or a face\'s arm angles; a cheer ends the kneel', async () => {
+    const s = await onKit();
+    try {
+      const peak = (word, sec = 2) => { kneelDown(s); let m = 0; if (word) s.pet.doWord(word); s.run(sec, () => { m = Math.max(m, s.alpha('kneel_low')); }); return m; };
+      for (const w of ['heart', 'sip', 'scratch', 'salute']) expect(peak(w), w).toBe(1);
+      for (const w of ['song', 'spout']) expect(peak(w, 2.5), w).toBe(0);
+      s.pet.doWord('stand'); s.run(3);
+      kneelDown(s);
+      s.pet.setExpr('happy'); s.run(1.5);
+      expect(s.alpha('kneel_low')).toBe(0);
+      s.pet.setExpr('thinking'); s.run(1.5);
+      expect(s.alpha('kneel_low')).toBe(1);
+      // (her chin comes off her hand slowly, then the hybrid holds KNEEL_ARMS_HOLD)
+      s.pet.setExpr('neutral'); s.run(2.5);
+      expect(s.alpha('kneel_low')).toBe(0);
+      s.pet.doWord('cheer'); s.run(.2);
+      expect(s.o.kneel).toBe(false);
+    } finally { s.done(); }
+  });
+
+  it('kneels right after a seated gesture or her chin on her hand in one cut, the seated rig to the drawing (no hybrid between)', async () => {
+    const asks = {
+      wave: s => { s.pet.doWord('wave'); for (let n = 0; n < 600 && s.pet.pet.pulse; n++) s.run(1 / 60); },
+      thinking: s => { s.pet.setExpr('thinking', 1.5); s.run(1.55); },
+    };
+    for (const [what, ask] of Object.entries(asks)) {
+      const s = await onKit();
+      try {
+        s.run(.5);
+        s.pet.doWord('sit');
+        s.run(2.5);
+        ask(s);
+        s.pet.doWord('kneel');
+        let low = 0;
+        s.run(2.5, () => { if (s.alpha('kneel_low') > 0) low++; });
+        expect(low, what).toBe(0);
+        expect(s.alpha('kneel_body'), what).toBe(1);
+      } finally { s.done(); }
+    }
+  });
+
+  it('keeps today\'s kneel without the files: the kit ends it on a wave', async () => {
+    const s = await onKit(['kneel_low']);
+    try {
+      expect(s.fig.kneelArms).toBe(false);
+      kneelDown(s);
+      s.pet.doWord('wave'); s.run(.3);
+      expect(s.o.kneel).toBe(false);
+      expect(s.alpha('kneel_low')).toBe(0);
+    } finally { s.done(); }
+  });
+});
+

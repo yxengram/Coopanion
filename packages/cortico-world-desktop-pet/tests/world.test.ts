@@ -314,6 +314,22 @@ describe('with a pet page', () => {
     expect(world.envPromptVars()['pet.body']).toContain('大肥鱼');
   });
 
+  it('pet_act does a kneel and a wave at once for a figure that draws arm gestures kneeling, and says how long the kneel lasts', async () => {
+    const { world } = await mounted((c) => { c.skin.figure = 'claude-chan'; c.skin.scheme = 'original'; });
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const out = await tool(world, 'pet_act').handler({ actions: ['跪坐+招手'] }, ctx) as { text: string };
+    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['kneel+wave']);
+    expect(out.text).toContain('kneel 保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、只占「手」的手势和唱歌都不影响(她跪着做)');
+    expect(out.text).not.toContain('不能同时做');
+    const cheer = await tool(world, 'pet_act').handler({ actions: ['跪坐+欢呼'] }, ctx) as { text: string };
+    expect(cheer.text).toContain('跪坐 和 欢呼 不能同时做,改成先后做。');
+    // a song keeps the kneel in the kit (she sings kneeling): one group, no note
+    const song = await tool(world, 'pet_act').handler({ actions: ['跪坐+唱歌'] }, ctx) as { text: string };
+    expect(song.text).toContain('kneel+song');
+    expect(song.text).not.toContain('不能同时做');
+  });
+
   it('dresses as the built-in Claude-chan, with her words (no spout)', async () => {
     const { world } = await mounted((c) => { c.skin.figure = 'claude-chan'; c.skin.scheme = 'original'; });
     const page = await FakePage.open(origin(world));

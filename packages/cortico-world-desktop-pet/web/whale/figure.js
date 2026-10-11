@@ -136,11 +136,17 @@ export const kneelStep = (b, kneelK, dt) => approach(b, kneelK > (b >= .5 ? .3 :
  * On her eased sitK it landed after take-off, both skirts and both pairs of legs half see-through.
  */
 export const sitStep = (b, sit, airborne, dt) => approach(b, !airborne && (b >= .5 ? sit > .45 : sit > .55) ? 1 : 0, dt, BODY_CUT);
+/** (kneel) How long (s) the kneeling hybrid stays once her arms are at rest, so back-to-back gestures are one stretch. */
+export const KNEEL_ARMS_HOLD = .25;
 /**
- * Her seated lower body and kneeling drawing over a frame: `S` is { sitB, kneelK, kneelB, prevSit, up } (sitStep's
- * share, her eased kneel, kneelStep's share, the kit's sit last frame, her points' raise), `o` the kit's frame, `sitK`
- * her eased sit, `lying` whether she lies at all, `kneelOK` whether the scheme has the kneeling drawing, `kneelRaise`
- * how much higher her kneeling head sits than the kit's seated sink. The drawing cuts in once she is down.
+ * Her seated lower body and kneeling drawing over a frame: `S` is { sitB, kneelK, kneelB, armsB, prevSit, up }
+ * (sitStep's share, her eased kneel, kneelStep's share, the hybrid's share, the kit's sit last frame, her points'
+ * raise), `o` the kit's frame, `sitK` her eased sit, `lying` whether she lies at all, `kneelOK` whether the scheme has
+ * the kneeling drawing, `kneelRaise` how much higher her kneeling head sits than the kit's seated sink. The drawing cuts
+ * in once she is down.
+ * `withArms`: her arms are posed while she kneels (and the scheme has poses.kneelLow): once she is down, the kneeling
+ * hybrid (her live upper body over the drawing's lower body) cuts in for the drawing in BODY_CUT (`armsB`), and out
+ * again once they are not; the drawing's own share stays `kneelB`, so getting up and her points are as before.
  * Getting up from a kneel the kit's kneel is already off while she wakes (a second at sit 1) and its sit comes down:
  * she keeps kneeling until the seated body would go too, rather than showing it (legs forward) on the way up. A sit
  * word after a kneel leaves the kit's sit where it is, so then she does sit.
@@ -149,7 +155,7 @@ export const sitStep = (b, sit, airborne, dt) => approach(b, !airborne && (b >= 
  * on down with her sit till she is up, so they never drop to the seated sink on the way. The kit's own raise would
  * stop the moment its kneel does (and it reads her points before she draws, a frame late whatever she does).
  */
-export function seatStep(S, o, { sitK, airborne = false, lying = false, kneelOK = false, kneelRaise = 0 }, dt) {
+export function seatStep(S, o, { sitK, airborne = false, lying = false, kneelOK = false, kneelRaise = 0, withArms = false }, dt) {
   const sit = o.sit ?? 0, rising = sit < S.prevSit - 1e-4;
   const sitB = sitStep(S.sitB, sit, airborne, dt);
   const keep = kneelOK && !o.kneel && !lying && S.kneelB >= .5 && sitB > 0 && (o.mode === 'wake' || rising);
@@ -158,9 +164,20 @@ export function seatStep(S, o, { sitK, airborne = false, lying = false, kneelOK 
   const kneelB = !kneelOK ? 0 : keep ? approach(S.kneelB, 1, dt, BODY_CUT) : kneelStep(S.kneelB, kneelK, dt);
   const k = kneelRaise * clamp(sit, 0, 1);
   const up = o.kneel || kneelB > 0 ? k : S.up > 0 && rising ? Math.min(S.up, k) : 0;
-  return { sitB, kneelK, kneelB, prevSit: sit, up };
+  // (a frame of a little more or less than BODY_CUT leaves a hair short of 1 or 0: that is a whole cut)
+  const ab = approach(S.armsB || 0, kneelB >= .5 && withArms ? 1 : 0, dt, BODY_CUT), armsB = ab > 1 - 1e-6 ? 1 : ab < 1e-6 ? 0 : ab;
+  return { sitB, kneelK, kneelB, armsB, prevSit: sit, up };
 }
-const SEATED_NOT = { sitB: 0, kneelK: 0, kneelB: 0, prevSit: 0, up: 0 };
+const SEATED_NOT = { sitB: 0, kneelK: 0, kneelB: 0, armsB: 0, prevSit: 0, up: 0 };
+/**
+ * (kneel) The kneeling drawing's and the hybrid's alphas from seatStep's shares: the drawing dissolves over the opaque
+ * hybrid (`drawA`), the hybrid (`lowA`) is opaque whenever it has a share, one frame either way.
+ */
+export function kneelAlphas(seat) {
+  return { drawA: seat.kneelB * (1 - (seat.armsB || 0)), lowA: seat.kneelB >= .5 && seat.armsB > 0 ? 1 : 0 };
+}
+/** (kneel) Standing parts the hybrid's lower body replaces: her skirts, waist bows, legs and tail (it draws its own fluke). */
+export const KNEEL_LOW_UNDER = ['skirt', 'skirt_sit', 'waist_bow_front', 'waist_bow_sit_front', 'leg_back', 'leg_front'];
 /** The kit's anchors `A` with the head's points (all but the lying ones) raised by `r`. */
 export function liftAnchors(A, r) {
   if (!(r > 0)) return A;
@@ -378,7 +395,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // kneeling (seiza): one drawing of her, with an eyes-shut patch (model.poses.kneel), dissolved in over the seated rig
   const KNEEL = model.poses?.kneel;
   const KNEEL_PARTS = KNEEL ? [...KNEEL.required, ...(KNEEL.overlays || [])] : [];
-  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...PROP_PARTS, ...RAISE_PARTS, ...(BACK ? BACK.required : []), ...(ROLL ? ROLL.required : []), ...KNEEL_PARTS];
+  // kneeling with her arms posed: the kneeling drawing's lower body under her live upper body (model.poses.kneelLow)
+  const KLOW = KNEEL && model.poses?.kneelLow?.required?.length ? model.poses.kneelLow : null;
+  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...PROP_PARTS, ...RAISE_PARTS, ...(BACK ? BACK.required : []), ...(ROLL ? ROLL.required : []), ...KNEEL_PARTS, ...(KLOW ? KLOW.required : [])];
   // the scheme's accent colours the listening arcs, thought bubbles and sleep z's
   const accent = () => schemeInfo(scheme).accent || '#4d6bfe';
   const loaded = {}, ready = {};
@@ -401,6 +420,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       set.back = !!BACK && BACK.required.every(p => set.tex[p.tex]);
       set.roll = !!ROLL && ROLL.required.every(p => set.tex[p.tex]);
       set.kneel = !!KNEEL && KNEEL.required.every(p => set.tex[p.tex]);
+      set.kneelLow = !!KLOW && KLOW.required.every(p => set.tex[p.tex]);
       if (LIE && !set.lie && LIE.required.some(p => set.tex[p.tex])) console.warn(`whale: scheme ${id} lacks some lying-pose files; she sits instead`);
       return (ready[id] = set);
     });
@@ -527,6 +547,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of KNEEL_PARTS) parts.push({ ...p, parent: KNEEL.head ? 'kneelHead' : p.parent, alpha: 0 });
   }
   const kneelOK = () => !!(cur.kneel && (!fade || fade.set.kneel));
+  // (kneel) the hybrid's lower body stands on the floor on its own deformer, turned and squashed with the body
+  if (KLOW) {
+    deformers.kneelLow = { kind: 'rot', pivot: KLOW.pivots?.kneelLow || [128, 256] };
+    for (const p of KLOW.required) parts.push({ ...p, parent: 'kneelLow', alpha: 0 });
+  }
+  const kneelLowOK = () => !!(KLOW && cur.kneelLow && (!fade || fade.set.kneelLow));
+  const KLOW_UNDER = KLOW ? [...new Set([...KNEEL_LOW_UNDER, ...(KLOW.hides || ['tail'])])] : [];
+  let armsT = 9;  // (kneel) how long her arms have been at rest
   let seat = SEATED_NOT;  // her seated lower body and kneeling drawing (seatStep)
   // kneeling, her head sits this much higher than the seated rig's (which the points otherwise follow down)
   const KNEEL_RAISE = KNEEL ? f1(29 - KNEEL.headDrop) : 0;
@@ -933,7 +961,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     poseShown = poseA;
     // thinking, standing or sitting still, she props her chin on her hand; a gesture that needs the far arm takes it down at once
     const chinTaken = FAR_ARM_GESTURES.includes(o.gesture?.kind);
-    chinK = lerp(chinK, CHIN && chinOK() && chinWanted(face, mode, lieK, o.gesture) ? 1 : 0, ease(chinTaken ? 16 : 5, dt));
+    const chinOn = !!CHIN && chinOK() && chinWanted(face, mode, lieK, o.gesture);
+    chinK = lerp(chinK, chinOn ? 1 : 0, ease(chinTaken ? 16 : 5, dt));
     if (chinK < 1e-3) chinK = 0;
 
     /* head: tilt toward what it looks at, nod with sleep, wobble with dizzy */
@@ -1022,7 +1051,15 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // sitting swaps the lower body for its own drawing (skirt spread on the floor, legs forward) in a frame halfway
     // down (on the kit's own sit: sitK lags it), under a little squash; a crossfade would show both skirts at once
     // (kneeling, the kneeling drawing cuts in over the seated rig once she is down, and stays till she is up: seatStep)
-    seat = seatStep(seat, o, { sitK, airborne, lying: !!lieK, kneelOK: !!KNEEL && kneelOK(), kneelRaise: KNEEL_RAISE }, dt);
+    // (kneeling with her arms posed, the hybrid cuts in for the drawing: a wave, a heart, a cheer's arms, a shiver, a
+    // held thing or a raised arm under way, or her chin on her hand; song and spout keep the drawing, and so do the
+    // arm angles her faces give, unseen while she kneels as before). That opens the hybrid; once in it, her chin's hand
+    // still coming down and KNEEL_ARMS_HOLD after keep it, so back-to-back gestures stay one stretch. A chin still
+    // coming down does not open it (a kneel asked right after thinking seated goes straight to the drawing, one cut).
+    const posed = (gk > .02 && gk < .9 && (wave || heart || cheer || shiver || propG || raiseG)) || chinOn;
+    armsT = posed || chinK > 0 ? 0 : armsT + dt;
+    const withArms = kneelLowOK() && (posed || (seat.armsB > 0 && armsT < KNEEL_ARMS_HOLD));
+    seat = seatStep(seat, o, { sitK, airborne, lying: !!lieK, kneelOK: !!KNEEL && kneelOK(), kneelRaise: KNEEL_RAISE, withArms }, dt);
     const sitIn = seat.sitB, plop = Math.sin(Math.PI * smooth(.3, .8, sitK));
 
     /* arms: swing against the legs when walking, out in the air, flailing when held */
@@ -1087,7 +1124,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st.body.sy *= 1 - .16 * c + .07 * pop; st.body.sx *= 1 + .08 * c - .03 * pop;
       if (!(ROLL && rollOK())) st.body.ty -= 46 * Math.sin(Math.PI * rollTurn(gk));
     }
-    st.waist = { a: bow * 20 - flinch * 6 + peek * 9 + 3 * titter - 3 * inh + 6 * exh, sy: (1 - .07 * titter) * (1 + .03 * inh - .03 * exh) };
+    // (in the kneeling hybrid her upper body rises from the seated rig's sink to the kneeling drawing's head: headDrop)
+    const waistUp = seat.armsB > 0 && KLOW ? KNEEL.headDrop - (low - 9.6 * sitK) : 0;
+    st.waist = { a: bow * 20 - flinch * 6 + peek * 9 + 3 * titter - 3 * inh + 6 * exh, ty: waistUp, sy: (1 - .07 * titter) * (1 + .03 * inh - .03 * exh) };
     if (propG === 'curtsy') st.waist.a += 10 * Math.sin(Math.PI * clamp((gk - .15) / .7, 0, 1)) * hold;
     st.skirt = {
       fn: (u, v) => {
@@ -1264,8 +1303,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st.rollBall = { a, ty: ROLL.support[0] - ballLift(ROLL.support, a), sx: 1 + .05 * land, sy: 1 - .05 * land };
       for (const p of ROLL.required) st.alpha[p.id] = tex[p.tex] ? ballA : 0;
     }
-    // kneeling: once she is down, the kneeling drawing cuts in over the seated rig (which then goes), as lying does
-    const kneelA = seat.kneelB;
+    // kneeling: once she is down, the kneeling drawing cuts in over the seated rig (which then goes), as lying does;
+    // with her arms posed the hybrid takes its place (kneelAlphas)
+    const { drawA: kneelA, lowA } = kneelAlphas(seat);
     if (KNEEL) {
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
       if (deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(deformers.kneelHead.rect, head) };
@@ -1273,6 +1313,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       for (const p of KNEEL.required) st.alpha[p.id] = tex[p.tex] ? kneelA : 0;
       const km = lyingMouth(o, FP.mouth, mode);
       for (const p of KNEEL.overlays || []) st.alpha[p.id] = !tex[p.tex] ? 0 : kneelA * (p.use === 'shut' ? shutK : km[p.use] || 0);
+    }
+    if (KLOW) {
+      st.kneelLow = { a: st.body.a, sx: st.body.sx, sy: st.body.sy };
+      const a = hide || backA >= 1 || ballA >= 1 ? 0 : lowA;
+      for (const p of KLOW.required) st.alpha[p.id] = tex[p.tex] ? a : 0;
+      if (a >= 1) for (const id of KLOW_UNDER) st.alpha[id] = 0;
     }
     const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
 
@@ -1471,7 +1517,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
+      lastT = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),
@@ -1481,6 +1527,13 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     get colors() { return { z: accent() }; },
     /** Which poses of her own she can show now (the current scheme has their files): the kit keeps her seated otherwise. */
     get poses() { return { lie: !!LIE && poseOK(), back: backable() }; },
+    /**
+     * (plus) She draws arm gestures kneeling (the kneeling hybrid over poses.kneelLow), so the kit keeps a kneel through
+     * its ARM_GESTURES; a scheme without the files ends the kneel as before.
+     */
+    get kneelArms() { return kneelLowOK() && kneelOK(); },
+    /** (kneel) The kneeling hybrid's share now (0..1; for tests and tools). */
+    get kneelArmsK() { return kneelAlphas(seat).lowA; },
     schemes: SCHEMES,
     /**
      * The points the kit uses (read every frame), raised for her kneeling head (seatStep's `up`: she gives the raise,

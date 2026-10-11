@@ -11,6 +11,8 @@ import {
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gpt-chan/face.js';
 import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gpt-chan/fx.js';
+import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
+import { describeKneelArms } from './helpers/kneel-arms.js';
 import { createGptFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/gpt-chan/figure.js';
 
 const DIR = new URL('../packages/cortico-world-desktop-pet/web/gpt-chan/', import.meta.url);
@@ -1292,4 +1294,19 @@ describe('GPT-chan: a head gesture beside the arms\' one, kneeling, and faces ma
       run(w.pet, .2);
     }
   });
+});
+
+/* ---------- kneeling with her arms posed (the three girls share these: tests/helpers/kneel-arms.js) ---------- */
+describeKneelArms('GPT-chan', {
+  dir: DIR, M: KneelMotion, GESTURES,
+  make: async (missing = []) => {
+    const model = JSON.parse(readFileSync(new URL('model.json', DIR), 'utf8')), doc = globalThis.document;
+    globalThis.document = { createElement: () => recCanvas(), createElementNS: () => recCanvas() };
+    try {
+      return await createGptFigure(DIR, {
+        model, asset: p => String(p),
+        loadImage: url => (missing.some(n => String(url).endsWith(`tex/${n}.png`)) ? Promise.reject(new Error('missing')) : Promise.resolve({ url })),
+      });
+    } finally { globalThis.document = doc; }
+  },
 });

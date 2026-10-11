@@ -10,6 +10,8 @@ import {
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
 import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gemini-chan/fx.js';
+import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
+import { describeKneelArms } from './helpers/kneel-arms.js';
 import { createGeminiFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/figure.js';
 
 const DIR = new URL('../packages/cortico-world-desktop-pet/web/gemini-chan/', import.meta.url);
@@ -1319,4 +1321,19 @@ describe('her brows', () => {
     // Claude 娘 and GPT 娘 have 4.4 and 4.6; cut with the lashes' tips it was 16.8
     expect(brows.box[3]).toBeLessThan(8);
   });
+});
+
+/* ---------- kneeling with her arms posed (the three girls share these: tests/helpers/kneel-arms.js) ---------- */
+describeKneelArms('Gemini-chan', {
+  dir: DIR, M: KneelMotion, GESTURES,
+  make: async (missing = []) => {
+    const model = JSON.parse(readFileSync(new URL('model.json', DIR), 'utf8')), doc = globalThis.document;
+    globalThis.document = { createElement: () => recCanvas(), createElementNS: () => recCanvas() };
+    try {
+      return await createGeminiFigure(DIR, {
+        model, asset: p => String(p),
+        loadImage: url => (missing.some(n => String(url).endsWith(`tex/${n}.png`)) ? Promise.reject(new Error('missing')) : Promise.resolve({ url })),
+      });
+    } finally { globalThis.document = doc; }
+  },
 });

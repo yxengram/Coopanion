@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
-import { CHANNELS, estimateSeconds, type Channel, pairKey, parseActions as actionsIn, parseScript as scriptIn, vocabId, vocabTable, INLINE_TAG_MAX, type Pairs, type VocabWord } from '../src/script.ts';
+import { CHANNELS, channelsOf, clashes, estimateSeconds, lastingNote, type Channel, pairKey, parseActions as actionsIn, parseScript as scriptIn, vocabId, vocabTable, INLINE_TAG_MAX, type Pairs, type VocabWord } from '../src/script.ts';
 
 // Coo's words, as the body on screen gives them
 const VOCAB = figurePacks([]).packs.find((p) => p.id === 'coo')!.manifest.vocab;
@@ -339,5 +339,63 @@ describe('two expressions of one group as one face', () => {
   it('keys a pair the same whichever is first', () => {
     expect(pairKey('surprised', 'happy')).toBe('happy~surprised');
     expect(pairKey('happy', 'surprised')).toBe('happy~surprised');
+  });
+});
+
+describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', () => {
+  // Claude-chan's words: her `kneel` says keepsArms (the kit's figure.kneelArms)
+  const GIRL = figurePacks([]).packs.find((p) => p.id === 'claude-chan')!.manifest.vocab;
+  const kneel = GIRL.find((v) => v.id === 'kneel')!;
+  const cooKneel = VOCAB.find((v) => v.id === 'kneel')!;
+  const girlScript = (s: string) => scriptIn(s, GIRL);
+  const row = (id: string, vocab: readonly VocabWord[]) => vocabTable(vocab).split('\n').find((l) => l.startsWith(`- ${id} `))!;
+
+  it('frees the arm from kneeling with the flag, and keeps the static table for Coo and other packs', () => {
+    expect(kneel.keepsArms).toBe(true);
+    expect(cooKneel.keepsArms).toBeUndefined();
+    expect(channelsOf(kneel)).toEqual(['body', 'stance']);
+    expect(channelsOf(cooKneel)).toEqual(['body', 'arm']);
+    expect(CHANNELS.kneel).toContain('arm');
+  });
+
+  it('does a kneel and an arm gesture as one group, body first, with no note', () => {
+    for (const s of ['【跪坐+招手】', '【招手+跪坐】']) {
+      const got = girlScript(s);
+      expect(got.beats[0].actions, s).toEqual(['kneel+wave']);
+      expect(got.notes, s).toEqual([]);
+    }
+    expect(actionsIn(['跪坐+比心'], GIRL)).toEqual({ actions: ['kneel+heart'], dropped: [], notes: [] });
+    // Coo (no flag) still splits them
+    expect(parseScript('【跪坐+招手】').notes).toEqual(['跪坐 和 招手 不能同时做,改成先后做。']);
+  });
+
+  it('still splits a kneel from gestures that need her standing or seated still, and from a turn', () => {
+    const cheer = girlScript('【跪坐+欢呼】');
+    expect(cheer.beats[0].actions).toEqual(['kneel', 'cheer']);
+    expect(cheer.notes).toEqual(['跪坐 和 欢呼 不能同时做,改成先后做。']);
+    expect(girlScript('【跪坐+转身】').beats[0].actions).toEqual(['kneel', 'turn']);
+    expect(girlScript('【跪坐+点头+开心】').beats[0].actions).toEqual(['kneel+nod+happy']);
+  });
+
+  it('does a kneel and a song as one group (the kit keeps the kneel through a song), and only with the flag', () => {
+    // (both take her stance, so they go as written; the kit does either order: pet-actions.test.js)
+    for (const [s, want] of [['【跪坐+唱歌】', 'kneel+song'], ['【唱歌+跪坐】', 'song+kneel']]) {
+      const got = girlScript(s);
+      expect(got.beats[0].actions, s).toEqual([want]);
+      expect(got.notes, s).toEqual([]);
+    }
+    expect(clashes(kneel, GIRL.find((v) => v.id === 'song')!)).toBe(false);
+    expect(clashes(kneel, GIRL.find((v) => v.id === 'cheer')!)).toBe(true);
+    // a song still splits from a walk, and Coo's kneel (no flag) from a song
+    expect(girlScript('【走走+唱歌】').beats[0].actions).toEqual(['walk', 'song']);
+    expect(parseScript('【跪坐+唱歌】').beats[0].actions).toEqual(['kneel', 'song']);
+  });
+
+  it('says how long the kneel lasts by the flag, in the vocabulary table and the note', () => {
+    expect(lastingNote(kneel)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(cooKneel)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气不影响');
+    expect(row('kneel', GIRL)).toContain(lastingNote(kneel));
+    expect(row('kneel', GIRL)).not.toContain('也占手');
+    expect(row('kneel', VOCAB)).toMatch(/\(也占手\):/);
   });
 });

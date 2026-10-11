@@ -1216,7 +1216,8 @@
         "zh": "端端正正地跪坐,双手放在膝上"
       },
       "seconds": 0.8,
-      "lasting": true
+      "lasting": true,
+      "keepsArms": true
     },
     {
       "id": "lie",

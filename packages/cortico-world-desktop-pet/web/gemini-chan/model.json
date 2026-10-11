@@ -2060,6 +2060,36 @@
    "hides": [
     "tail"
    ]
+  },
+  "kneelLow": {
+   "required": [
+    {
+     "id": "kneel_low",
+     "tex": "kneel_low",
+     "z": 3.05,
+     "parent": "kneelLow",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      43.87,
+      34.3,
+      179.49,
+      221.9
+     ]
+    }
+   ],
+   "pivots": {
+    "kneelLow": [
+     128,
+     256
+    ]
+   },
+   "hides": [
+    "tail"
+   ],
+   "cut": 192.48
   }
  }
 }

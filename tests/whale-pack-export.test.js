@@ -52,6 +52,8 @@ describe('exported whale pack', () => {
     expect(m.name).toEqual({ zh: 'Coopanion 大肥鱼', en: 'Coopanion Whale' });
     const whale = builtin('whale');
     expect(m.vocab).toEqual(whale.vocab);
+    // she draws arm gestures kneeling: her kneel says so (keepsArms)
+    expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     // the 72 words of v0.2.6 and the faces made of parts (PLUS_MIXES), which the pack's own kit draws
     expect(m.vocab.length).toBe(72 + Object.keys(PLUS_MIXES).length);
     expect(m.vocab.filter((w) => w.id in PLUS_MIXES).map((w) => w.kind)).toEqual(Object.keys(PLUS_MIXES).map(() => 'expression'));
@@ -91,6 +93,8 @@ describe('exported whale pack', () => {
       const gaps = [];
       const r = upstream.readManifest(dir, false, gaps);
       expect(typeof r === 'string' ? r : null).toBeNull();
+      // (upstream leaves keepsArms out: its World sends the kneel and a wave one by one, and the bundled kit keeps the kneel)
+      expect(r.vocab.find((w) => w.id === 'kneel')).not.toHaveProperty('keepsArms');
       expect(gaps).toEqual([]);
       const scan = upstream.scanPacks([], [root]);
       expect(scan.problems).toEqual([]);
@@ -123,6 +127,7 @@ describe('exported whale pack', () => {
     const model = JSON.parse(readFileSync(new URL('web/whale/model.json', PKG), 'utf8'));
     for (const sc of model.schemes.slice(1)) {
       expect(to).toContain(`schemes/${sc.id}/tex/kneel_body.png`);
+      expect(to).toContain(`schemes/${sc.id}/tex/kneel_low.png`);
       expect(to).toContain(`schemes/${sc.id}/feat/eyeL_iris.png`);
     }
     for (const p of model.parts) expect(to).toContain(`tex/${p.tex}.png`);

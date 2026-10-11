@@ -1897,6 +1897,37 @@
     167.5
    ],
    "source": "gpt-image-2.5 edit of the standing rig render into kneeling seiza: kneel_gpt 1"
+  },
+  "kneelLow": {
+   "required": [
+    {
+     "id": "kneel_low",
+     "tex": "kneel_low",
+     "z": 5.2,
+     "parent": "kneelLow",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      31.0,
+      31.5,
+      172.5,
+      224.67
+     ]
+    }
+   ],
+   "pivots": {
+    "kneelLow": [
+     128,
+     256
+    ]
+   },
+   "hides": [
+    "tail"
+   ],
+   "cut": 201.17,
+   "source": "cut from kneel_body (no generation): arms (near/far polygons) and hair beside the skirt removed; her standing skirt sunk by headDrop and an inpaint of the drawing's own cloth under them; per scheme from its own kneel_body and skirt"
   }
  }
 }

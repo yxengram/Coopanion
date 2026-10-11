@@ -31,6 +31,11 @@ export interface VocabWord {
   seconds: number;
   /** A posture she stays in (sitting, lying, sleeping, kneeling); see `vocabTable` for what ends it. */
   lasting?: boolean;
+  /**
+   * (kneel) The figure draws arm gestures while kneeling (the kit's `figure.kneelArms`), so an arm gesture neither ends
+   * it nor splits from it in a group (`channelsOf`); only read with `lasting`.
+   */
+  keepsArms?: boolean;
 }
 
 const lookups = new WeakMap<readonly VocabWord[], Map<string, VocabWord>>();
@@ -84,7 +89,8 @@ const ALL: readonly Channel[] = ['face', 'head', 'arm', 'body', 'stance'];
  * What part of her a kit word takes. It also encodes what the kit refuses or changes when words come together: a
  * song needs her standing or seated still; a curtsy stands her up; kneeling, lying and sleep leave no arm gesture to
  * see (and an arm gesture ends a kneel); dizzy and sleep show no face of their own choosing; stone goes with nothing.
- * (A figure that draws arms kneeling, `kneelArms` in the kit, would need a vocab flag to free `arm` from kneel here.)
+ * (A figure that draws arm gestures kneeling, `kneelArms` in the kit, says so with `keepsArms` on its `kneel` word:
+ * then kneeling frees the arm, see `channelsOf`.)
  */
 export const CHANNELS: Record<string, readonly Channel[]> = {
   nod: ['head'], shake: ['head'], sigh: ['head'],
@@ -97,7 +103,7 @@ export const CHANNELS: Record<string, readonly Channel[]> = {
   // she stands up for it
   curtsy: ['arm', 'stance', 'body'],
   sit: ['body'],
-  // an arm gesture ends a kneel; lying, none shows
+  // an arm gesture ends a kneel (unless the figure draws them kneeling: KNEEL_WITH_ARMS); lying, none shows
   kneel: ['body', 'arm'], lie: ['body', 'arm'],
   // asleep, nothing else shows; the dizzy face covers any other
   sleep: ['face', 'head', 'arm', 'body'],
@@ -107,9 +113,28 @@ export const CHANNELS: Record<string, readonly Channel[]> = {
   flap: ['body', 'stance', 'arm'], roll: ['body', 'stance', 'arm', 'head'],
   petrify: ALL,
 };
+/**
+ * Kneeling for a figure that draws arm gestures kneeling (`keepsArms`): the arm is free; gestures that need her standing
+ * or seated still (cheer, bow, flinch, peek, away, spin, curtsy, turn) still end it, so they still split. A song is
+ * the exception (KNEEL_SINGS).
+ */
+const KNEEL_WITH_ARMS: readonly Channel[] = ['body', 'stance'];
+/**
+ * (keepsArms) The gestures needing her still that the kit keeps a kneel through all the same (its ARM_GESTURES,
+ * web/kit/body.js): kneeling is sitting still, so she sings kneeling, and the two go as one group.
+ */
+const KNEEL_SINGS: ReadonlySet<string> = new Set(['song']);
 /** The parts word `v` takes: a pack's own expression the face, a pack's own motion all but the face. */
 export function channelsOf(v: VocabWord): readonly Channel[] {
+  if (v.id === 'kneel' && v.keepsArms) return KNEEL_WITH_ARMS;
   return CHANNELS[v.id] ?? (v.kind === 'expression' ? ['face'] : ['head', 'arm', 'body', 'stance']);
+}
+/** Whether words `a` and `b` take a part of her in common, so they cannot go at once (a kneel with keepsArms and a song can). */
+export function clashes(a: VocabWord, b: VocabWord): boolean {
+  const sings = (k: VocabWord, w: VocabWord) => k.id === 'kneel' && !!k.keepsArms && KNEEL_SINGS.has(w.id);
+  if (sings(a, b) || sings(b, a)) return false;
+  const cs = channelsOf(b);
+  return channelsOf(a).some((c) => cs.includes(c));
 }
 /**
  * Two expressions of one group shown as one face (a pack's `pairs`, src/packs.ts), by `pairKey`: a word of the
@@ -169,8 +194,7 @@ function groupToken(tok: string, dropped: string[], notes: string[], vocab: read
   const runs: Member[][] = [];
   let run: Member[] = [];
   for (const m of members) {
-    const cs = channelsOf(m.v);
-    const clash = run.find((r) => channelsOf(r.v).some((c) => cs.includes(c)));
+    const clash = run.find((r) => clashes(r.v, m.v));
     // two plain expressions this figure shows as one face (its `pairs`): the second joins the run's lone one, once
     const p = clash && !clash.with && faceOnly(clash.v) && faceOnly(m.v) ? pairOf(clash.v, m.v) : null;
     const as = p && 'as' in p ? byId.get(p.as) : undefined;
@@ -279,12 +303,14 @@ export const membersOf = (entries: readonly string[]): string[] => entries.flatM
  * How long a lasting word holds, as the prompt and `pet_act`'s receipt say it (web/kit/body.js `act`): sitting,
  * lying and sleeping stay through gestures and expressions and end on another posture or a move of the whole
  * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh) and
- * ends on the next arm or whole-body motion, back to plain sitting.
+ * ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
+ * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS).
  */
-export function lastingNote(id: string): string {
-  return id === 'kneel'
-    ? '保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气不影响'
-    : '一直保持:做手势、换表情不影响,换别的姿势或走、跑、跳这类全身动作才结束';
+export function lastingNote(v: VocabWord): string {
+  if (v.id !== 'kneel') return '一直保持:做手势、换表情不影响,换别的姿势或走、跑、跳这类全身动作才结束';
+  return v.keepsArms
+    ? '保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着'
+    : '保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气不影响';
 }
 
 /**
@@ -339,7 +365,7 @@ const PAIRS_FLAT = 12;
  */
 export function vocabTable(vocab: readonly VocabWord[], language = 'zh', pairs: Pairs = {}): string {
   const pick = <T>(by: Record<string, T>): T | undefined => by[language] ?? by.zh ?? Object.values(by)[0];
-  const about = (v: VocabWord) => `${pick(v.about) ?? ''}${v.lasting ? `,${lastingNote(v.id)}` : ''}${v.id === 'petrify' ? ',不和别的同时做' : ''}`;
+  const about = (v: VocabWord) => `${pick(v.about) ?? ''}${v.lasting ? `,${lastingNote(v)}` : ''}${v.id === 'petrify' ? ',不和别的同时做' : ''}`;
   const names = (v: VocabWord) => (pick(v.names) ?? []).join('/');
   const byId = new Map(vocab.map((v) => [v.id, v]));
   const nameOf = (id: string) => { const v = byId.get(id); return v ? firstName(v, language) : id; };

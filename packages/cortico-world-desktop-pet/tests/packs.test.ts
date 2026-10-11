@@ -152,7 +152,18 @@ describe('figure packs', () => {
     expect(JSON.stringify(gemini)).not.toMatch(/鲸|鳍|围裙|喷水|龙|翅膀|翼/);
     expect(gemini!.filter((w) => /书/.test(w.about.zh!)).map((w) => w.id)).toEqual(['read']);
     for (const v of [coo!, whale!, claude!, gpt!, gemini!]) expect(v.filter((w) => w.lasting).map((w) => w.id).sort()).toEqual(['kneel', 'lie', 'sit', 'sleep']);
+    // the whale and the three girls draw arm gestures kneeling (keepsArms); Coo does not
+    for (const v of [whale!, claude!, gpt!, gemini!]) expect(v.filter((w) => w.keepsArms).map((w) => w.id)).toEqual(['kneel']);
+    expect(coo!.some((w) => w.keepsArms)).toBe(false);
     expect(coo!.find((w) => w.id === 'petrify')!.seconds).toBe(3.2);
+  });
+
+  it('reads keepsArms only as true on a lasting word', () => {
+    const vocabOf = (w: Record<string, unknown>) => { const m = readManifest(pack({ ...base, vocab: [{ ...word, ...w }] })); if (typeof m === 'string') throw new Error(m); return m.vocab[0]; };
+    expect(vocabOf({ lasting: true, keepsArms: true })).toMatchObject({ lasting: true, keepsArms: true });
+    expect(vocabOf({ lasting: true, keepsArms: 'yes' })).not.toHaveProperty('keepsArms');
+    expect(vocabOf({ lasting: true, keepsArms: 1 })).not.toHaveProperty('keepsArms');
+    expect(vocabOf({ keepsArms: true })).not.toHaveProperty('keepsArms');
   });
 
   it('refuses a word name a script could never write: a marker\'s separator in it, longer than an inline marker, or naming two words', () => {

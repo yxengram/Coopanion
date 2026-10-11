@@ -248,7 +248,10 @@ const PLUS_FACE_TONES = {
 };
 /** (plus) Gestures of the head alone: they play in their own channel (`pet.head`, the frame's `head`), alongside any other gesture. */
 export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh']);
-/** (plus) Gestures of the arms: a figure that draws arms kneeling (`figure.kneelArms`) keeps kneeling through them. */
+/**
+ * (plus) Gestures of the arms: a figure that draws arms kneeling (`figure.kneelArms`: the three girls and the whale, with
+ * their poses.kneelLow) keeps kneeling through them; any other motion still ends a kneel.
+ */
 export const ARM_GESTURES = ['wave', 'shiver', 'heart', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch',
   'pray', 'scratch', 'idea', 'hug', 'hips', 'spout', 'sip', 'read'];
 /**
@@ -384,8 +387,8 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  * - `squashFaces: true`: the faces' `sag` and `titter` squash the whole group.
  * - `liePoint(x, y, lie)`: where a standing point is in the lying drawing, for a figure that lies by turning its standing
  *   one (the bubble's spot and the box's top follow it).
- * - `kneelArms: true`: the figure draws arm gestures kneeling, so ARM_GESTURES do not end a kneel (none of ours does;
- *   the World would also need to know, to group them with kneeling).
+ * - `kneelArms: true`: the figure draws arm gestures kneeling (the three girls and the whale, with poses.kneelLow), so
+ *   ARM_GESTURES do not end a kneel; the World groups them with kneeling when the pack's `kneel` word has `keepsArms`.
  */
 export function createPet(els, opts) {
   const { petG, shadowEl, fxG } = els;

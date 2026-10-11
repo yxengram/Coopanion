@@ -2127,6 +2127,33 @@
     ]
    },
    "headDrop": 22.92
+  },
+  "kneelLow": {
+   "required": [
+    {
+     "id": "kneel_low",
+     "tex": "kneel_low",
+     "z": 3.05,
+     "parent": "kneelLow",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      42.6,
+      49.2,
+      176.6,
+      206.8
+     ]
+    }
+   ],
+   "pivots": {
+    "kneelLow": [
+     128,
+     256
+    ]
+   },
+   "cut": 181.8
   }
  }
 }

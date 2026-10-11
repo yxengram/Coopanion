@@ -2008,6 +2008,41 @@ describe('an asked-for face outlives the motions after it (plus)', () => {
     expect(arms.pet.kneel).toBe(false);
     expect(ARM_GESTURES).toContain('wave');
     expect(ARM_GESTURES).not.toContain('bow');
+    // a group from standing (the World sends 跪坐+招手 as one for a figure whose kneel has keepsArms): she kneels and waves
+    const group = barePet();
+    group.setFigure({ kneelArms: true, draw() {} });
+    run(group, 1);
+    expect(group.doGroup(['kneel', 'wave'])).toEqual([true, true]);
+    expect(group.pet.kneel).toBe(true);
+    expect(group.pet.pulse?.kind).toBe('wave');
+    run(group, 3);
+    expect(group.pet.kneel).toBe(true);
+    // a gesture that needs her standing or seated still ends it, as without the figure
+    const cheer = barePet();
+    cheer.setFigure({ kneelArms: true, draw() {} });
+    run(cheer, 1);
+    cheer.doGroup(['kneel', 'cheer']);
+    expect(cheer.pet.kneel).toBe(false);
+    // a song is in ARM_GESTURES: she sings kneeling (the World groups 跪坐+唱歌 for such a figure: script.ts KNEEL_SINGS)
+    const song = barePet();
+    song.setFigure({ kneelArms: true, draw() {} });
+    run(song, 1);
+    expect(song.doGroup(['kneel', 'song'])).toEqual([true, true]);
+    run(song, 1);
+    expect(song.pet.kneel).toBe(true);
+    expect(ARM_GESTURES).toContain('song');
+    const songFirst = barePet();
+    songFirst.setFigure({ kneelArms: true, draw() {} });
+    run(songFirst, 1);
+    expect(songFirst.doGroup(['song', 'kneel'])).toEqual([true, true]);
+    run(songFirst, 1);
+    expect(songFirst.pet.kneel).toBe(true);
+    expect(songFirst.pet.pulse?.kind).toBe('song');
+    // and without kneelArms the group's wave ends the kneel (the World splits it for such a figure)
+    const plain = barePet();
+    run(plain, 1);
+    plain.doGroup(['kneel', 'wave']);
+    expect(plain.pet.kneel).toBe(false);
   });
 
   it('a face no longer cuts a look round short (it still ends one on a body without plus)', () => {

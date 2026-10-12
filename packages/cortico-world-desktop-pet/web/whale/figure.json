@@ -396,7 +396,9 @@
       "names": {
         "zh": [
           "害羞",
-          "偷看"
+          "偷看",
+          "偷偷抬眼",
+          "移开视线"
         ]
       },
       "about": {
@@ -453,7 +455,10 @@
       "names": {
         "zh": [
           "犯困",
-          "困"
+          "困",
+          "打哈欠",
+          "揉眼",
+          "打盹"
         ]
       },
       "about": {
@@ -509,7 +514,8 @@
       "names": {
         "zh": [
           "担心",
-          "着急"
+          "着急",
+          "心疼"
         ]
       },
       "about": {
@@ -523,7 +529,8 @@
       "names": {
         "zh": [
           "认真",
-          "坚定"
+          "坚定",
+          "握拳"
         ]
       },
       "about": {
@@ -565,7 +572,9 @@
       "names": {
         "zh": [
           "期待",
-          "星星眼"
+          "星星眼",
+          "兴奋",
+          "眼睛亮"
         ]
       },
       "about": {
@@ -636,7 +645,8 @@
         "zh": [
           "温柔",
           "欣慰",
-          "没事的"
+          "没事的",
+          "微笑"
         ]
       },
       "about": {
@@ -1071,7 +1081,8 @@
       "names": {
         "zh": [
           "站起",
-          "站"
+          "站",
+          "站起来"
         ]
       },
       "about": {
@@ -1139,7 +1150,8 @@
       "kind": "motion",
       "names": {
         "zh": [
-          "点头"
+          "点头",
+          "轻轻点头"
         ]
       },
       "about": {
@@ -1283,7 +1295,9 @@
       "names": {
         "zh": [
           "招手",
-          "打招呼"
+          "打招呼",
+          "挥手",
+          "摆手"
         ]
       },
       "about": {
@@ -1310,7 +1324,8 @@
       "names": {
         "zh": [
           "发抖",
-          "哆嗦"
+          "哆嗦",
+          "抖抖"
         ]
       },
       "about": {
@@ -1477,6 +1492,22 @@
         "zh": "吸一口气再长长呼出来,身子一塌,轻度无奈时偶尔用"
       },
       "seconds": 2.1
+    },
+    {
+      "id": "tilt",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "歪头",
+          "歪脑袋",
+          "偏头",
+          "好奇"
+        ]
+      },
+      "about": {
+        "zh": "好奇地把头歪向一边,停一会儿再回正"
+      },
+      "seconds": 1.8
     },
     {
       "id": "pray",
@@ -1700,8 +1731,10 @@
     "angry+coax": "coax+angry",
     "angry+cry": "ragecry",
     "angry+flustered": "frantic",
+    "angry+gentle": "angry+gentle",
     "angry+moved": "moved+angry",
     "angry+pout": "huff",
+    "angry+smug": "angry+smug",
     "angry+surprised": "angry+surprised",
     "angry+tongue": "angry+tongue",
     "awkward+cry": "cry+awkward",
@@ -1718,6 +1751,7 @@
     "coax+smug": "smug+coax",
     "coax+wink": "sly",
     "confused+cry": "cry+confused",
+    "confused+smug": "doubt",
     "confused+surprised": "blank",
     "cry+disgusted": "disgusted+cry",
     "cry+flustered": "cry+flustered",
@@ -1733,7 +1767,9 @@
     "determined+happy": "eager",
     "determined+moved": "moved+determined",
     "determined+tongue": "determined+tongue",
+    "disgusted+gentle": "disgusted+gentle",
     "disgusted+pout": "disgusted+pout",
+    "disgusted+smug": "disgusted+smug",
     "disgusted+tongue": "disgusted+tongue",
     "excited+gentle": "dreamy",
     "excited+nervous": "nervous+excited",
@@ -1742,15 +1778,22 @@
     "excited+surprised": "wow",
     "excited+thinking": "thinking+excited",
     "excited+tongue": "crave",
+    "flustered+giggle": "giggle+flustered",
     "flustered+happy": "lol",
     "flustered+surprised": "flustered+surprised",
     "flustered+tongue": "flustered+tongue",
     "gentle+love": "love+gentle",
+    "gentle+sad": "sad+gentle",
+    "gentle+scared": "scared+gentle",
+    "gentle+shy": "shy+gentle",
+    "gentle+thinking": "thinking+gentle",
     "gentle+tongue": "gentle+tongue",
+    "gentle+worried": "brave",
     "giggle+love": "love+giggle",
     "giggle+pout": "giggle+pout",
     "happy+nervous": "nervous+happy",
     "happy+pout": "happy+pout",
+    "happy+sad": "sad+happy",
     "happy+shy": "bashful",
     "happy+smug": "smirk",
     "happy+surprised": "surprised+happy",
@@ -1773,11 +1816,16 @@
     "pout+tongue": "tongue+pout",
     "pout+wink": "wink+pout",
     "pout+worried": "worried+pout",
+    "sad+sleepy": "sleepy+sad",
+    "sad+surprised": "sad+surprised",
+    "sad+thinking": "thinking+sad",
     "scared+surprised": "scared+surprised",
     "shy+surprised": "shy+surprised",
     "shy+tongue": "shy+tongue",
+    "smug+thinking": "thinking+smug",
     "smug+tongue": "smug+tongue",
-    "surprised+worried": "worried+surprised"
+    "surprised+worried": "worried+surprised",
+    "thinking+worried": "thinking+worried"
   },
   "sounds": {},
   "can": {

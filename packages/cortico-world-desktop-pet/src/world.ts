@@ -1436,7 +1436,7 @@ export class DesktopPetWorld implements World {
     const lasting = membersOf(actions).filter((a) => vocab.find((v) => v.id === a)?.lasting);
     const params = `${dropped.length ? `当前形象的词表里没有这些,已略过:${dropped.join('、')}。` : ''}${notes.join('')}`;
     const note = params ? `\n[执行参数] ${params}` : '';
-    const held = [...new Set(lasting)].map((a) => `${a} ${lastingNote(vocab.find((v) => v.id === a)!)}。`).join('');
+    const held = [...new Set(lasting)].map((a) => `${a} ${lastingNote(vocab.find((v) => v.id === a)!, vocab)}。`).join('');
     return { text: `开始依次做:${actions.join(' → ')}。${held}${note}` };
   }
 

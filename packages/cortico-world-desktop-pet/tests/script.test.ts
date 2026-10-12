@@ -70,7 +70,7 @@ describe('vocabTable', () => {
   });
 
   it('says kneeling ends on the next arm or whole-body motion, not on a face or a head gesture, and leaves other words alone', () => {
-    expect(row('kneel')).toContain('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气不影响');
+    expect(row('kneel')).toContain('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头不影响');
     expect(row('nod')).not.toContain('保持');
   });
 
@@ -84,7 +84,7 @@ describe('vocabTable', () => {
   it('groups the motions by the part of her they take, and says what else a whole-body word takes', () => {
     const t = vocabTable(VOCAB);
     expect(t).toContain('动作,按部位分组:');
-    for (const id of ['nod', 'shake', 'sigh']) expect(groupOf(id), id).toBe('头');
+    for (const id of ['nod', 'shake', 'sigh', 'tilt']) expect(groupOf(id), id).toBe('头');
     for (const id of ['wave', 'read', 'hips', 'spout']) expect(groupOf(id), id).toBe('手');
     for (const id of ['song', 'bow', 'cheer', 'spin']) expect(groupOf(id), id).toBe('手,要站着或坐着不动(不和走、跑、跳这类移动同组,坐下可以)');
     for (const id of ['sit', 'kneel', 'walk', 'jump', 'curtsy', 'turn', 'roll', 'sleep', 'dizzy']) expect(groupOf(id), id).toBe('身');
@@ -141,6 +141,23 @@ describe('vocabulary', () => {
     expect(parseScript('【趴下】歇会儿').beats[0].actions).toEqual(['lie']);
   });
 
+  it('knows the words the bot wrote that the vocabulary used to drop, by every figure, as the word they mean', () => {
+    const MEANT: Record<string, string> = {
+      挥手: 'wave', 摆手: 'wave', 兴奋: 'excited', 眼睛亮: 'excited', 打哈欠: 'sleepy', 揉眼: 'sleepy', 打盹: 'sleepy', 微笑: 'gentle',
+      心疼: 'worried', 站起来: 'stand', 偷偷抬眼: 'shy', 移开视线: 'shy', 握拳: 'determined', 轻轻点头: 'nod', 抖抖: 'shiver',
+      歪头: 'tilt', 歪脑袋: 'tilt', 偏头: 'tilt', 好奇: 'tilt',
+    };
+    for (const p of figurePacks([]).packs) {
+      for (const [name, id] of Object.entries(MEANT)) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(id);
+      // (still none for these: no word of hers means them)
+      for (const name of ['拍手', '盖被子', '被戳', '转头']) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(null);
+    }
+    // the evals' own lines
+    expect(parseScript('【温柔+歪头】唱完啦。').beats[0].actions).toEqual(['tilt+gentle']);
+    expect(parseScript('【心疼+挥手】').beats[0].actions).toEqual(['wave+worried']);
+    expect(parseScript('【好奇+探头】蛋糕摆哪儿了呀?').beats[0].actions).toEqual(['peek+tilt']);
+  });
+
   it('parseActions separates known from unknown words', () => {
     expect(parseActions(['跳', 'happy', 'fly', 3])).toEqual({ actions: ['jump', 'happy'], dropped: ['fly', '3'], notes: [] });
   });
@@ -157,6 +174,10 @@ describe('words at once', () => {
     expect(parseScript('【开心+招手】你好').beats[0]).toEqual({ actions: ['wave+happy'], text: '你好', anchors: [] });
     for (const s of ['【开心 + 招手】', '【开心＋招手】', '【开心 ＋ 招手】', '【招手+开心】']) expect(blocking(s), s).toEqual(['wave+happy']);
     expect(parseScript('好<点头 ＋ 眨眼>呀').beats[0].anchors).toEqual([{ at: 1, actions: ['nod+wink'] }]);
+    // a tilt of the head goes with a gesture of the arms and a face, not with another head gesture
+    expect(blocking('【歪头+招手+开心】')).toEqual(['wave+tilt+happy']);
+    expect(parseScript('【歪头+点头】').notes).toEqual(['歪头 和 点头 不能同时做,改成先后做。']);
+    expect(blocking('【歪头+点头】')).toEqual(['tilt', 'nod']);
     expect(blocking('【开心+招手+坐下】')).toEqual(['sit+wave+happy']);
     // the list separators still mean one after another
     expect(blocking('【坐下, 开心+招手、点头】')).toEqual(['sit', 'wave+happy', 'nod']);
@@ -392,10 +413,26 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
   });
 
   it('says how long the kneel lasts by the flag, in the vocabulary table and the note', () => {
-    expect(lastingNote(kneel)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
-    expect(lastingNote(cooKneel)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气不影响');
+    expect(lastingNote(kneel)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(cooKneel)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头不影响');
     expect(row('kneel', GIRL)).toContain(lastingNote(kneel));
     expect(row('kneel', GIRL)).not.toContain('也占手');
     expect(row('kneel', VOCAB)).toMatch(/\(也占手\):/);
+  });
+
+  it('names in the kneel\'s note only the head gestures the figure has', () => {
+    // (a pack with a kneel and a nod but no shake, sigh or tilt)
+    const pack: VocabWord[] = [
+      { id: 'happy', kind: 'expression', names: { zh: ['开心'] }, about: { zh: '笑' }, seconds: 1 },
+      { id: 'nod', kind: 'motion', names: { zh: ['点头'] }, about: { zh: '点头' }, seconds: 1 },
+      { id: 'kneel', kind: 'motion', names: { zh: ['跪坐'] }, about: { zh: '跪坐' }, seconds: 1, lasting: true },
+    ] as VocabWord[];
+    const note = lastingNote(pack[2], pack);
+    expect(note).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头不影响');
+    expect(row('kneel', pack)).toContain(note);
+    expect(lastingNote({ ...pack[2], keepsArms: true }, pack.filter((v) => v.id !== 'nod'))).toMatch(/;换表情、只占「手」的手势和唱歌都不影响/);
+    // (the built-ins have all four: their notes as before)
+    expect(lastingNote(kneel, GIRL)).toBe(lastingNote(kneel));
+    expect(lastingNote(cooKneel, VOCAB)).toBe(lastingNote(cooKneel));
   });
 });

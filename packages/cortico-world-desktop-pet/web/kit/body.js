@@ -237,7 +237,7 @@ export const PLUS_MIXES = {
 };
 /** The faces and motions a plus body adds to the kit's words. `lie` and `kneel` last until something else happens. */
 export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue', ...Object.keys(PLUS_MIXES)];
-export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh',
+export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh', 'tilt',
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel'];
 /** The tones of the plus faces, filed as face sounds like the kit's. */
 const PLUS_FACE_TONES = {
@@ -246,8 +246,15 @@ const PLUS_FACE_TONES = {
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
   brave: 'wry', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
 };
+/**
+ * (plus) A curious head tilt (`tilt`): seconds in all, and degrees for a body the kit tilts itself (Coo, whose whole ring
+ * is its head; a figure listing it in `gestures` draws its own). `tiltOf(k)` is how far over it is (0..1) at k: over in
+ * the first sixth, held, back in the last sixth (held about 1.2 s).
+ */
+export const TILT = { dur: 1.8, deg: -12 };
+export const tiltOf = k => envelope(clamp(k, 0, 1), 1 / 6, 5 / 6);
 /** (plus) Gestures of the head alone: they play in their own channel (`pet.head`, the frame's `head`), alongside any other gesture. */
-export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh']);
+export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt']);
 /**
  * (plus) Gestures of the arms: a figure that draws arms kneeling (`figure.kneelArms`: the three girls and the whale, with
  * their poses.kneelLow) keeps kneeling through them; any other motion still ends a kneel.
@@ -358,7 +365,7 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  * smug face. Its frame fields: `lie` (0..1) is how far the body lies on its front (always over a full sit, so a figure
  * that cannot lie just stays seated), `prone` says the rest it is in (lying, or a sleep begun lying, until it is up) is a
  * lying one, `kneel` that its sit is a kneel, `away` (0..1) how far its back is turned, `head` ({ kind, k: 0..1 }, or
- * null) the head's own gesture (HEAD_GESTURES: nod, shake, sigh), which plays beside `gesture` on its own clock (a
+ * null) the head's own gesture (HEAD_GESTURES: nod, shake, sigh, tilt), which plays beside `gesture` on its own clock (a
  * figure reading `gesture` alone, made for a kit without it, misses them). While lying, the fidgets kick, chin and
  * thump come as gestures; the body itself does nothing with them but kick the legs.
  * A plus body's faces: an expression asked for (a word, or setExpr) outlives the motions that come after it (stone
@@ -419,7 +426,7 @@ export function createPet(els, opts) {
     // (plus) the face in the slot was asked for (a word, or a direct setExpr), not one she gave herself; how many faces
     // have been set (what a petrify's chips are keyed on: exprAt moves while a face is covered); the own faces of the
     // motions playing, by channel ({ n, at, until }); how long the asked-for face has been covered in a row; the head's
-    // gesture (nod, shake, sigh: { kind, t0, dur }), played beside `pulse`
+    // gesture (nod, shake, sigh, tilt: { kind, t0, dur }), played beside `pulse`
     exprAsked: false, exprN: 0, own: { arm: null, head: null, body: null }, coverT: 0, head: null,
   };
   const pointer = { x: -1e4, y: -1e4, inside: false, vx: 0, samples: [] };
@@ -562,7 +569,7 @@ export function createPet(els, opts) {
     const own = KIT_MOTIONS.includes(a) ? null : words[a]?.motion;
     // (a song needs her standing or sitting, awake and not being talked to)
     if (plus && a === 'song' && !own && (pet.listening || (pet.mode !== 'idle' && pet.mode !== 'sit'))) return false;
-    // (plus) kneeling lasts until a motion moves more than her head: nod, shake and sigh keep it (expressions are no
+    // (plus) kneeling lasts until a motion moves more than her head: nod, shake, sigh and tilt keep it (expressions are no
     // motion), and so does an arm gesture for a figure that draws arms kneeling; anything else is plain sitting again
     const keepKneel = !own && (a === 'kneel' || HEAD_GESTURES.has(a) || (!!custom?.kneelArms && ARM_GESTURES.includes(a)));
     if (plus && !keepKneel) pet.kneel = false;
@@ -674,6 +681,9 @@ export function createPet(els, opts) {
       case 'hips': pulse('hips', 2.5); holdFace('determined', 2.6, 'arm'); play('hips', 'move'); break;
       // a sigh: drawing a breath, then sagging as it goes out
       case 'sigh': pulse('sigh', 2); holdFace('sighing', 2.1, 'head'); play('sigh', 'move'); break;
+      // a curious tilt of the head to one side, held a moment and back (TILT), with a questioning little "hm?"; no face
+      // of its own, so it goes with whatever face she shows
+      case 'tilt': pulse('tilt', TILT.dur); play('look', 'move'); break;
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9, 'arm'); play('spout', 'move'); break;
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
@@ -686,7 +696,7 @@ export function createPet(els, opts) {
   }
   /**
    * Starts a short gesture (`pack`: one of the pack's own words); a plus body's song is cut short by any other one.
-   * (plus) A nod, a shake or a sigh plays in the head's own channel instead, beside whatever gesture is playing (a song
+   * (plus) A nod, a shake, a sigh or a tilt plays in the head's own channel instead, beside whatever gesture is playing (a song
    * goes on); any other gesture takes the place of the one before and of its face (a lying fidget has none).
    */
   function pulse(kind, dur, pack = false) {
@@ -1142,6 +1152,7 @@ export function createPet(els, opts) {
       else if (custom?.gestures?.includes(g.kind)) { /* the figure's own */ }
       else if (g.kind === 'nod') leanT += 9 * Math.abs(Math.sin(k * Math.PI * 2));
       else if (g.kind === 'shake') tiltT += 10 * Math.sin(k * Math.PI * 6) * (1 - k);
+      else if (g.kind === 'tilt') tiltT += TILT.deg * tiltOf(k);
       else if (g.kind === 'sigh') {
         // a breath drawn in (taller), then let out (sagging, leaning in)
         const inh = envelope(clamp(k / .45, 0, 1), .5, .7), exh = envelope(clamp((k - .35) / .6, 0, 1), .3, .7);

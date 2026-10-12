@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ADD_KEYS, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { ADD_KEYS, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
@@ -1038,6 +1038,62 @@ describe('a sigh, happy tears and turning to stone', () => {
     // something else cuts it short: no drooping face left over
     pet.act('nod');
     expect(PLUS_FACES.sighing.f(pet.pet.head.t0 + .1, pet.pet).puff ?? 0).toBe(0);
+  });
+
+  it('a curious tilt (歪头) leans her head to one side for about 1.2 s and back, in the head\'s channel, with a "hm?" and no face of its own', () => {
+    expect(PLUS_MOTIONS).toContain('tilt');
+    expect(HEAD_GESTURES.has('tilt')).toBe(true);
+    expect(CHANNELS.tilt).toEqual(['head']);
+    expect(SOUND_KINDS.move).toContain('look');
+    const pet = hearingPet();
+    run(pet, 1);
+    const rest = pet.pet.tilt;
+    expect(pet.act('tilt')).toBe(true);
+    expect(pet.heard).toContainEqual(['look', 'move']);
+    expect(pet.pet.head).toMatchObject({ kind: 'tilt', dur: TILT.dur });
+    expect(pet.pet.pulse).toBe(null);
+    // over in the first sixth, held, back in the last sixth: Coo's whole ring is her head, so the kit tilts it
+    expect(tiltOf(0)).toBe(0);
+    expect(tiltOf(1 / 6)).toBe(1);
+    expect(tiltOf(5 / 6)).toBe(1);
+    expect(tiltOf(1)).toBe(0);
+    expect((5 / 6 - 1 / 6) * TILT.dur).toBeCloseTo(1.2, 9);
+    run(pet, .7);
+    expect(pet.pet.tilt - rest).toBeLessThan(TILT.deg * .7);
+    expect(pet.pet._fname).toBe('neutral');
+    run(pet, 1.6);
+    expect(pet.pet.head).toBe(null);
+    expect(Math.abs(pet.pet.tilt - rest)).toBeLessThan(1);
+    // an asked-for face stays through it; it goes with a wave (each on its own clock) and keeps a kneel
+    pet.setExpr('happy', 4);
+    expect(pet.doGroup(['wave', 'tilt'])).toEqual([true, true]);
+    run(pet, .3);
+    expect(pet.pet.pulse.kind).toBe('wave');
+    expect(pet.pet.head.kind).toBe('tilt');
+    expect(pet.pet._fname).toBe('happy');
+    run(pet, 2);
+    // seated and kneeling Coo tilts the same (lying, her ring lies flat and takes no tilt, as with a nod)
+    pet.act('sit'); run(pet, 2);
+    pet.act('tilt'); run(pet, .7);
+    expect(pet.pet.mode).toBe('sit');
+    expect(pet.pet.tilt).toBeLessThan(TILT.deg * .7);
+    run(pet, 1.5);
+    pet.act('kneel'); run(pet, 2);
+    pet.act('tilt'); run(pet, .7);
+    expect(pet.pet.kneel).toBe(true);
+    expect(pet.pet.head.kind).toBe('tilt');
+    expect(pet.pet.tilt).toBeLessThan(TILT.deg * .7);
+    // a figure that draws it gets it whole, the body leaving it out
+    const own = barePet();
+    own.setFigure({ gestures: ['tilt'], draw() {} });
+    run(own, 1);
+    const still = own.pet.tilt;
+    own.act('tilt'); run(own, .8);
+    expect(Math.abs(own.pet.tilt - still)).toBeLessThan(.5);
+    // the kit as any other pack knows it has no tilt
+    const kit = barePet(undefined, { plus: false });
+    run(kit, 1);
+    expect(kit.doWord('tilt')).toBe(false);
   });
 
   it('happy tears drop slower than crying, with thin tracks on Coo', () => {
@@ -2606,7 +2662,7 @@ describe('two faces of one group shown as one (plus)', () => {
     expect(maps['gemini-chan']).toEqual(maps['claude-chan']);
     // the whitelists as judged: Coo the fewest, the girls the most
     expect(Object.keys(maps.coo).length).toBe(24);
-    expect(Object.keys(maps.whale).length).toBe(81);
+    expect(Object.keys(maps.whale).length).toBe(98);
     expect(Object.keys(maps['claude-chan']).length).toBe(118);
   });
 });

@@ -54,8 +54,11 @@ describe('exported whale pack', () => {
     expect(m.vocab).toEqual(whale.vocab);
     // she draws arm gestures kneeling: her kneel says so (keepsArms)
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
-    // the 72 words of v0.2.6 and the faces made of parts (PLUS_MIXES), which the pack's own kit draws
-    expect(m.vocab.length).toBe(72 + Object.keys(PLUS_MIXES).length);
+    // the 72 words of v0.2.6, the curious tilt (歪头) and the faces made of parts (PLUS_MIXES), which the pack's own kit draws
+    expect(m.vocab.length).toBe(73 + Object.keys(PLUS_MIXES).length);
+    // (the tilt's "hm?" is upstream's own look tone: no sound file for it)
+    expect(m.vocab.find((w) => w.id === 'tilt')).toMatchObject({ kind: 'motion', names: { zh: ['歪头', '歪脑袋', '偏头', '好奇'] } });
+    expect(upstreamTones).toContain('look');
     expect(m.vocab.filter((w) => w.id in PLUS_MIXES).map((w) => w.kind)).toEqual(Object.keys(PLUS_MIXES).map(() => 'expression'));
     expect(m.axes).toEqual(whale.axes);
     expect(m.presets).toEqual(whale.presets);

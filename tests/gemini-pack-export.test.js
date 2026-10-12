@@ -73,6 +73,9 @@ describe('exported Gemini-chan pack', () => {
     expect(ids).not.toContain(m.id);
     expect([WHALE_ID, CLAUDE_ID, GPT_ID]).not.toContain(m.id);
     expect(m.vocab).toEqual(builtin.vocab);
+    // her curious tilt (歪头) goes too; its "hm?" is upstream's own look tone, so no sound file for it
+    expect(m.vocab.find((w) => w.id === 'tilt')).toMatchObject({ kind: 'motion', names: { zh: ['歪头', '歪脑袋', '偏头', '好奇'] } });
+    expect(Object.keys(m.sounds)).not.toContain('look');
     // she draws arm gestures kneeling: her kneel says so (keepsArms), and her pack ships the drawing's lower body
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     expect(m.vocab.length).toBe(builtin.vocab.length);
@@ -122,7 +125,7 @@ describe('exported Gemini-chan pack', () => {
       // next to upstream's own built-ins (their manifests at the tag): no id clash
       const builtins = ['coo', 'whale'].map((id) => {
         const d = join(up, id);
-        mkdirSync(d);
+        mkdirSync(d, { recursive: true });
         writeFileSync(join(d, 'figure.json'), execFileSync('git', ['show', `${UPSTREAM_REF}:packages/cortico-world-desktop-pet/web/${id}/figure.json`], { cwd: ROOT, encoding: 'utf8' }));
         return { dir: d, base: `/web/${id}/` };
       });

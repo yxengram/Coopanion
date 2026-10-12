@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import {
@@ -9,7 +9,7 @@ import {
   tailField, WHOLE_POSES, EAR, EAR_MOOD, earFlick, earStates, TAIL, tailFlick, liveAnchors,
 } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
-import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
+import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gemini-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
@@ -1161,9 +1161,9 @@ describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces
     expect(gesturesOf({ gesture: { kind: 'wave', k: .2 }, head: { kind: 'nod', k: .6 } })).toEqual({ arm: { kind: 'wave', k: .2 }, head: { kind: 'nod', k: .6 } });
   });
 
-  it('takes a nod, a shake or a sigh from the gesture when the kit has no head channel (upstream\'s), as before it had one', () => {
+  it('takes a nod, a shake, a sigh or a tilt from the gesture when the kit has no head channel (upstream\'s), as before it had one', () => {
     const still = once(frame());
-    for (const kind of ['nod', 'shake', 'sigh']) {
+    for (const kind of ['nod', 'shake', 'sigh', 'tilt']) {
       for (const k of [.15, .4, .6, .85]) {
         const old = once(frame({ gesture: { kind, k } })), now = once(frame({ head: { kind, k } }));
         expect(now.turn, `${kind} ${k}`).toEqual(old.turn);
@@ -1180,7 +1180,7 @@ describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces
     expect(m.exh).toBeCloseTo(.84375, 9);
     expect(m.puffK).toBeCloseTo(.12 / .45, 9);
     expect(headMoves({ kind: 'shake', k: .3 }).shake).toBeCloseTo(Math.sin(1.8 * Math.PI) * .7, 9);
-    expect(headMoves(null)).toEqual({ nod: 0, shake: 0, inh: 0, exh: 0, puffK: 0 });
+    expect(headMoves(null)).toEqual({ nod: 0, shake: 0, inh: 0, exh: 0, puffK: 0, tilt: 0 });
   });
 
   it('sings under an asked-for face with the song\'s body: pray hands, chin up, the singing mouth on the beat, the asked eyes', () => {
@@ -1244,6 +1244,134 @@ describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces
     expect(f(0, .5, 0, 50)).toEqual([0, 0]);
     expect(f(1, .5, 100, 50)).toEqual([0, 0]);
     expect(f(.5, 1, 50, 100)).toEqual([0, 0]);
+  });
+
+  it('tilts her head curiously (歪头) standing, seated, kneeling and lying: over to one side, held about 1.2 s, back', () => {
+    // (her idle glances, at random, move her head by up to ±2.5°: here she looks straight ahead)
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched(), R = w.R;
+      const neck = () => w.seen.last.st.neck.a;
+      /** The neck's angle over `s` seconds, averaged (her idle sway is ±1.2°). */
+      const mean = s => { let a = 0, n = 0; for (let i = 0; i < s * 60; i++) { run(w.pet, 1 / 60); a += neck(); n++; } return a / n; };
+      run(w.pet, 1);
+      const rest = mean(.4);
+      expect(w.pet.doWord('tilt')).toBe(true);
+      run(w.pet, .5);
+      expect(w.o.head).toMatchObject({ kind: 'tilt' });
+      expect(w.o.gesture).toBe(null);
+      // over toward +x (a plain face leans neither way), held
+      expect(mean(.6) - rest).toBeGreaterThan(TILT_DEG * .8);
+      run(w.pet, 1.2);
+      expect(w.o.head).toBe(null);
+      expect(Math.abs(mean(.4) - rest)).toBeLessThan(TILT_DEG * .4);
+      // with a face that leans the other way (confused), the tilt goes that way, to the same TILT_DEG in all
+      w.pet.setExpr('confused', 4); run(w.pet, 1);
+      const leaning = mean(.3);
+      w.pet.doWord('tilt'); run(w.pet, .5);
+      expect(mean(.6)).toBeLessThan(Math.min(leaning, rest) - 4);
+      expect(mean(.3) - rest).toBeLessThan(-TILT_DEG * .8);
+      run(w.pet, 1.5);
+      w.pet.setExpr('neutral', .1); run(w.pet, 1);
+      // beside a wave: the arms wave, the head tilts
+      expect(w.pet.doGroup(['wave', 'tilt'])).toEqual([true, true]);
+      run(w.pet, .5);
+      expect(w.o.gesture?.kind).toBe('wave');
+      expect(w.o.head?.kind).toBe('tilt');
+      expect(neck() - rest).toBeGreaterThan(5);
+      run(w.pet, 2);
+      // seated
+      w.pet.doWord('sit'); run(w.pet, 2.5);
+      const seated = mean(.4);
+      w.pet.doWord('tilt'); run(w.pet, .5);
+      expect(w.o.mode).toBe('sit');
+      expect(mean(.6) - seated).toBeGreaterThan(TILT_DEG * .8);
+      run(w.pet, 1.5);
+      // kneeling: the kneeling drawing's head turns about the chin, its sides and bottom stay
+      const [x0, y0, x1, y1] = R.deformers.kneelHead.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const off = (d, x, y) => {
+        const st = w.seen.last.st, a = pointOf(R.deformers, d, st, x, y), b = pointOf(R.deformers, d, { ...st, [d]: null }, x, y);
+        return [a[0] - b[0], a[1] - b[1]];
+      };
+      w.pet.doWord('kneel'); run(w.pet, 3);
+      expect(w.seen.last.st.alpha.kneel_body).toBe(1);
+      w.pet.doWord('tilt'); run(w.pet, .8);
+      expect(w.o.kneel).toBe(true);
+      expect(w.o.head?.kind).toBe('tilt');
+      // (the top of the head goes over to +x, more than the middle)
+      expect(off('kneelHead', cx, y0 + 6)[0]).toBeGreaterThan(5);
+      expect(off('kneelHead', cx, y0 + 6)[0]).toBeGreaterThan(off('kneelHead', cx, cy)[0]);
+      for (const [x, y] of [[x0, cy], [x1, cy], [cx, y1]]) for (const d of off('kneelHead', x, y)) expect(Math.abs(d)).toBeLessThan(1e-9);
+      run(w.pet, 1.5);
+      expect(w.o.kneel).toBe(true);
+      expect(Math.hypot(...off('kneelHead', cx, y0 + 6))).toBeLessThan(1e-9);
+      // lying: the head turns about the chin on her hands
+      w.pet.doWord('lie'); run(w.pet, 3);
+      expect(w.o.lie).toBeCloseTo(1, 3);
+      const L = real.poses.lie.rects.head, top = [(L[0] + L[2]) / 2, L[1] + 8];
+      const lyingTop = () => w.seen.last.st.lieHead.fn(.5, .1, ...top);
+      const before = lyingTop();
+      w.pet.doWord('tilt'); run(w.pet, .8);
+      expect(w.o.head?.kind).toBe('tilt');
+      expect(Math.abs(lyingTop()[0] - before[0])).toBeGreaterThan(3);
+      expect(w.seen.bad).toEqual([]);
+      // (the field alone: a full tilt turns the top of the rect over, the middle of its bottom edge stays)
+      const f = kneelHeadField([0, 0, 100, 100], { tilt: 1 }), a = KNEEL_HEAD.tilt * Math.PI / 180;
+      expect(f(.5, .3, 50, 30)[0]).toBeCloseTo(a * 70, 9);
+      expect(f(.5, .3, 50, 30)[1]).toBeCloseTo(0, 9);
+      expect(f(.5, 1, 50, 100)).toEqual([0, 0]);
+      expect(headMoves({ kind: 'tilt', k: .5 }).tilt).toBe(1);
+      expect(headMoves({ kind: 'tilt', k: 0 }).tilt).toBe(0);
+      expect(headMoves({ kind: 'tilt', k: 1 }).tilt).toBe(0);
+    } finally { rand.mockRestore(); }
+  });
+
+  it('kneeling and lying, a head gesture cutting a held tilt short brings her head back over a few frames, not in one', () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched(), R = w.R;
+      const [x0, y0, x1] = R.deformers.kneelHead.rect, cx = (x0 + x1) / 2;
+      // (x only: a nod and a sigh move the kneeling head up and down, a tilt turns it over)
+      const kneelTop = () => {
+        const st = w.seen.last.st;
+        return pointOf(R.deformers, 'kneelHead', st, cx, y0 + 6)[0] - pointOf(R.deformers, 'kneelHead', { ...st, kneelHead: null }, cx, y0 + 6)[0];
+      };
+      const L = real.poses.lie.rects.head, top = [(L[0] + L[2]) / 2, L[1] + 8];
+      const lieTop = () => w.seen.last.st.lieHead.fn(.5, .1, ...top)[0];
+      /** The largest move of `at` in one frame over `s` seconds. */
+      const steepest = (at, s) => { let p = at(), m = 0; for (let i = 0; i < s * 60; i++) { run(w.pet, 1 / 60); const v = at(); m = Math.max(m, Math.abs(v - p)); p = v; } return m; };
+      run(w.pet, 1);
+      w.pet.doWord('kneel'); run(w.pet, 3);
+      // a tilt from rest, over and back, at its fastest
+      w.pet.doWord('tilt');
+      const fresh = steepest(kneelTop, 2.2);
+      expect(fresh).toBeGreaterThan(.3);
+      for (const second of ['tilt', 'nod', 'sigh']) {
+        w.pet.doWord('tilt'); run(w.pet, .8);
+        expect(w.o.head?.kind).toBe('tilt');
+        expect(kneelTop()).toBeGreaterThan(5);
+        expect(w.pet.doWord(second)).toBe(true);
+        expect(steepest(kneelTop, .4)).toBeLessThan(fresh * 1.5);
+        expect(w.o.kneel).toBe(true);
+        run(w.pet, 3);
+        expect(Math.abs(kneelTop())).toBeLessThan(1e-9);
+      }
+      // lying, another tilt
+      w.pet.doWord('lie'); run(w.pet, 3);
+      expect(w.o.lie).toBeCloseTo(1, 3);
+      w.pet.doWord('tilt');
+      const lieFresh = steepest(lieTop, 2.2);
+      w.pet.doWord('tilt'); run(w.pet, .8);
+      w.pet.doWord('tilt');
+      expect(steepest(lieTop, .4)).toBeLessThan(lieFresh * 1.5);
+      expect(w.seen.bad).toEqual([]);
+      // (tiltEased: it follows a tilt over and back, and lets a cut one back at TILT_BACK)
+      expect(tiltEased(.4, .6, 1 / 60)).toBe(.6);
+      expect(tiltEased(.6, .55, 1 / 60)).toBe(.55);
+      expect(tiltEased(1, 0, 1 / 60)).toBeCloseTo(1 - TILT_BACK / 60, 12);
+      expect(tiltEased(-1, 0, 1 / 60)).toBeCloseTo(-1 + TILT_BACK / 60, 12);
+      expect(tiltEased(0, 0, 1 / 60)).toBe(0);
+    } finally { rand.mockRestore(); }
   });
 
   it('draws a face made of others from its parts: the eyes, brows, mouth and body language of each', () => {

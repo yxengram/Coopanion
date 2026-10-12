@@ -93,7 +93,7 @@ const ALL: readonly Channel[] = ['face', 'head', 'arm', 'body', 'stance'];
  * then kneeling frees the arm, see `channelsOf`.)
  */
 export const CHANNELS: Record<string, readonly Channel[]> = {
-  nod: ['head'], shake: ['head'], sigh: ['head'],
+  nod: ['head'], shake: ['head'], sigh: ['head'], tilt: ['head'],
   wave: ['arm'], shiver: ['arm'], heart: ['arm'], serve: ['arm'], salute: ['arm'], vsign: ['arm'], point: ['arm'],
   cover: ['arm'], cross: ['arm'], stretch: ['arm'], pray: ['arm'], scratch: ['arm'], idea: ['arm'], hug: ['arm'], hips: ['arm'],
   spout: ['arm'], sip: ['arm'], read: ['arm'],
@@ -299,18 +299,23 @@ export function parseActions(list: readonly unknown[], vocab: readonly VocabWord
 /** The words of entries (a group's members one by one). */
 export const membersOf = (entries: readonly string[]): string[] => entries.flatMap((a) => a.split('+'));
 
+/** The head gestures a kneel lasts through (the kit's HEAD_GESTURES), as its note names them. */
+const KNEEL_KEEPS: ReadonlyArray<readonly [string, string]> = [['nod', '点头'], ['shake', '摇头'], ['sigh', '叹气'], ['tilt', '歪头']];
+
 /**
  * How long a lasting word holds, as the prompt and `pet_act`'s receipt say it (web/kit/body.js `act`): sitting,
  * lying and sleeping stay through gestures and expressions and end on another posture or a move of the whole
- * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh) and
+ * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh, tilt) and
  * ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
- * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS).
+ * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS). Given the
+ * figure's `vocab`, the kneel's note names only the head gestures it has (a pack without 歪头 is not told it keeps one).
  */
-export function lastingNote(v: VocabWord): string {
+export function lastingNote(v: VocabWord, vocab?: readonly VocabWord[]): string {
   if (v.id !== 'kneel') return '一直保持:做手势、换表情不影响,换别的姿势或走、跑、跳这类全身动作才结束';
+  const keeps = ['换表情', ...KNEEL_KEEPS.filter(([id]) => !vocab || vocab.some((w) => w.id === id)).map(([, n]) => n)].join('、');
   return v.keepsArms
-    ? '保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着'
-    : '保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气不影响';
+    ? `保持到下一个全身动作,然后变回普通坐着;${keeps}、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着`
+    : `保持到下一个手或全身动作,然后变回普通坐着;${keeps}不影响`;
 }
 
 /**
@@ -365,7 +370,7 @@ const PAIRS_FLAT = 12;
  */
 export function vocabTable(vocab: readonly VocabWord[], language = 'zh', pairs: Pairs = {}): string {
   const pick = <T>(by: Record<string, T>): T | undefined => by[language] ?? by.zh ?? Object.values(by)[0];
-  const about = (v: VocabWord) => `${pick(v.about) ?? ''}${v.lasting ? `,${lastingNote(v)}` : ''}${v.id === 'petrify' ? ',不和别的同时做' : ''}`;
+  const about = (v: VocabWord) => `${pick(v.about) ?? ''}${v.lasting ? `,${lastingNote(v, vocab)}` : ''}${v.id === 'petrify' ? ',不和别的同时做' : ''}`;
   const names = (v: VocabWord) => (pick(v.names) ?? []).join('/');
   const byId = new Map(vocab.map((v) => [v.id, v]));
   const nameOf = (id: string) => { const v = byId.get(id); return v ? firstName(v, language) : id; };

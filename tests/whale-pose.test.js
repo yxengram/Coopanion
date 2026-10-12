@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -924,7 +924,7 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     expect(both.arm).toBeCloseTo(arms.arm, 9);
     expect(both.neck.a - arms.neck.a).toBeCloseTo(7 * nod, 6);
     expect(both.pitch - arms.pitch).toBeCloseTo(.9 * nod, 6);
-    for (const kind of ['nod', 'shake', 'sigh']) {
+    for (const kind of ['nod', 'shake', 'sigh', 'tilt']) {
       for (const k of [.15, .4, .6, .85]) {
         const old = (await whaleByHand())(faceOf('neutral'), frame({ gesture: { kind, k } }));
         const now = (await whaleByHand())(faceOf('neutral'), frame({ head: { kind, k } }));
@@ -995,6 +995,119 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       expect(f(.5, .5, 50, 50)).toEqual([KNEEL_HEAD.shake, 0]);
       expect(f(0, .5, 0, 50)).toEqual([0, 0]);
     } finally { done(); }
+  });
+
+  it('tilts her head curiously (歪头) standing, seated, kneeling and lying: over to one side, held about 1.2 s, back', async () => {
+    // (her idle glances, at random, move her head by up to ±3.5°: here she looks straight ahead)
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    const { pet, run, frame: last, done } = await whaleOnKit();
+    try {
+      let st = null;
+      const go = s => run(s, x => { st = x; });
+      /** The neck's angle over `s` seconds, averaged (her idle sway is ±1.2°). */
+      const mean = s => { let a = 0, n = 0; run(s, x => { st = x; a += x.neck.a; n++; }); return a / n; };
+      go(1);
+      const rest = mean(.4);
+      expect(pet.doWord('tilt')).toBe(true);
+      go(.5);
+      expect(last().head).toMatchObject({ kind: 'tilt' });
+      expect(last().gesture).toBe(null);
+      expect(mean(.6) - rest).toBeGreaterThan(TILT_DEG * .8);
+      go(1.2);
+      expect(last().head).toBe(null);
+      expect(Math.abs(mean(.4) - rest)).toBeLessThan(TILT_DEG * .4);
+      // a face that leans the other way (confused) takes the tilt that way
+      pet.setExpr('confused', 4); go(1);
+      pet.doWord('tilt'); go(.5);
+      expect(mean(.6) - rest).toBeLessThan(-TILT_DEG * .8);
+      go(1.5);
+      pet.setExpr('neutral', .1); go(1);
+      // beside a wave
+      expect(pet.doGroup(['wave', 'tilt'])).toEqual([true, true]);
+      go(.5);
+      expect(last().gesture?.kind).toBe('wave');
+      expect(last().head?.kind).toBe('tilt');
+      go(2);
+      // seated
+      pet.doWord('sit'); go(2.5);
+      const seated = mean(.4);
+      pet.doWord('tilt'); go(.5);
+      expect(last().mode).toBe('sit');
+      expect(mean(.6) - seated).toBeGreaterThan(TILT_DEG * .8);
+      go(1.5);
+      // kneeling: the kneeling drawing's head turns about the chin, its sides and bottom stay
+      // (this whale's rig, made at her first frame)
+      const D = rigSeen.tree.deformers, [x0, y0, x1, y1] = D.kneelHead.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const off = (x, y) => {
+        const a = pointOf(D, 'kneelHead', st, x, y), b = pointOf(D, 'kneelHead', { ...st, kneelHead: null }, x, y);
+        return [a[0] - b[0], a[1] - b[1]];
+      };
+      pet.doWord('kneel'); go(3);
+      expect(st.alpha.kneel_body).toBe(1);
+      pet.doWord('tilt'); go(.8);
+      expect(last().kneel).toBe(true);
+      expect(off(cx, y0 + 6)[0]).toBeGreaterThan(5);
+      expect(off(cx, y0 + 6)[0]).toBeGreaterThan(off(cx, cy)[0]);
+      for (const [x, y] of [[x0, cy], [x1, cy], [cx, y1]]) for (const d of off(x, y)) expect(Math.abs(d)).toBeLessThan(1e-9);
+      go(1.5);
+      expect(last().kneel).toBe(true);
+      expect(Math.hypot(...off(cx, y0 + 6))).toBeLessThan(1e-9);
+      // lying: the head turns about the chin on her hands
+      pet.doWord('lie'); go(3);
+      expect(last().lie).toBeCloseTo(1, 3);
+      const L = model.poses.lie.rects.head, top = [(L[0] + L[2]) / 2, L[1] + 8];
+      const before = st.lieHead.fn(.5, .1, ...top);
+      pet.doWord('tilt'); go(.8);
+      expect(last().head?.kind).toBe('tilt');
+      expect(Math.abs(st.lieHead.fn(.5, .1, ...top)[0] - before[0])).toBeGreaterThan(3);
+      expect(headMoves({ kind: 'tilt', k: .5 }).tilt).toBe(1);
+      const f = kneelHeadField([0, 0, 100, 100], { tilt: 1 });
+      expect(f(.5, .3, 50, 30)[0]).toBeCloseTo(KNEEL_HEAD.tilt * Math.PI / 180 * 70, 9);
+      expect(f(.5, 1, 50, 100)).toEqual([0, 0]);
+    } finally { done(); rand.mockRestore(); }
+  });
+
+  it('kneeling and lying, a head gesture cutting a held tilt short brings her head back over a few frames, not in one', async () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    const { pet, run, frame: last, done } = await whaleOnKit();
+    try {
+      let st = null;
+      const go = s => run(s, x => { st = x; });
+      const D = rigSeen.tree.deformers, [x0, y0, x1] = D.kneelHead.rect, cx = (x0 + x1) / 2;
+      // (x only: a nod and a sigh move the kneeling head up and down, a tilt turns it over)
+      const kneelTop = () => pointOf(D, 'kneelHead', st, cx, y0 + 6)[0] - pointOf(D, 'kneelHead', { ...st, kneelHead: null }, cx, y0 + 6)[0];
+      const L = model.poses.lie.rects.head, top = [(L[0] + L[2]) / 2, L[1] + 8];
+      const lieTop = () => st.lieHead.fn(.5, .1, ...top)[0];
+      /** The largest move of `at` in one frame over `s` seconds. */
+      const steepest = (at, s) => { let p = at(), m = 0; run(s, x => { st = x; const v = at(); m = Math.max(m, Math.abs(v - p)); p = v; }); return m; };
+      go(1);
+      pet.doWord('kneel'); go(3);
+      expect(st.alpha.kneel_body).toBe(1);
+      // a tilt from rest, over and back, at its fastest
+      pet.doWord('tilt');
+      const fresh = steepest(kneelTop, 2.2);
+      expect(fresh).toBeGreaterThan(.3);
+      for (const second of ['tilt', 'nod', 'sigh']) {
+        pet.doWord('tilt'); go(.8);
+        expect(last().head?.kind).toBe('tilt');
+        expect(kneelTop()).toBeGreaterThan(5);
+        expect(pet.doWord(second)).toBe(true);
+        expect(steepest(kneelTop, .4)).toBeLessThan(fresh * 1.5);
+        expect(last().kneel).toBe(true);
+        go(3);
+        expect(Math.abs(kneelTop())).toBeLessThan(1e-9);
+      }
+      // lying, another tilt
+      pet.doWord('lie'); go(3);
+      expect(last().lie).toBeCloseTo(1, 3);
+      pet.doWord('tilt');
+      const lieFresh = steepest(lieTop, 2.2);
+      pet.doWord('tilt'); go(.8);
+      pet.doWord('tilt');
+      expect(steepest(lieTop, .4)).toBeLessThan(lieFresh * 1.5);
+      expect(tiltEased(1, 0, 1 / 60)).toBeCloseTo(1 - TILT_BACK / 60, 12);
+      expect(tiltEased(.4, .6, 1 / 60)).toBe(.6);
+    } finally { done(); rand.mockRestore(); }
   });
 
   it('paints a face made of others with the eyes of its eyes\' face and the mouth of its mouth\'s', async () => {

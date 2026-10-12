@@ -218,7 +218,7 @@ describe('with a pet page', () => {
     // the worked example comes right after the rule, before the words
     expect(env.indexOf('{{pet.vocab}}') - env.indexOf('用逗号隔开的先后做')).toBeLessThan(400);
     expect(world.envPromptVars()['pet.vocab']).toMatch(/^例:`【[^`]+\+[^`]+】/);
-    expect(world.envPromptVars()['pet.vocab']).toContain('- nod 点头/轻轻点头:');
+    expect(world.envPromptVars()['pet.vocab']).toContain('- nod 点头/轻轻点头/连连点头/猛点头/使劲点头:');
     expect(world.envPromptVars()['pet.vocab']).toContain('- tilt 歪头/歪脑袋/偏头/好奇:');
     expect(JSON.stringify(tool(world, 'pet_say').parameters)).toContain('+ 连起来的词同时做,逗号隔开的先后做');
     expect(JSON.stringify(tool(world, 'pet_say').parameters)).not.toContain('【表情,动作】');
@@ -322,7 +322,7 @@ describe('with a pet page', () => {
     cleanup.push(() => page.close());
     const out = await tool(world, 'pet_act').handler({ actions: ['跪坐+招手'] }, ctx) as { text: string };
     expect((await page.next((m) => m.t === 'act')).actions).toEqual(['kneel+wave']);
-    expect(out.text).toContain('kneel 保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、只占「手」的手势和唱歌都不影响(她跪着做)');
+    expect(out.text).toContain('kneel 保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、只占「手」的手势和唱歌都不影响(她跪着做)');
     expect(out.text).not.toContain('不能同时做');
     const cheer = await tool(world, 'pet_act').handler({ actions: ['跪坐+欢呼'] }, ctx) as { text: string };
     expect(cheer.text).toContain('跪坐 和 欢呼 不能同时做,改成先后做。');

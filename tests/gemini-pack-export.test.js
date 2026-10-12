@@ -82,6 +82,12 @@ describe('exported Gemini-chan pack', () => {
     expect(m.vocab.find((w) => w.id === 'determined').names.zh).not.toContain('握拳');
     for (const t of ['pop', 'shy']) expect(Object.keys(m.sounds)).not.toContain(t);
     expect(Object.keys(m.sounds)).toContain('page');
+    // the head's and body's moves (低头, 眨眨眼, 凑近, 后仰, 晃来晃去, 跺脚) go too, with sounds upstream has or the pack ships
+    // already (peek's hum, the dance's tune, a landing's thud): no new sound files
+    expect(m.vocab.filter((w) => ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'].includes(w.id)).map((w) => w.names.zh[0]).sort())
+      .toEqual(['低头', '眨眨眼', '凑近', '后仰', '晃来晃去', '跺脚'].sort());
+    for (const t of ['dance', 'land']) expect(Object.keys(m.sounds)).not.toContain(t);
+    expect(Object.keys(m.sounds)).toContain('peek');
     // she draws arm gestures kneeling: her kneel says so (keepsArms), and her pack ships the drawing's lower body
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     expect(m.vocab.length).toBe(builtin.vocab.length);

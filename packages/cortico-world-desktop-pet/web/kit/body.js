@@ -239,7 +239,7 @@ export const PLUS_MIXES = {
 export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue', ...Object.keys(PLUS_MIXES)];
 export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh', 'tilt',
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel',
-  'muse', 'fist', 'jot', 'twiddle'];
+  'muse', 'fist', 'jot', 'twiddle', 'droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
 /** The tones of the plus faces, filed as face sounds like the kit's. */
 const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
@@ -254,8 +254,36 @@ const PLUS_FACE_TONES = {
  */
 export const TILT = { dur: 1.8, deg: -12 };
 export const tiltOf = k => envelope(clamp(k, 0, 1), 1 / 6, 5 / 6);
+/**
+ * (plus) More of the head's own gestures, seconds each: `droop` (低头) drops the head and holds it there (over in the
+ * first sixth and back in the last, as a tilt: tiltOf), `blink` (眨眨眼) is three quick blinks in a row (BLINKS: more than an
+ * idle blink, which comes again after .28 s at most once). The kit blinks her for
+ * `blink` whatever figure draws her; a figure listing `droop` in `gestures` draws it itself.
+ */
+export const HEAD_MORE = { droop: 1.8, blink: .75 };
+/** (plus) When the blinks of a `blink` start (k of HEAD_MORE.blink): .25 s apart, each a .16 s blink with the eyes open between. */
+export const BLINKS = [0, 1 / 3, 2 / 3];
+/**
+ * (plus) Moves of the body standing or seated still, seconds each: `closer` (凑近) leans in toward you and back, `leanback`
+ * (后仰) leans back and back again, `sway` (摇摆) rocks from side to side three times, `stamp` (跺脚) stamps one foot twice
+ * (standing: she gets up for it). A figure listing one in `gestures` draws it itself (the kit still lifts a stamping
+ * foot: STAMP).
+ */
+export const BODY_MORE = { closer: 2, leanback: 1.6, sway: 2.4, stamp: 1.3 };
+/**
+ * (plus) A stamp's foot: how high it lifts (logo units) at k of the stamp, the two stamps each rising slowly and coming
+ * down hard at STAMP.at; the sound and dust go off as it lands.
+ */
+export const STAMP = { at: [.42, .82], rise: .28, lift: 22 };
+export const stampLift = k => {
+  for (const a of STAMP.at) {
+    const u = (k - (a - STAMP.rise)) / STAMP.rise;
+    if (u >= 0 && u <= 1) return STAMP.lift * (u < .75 ? smooth(u / .75) : 1 - ((u - .75) / .25) ** 2);
+  }
+  return 0;
+};
 /** (plus) Gestures of the head alone: they play in their own channel (`pet.head`, the frame's `head`), alongside any other gesture. */
-export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt']);
+export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt', ...Object.keys(HEAD_MORE)]);
 /**
  * (plus) Gestures of the arms: a figure that draws arms kneeling (`figure.kneelArms`: the three girls and the whale, with
  * their poses.kneelLow) keeps kneeling through them; any other motion still ends a kneel.
@@ -685,6 +713,16 @@ export function createPet(els, opts) {
       // a curious tilt of the head to one side, held a moment and back (TILT), with a questioning little "hm?"; no face
       // of its own, so it goes with whatever face she shows
       case 'tilt': pulse('tilt', TILT.dur); play('look', 'move'); break;
+      // the head dropped and held, looking down; three quick blinks (HEAD_MORE); neither has a sound or a face of its
+      // own, so each goes with the face she shows
+      case 'droop': pulse('droop', HEAD_MORE.droop); break;
+      case 'blink': pulse('blink', HEAD_MORE.blink); break;
+      // leaning in toward you; leaning back (a laugh, taken aback); rocking side to side; stamping a foot (she stands for
+      // it), each with whatever face she shows (BODY_MORE)
+      case 'closer': if (!seated) setMode('idle'); pulse('closer', BODY_MORE.closer); play('peek', 'move'); break;
+      case 'leanback': if (!seated) setMode('idle'); pulse('leanback', BODY_MORE.leanback); break;
+      case 'sway': if (!seated) setMode('idle'); pulse('sway', BODY_MORE.sway); play('dance', 'move'); break;
+      case 'stamp': setMode('idle'); pulse('stamp', BODY_MORE.stamp); break;
       // arm poses a figure with hands draws (its faces' poses as gestures of their own): chin on her hand, mulling it
       // over, with a little "hm" and no face of its own (it goes with whatever face she shows); a fist raised to cheer
       // you on; jotting in a notebook, eyes down on it; fingertips pressed together, bashful
@@ -1156,11 +1194,14 @@ export function createPet(els, opts) {
     // itself, from the frame's `head`)
     if (pet.head) {
       const g = pet.head, k = (T - g.t0) / g.dur;
+      // three quick blinks in a row, whatever figure draws her (a blink is the frame's `blink`, .16 s each)
+      if (g.kind === 'blink' && k < 1 && (g.n || 0) < BLINKS.filter(b => k >= b).length) { g.n = (g.n || 0) + 1; pet.blinkAge = 0; pet.blinkT = Math.max(pet.blinkT, 1.5); }
       if (k >= 1) pet.head = null;
       else if (custom?.gestures?.includes(g.kind)) { /* the figure's own */ }
       else if (g.kind === 'nod') leanT += 9 * Math.abs(Math.sin(k * Math.PI * 2));
       else if (g.kind === 'shake') tiltT += 10 * Math.sin(k * Math.PI * 6) * (1 - k);
       else if (g.kind === 'tilt') tiltT += TILT.deg * tiltOf(k);
+      else if (g.kind === 'droop') leanT += 12 * tiltOf(k);
       else if (g.kind === 'sigh') {
         // a breath drawn in (taller), then let out (sagging, leaning in)
         const inh = envelope(clamp(k / .45, 0, 1), .5, .7), exh = envelope(clamp((k - .35) / .6, 0, 1), .3, .7);
@@ -1217,6 +1258,11 @@ export function createPet(els, opts) {
           case 'song': { const e = envelope(k, .08, .9); tiltT += 4 * Math.sin(k * 4 * Math.PI * 1.25) * e; leanT -= 2 * e; break; }
           // crouching to gather a spout, springing up as it goes
           case 'spout': sqT += .16 * Math.sin(Math.PI * clamp(k / .25, 0, 1)) - .1 * Math.sin(Math.PI * clamp((k - .25) / .15, 0, 1)); break;
+          // leaning in toward you and back; leaning back; rocking side to side; a stamp's jolt as the foot comes down
+          case 'closer': leanT += 10 * envelope(k, .2, .8); break;
+          case 'leanback': leanT -= 9 * envelope(k, .15, .75); break;
+          case 'sway': tiltT += 7 * Math.sin(k * Math.PI * 6) * envelope(k, .1, .9); break;
+          case 'stamp': tiltT -= 3 * envelope(k, .1, .9); break;
         }
       }
     }
@@ -1318,6 +1364,12 @@ export function createPet(els, opts) {
     const kick = 10 * kAmp * Math.sin(pet.kickPh) * proneK();
     // curled up for a roll, the feet tuck in under the ring (a figure that turns over whole; another reads the legs for its own)
     const rk = custom?.roll === 'spin' && ours('roll') ? envelope((T - pet.pulse.t0) / pet.pulse.dur, .15, .85) : 0;
+    // a stamp lifts the foot ahead and brings it down hard, twice: a thud, dust and a jolt each time (any figure: its feet are the kit's)
+    const sk = ours('stamp') && m === 'idle' ? (T - pet.pulse.t0) / pet.pulse.dur : -1, sf = pet.facing > 0 ? 1 : 0;
+    if (sk >= 0 && (pet.pulse.n || 0) < STAMP.at.length && sk >= STAMP.at[pet.pulse.n || 0]) {
+      pet.pulse.n = (pet.pulse.n || 0) + 1;
+      play('land', 'move', false); dustAt(HIPS[sf][0] + 4, 3, 40); pet.sqv += 1.6;
+    }
     pet.feet.forEach((ft, i) => {
       const [hx, hy] = hip(i);
       let tx, ty;
@@ -1331,6 +1383,7 @@ export function createPet(els, opts) {
         const lf = LIE_FEET[i];
         tx = lerp(tx, lf[0], proneK()); ty = lerp(ty, i ? lf[1] + kick : lf[1] - .4 * Math.max(0, kick), proneK());
         if (rk) { tx = lerp(tx, hx, rk); ty = lerp(ty, hy + 8, rk); }
+        if (sk >= 0 && i === sf) ty -= stampLift(sk);
       }
       const r = m === 'drag' || m === 'air' ? 14 : 40;
       ft[0] = lerp(ft[0], tx, ease(r, dt)); ft[1] = lerp(ft[1], ty, ease(r, dt));

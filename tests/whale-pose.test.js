@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -1076,6 +1076,55 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       const f = kneelHeadField([0, 0, 100, 100], { tilt: 1 });
       expect(f(.5, .3, 50, 30)[0]).toBeCloseTo(KNEEL_HEAD.tilt * Math.PI / 180 * 70, 9);
       expect(f(.5, 1, 50, 100)).toEqual([0, 0]);
+    } finally { done(); rand.mockRestore(); }
+  });
+
+  it('droops her head (低头) standing, seated, kneeling and lying, and leans in, back, sways and stamps standing or seated', async () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    const { pet, run, frame: last, done } = await whaleOnKit();
+    try {
+      let st = null;
+      const go = s => run(s, x => { st = x; });
+      const mean = (at, s) => { let a = 0, n = 0; run(s, x => { st = x; a += at(x); n++; }); return a / n; };
+      const span = (word, s, at) => { pet.doWord(word); const xs = []; run(s, x => { st = x; xs.push(at(x)); }); return xs; };
+      go(1);
+      // standing and seated, the neck bends her head forward and down, held, then back
+      for (const mode of ['stand', 'sit']) {
+        pet.doWord(mode); go(2.5);
+        const rest = mean(x => x.neck.a, .4);
+        pet.doWord('droop'); go(.5);
+        expect(last().head, mode).toMatchObject({ kind: 'droop' });
+        expect(mean(x => x.neck.a, .6) - rest, mode).toBeGreaterThan(DROOP.neck * .7);
+        go(1.5);
+        expect(Math.abs(mean(x => x.neck.a, .3) - rest), mode).toBeLessThan(DROOP.neck * .4);
+        // nearer, further off, rocking
+        expect(Math.max(...span('closer', 2.1, x => x.waist.sx ?? 1)), mode).toBeGreaterThan(1 + BODY_LEAN.near * .8);
+        expect(Math.min(...span('leanback', 1.7, x => x.waist.a)), mode).toBeLessThan(-BODY_LEAN.back * .7);
+        const rock = span('sway', 2.5, x => x.body.a);
+        expect(Math.max(...rock) - Math.min(...rock), mode).toBeGreaterThan(BODY_LEAN.swayBody * 1.5);
+      }
+      // a stamp gets her up and lifts a leg
+      const legs = span('stamp', 1.4, x => Math.min(x.legBack.ty, x.legFront.ty));
+      expect(last().mode).toBe('idle');
+      expect(Math.min(...legs)).toBeLessThan(-8);
+      // kneeling the drawing's head drops, the kneel kept; lying the head turns forward about the chin
+      const D = rigSeen.tree.deformers, [x0, y0, x1, y1] = D.kneelHead.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const off = (x, y) => {
+        const a = pointOf(D, 'kneelHead', st, x, y), b = pointOf(D, 'kneelHead', { ...st, kneelHead: null }, x, y);
+        return [a[0] - b[0], a[1] - b[1]];
+      };
+      pet.doWord('kneel'); go(3);
+      pet.doWord('droop'); go(.8);
+      expect(last().kneel).toBe(true);
+      expect(off(cx, y0 + 6)[1]).toBeGreaterThan(2);
+      for (const [x, y] of [[x0, cy], [x1, cy], [cx, y1]]) for (const d of off(x, y)) expect(Math.abs(d)).toBeLessThan(1e-9);
+      go(1.5);
+      pet.doWord('lie'); go(3);
+      const L = model.poses.lie.rects.head, top = [(L[0] + L[2]) / 2, L[1] + 8];
+      const before = st.lieHead.fn(.5, .1, ...top);
+      pet.doWord('droop'); go(.8);
+      expect(Math.abs(st.lieHead.fn(.5, .1, ...top)[0] - before[0])).toBeGreaterThan(3);
+      expect(headMoves({ kind: 'droop', k: .5 }).down).toBe(1);
     } finally { done(); rand.mockRestore(); }
   });
 

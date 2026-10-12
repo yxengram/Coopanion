@@ -131,15 +131,19 @@ describe('figure packs', () => {
     expect(unaliasSkin({ figure: 'coopanion-gemini-chan', scheme: 'original' })).toEqual({ figure: 'gemini-chan', scheme: 'original' });
   });
 
-  it('Coo knows 96 words (73 and 23 faces made of parts), the whale those and her chin on her hand (97), Claude-chan, GPT-chan and Gemini-chan all but spout and three more arm poses (99), sit, sleep, lie and kneel lasting', () => {
+  it('Coo knows 96 words (73 and 23 faces made of parts), the whale those, her chin on her hand and six moves of the head and body (103), Claude-chan, GPT-chan and Gemini-chan all but spout and three more arm poses (105), sit, sleep, lie and kneel lasting', () => {
     const { packs } = figurePacks([]);
     const [coo, whale, claude, gpt, gemini] = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab);
-    // (the faces' arm poses as words of their own: drawn by the whale (her chin) and the girls (all four), not by Coo)
+    // (the faces' arm poses as words of their own: drawn by the whale (her chin) and the girls (all four), not by Coo;
+    // the moves of the head and body (低头, 眨眨眼, 凑近, 后仰, 晃来晃去, 跺脚): the whale and the girls, not Coo)
     const POSES = ['muse', 'fist', 'jot', 'twiddle'];
-    expect(coo!.map((w) => w.id)).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'muse'));
+    const MORE = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
+    expect(coo!.map((w) => w.id)).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'muse' && !MORE.includes(id)));
+    expect(whale!.filter((w) => MORE.includes(w.id)).map((w) => w.id).sort()).toEqual([...MORE].sort());
+    expect(claude!.filter((w) => MORE.includes(w.id)).map((w) => w.id).sort()).toEqual([...MORE].sort());
     expect(coo).toHaveLength(96);
-    expect(whale).toHaveLength(97);
-    expect(claude).toHaveLength(99);
+    expect(whale).toHaveLength(103);
+    expect(claude).toHaveLength(105);
     expect(coo!.filter((w) => w.kind === 'expression')).toHaveLength(51);
     expect(claude!.map((w) => w.id).filter((id) => !POSES.includes(id))).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'spout' && !POSES.includes(id)));
     expect(claude!.filter((w) => POSES.includes(w.id)).map((w) => w.id)).toEqual(POSES);

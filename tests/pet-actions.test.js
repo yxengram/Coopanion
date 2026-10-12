@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ADD_KEYS, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { ADD_KEYS, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
@@ -84,11 +84,14 @@ function countingCtx() {
 
 /** The arm words that are a figure's face poses as gestures of their own (托腮, 加油, 记笔记, 对手指). */
 const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
+/** The head's and the body's own moves: 低头, 眨眨眼 (the head's channel); 凑近, 后仰, 摇摆, 跺脚 (standing or seated still). */
+const MORE_WORDS = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
 
 describe('the words the model can use', () => {
   it('Coo and the whale do every word of their vocabularies on the kit, and the kit does no word they leave out', () => {
-    // the arm poses only a figure with that drawing shows (ARM_POSE_WORDS): Coo has none of them, the whale her chin
-    const lacks = { coo: ARM_POSE_WORDS, whale: ARM_POSE_WORDS.filter((w) => w !== 'muse') };
+    // the arm poses only a figure with that drawing shows (ARM_POSE_WORDS): Coo has none of them, the whale her chin;
+    // the head's and body's moves of batch B (MORE_WORDS) the whale has, Coo not (her ring would only tip about)
+    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS], whale: ARM_POSE_WORDS.filter((w) => w !== 'muse') };
     for (const pack of ['coo', 'whale']) {
       const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
       // both know the kit's words and the plus body's
@@ -111,6 +114,81 @@ describe('the words the model can use', () => {
     expect(own('fist')).toEqual(['fist', 'excited']);
     expect(own('jot')).toEqual(['jot', 'reading']);
     expect(own('twiddle')).toEqual(['twiddle', 'shy']);
+  });
+
+  it('the head\'s and body\'s moves (低头, 眨眨眼, 凑近, 后仰, 摇摆, 跺脚): the head\'s keep a kneel, the body\'s need her still, none has a face', () => {
+    expect(MORE_WORDS).toEqual(['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp']);
+    for (const w of MORE_WORDS) expect(PLUS_MOTIONS, w).toContain(w);
+    for (const w of ['droop', 'blink']) { expect(HEAD_GESTURES.has(w), w).toBe(true); expect(CHANNELS[w], w).toEqual(['head']); }
+    for (const w of ['closer', 'leanback', 'sway', 'stamp']) { expect(HEAD_GESTURES.has(w), w).toBe(false); expect(ARM_GESTURES, w).not.toContain(w); }
+    expect(Object.keys(HEAD_MORE)).toEqual(['droop', 'blink']);
+    expect(Object.keys(BODY_MORE)).toEqual(['closer', 'leanback', 'sway', 'stamp']);
+    // a droop: in the head's channel, beside an arm gesture, under an asked-for face, and kneeling she stays kneeling
+    const pet = hearingPet();
+    run(pet, 1);
+    pet.setExpr('sad', 6);
+    expect(pet.doGroup(['wave', 'droop'])).toEqual([true, true]);
+    run(pet, .3);
+    expect(pet.pet.pulse.kind).toBe('wave');
+    expect(pet.pet.head).toMatchObject({ kind: 'droop', dur: HEAD_MORE.droop });
+    expect(pet.pet._fname).toBe('sad');
+    // (Coo's whole ring is her head: the kit leans it forward)
+    run(pet, .5);
+    expect(pet.pet.lean).toBeGreaterThan(8);
+    run(pet, 2);
+    pet.act('kneel'); run(pet, 2);
+    for (const w of ['droop', 'blink']) { expect(pet.act(w), w).toBe(true); run(pet, .3); expect(pet.pet.kneel, w).toBe(true); run(pet, 2); }
+    // the body's moves end a kneel (back to sitting), as a bow does; seated she leans or sways sitting
+    for (const w of ['closer', 'leanback', 'sway']) {
+      pet.act('kneel'); run(pet, 1);
+      expect(pet.act(w), w).toBe(true);
+      expect(pet.pet.kneel, w).toBe(false);
+      expect(pet.pet.mode, w).toBe('sit');
+      expect(pet.pet.pulse.kind, w).toBe(w);
+      run(pet, 3);
+    }
+    // a sway rocks her both ways
+    pet.act('stand'); run(pet, 2);
+    pet.act('sway');
+    let lo = 0, hi = 0;
+    for (let i = 0; i < BODY_MORE.sway * 60; i++) { run(pet, 1 / 60); lo = Math.min(lo, pet.pet.tilt); hi = Math.max(hi, pet.pet.tilt); }
+    expect(lo).toBeLessThan(-3);
+    expect(hi).toBeGreaterThan(3);
+    // a stamp gets her up, lifts the foot ahead and brings it down twice, with a thud each time
+    pet.act('sit'); run(pet, 2);
+    pet.heard.length = 0;
+    expect(pet.act('stamp')).toBe(true);
+    expect(pet.pet.mode).toBe('idle');
+    const front = pet.pet.facing > 0 ? 1 : 0, rest = pet.pet.feet[front][1];
+    let top = rest;
+    for (let i = 0; i < BODY_MORE.stamp * 60 + 6; i++) { run(pet, 1 / 60); top = Math.min(top, pet.pet.feet[front][1]); }
+    expect(rest - top).toBeGreaterThan(STAMP.lift * .6);
+    expect(pet.heard.filter(([n]) => n === 'land')).toEqual([['land', 'move'], ['land', 'move']]);
+    expect(stampLift(STAMP.at[0] - STAMP.rise * .25)).toBeCloseTo(STAMP.lift, 6);
+    expect(stampLift(STAMP.at[0])).toBe(0);
+    expect(stampLift(0)).toBe(0);
+    // none brings a face of its own
+    for (const w of MORE_WORDS) { const p = barePet(); run(p, 1); p.doWord(w); run(p, .3); expect(p.pet.expr, w).toBe(null); }
+    // the kit as any other pack knows it has none of them
+    const kit = barePet(undefined, { plus: false });
+    run(kit, 1);
+    for (const w of MORE_WORDS) expect(kit.doWord(w), w).toBe(false);
+  });
+
+  it('眨眨眼 blinks her three times in a row, whatever figure draws her (the frame\'s blink): more than an idle double blink', () => {
+    const blinks = [];
+    const pet = barePet(undefined, { figure: { draw: (g, face, o) => blinks.push(o.blink) } });
+    run(pet, 1);
+    pet.pet.blinkT = 9;
+    blinks.length = 0;
+    pet.act('blink');
+    run(pet, HEAD_MORE.blink + .2);
+    // three separate closings (blink rising past .9 from below), the eyes fully open between them
+    let n = 0, open = 0;
+    for (let i = 1; i < blinks.length; i++) { if (blinks[i] > .9 && blinks[i - 1] <= .9) n++; if (n && blinks[i] === 0 && blinks[i - 1] > 0) open++; }
+    expect(n).toBe(3);
+    expect(open).toBeGreaterThanOrEqual(3);
+    expect(pet.pet.head).toBe(null);
   });
 
   it('Claude-chan, GPT-chan and Gemini-chan know the same words but spout (they have no blowhole)', () => {

@@ -20,12 +20,13 @@ import { fxMarkup } from './fx.js';
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 /**
- * The gestures she draws herself, from the frame's `gesture` (nod, shake, sigh and tilt from its `head` on a kit that has one:
- * motion.gesturesOf); the kit leaves them off the body. `roll` joins them only while its ball drawing can show;
- * without it the kit turns her whole group over (`roll: 'spin'`).
+ * The gestures she draws herself, from the frame's `gesture` (nod, shake, sigh, tilt and droop from its `head` on a kit that
+ * has one: motion.gesturesOf; and the moves of the body the kit leaves to her: closer, leanback, sway); the kit leaves them
+ * off the body. `roll` joins them only while its ball drawing can show; without it the kit turns her whole group over
+ * (`roll: 'spin'`).
  */
-export const GESTURES = ['nod', 'shake', 'tilt', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'sigh', 'pray',
-  'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy',
+export const GESTURES = ['nod', 'shake', 'tilt', 'droop', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read',
+  'sigh', 'pray', 'closer', 'leanback', 'sway', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy',
   'muse', 'fist', 'jot', 'twiddle'];
 
 function loadImage(url) {

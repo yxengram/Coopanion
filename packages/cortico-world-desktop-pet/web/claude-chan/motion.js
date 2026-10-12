@@ -167,8 +167,11 @@ export function partsOf(fc, name = 'neutral') {
   const p = fc?.parts || {};
   return { eyes: p.eyes ?? name, brows: p.brows ?? name, mouth: p.mouth ?? name, body: p.body ?? name };
 }
-/** Gestures of the head alone (nod, shake, sigh, tilt): a plus kit plays them in the frame's `head`, beside its `gesture`. */
-export const HEAD_GESTURES = ['nod', 'shake', 'sigh', 'tilt'];
+/**
+ * Gestures of the head alone (nod, shake, sigh, tilt, and the kit's HEAD_MORE: droop, blink): a plus
+ * kit plays them in the frame's `head`, beside its `gesture`.
+ */
+export const HEAD_GESTURES = ['nod', 'shake', 'sigh', 'tilt', 'droop', 'blink'];
 /**
  * The frame's two gestures, each on its own clock: `head` (a nod, a shake, a sigh, a tilt) and `arm` (anything else). A kit
  * with a head channel hands the head's in `o.head`; one without it (upstream's) plays them as the gesture.
@@ -179,17 +182,19 @@ export function gesturesOf(o) {
 }
 /**
  * The head gesture's moves at its own k: a nod's two dips, a shake's turns, a sigh's breath in and out, and its puff; a
- * curious tilt's lean over to one side (0..1: over in the first sixth, held, back in the last sixth, as the kit's tiltOf).
+ * curious tilt's lean over to one side and a droop's drop of the head (`down`), each 0..1: over in the first sixth, held,
+ * back in the last sixth, as the kit's tiltOf. (`blink` the kit does: the frame's `blink`.)
  */
 export function headMoves(h) {
-  const k = h ? h.k : 0, is = n => h?.kind === n;
+  const k = h ? h.k : 0, is = n => h?.kind === n, held = smooth(0, 1 / 6, k) * (1 - smooth(5 / 6, 1, k));
   return {
     nod: is('nod') ? Math.sin(k * Math.PI * 2) ** 2 * (1 - .3 * k) : 0,
     shake: is('shake') ? Math.sin(k * Math.PI * 6) * smooth(0, .12, k) * (1 - k) : 0,
     inh: is('sigh') ? Math.sin(Math.PI * clamp(k / .45, 0, 1)) : 0,
     exh: is('sigh') ? smooth(.35, .55, k) * (1 - smooth(.8, 1, k)) : 0,
     puffK: is('sigh') ? clamp((k - .38) / .45, 0, 1) : 0,
-    tilt: is('tilt') ? smooth(0, 1 / 6, k) * (1 - smooth(5 / 6, 1, k)) : 0,
+    tilt: is('tilt') ? held : 0,
+    down: is('droop') ? held : 0,
   };
 }
 /**
@@ -200,6 +205,20 @@ export function headMoves(h) {
 export const TILT_DEG = 14;
 /** Lying, a tilt's turn of the head about the chin (degrees at a full tilt, with its side). */
 export const LIE_TILT = 10;
+/**
+ * A droop (低头): standing or seated the face pitches down (angleY), the eyes look down (`look`) and the head sinks on the
+ * neck (rig units); kneeling the drawing's head drops as a nod's does (KNEEL_HEAD.down), lying it turns forward about the
+ * chin (LIE_MORE.down).
+ */
+export const DROOP = { pitch: .9, neckTy: 3.5, look: 4 };
+/**
+ * The body's own moves the kit leaves to her: leaning in (degrees of forward lean, and how much nearer her upper body
+ * comes: scale), leaning back (degrees, how much further off, and the chin up: angleY), a sway's rock of the whole body
+ * and of the neck on top of it (degrees).
+ */
+export const BODY_LEAN = { closer: 7, near: .1, back: 10, far: .07, chinUp: .6, swayBody: 3, swayNeck: 4 };
+/** Lying, those moves of the head about the chin (degrees; a lean in also shifts it toward you, rig units). */
+export const LIE_MORE = { down: 9, closer: 6, back: 5, sway: 6 };
 /**
  * Kneeling and lying, the tilt the drawing's head takes (standing and seated, sp.head eases it): `x` follows the tilt `to`
  * over and back as it plays, but when another head gesture cuts a held tilt short (a nod, a shake, a sigh, another
@@ -218,7 +237,7 @@ export const tiltSide = face => ((HEAD_TILT[face] || 0) < 0 ? -1 : 1);
  * How far the kneeling head moves (rig units): a shake's slide, a nod's drop and squash (per unit above the chin), a sigh;
  * a tilt's turn about the chin (degrees at a full tilt).
  */
-export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5, tilt: 9 };
+export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5, tilt: 9, down: 1.6 };
 /**
  * Kneeling, the head's gestures on the kneeling drawing, a warp over its head (poses.kneel.head): she faces you, so
  * rather than turning (which would read as a roll of the head) a nod drops the head and squashes its top toward the
@@ -226,11 +245,11 @@ export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5, t
  * -1..1 with its side) turns it about the chin. Nothing moves at the rect's sides and bottom, so the hair and body beyond
  * it never shear against what is inside.
  */
-export function kneelHeadField(rect, { nod = 0, shake = 0, inh = 0, exh = 0, tilt = 0 }) {
-  const y1 = rect[3], cx = (rect[0] + rect[2]) / 2, K = KNEEL_HEAD, a = tilt * K.tilt * Math.PI / 180;
+export function kneelHeadField(rect, { nod = 0, shake = 0, inh = 0, exh = 0, tilt = 0, down = 0 }) {
+  const y1 = rect[3], cx = (rect[0] + rect[2]) / 2, K = KNEEL_HEAD, a = tilt * K.tilt * Math.PI / 180, dn = nod + K.down * down;
   return (u, v, x, y) => {
     const w = smooth(0, .18, u) * (1 - smooth(.82, 1, u)) * (1 - smooth(.7, 1, v));
-    return [w * (shake * K.shake - a * (y - y1)), w * (nod * (K.nod + K.squash * (y1 - y)) + K.exh * exh - K.inh * inh + a * (x - cx))];
+    return [w * (shake * K.shake - a * (y - y1)), w * (dn * (K.nod + K.squash * (y1 - y)) + K.exh * exh - K.inh * inh + a * (x - cx))];
   };
 }
 
@@ -712,6 +731,7 @@ export function createMotion(model, R) {
   // a curious tilt's side, taken as it begins (tiltSide), and whether one was playing last frame
   let tiltDir = 1, tiltWas = false;
   let tiltK = 0;  // (kneel, lie) the tilt the drawing's head takes (tiltEased)
+  let downK = 0;  // a droop's drop of the head, cut short eased back (tiltEased)
   let prevSit = 0;  // the kit's sit last frame (rising out of a kneel she stays kneeling)
   let sitOwnK = 1, raiseNow = 0;  // (sit) the seated arms' share; how far her points rise over the kit's sink
   let armsT = 9, kneelArmsK = 0;  // (kneel) how long her arms have been at rest; the hybrid's share (bodyAlphas)
@@ -764,11 +784,12 @@ export function createMotion(model, R) {
     const G = gesturesOf(o), g = G.arm, gk = g ? g.k : 0, gkind = g?.kind;
     const env = (a, b) => smooth(0, a, gk) * (1 - smooth(b, 1, gk));
     const is = k => gkind === k;
-    const { nod, shake, inh, exh, puffK, tilt } = headMoves(G.head);
+    const { nod, shake, inh, exh, puffK, tilt, down } = headMoves(G.head);
     if (G.head?.kind === 'tilt' && !tiltWas) tiltDir = tiltSide(face);
     tiltWas = G.head?.kind === 'tilt';
     const tiltS = tilt * tiltDir;
     tiltK = tiltEased(tiltK, tiltS, dt);
+    downK = tiltEased(downK, down, dt);
     const wave = is('wave') ? env(.15, .8) : 0;
     const bow = is('bow') ? env(.25, .7) : 0;
     const shiver = is('shiver') ? env(.08, .85) : 0;
@@ -846,6 +867,8 @@ export function createMotion(model, R) {
 
     /* where she looks: pointing, at what she points at */
     const look = (is('point') || face === 'pointing') && pointDir < 0 ? [-(o.look?.[0] || 0), o.look?.[1] || 0] : [o.look?.[0] || 0, o.look?.[1] || 0];
+    // drooping her eyes look down
+    if (downK) look[1] = lerp(look[1], DROOP.look, downK);
 
     /* head: tilt toward what it looks at, droop asleep, wobble dizzy */
     let tiltT = (look[0] * .5 + look[1] * .3) * (1 - .6 * chinA) + Math.sin(t * .9) * 1.2;
@@ -862,17 +885,20 @@ export function createMotion(model, R) {
     wTilt = lerp(wTilt, gT, ease(10, dt)); wLean = lerp(wLean, gL, ease(10, dt));
     const gNeck = shake * 2.5 - wave * 3 + (gkind === 'vsign' ? -5 * hold : 0) + (gkind === 'scratch' ? 5 * hold : 0) + (gkind === 'heart' ? 3 * Math.sin(gk * Math.PI * 4) * heart : 0);
     const gYaw = shake * 1.1 - awayFace * 1.3;
-    const fwd = -flinch * 8 + peek * (9 + 1.5 * Math.sin(t * 5)) + 3 * titter - 3 * inh + 6 * exh
+    // leaning in toward you (closer) and back (leanback), and rocking side to side (sway): the kit leaves them to her
+    const closer = is('closer') ? env(.2, .8) : 0, leanback = is('leanback') ? env(.15, .75) : 0;
+    const swayG = is('sway') ? Math.sin(gk * Math.PI * 6) * env(.1, .9) : 0;
+    const fwd = BODY_LEAN.closer * closer - BODY_LEAN.back * leanback - flinch * 8 + peek * (9 + 1.5 * Math.sin(t * 5)) + 3 * titter - 3 * inh + 6 * exh
       + (is('read') ? 5 * hold : 0) + sip * 4 + (is('serve') || is('hug') ? 5 * hold : 0) + (is('pray') ? 4 * hold * (.6 + .4 * Math.sin(gk * Math.PI * 4)) : 0)
       - (is('hips') || is('cross') ? 3 * hold : 0) + (is('point') ? 3 * hold : 0) + awayFace * 4;
     const P = pitchFromLean(fwd), PL = pitchFromLean(leanRest, .3), B = bowPose(Math.max(bow, .45 * curt));
-    const headA = headTilt + gNeck;
+    const headA = headTilt + gNeck + BODY_LEAN.swayNeck * swayG;
     const tiltVel = (headA - prevTilt) / Math.max(dt, 1e-3); prevTilt = headA;
     const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
     // facing you, the head turns a touch toward +x at rest; angleY + pitches the face down
     const angleX = clamp(clamp(look[0] / 5, -1, 1) * .9 + gYaw + .12, -1.4, 1.4);
     const angleY = clamp(clamp(look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + P.pitch + PL.pitch + B.pitch
-      - flinch * .3 - .1 * inh + .3 * exh + awayFace * .35 - .12 * tilt, -1.4, 1.4);
+      - flinch * .3 - .1 * inh + .3 * exh + awayFace * .35 - .12 * tilt + DROOP.pitch * downK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
 
     /* springs */
     const sway = clamp((o.swing || 0) / 26, -1.6, 1.6);
@@ -987,6 +1013,8 @@ export function createMotion(model, R) {
       a: -sway * 1.2 + (held ? (o.swing || 0) * .15 : 0) + (walking ? 1.5 * walkS : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA),
       ty: 0, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch),
     };
+    // swaying, the whole of her rocks about her feet
+    if (swayG) st.body.a += BODY_LEAN.swayBody * swayG;
     if (is('stretch')) st.body.sy *= 1 + .05 * smooth(.2, .45, gk) * hold;
     if (curt) { st.body.sy *= 1 - .07 * curt; st.body.sx *= 1 + .03 * curt; }
     if (cheer) st.body.ty -= 4 * Math.abs(Math.sin(t * 11)) * cheer;
@@ -1002,6 +1030,9 @@ export function createMotion(model, R) {
       a: P.rot + PL.rot, ty: lowB + P.waistTy + PL.waistTy + B.waistTy, sx: B.waistSx,
       sy: (1 - .07 * titter) * (1 + .03 * inh - .03 * exh) * P.waistSy * PL.waistSy * B.waistSy,
     };
+    // leaning in toward you her upper body and head come nearer (larger), leaning back they go a little further off
+    const near = 1 + BODY_LEAN.near * closer - BODY_LEAN.far * leanback;
+    if (near !== 1) { st.waist.sx = (st.waist.sx ?? 1) * near; st.waist.sy *= near; }
     // the skirt: its top goes down with the waist, seated its hem settles on the floor and spreads; it bulges over a lifted foot
     // sinking toward a seated drawing, the hem reaches the floor and spreads to its outline by the time it takes over
     // (SIT_CUT, on the kit's own sit: the figure's sitK lags it)
@@ -1024,7 +1055,7 @@ export function createMotion(model, R) {
 
     st.neck = {
       a: headA + clamp(tiltRest * .8, -10, 12),
-      ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + B.neckTy + nod * 2,
+      ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + B.neckTy + nod * 2 + DROOP.neckTy * downK,
       sx: B.neckSx, sy: B.neckSy,
     };
     const turn = [angleX, angleY];
@@ -1067,7 +1098,7 @@ export function createMotion(model, R) {
     };
 
     /* whole-body drawings */
-    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK }, g, gk, caps);
+    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK, down: downK, closer, leanback, sway: swayG }, g, gk, caps);
     const awayBack = is('away') ? smooth(.05, .07, gk) * (1 - smooth(.93, .95, gk)) : 0;
     awayA = awayStep(awayA, awayBack, g, dt);
     const view = backView(o.facing, awayA), backK = BACK && caps.pose('back') ? view.k : 0;
@@ -1094,7 +1125,7 @@ export function createMotion(model, R) {
     if (KNEEL) {
       const a = kneelA = kneelOK ? bodyA.kneel : 0, shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, FP.mouth, mode);
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
-      if (deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(deformers.kneelHead.rect, { nod, shake, inh, exh, tilt: tiltK }) };
+      if (deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(deformers.kneelHead.rect, { nod, shake, inh, exh, tilt: tiltK, down: downK }) };
       // (with a live face the drawn eyes-shut, smile and talk patches stay off)
       const live = liveOn(KNEEL);
       for (const p of KNEEL.parts) {
@@ -1155,15 +1186,16 @@ export function createMotion(model, R) {
   const MOOD_KICK = { happy: [1.6, 1.4], love: [1.6, 1.2], excited: [1.9, 1.7], wink: [1.3, 1.2], angry: [1.2, 2], sad: [.3, .6], cry: [.2, .6], sleepy: [.4, .7], scared: [.2, 1], worried: [.5, .8] };
   let kickPh = 0;
   function lying(st, o, fc, face, mode, t, dt, breath, poseA, gs, g, gk, caps) {
-    const { nod, shake, bow, flinch, peek, flap, inh, exh, tilt = 0 } = gs, L = LIE.pose;
+    const { nod, shake, bow, flinch, peek, flap, inh, exh, tilt = 0, down = 0, closer = 0, leanback = 0, sway = 0 } = gs, L = LIE.pose;
     const pv = L.pivots || {}, still = mode === 'sleep' || fc.listen;
     const fid = kind => (g?.kind === kind ? Math.sin(Math.PI * gk) : 0);
     const flopUp = 1 - smooth(.2, .6, lieK);
     st.lie = { a: -14 * flopUp, sx: 1 + .006 * breath, sy: (1 - .012 * breath) * (1 - .04 * flinch) };
     st.lieBack = { fn: (u, v) => [0, -.8 * (.5 + .5 * breath) * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)] };
     const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look?.[0] || 0, -6, 6) * .3 + (mode === 'sleep' ? 3 : 0)
-      + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + 4 * exh - 2 * inh + fid('chin') * 6 + tilt * LIE_TILT) * Math.PI / 180;
-    const hx = shake * 2.5 + peek * 3, [cx, cy] = pv.lieChin || [L.rects?.head?.[0] ?? 128, L.rects?.head?.[3] ?? 200];
+      + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + 4 * exh - 2 * inh + fid('chin') * 6 + tilt * LIE_TILT
+      + LIE_MORE.down * down + LIE_MORE.closer * closer - LIE_MORE.back * leanback + LIE_MORE.sway * sway) * Math.PI / 180;
+    const hx = shake * 2.5 + peek * 3 + LIE_MORE.closer / 3 * closer, [cx, cy] = pv.lieChin || [L.rects?.head?.[0] ?? 128, L.rects?.head?.[3] ?? 200];
     st.lieHead = {
       fn: (u, v, x, y) => { const w = smooth(0, .35, u) * (1 - smooth(.7, 1, v)); return [(-th * (y - cy) + hx) * w, th * (x - cx) * w]; },
     };
@@ -1182,7 +1214,7 @@ export function createMotion(model, R) {
   function reset() {
     springs();
     prevTilt = prevYaw = prevLow = wTilt = wLean = sitK = danceK = lieK = 0;
-    tiltDir = 1; tiltWas = false; tiltK = 0;
+    tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0;
     perk = swish = droop = browLift = browInner = browSide = backA = awayA = faceArmT = kickPh = 0;
     backOn = 1;
     sinceArmG = 9; lastFaceArm = lastArmG = null;

@@ -87,21 +87,22 @@ export type Channel = 'face' | 'head' | 'arm' | 'body' | 'stance';
 const ALL: readonly Channel[] = ['face', 'head', 'arm', 'body', 'stance'];
 /**
  * What part of her a kit word takes. It also encodes what the kit refuses or changes when words come together: a
- * song needs her standing or seated still; a curtsy stands her up; kneeling, lying and sleep leave no arm gesture to
- * see (and an arm gesture ends a kneel); dizzy and sleep show no face of their own choosing; stone goes with nothing.
+ * song needs her standing or seated still; a curtsy and a stamp stand her up; kneeling, lying and sleep leave no arm
+ * gesture to see (and an arm gesture ends a kneel); dizzy and sleep show no face of their own choosing; stone goes with nothing.
  * (A figure that draws arm gestures kneeling, `kneelArms` in the kit, says so with `keepsArms` on its `kneel` word:
  * then kneeling frees the arm, see `channelsOf`.)
  */
 export const CHANNELS: Record<string, readonly Channel[]> = {
-  nod: ['head'], shake: ['head'], sigh: ['head'], tilt: ['head'],
+  nod: ['head'], shake: ['head'], sigh: ['head'], tilt: ['head'], droop: ['head'], blink: ['head'],
   wave: ['arm'], shiver: ['arm'], heart: ['arm'], serve: ['arm'], salute: ['arm'], vsign: ['arm'], point: ['arm'],
   cover: ['arm'], cross: ['arm'], stretch: ['arm'], pray: ['arm'], scratch: ['arm'], idea: ['arm'], hug: ['arm'], hips: ['arm'],
   spout: ['arm'], sip: ['arm'], read: ['arm'], muse: ['arm'], fist: ['arm'], jot: ['arm'], twiddle: ['arm'],
   // gestures that need her still (standing or seated): they cannot go with a walk, a dance, a look, a jump
   song: ['arm', 'stance'], bow: ['arm', 'stance'], flinch: ['arm', 'stance'], peek: ['arm', 'stance'], away: ['arm', 'stance'],
   spin: ['arm', 'stance'], cheer: ['arm', 'stance'], turn: ['stance'],
+  closer: ['arm', 'stance'], leanback: ['arm', 'stance'], sway: ['arm', 'stance'],
   // she stands up for it
-  curtsy: ['arm', 'stance', 'body'],
+  curtsy: ['arm', 'stance', 'body'], stamp: ['arm', 'stance', 'body'],
   sit: ['body'],
   // an arm gesture ends a kneel (unless the figure draws them kneeling: KNEEL_WITH_ARMS); lying, none shows
   kneel: ['body', 'arm'], lie: ['body', 'arm'],
@@ -115,8 +116,8 @@ export const CHANNELS: Record<string, readonly Channel[]> = {
 };
 /**
  * Kneeling for a figure that draws arm gestures kneeling (`keepsArms`): the arm is free; gestures that need her standing
- * or seated still (cheer, bow, flinch, peek, away, spin, curtsy, turn) still end it, so they still split. A song is
- * the exception (KNEEL_SINGS).
+ * or seated still (cheer, bow, flinch, peek, away, spin, curtsy, turn, closer, leanback, sway, stamp) still end it, so
+ * they still split. A song is the exception (KNEEL_SINGS).
  */
 const KNEEL_WITH_ARMS: readonly Channel[] = ['body', 'stance'];
 /**
@@ -300,13 +301,15 @@ export function parseActions(list: readonly unknown[], vocab: readonly VocabWord
 export const membersOf = (entries: readonly string[]): string[] => entries.flatMap((a) => a.split('+'));
 
 /** The head gestures a kneel lasts through (the kit's HEAD_GESTURES), as its note names them. */
-const KNEEL_KEEPS: ReadonlyArray<readonly [string, string]> = [['nod', '点头'], ['shake', '摇头'], ['sigh', '叹气'], ['tilt', '歪头']];
+const KNEEL_KEEPS: ReadonlyArray<readonly [string, string]> = [
+  ['nod', '点头'], ['shake', '摇头'], ['sigh', '叹气'], ['tilt', '歪头'], ['droop', '低头'], ['blink', '眨眨眼'],
+];
 
 /**
  * How long a lasting word holds, as the prompt and `pet_act`'s receipt say it (web/kit/body.js `act`): sitting,
  * lying and sleeping stay through gestures and expressions and end on another posture or a move of the whole
- * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh, tilt) and
- * ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
+ * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh, tilt, droop,
+ * blink) and ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
  * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS). Given the
  * figure's `vocab`, the kneel's note names only the head gestures it has (a pack without 歪头 is not told it keeps one).
  */

@@ -9,7 +9,7 @@ import {
   tailField, WHOLE_POSES, EAR, EAR_MOOD, earFlick, earStates, TAIL, tailFlick, liveAnchors,
 } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
-import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
+import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gemini-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
@@ -1167,9 +1167,9 @@ describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces
     expect(gesturesOf({ gesture: { kind: 'wave', k: .2 }, head: { kind: 'nod', k: .6 } })).toEqual({ arm: { kind: 'wave', k: .2 }, head: { kind: 'nod', k: .6 } });
   });
 
-  it('takes a nod, a shake, a sigh or a tilt from the gesture when the kit has no head channel (upstream\'s), as before it had one', () => {
+  it('takes a nod, a shake, a sigh, a tilt or a droop from the gesture when the kit has no head channel (upstream\'s), as before it had one', () => {
     const still = once(frame());
-    for (const kind of ['nod', 'shake', 'sigh', 'tilt']) {
+    for (const kind of ['nod', 'shake', 'sigh', 'tilt', 'droop']) {
       for (const k of [.15, .4, .6, .85]) {
         const old = once(frame({ gesture: { kind, k } })), now = once(frame({ head: { kind, k } }));
         expect(now.turn, `${kind} ${k}`).toEqual(old.turn);
@@ -1186,7 +1186,7 @@ describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces
     expect(m.exh).toBeCloseTo(.84375, 9);
     expect(m.puffK).toBeCloseTo(.12 / .45, 9);
     expect(headMoves({ kind: 'shake', k: .3 }).shake).toBeCloseTo(Math.sin(1.8 * Math.PI) * .7, 9);
-    expect(headMoves(null)).toEqual({ nod: 0, shake: 0, inh: 0, exh: 0, puffK: 0, tilt: 0 });
+    expect(headMoves(null)).toEqual({ nod: 0, shake: 0, inh: 0, exh: 0, puffK: 0, tilt: 0, down: 0 });
   });
 
   it('sings under an asked-for face with the song\'s body: pray hands, chin up, the singing mouth on the beat, the asked eyes', () => {
@@ -1377,6 +1377,80 @@ describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces
       expect(tiltEased(1, 0, 1 / 60)).toBeCloseTo(1 - TILT_BACK / 60, 12);
       expect(tiltEased(-1, 0, 1 / 60)).toBeCloseTo(-1 + TILT_BACK / 60, 12);
       expect(tiltEased(0, 0, 1 / 60)).toBe(0);
+    } finally { rand.mockRestore(); }
+  });
+
+  it('droops her head (低头) standing, seated, kneeling and lying, held and back, and a nod cutting it short eases it back', () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched(), R = w.R;
+      const pitch = () => w.seen.last.turn[1];
+      const mean = (at, s) => { let a = 0, n = 0; for (let i = 0; i < s * 60; i++) { run(w.pet, 1 / 60); a += at(); n++; } return a / n; };
+      run(w.pet, 1);
+      const rest = mean(pitch, .3);
+      expect(w.pet.doWord('droop')).toBe(true);
+      run(w.pet, .5);
+      expect(w.o.head).toMatchObject({ kind: 'droop' });
+      expect(w.o.gesture).toBe(null);
+      // the face pitches down (and the eyes look down with it), held, then back
+      expect(mean(pitch, .6) - rest).toBeGreaterThan(DROOP.pitch * .8);
+      run(w.pet, 1.2);
+      expect(Math.abs(mean(pitch, .3) - rest)).toBeLessThan(.1);
+      // seated
+      w.pet.doWord('sit'); run(w.pet, 2.5);
+      const seated = mean(pitch, .3);
+      w.pet.doWord('droop'); run(w.pet, .5);
+      expect(mean(pitch, .6) - seated).toBeGreaterThan(DROOP.pitch * .8);
+      run(w.pet, 1.5);
+      // kneeling: the drawing's head drops, its sides and bottom stay; a nod cutting it short brings it back over frames
+      const [x0, y0, x1, y1] = R.deformers.kneelHead.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const off = (x, y) => {
+        const st = w.seen.last.st, a = pointOf(R.deformers, 'kneelHead', st, x, y), b = pointOf(R.deformers, 'kneelHead', { ...st, kneelHead: null }, x, y);
+        return [a[0] - b[0], a[1] - b[1]];
+      };
+      w.pet.doWord('kneel'); run(w.pet, 3);
+      w.pet.doWord('droop'); run(w.pet, .8);
+      expect(w.o.kneel).toBe(true);
+      expect(off(cx, y0 + 6)[1]).toBeGreaterThan(2);
+      for (const [x, y] of [[x0, cy], [x1, cy], [cx, y1]]) for (const d of off(x, y)) expect(Math.abs(d)).toBeLessThan(1e-9);
+      const before = off(cx, y0 + 6)[1];
+      w.pet.doWord('nod'); run(w.pet, 1 / 60);
+      expect(before - off(cx, y0 + 6)[1]).toBeLessThan(before * .5);
+      run(w.pet, 2);
+      expect(w.o.kneel).toBe(true);
+      // lying: the head turns forward about the chin
+      w.pet.doWord('lie'); run(w.pet, 3);
+      const L = real.poses.lie.rects.head, top = [(L[0] + L[2]) / 2, L[1] + 8];
+      const lyingTop = () => w.seen.last.st.lieHead.fn(.5, .1, ...top);
+      const flat = lyingTop();
+      w.pet.doWord('droop'); run(w.pet, .8);
+      expect(Math.abs(lyingTop()[0] - flat[0])).toBeGreaterThan(3);
+      expect(w.seen.bad).toEqual([]);
+    } finally { rand.mockRestore(); }
+  });
+
+  it('leans in toward you (凑近), back (后仰) and sways (摇摆) standing or seated, and stamps (跺脚) with a shoe', () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched();
+      const over = (word, s, at) => { w.pet.doWord(word); const xs = []; for (let i = 0; i < s * 60; i++) { run(w.pet, 1 / 60); xs.push(at()); } return xs; };
+      run(w.pet, 1);
+      for (const mode of ['stand', 'sit']) {
+        w.pet.doWord(mode); run(w.pet, 2.5);
+        // nearer: her upper body and head larger; further off and chin up leaning back
+        const near = over('closer', 2.1, () => w.seen.last.st.waist.sx);
+        expect(Math.max(...near), mode).toBeGreaterThan(1 + BODY_LEAN.near * .8);
+        expect(w.o.mode, mode).toBe(mode === 'stand' ? 'idle' : 'sit');
+        const back = over('leanback', 1.7, () => w.seen.last.st.waist.sx);
+        expect(Math.min(...back), mode).toBeLessThan(1 - BODY_LEAN.far * .7);
+        const rock = over('sway', 2.5, () => w.seen.last.st.body.a);
+        expect(Math.max(...rock) - Math.min(...rock), mode).toBeGreaterThan(BODY_LEAN.swayBody * 1.5);
+      }
+      // a stamp gets her up and lifts a shoe off the floor
+      const lift = over('stamp', 1.4, () => Math.min(w.seen.last.st.footL.ty, w.seen.last.st.footR.ty));
+      expect(w.o.mode).toBe('idle');
+      expect(Math.min(...lift)).toBeLessThan(-8);
+      expect(w.seen.bad).toEqual([]);
     } finally { rand.mockRestore(); }
   });
 

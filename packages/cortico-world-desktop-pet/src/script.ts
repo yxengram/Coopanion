@@ -320,15 +320,16 @@ export function lastingNote(v: VocabWord, vocab?: readonly VocabWord[]): string 
 
 /**
  * Moods the prompt groups the expressions by (kit ids), each base face before the composites near it, so the bot finds
- * the specific face next to the plain one. An expression not listed (a pack's own) goes to the last, 其他.
+ * the specific face next to the plain one; a label says when its faces fit, so the bot looks for the mood first. An
+ * expression not listed (a pack's own) goes to the last, 其他.
  */
 const MOODS: ReadonlyArray<readonly [string, readonly string[]]> = [
-  ['开心', ['happy', 'giggle', 'lol', 'laughcry', 'blissful', 'excited', 'wow', 'dreamy', 'crave']],
-  ['调皮、得意', ['wink', 'smug', 'smirk', 'tongue', 'sly', 'coax', 'innocent']],
-  ['喜欢、害羞', ['love', 'flutter', 'smitten', 'shy', 'bashful', 'gentle', 'moved']],
-  ['难过', ['sad', 'sulk', 'cry', 'whimper', 'brave', 'pained']],
-  ['生气、嫌弃', ['angry', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'meh']],
-  ['惊讶、紧张', ['surprised', 'blank', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
+  ['开心(好消息)', ['happy', 'giggle', 'lol', 'laughcry', 'blissful', 'excited', 'wow', 'dreamy', 'crave']],
+  ['调皮、得意(逗人、显摆)', ['wink', 'smug', 'smirk', 'tongue', 'sly', 'coax', 'innocent']],
+  ['喜欢、害羞(表白、礼物)', ['love', 'flutter', 'smitten', 'shy', 'bashful', 'gentle', 'moved']],
+  ['难过(坏消息、陪对方难过)', ['sad', 'sulk', 'cry', 'whimper', 'brave', 'pained']],
+  ['生气、嫌弃(被惹、被吐槽)', ['angry', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'meh']],
+  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'blank', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
   ['其他', ['neutral', 'thinking', 'confused', 'doubt', 'determined', 'eager', 'sleepy']],
 ];
 
@@ -348,10 +349,10 @@ function partOf(v: VocabWord): { part: number; also: string } {
 
 /**
  * The worked example the prompt opens the vocabulary with: the first whose words are all in the figure's vocabulary
- * (a composite face, a head word and a gesture for the built-ins; plain words an upstream pack has for others).
+ * (a composite face, head words and a gesture for the built-ins; plain words an upstream pack has for others).
  */
 const EXAMPLES = [
-  '【瘪嘴+摇头】又没抢到票……【跃跃欲试+叉腰】下次我帮你盯着!<比耶>',
+  '【瘪嘴+摇头】又没抢到票……<叹气>【跃跃欲试+点头】下次我帮你盯着!<比耶>',
   '【开心+招手】今天也辛苦啦!<眨眼>要不要歇一会儿?',
 ];
 
@@ -414,9 +415,9 @@ export function vocabTable(vocab: readonly VocabWord[], language = 'zh', pairs: 
     const [a0, b0] = inOrder(k0);
     const p0 = pairs[k0] as { eyes: string; mouth: string };
     const list = composed.length > PAIRS_FLAT
-      ? `\n${sorted.map(([a, bs]) => `- ${nameOf(a)} + ${bs.map(nameOf).join('/')}`).join('\n')}`
+      ? `\n${sorted.map(([a, bs]) => `- ${nameOf(a)}+${bs.map(nameOf).join('/')}`).join('\n')}`
       : sorted.flatMap(([a, bs]) => bs.map((b) => `${nameOf(a)}+${nameOf(b)}`)).join('、');
-    pairText = `表情对(写在同一组里会合成一张脸,先写哪个都行;如【${nameOf(a0)}+${nameOf(b0)}】是${nameOf(p0.eyes)}的眼睛配${nameOf(p0.mouth)}的嘴):${list}\n不在这里的两个表情写在同一组,仍改成先后做。\n\n`;
+    pairText = `表情对(写在同一组里会合成一张脸,先写哪个都行;如【${nameOf(a0)}+${nameOf(b0)}】是${nameOf(p0.eyes)}的眼睛配${nameOf(p0.mouth)}的嘴):${list}\n别的两个表情同组仍先后做。\n\n`;
   }
   const faceHead = recipes.size ? '表情,按心情分组(「=甲+乙」:同一组写甲+乙也是这张脸):' : '表情,按心情分组:';
   const example = EXAMPLES.find((e) => { const p = parseScript(e, vocab); return !p.dropped.length && !p.notes.length; });

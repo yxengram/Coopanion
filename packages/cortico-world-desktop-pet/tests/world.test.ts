@@ -222,6 +222,7 @@ describe('with a pet page', () => {
     expect(world.envPromptVars()['pet.vocab']).toContain('- tilt 歪头/歪脑袋/偏头/好奇:');
     expect(JSON.stringify(tool(world, 'pet_say').parameters)).toContain('+ 连起来的词同时做,逗号隔开的先后做');
     expect(JSON.stringify(tool(world, 'pet_say').parameters)).not.toContain('【表情,动作】');
+    expect(env).toContain('说话间用点头、摇头、叹气、歪头接话');
     expect(JSON.stringify(tool(world, 'pet_act').parameters)).toContain('同时做的几个词用 + 连起来');
   });
 

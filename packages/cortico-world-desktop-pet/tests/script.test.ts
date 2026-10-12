@@ -106,12 +106,13 @@ describe('vocabTable', () => {
 
   it('groups the expressions by mood, a composite next to its plain face, a pack\'s own last', () => {
     expect(vocabTable(VOCAB)).toContain('表情,按心情分组:');
-    expect(groupOf('happy')).toBe('开心');
-    expect(groupOf('lol')).toBe('开心');
-    expect(groupOf('smirk')).toBe('调皮、得意');
-    expect(groupOf('sulk')).toBe('难过');
-    expect(groupOf('huff')).toBe('生气、嫌弃');
-    expect(groupOf('petrify')).toBe('惊讶、紧张');
+    // each mood's label but 其他 says when its faces fit
+    expect(groupOf('happy')).toBe('开心(好消息)');
+    expect(groupOf('lol')).toBe('开心(好消息)');
+    expect(groupOf('smirk')).toBe('调皮、得意(逗人、显摆)');
+    expect(groupOf('sulk')).toBe('难过(坏消息、陪对方难过)');
+    expect(groupOf('huff')).toBe('生气、嫌弃(被惹、被吐槽)');
+    expect(groupOf('petrify')).toBe('惊讶、紧张(意外、替对方担心)');
     expect(groupOf('neutral')).toBe('其他');
     const t = vocabTable(VOCAB);
     expect(t.indexOf('- sad ')).toBeLessThan(t.indexOf('- sulk '));
@@ -120,9 +121,9 @@ describe('vocabTable', () => {
     expect(groupOf('beep', vocabTable(own))).toBe('其他');
   });
 
-  it('opens with an example made of the figure\'s own words: a composite face, a head word and a gesture, else plain words', () => {
-    expect(vocabTable(VOCAB).split('\n')[0]).toBe('例:`【瘪嘴+摇头】又没抢到票……【跃跃欲试+叉腰】下次我帮你盯着!<比耶>`');
-    const plain = VOCAB.filter((v) => !['sulk', 'eager', 'hips', 'vsign'].includes(v.id));
+  it('opens with an example made of the figure\'s own words: a composite face, head words and a gesture, else plain words', () => {
+    expect(vocabTable(VOCAB).split('\n')[0]).toBe('例:`【瘪嘴+摇头】又没抢到票……<叹气>【跃跃欲试+点头】下次我帮你盯着!<比耶>`');
+    const plain = VOCAB.filter((v) => !['sulk', 'eager', 'sigh', 'vsign'].includes(v.id));
     expect(vocabTable(plain).split('\n')[0]).toBe('例:`【开心+招手】今天也辛苦啦!<眨眼>要不要歇一会儿?`');
     expect(vocabTable(plain.filter((v) => v.id !== 'wave'))).toMatch(/^表情,按心情分组:/);
   });
@@ -326,7 +327,7 @@ describe('two expressions of one group as one face', () => {
     const t = vocabTable(VOCAB, 'zh', P);
     expect(t).toContain('表情,按心情分组(「=甲+乙」:同一组写甲+乙也是这张脸):');
     expect(t).toContain('- smirk 坏笑/贼笑(=开心+得意):');
-    expect(t).toContain('\n\n表情对(写在同一组里会合成一张脸,先写哪个都行;如【开心+惊讶】是惊讶的眼睛配开心的嘴):开心+惊讶\n不在这里的两个表情写在同一组,仍改成先后做。\n\n动作,按部位分组:');
+    expect(t).toContain('\n\n表情对(写在同一组里会合成一张脸,先写哪个都行;如【开心+惊讶】是惊讶的眼睛配开心的嘴):开心+惊讶\n别的两个表情同组仍先后做。\n\n动作,按部位分组:');
     // only a word: no 表情对 paragraph; only composed: no 「=」 note
     expect(vocabTable(VOCAB, 'zh', { 'happy~smug': { as: 'smirk' } })).not.toContain('表情对');
     expect(vocabTable(VOCAB, 'zh', { 'happy~surprised': P['happy~surprised']! })).toContain('表情,按心情分组:\n');
@@ -344,17 +345,17 @@ describe('two expressions of one group as one face', () => {
     const t = vocabTable(VOCAB, 'zh', many);
     const para = t.slice(t.indexOf('表情对('), t.indexOf('\n\n动作,'));
     const lines = para.split('\n').slice(1, -1);
-    expect(para.split('\n').at(-1)).toBe('不在这里的两个表情写在同一组,仍改成先后做。');
-    expect(lines[0]).toMatch(/^- 开心 \+ 难过\/嘟嘴\/惊讶\//);
-    expect(lines).toContain('- 眨眼 + 嘟嘴/尴尬');
+    expect(para.split('\n').at(-1)).toBe('别的两个表情同组仍先后做。');
+    expect(lines[0]).toMatch(/^- 开心\+难过\/嘟嘴\/惊讶\//);
+    expect(lines).toContain('- 眨眼+嘟嘴/尴尬');
     // every composed pair once: the partners listed add up to them; the pairs shown as a word are in the list above
-    expect(lines.reduce((n, l) => n + l.split(' + ')[1]!.split('/').length, 0)).toBe(composed);
+    expect(lines.reduce((n, l) => n + l.split('+')[1]!.split('/').length, 0)).toBe(composed);
     expect(para).not.toContain('=');
     expect(t).toContain('- bashful 腼腆/不好意思(=开心+害羞):');
     expect(t).toContain('- lol 哈哈/笑出声/乐坏了(=开心+慌张):');
     // a handful of composed pairs stays on one line
     const few = Object.fromEntries(Object.entries(many).filter(([, p]) => !('as' in p)).slice(0, 12));
-    expect(vocabTable(VOCAB, 'zh', few)).toMatch(/的嘴\):[^\n]+\n不在这里的两个表情写在同一组,仍改成先后做。\n\n动作/);
+    expect(vocabTable(VOCAB, 'zh', few)).toMatch(/的嘴\):[^\n]+\n别的两个表情同组仍先后做。\n\n动作/);
   });
 
   it('keys a pair the same whichever is first', () => {

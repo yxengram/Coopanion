@@ -67,7 +67,7 @@ kit 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎时�
 
 **词表**（`vocab`）：这个身体在场时 bot 能用的全部表情和动作，没列的词 bot 用不了。每个词写清 `names`（bot 可以用哪些名字写它）、
 `about`（在这个身体上是什么样子，原样进 bot 的提示词），`seconds`（连着做时等多久再做下一个）。
-用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 23 个组合表情），一共 96 个；大肥鱼在这些之外多一个托腮（`muse`）和六个头部、身体的动作（低头 `droop`、眨眨眼 `blink`、凑近 `closer`、后仰 `leanback`、晃来晃去 `sway`、跺脚 `stamp`），还有摇尾巴（`wag`），一共 104 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词和这六个动作，没有喷水（`spout`），但有托腮和加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），Claude 娘一共 105 个；GPT 娘再多摇尾巴、扇翅膀（`wingbeat`），107 个；Gemini 娘再多摇尾巴、抖耳朵（`earflick`）、竖耳朵（`earsup`）、耳朵耷拉（`earsdown`），109 个。
+用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 29 个组合表情），一共 102 个；大肥鱼在这些之外多一个托腮（`muse`）和六个头部、身体的动作（低头 `droop`、眨眨眼 `blink`、凑近 `closer`、后仰 `leanback`、晃来晃去 `sway`、跺脚 `stamp`），还有摇尾巴（`wag`），一共 110 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词和这六个动作，没有喷水（`spout`），但有托腮和加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），Claude 娘一共 111 个；GPT 娘再多摇尾巴、扇翅膀（`wingbeat`），113 个；Gemini 娘再多摇尾巴、抖耳朵（`earflick`）、竖耳朵（`earsup`）、耳朵耷拉（`earsdown`），115 个。
 
 **表情对**（`pairs`，可省）：bot 在同一组里写两个表情（`【开心+惊讶】`）时，默认拆成先后两个。想让它们合成一张脸，就在 `pairs` 里列出这一对：
 `"happy+surprised": "surprised+happy"` 是合成，值里给眼的那个在前、给嘴的在后（键里先后无所谓）；`"happy+smug": "smirk"` 是别名，显示成词表里另一个表情。
@@ -111,8 +111,9 @@ Coo、大肥鱼和三个娘（Claude 娘、GPT 娘、Gemini 娘）用的 kit 比
 `createBody(host, { figure, plus: true })`。不开时 kit 和原版的 kit 行为完全一样（只认 `KIT_EXPRESSIONS`、`KIT_MOTIONS` 和包自己的 `words`，
 表情用原版的 `FACES`），所以照上面写的形象包在这里照常能用。打开后：
 
-- 多出的词：`PLUS_EXPRESSIONS`（32 个表情）和 `PLUS_MOTIONS`（42 个动作；尾巴、耳朵、翅膀的五个（`APPENDAGE_MOVES`）kit 自己不画，只有长着它们的形象才列；其中 `muse`、`fist`、`jot`、`twiddle` 四个手势只有画了那几张手臂图的形象才看得出来，kit 自己不画，所以 Coo 不列；低头、眨眨眼、凑近、后仰、晃来晃去、跺脚六个 kit 在 Coo 身上也能做（整个圆环前倾、后仰、左右晃，眨眼、抬脚是 kit 自己的），但 Coo 的词表没有列），扩展的表情参数在 `PLUS_FACES`（害羞、难过两个表情也换成了它的）。
-  32 个表情里有 23 个是组合表情（`PLUS_MIXES`，由 `mixFace` 拼成 `PLUS_MIX_FACES`）：眼睛取一种表情的，嘴取另一种的，眉、身体语言和符号可以另指；
+- 多出的词：`PLUS_EXPRESSIONS`（38 个表情）和 `PLUS_MOTIONS`（42 个动作；尾巴、耳朵、翅膀的五个（`APPENDAGE_MOVES`）kit 自己不画，只有长着它们的形象才列；其中 `muse`、`fist`、`jot`、`twiddle` 四个手势只有画了那几张手臂图的形象才看得出来，kit 自己不画，所以 Coo 不列；低头、眨眨眼、凑近、后仰、晃来晃去、跺脚六个 kit 在 Coo 身上也能做（整个圆环前倾、后仰、左右晃，眨眼、抬脚是 kit 自己的），但 Coo 的词表没有列），扩展的表情参数在 `PLUS_FACES`（害羞、难过两个表情也换成了它的）。
+  38 个表情里有 29 个是组合表情（`PLUS_MIXES`，由 `mixFace` 拼成 `PLUS_MIX_FACES`）：眼睛取一种表情的，嘴取另一种的，眉、身体语言和符号可以另指；
+  其中六个带 kit 自己画的特效（`MARK_FX_KEYS` 和 `orbit`）：气炸 `fume` 头两边冒白烟、心碎 `heartbreak` 一颗心裂成两半掉下去、撒花 `confetti` 撒出彩色纸屑、郁闷 `cloud` 头旁边一朵下雨的小乌云、无言以对 `dots` 一个点一个点地冒出「……」，画在 kit 的粒子层里（位置按 `anchors` 的 `bubble`、`glints`、`bulb`，趴着时按 `anchors.lie`），形象不用管；眼冒金星的 `orbit` 是晕的小星星，由形象自己画（同晕）；
   脸对象带 `parts: { eyes, brows, mouth, body }`（kit 的表情名），画了五官的形象按部位查自己的表，没有 `parts` 时都按 `frame.face` 查。
   找词的顺序是 kit 的词、包的 `words`、扩展词，所以包自己的同名词（比如上面例子里的 `salute`）优先。
 - `frame` 多带 `lie`、`prone`（趴下）、`kneel`（跪坐）、`talkShape`（说话口型 0–3）、`away`（背过身的程度）；不开 `plus` 时它们都是 0 或 false。
@@ -208,7 +209,7 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 `pnpm run export:whale [输出目录]`（即 `node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs`，默认输出到仓库的 `build/packs`）
 把大肥鱼导出成 `coopanion-whale/` 形象包，原版 v0.1.17 起的 Coopanion 也能装：放进数据目录的 `home/companion/data/figures/`。
 
-- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 104 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
+- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 110 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色、每个姿势、五官、缩略图），缺一个就报错。
 - 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 18 个，三个娘的包没有 spout，是 17 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），

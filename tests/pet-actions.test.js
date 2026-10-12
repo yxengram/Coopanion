@@ -2505,7 +2505,7 @@ describe('faces made of parts of others (plus)', () => {
       for (const k of ['cat', 'tongue']) expect(fc[k], `${n}.${k}`).toEqual(mouth[k]);
       expect(fc.brows, n).toEqual(part('brows').brows);
       for (const k of ['lean', 'titter', 'rock', 'shake']) expect(fc[k], `${n}.${k}`).toEqual(d.add?.[k] ?? part('body')[k]);
-      for (const k of ['sweat', 'anger', 'bang', 'question', 'gloom']) expect(fc[k], `${n}.${k}`).toEqual(d.add?.[k] ?? part('marks')[k]);
+      for (const k of ['sweat', 'anger', 'bang', 'question', 'gloom', 'orbit', 'fume', 'heartbreak', 'confetti', 'cloud', 'dots']) expect(fc[k], `${n}.${k}`).toEqual(d.add?.[k] ?? part('marks')[k]);
       if (d.add?.blush !== undefined) expect(fc.blush, n).toBe(d.add.blush);
     }
     // e.g. laughing so hard she cries: crying eyes, a happy mouth, a giggle's fits and no sad brows
@@ -2605,6 +2605,123 @@ describe('faces made of parts of others (plus)', () => {
     // the whale and the girls say the same of them (Coo has no mouth to describe)
     const about = (v) => ids.map((id) => v.find((w) => w.id === id).about);
     for (const [p, v] of vocabs.slice(2)) expect(about(v), p).toEqual(about(vocabs[1][1]));
+  });
+});
+
+describe("marks the kit draws over any figure's face (plus)", () => {
+  // what each mark leaves in the particle layer: a puff's grey edge, a broken heart's red, a scrap of confetti, the
+  // rain cloud's grey, the dots' ink; the stars are the figure's own (Coo's orbit rings)
+  const MARKS = { fuming: '#8a93b0', heartbroken: '#ff5d7e', celebrate: '<rect fill=', gloomy: '#9aa1b2', speechless: '#3a2f45' };
+  const faced = (n, pet = barePet()) => { run(pet, 1); pet.setExpr(n); run(pet, .1); return pet; };
+
+  it('six faces made of parts carry one each (气炸 steam, 心碎 a broken heart, 撒花 confetti, 郁闷 a rain cloud, 无言以对 dots, 眼冒金星 stars)', () => {
+    expect(['fuming', 'heartbroken', 'celebrate', 'gloomy', 'speechless', 'starry'].map((n) => PLUS_MIXES[n].label))
+      .toEqual(['气炸', '心碎', '撒花', '郁闷', '无言以对', '眼冒金星']);
+    for (const [n, k] of [['fuming', 'fume'], ['heartbroken', 'heartbreak'], ['celebrate', 'confetti'], ['gloomy', 'cloud'], ['speechless', 'dots'], ['starry', 'orbit']]) {
+      expect(PLUS_MIX_FACES[n].f(.5)[k], n).toBe(true);
+      expect(ADD_KEYS, k).toContain(k);
+    }
+    // the cloud's face is no 无语 (嫌弃's lines), the stars' no 慌张 (its sweat)
+    expect(PLUS_MIX_FACES.gloomy.f(.5).gloom).toBe(false);
+    expect(PLUS_MIX_FACES.starry.f(.5).sweat).toBe(false);
+  });
+
+  it('draws them from the moment the face comes on, and none for any other face', () => {
+    for (const [n, mark] of Object.entries(MARKS)) {
+      const pet = faced(n);
+      // (the dots come one at a time, the first .25 s in)
+      if (n === 'speechless') run(pet, .3);
+      expect(pet.fxHtml(), n).toContain(mark);
+      for (const [m, other] of Object.entries(MARKS)) if (m !== n && !(n === 'fuming' && m === 'heartbroken')) expect(pet.fxHtml(), `${n} ${m}`).not.toContain(other);
+    }
+    for (const n of [...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS.filter((x) => !(x in MARKS))]) {
+      const pet = faced(n);
+      run(pet, .5);
+      for (const [m, mark] of Object.entries(MARKS)) expect(pet.fxHtml(), `${n} ${m}`).not.toContain(mark);
+    }
+    // Coo's stars are her orbit's rings round the top of her ring
+    expect(faced('starry').petHtml().match(/<circle class="eye" fill="none" stroke-width="4"/g)).toHaveLength(3);
+  });
+
+  it('steam off both sides of the head, a heart breaking every 2.2 s, a burst of confetti then a few more pieces', () => {
+    const puffs = (pet) => [...pet.fxHtml().matchAll(/<g fill="#8a93b0"[^>]*><circle cx="([-\d.]+)"/g)].map((m) => +m[1]);
+    const fume = faced('fuming'), mid = fume.anchor().x;
+    const xs = puffs(fume);
+    expect(xs.length).toBe(2);
+    expect(Math.min(...xs)).toBeLessThan(mid);
+    expect(Math.max(...xs)).toBeGreaterThan(mid);
+    run(fume, 1);
+    expect(puffs(fume).length).toBeGreaterThan(4);
+    const hearts = (pet) => (pet.fxHtml().match(/fill="#ff5d7e"/g) || []).length;
+    const heart = faced('heartbroken');
+    expect(hearts(heart)).toBe(1);
+    run(heart, 1.7);
+    expect(hearts(heart)).toBe(1);
+    run(heart, .6);
+    expect(hearts(heart)).toBe(1);
+    const scraps = (pet) => (pet.fxHtml().match(/<rect fill=/g) || []).length;
+    const party = faced('celebrate');
+    expect(scraps(party)).toBe(18);
+    run(party, 1);
+    expect(scraps(party)).toBeGreaterThan(18);
+    expect(scraps(party)).toBeLessThan(18 + 3 * 4);
+  });
+
+  it('the cloud and the dots stay by the head, seated and lying too (the lying head\'s spots)', () => {
+    const cloudX = (pet) => +pet.fxHtml().match(/<g opacity="[\d.]+" transform="translate\(([-\d.]+) ([-\d.]+)\)/)[1];
+    const cloudY = (pet) => +pet.fxHtml().match(/<g opacity="[\d.]+" transform="translate\(([-\d.]+) ([-\d.]+)\)/)[2];
+    const up = faced('gloomy');
+    run(up, .5);
+    const seated = barePet();
+    run(seated, 1);
+    seated.act('sit');
+    run(seated, 2);
+    seated.setExpr('gloomy');
+    run(seated, .5);
+    expect(cloudY(seated)).toBeGreaterThan(cloudY(up) + 10);
+    const lying = barePet();
+    run(lying, 1);
+    lying.act('lie');
+    run(lying, 2.5);
+    lying.setExpr('gloomy');
+    run(lying, .5);
+    expect(lying.pet.mode).toBe('lie');
+    expect(cloudY(lying)).toBeGreaterThan(cloudY(seated) + 10);
+    lying.setExpr('speechless');
+    run(lying, 1.2);
+    expect(lying.fxHtml().match(/<circle cx/g)).toHaveLength(6);
+    expect(Number.isFinite(cloudX(up))).toBe(true);
+    // in over .3 s and out over the face's last .3 s, then gone
+    const op = (pet) => +pet.fxHtml().match(/<g opacity="([\d.]+)" transform/)[1];
+    const fade = faced('gloomy');
+    expect(op(fade)).toBeLessThan(.5);
+    run(fade, .4);
+    expect(op(fade)).toBe(1);
+    run(fade, 3.2 - .5 - .15);
+    expect(op(fade)).toBeLessThan(.7);
+    run(fade, .3);
+    expect(fade.fxHtml()).not.toContain('#9aa1b2');
+  });
+
+  it('as the eyes of two faces in a group it brings its mark, as the mouth not', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.doGroup(['gloomy', 'happy']);
+    run(pet, .3);
+    expect(pet.pet._fc.cloud).toBe(true);
+    pet.doGroup(['happy', 'celebrate']);
+    run(pet, .3);
+    expect(pet.pet._fc.confetti).toBeUndefined();
+  });
+
+  it('a body without plus never draws them', () => {
+    const plain = barePet(undefined, { plus: false });
+    run(plain, 1);
+    for (const n of Object.keys(MARKS)) {
+      plain.setExpr(n);
+      run(plain, .5);
+      for (const mark of Object.values(MARKS)) expect(plain.fxHtml(), n).not.toContain(mark);
+    }
   });
 });
 

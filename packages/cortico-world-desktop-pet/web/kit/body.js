@@ -9,7 +9,8 @@
  * With `opts.plus` the body does more: it lies down on its front and kneels, and knows the faces and
  * motions in PLUS_EXPRESSIONS / PLUS_MOTIONS (a song, a spout, a roll, a cup of tea…; faces made of the eyes of
  * one and the mouth of another, PLUS_MIXES) with their particles (glints, rings of song, a bulb, chips of stone,
- * spray). Coo, the whale and the three girls ask for it; without it the body is the kit as any other pack knows it.
+ * spray, and the marks of MARK_FX_KEYS: steam, a broken heart, confetti, a rain cloud, 「……」). Coo, the whale and the
+ * three girls ask for it; without it the body is the kit as any other pack knows it.
  * Two faces in one group are one asked-for face, the first one's eyes and the second one's mouth (`eyes+mouth`).
  *
  * Coordinates: the figure is drawn in logo units, facing right, ground at y=256, inside a 256 square.
@@ -41,6 +42,10 @@ const LIE_HIPS = [[62, 200], [78, 206]], LIE_FEET = [[8, 240], [18, 178]];
 export const DROP = 'M0 -9C4 -3 6 0 6 3.5A6 6 0 0 1 -6 3.5C-6 0 -4 -3 0 -9Z';
 // (plus) a spout's water: its own fixed colours (any scheme, any desktop), and the spray's fall, per unit of the stage scale
 const WATER = '#2f7fd0', SPRAY_G = 2200;
+// (plus) the kit's own marks (MARK_FX_KEYS): fixed colours with a dark edge, so they show on any scheme and any desktop
+const CONFETTI = ['#ff5d73', '#ffc93c', '#3fb8e8', '#5fd17a', '#a77bf3', '#ff9a3c'];
+// the two halves of a broken heart, meeting along one zigzag crack
+const HALF_HEARTS = ['M0 -9C-8 -18 -19 -15 -19 -6C-19 1 -7 8 0 14L-3 8L2 3L-3 -2L1 -6Z', 'M0 -9C8 -18 19 -15 19 -6C19 1 7 8 0 14L-3 8L2 3L-3 -2L1 -6Z'];
 export function heartD(cx, cy, s) {
   const p = (x, y) => `${f(cx + x * s)} ${f(cy + y * s)}`;
   return `M${p(0, 14)}C${p(-7, 8)} ${p(-19, 1)} ${p(-19, -6)}C${p(-19, -15)} ${p(-8, -18)} ${p(0, -9)}C${p(8, -18)} ${p(19, -15)} ${p(19, -6)}C${p(19, 1)} ${p(7, 8)} ${p(0, 14)}Z`;
@@ -234,6 +239,13 @@ export const PLUS_MIXES = {
   doubt:    { label: '狐疑', kao: '(¬ ~ ¬ ?', eyes: 'smug', mouth: 'confused', marks: 'confused' },
   blank:    { label: '懵', kao: '(0 O o ?', eyes: 'confused', mouth: 'surprised' },
   meh:      { label: '呵呵', kao: '(- _ -', eyes: 'disgusted', mouth: 'awkward', add: { gloom: false } },
+  // with a mark the kit draws over any figure (MARK_FX_KEYS; the stars are dizzy's `orbit`, which each figure draws)
+  fuming:   { label: '气炸', kao: '(╬ò 皿 ó)', eyes: 'angry', mouth: 'angry', add: { fume: true } },
+  heartbroken: { label: '心碎', kao: '(ó ︿ ò) <3/', eyes: 'sad', mouth: 'cry', add: { heartbreak: true } },
+  celebrate: { label: '撒花', kao: '(^ ▽ ^)*', eyes: 'happy', mouth: 'happy', glint: 1, add: { confetti: true } },
+  gloomy:   { label: '郁闷', kao: '(- ︿ -)', eyes: 'disgusted', mouth: 'sad', body: 'sad', add: { cloud: true, gloom: false, lookAt: [1, 3] } },
+  speechless: { label: '无言以对', kao: '(・ _ ・;)…', eyes: 'neutral', mouth: 'awkward', add: { dots: true, sweat: true } },
+  starry:   { label: '眼冒金星', kao: '(> ~ <) *', eyes: 'flustered', mouth: 'flustered', add: { orbit: true, sweat: false } },
 };
 /** The faces and motions a plus body adds to the kit's words. `lie` and `kneel` last until something else happens. */
 export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue', ...Object.keys(PLUS_MIXES)];
@@ -247,6 +259,7 @@ const PLUS_FACE_TONES = {
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
   brave: 'wry', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
+  fuming: 'angry', heartbroken: 'sad', celebrate: 'sparkle', gloomy: 'sad', speechless: 'wry', starry: 'surprised',
 };
 /**
  * (plus) A curious head tilt (`tilt`): seconds in all, and degrees for a body the kit tilts itself (Coo, whose whole ring
@@ -312,18 +325,27 @@ const COVER_MAX = 5;
 /** (plus) In a group of words done at once: words that leave her busy (in the air, rolling), and words that set her mode. */
 const BUSY_WORDS = new Set(['jump', 'hop', 'flap', 'roll', 'cheer']);
 const MODE_WORDS = new Set(['stand', 'sit', 'kneel', 'lie', 'sleep', 'walk', 'run', 'look', 'dizzy', 'dance']);
+/**
+ * (plus) Marks over a face that the kit draws itself, for any figure (so a figure's own effects need not know them): `fume`
+ * puffs steam off both sides of the head, `heartbreak` shows a heart that cracks and falls apart in two, `confetti`
+ * throws confetti up over her, `cloud` hangs a little rain cloud beside the head, `dots` writes 「……」 a dot at a time.
+ * The puffs, hearts and confetti are particles (the first as the face comes on, then on their own clock); the cloud and
+ * the dots follow the head. Lying, they go to the lying head's spots.
+ */
+const MARK_FX_KEYS = ['fume', 'heartbreak', 'confetti', 'cloud', 'dots'];
 /*
  * (plus) A face made of parts of others: the eyes (eyes, sparkle, gaze, tears, blush) of one, the brows of another, the
  * mouth (gap, ω, tongue, puff, sing) of a third, body language (lean, sag, titter, rock, shake) and marks (sweat, anger,
- * bang, question, gloom, think) of others. `add` may set only ADD_KEYS, the fields every figure reads from the face
- * object rather than by its name. Stone (stone, crack, freeze) is in no list: petrify is never a part.
+ * bang, question, gloom, think, orbit, and MARK_FX_KEYS) of others. `add` may set only ADD_KEYS, the fields every figure
+ * (or the kit) reads from the face object rather than by its name. Stone (stone, crack, freeze) is in no list: petrify is
+ * never a part.
  */
 const EYE_KEYS = ['eyes', 'sparkle', 'wide', 'lookAt', 'lookLock', 'streams', 'emit', 'emitEvery', 'blush'];
 const BROW_KEYS = ['brows'];
 const MOUTH_KEYS = ['gap', 'cat', 'tongue', 'puff', 'sing'];
 const BODY_KEYS = ['lean', 'sag', 'titter', 'rock', 'shake'];
-const MARK_KEYS = ['sweat', 'anger', 'bang', 'question', 'gloom', 'think'];
-export const ADD_KEYS = ['blush', 'sweat', 'anger', 'bang', 'question', 'gloom', 'think', 'lookAt'];
+const MARK_KEYS = ['sweat', 'anger', 'bang', 'question', 'gloom', 'think', 'orbit', ...MARK_FX_KEYS];
+export const ADD_KEYS = ['blush', 'sweat', 'anger', 'bang', 'question', 'gloom', 'think', 'orbit', ...MARK_FX_KEYS, 'lookAt'];
 /**
  * (plus) The face of mix `d` ({ eyes, mouth, brows?, body?, marks?, add?, label?, kao? }, kit face names; brows, body
  * and marks default to the eyes' face) over `def` (a body's whole face lookup); `name` turns a pack word into the kit
@@ -470,6 +492,8 @@ export function createPet(els, opts) {
     exprAsked: false, exprN: 0, own: { arm: null, head: null, body: null }, coverT: 0, head: null,
     // (plus) the moves of a figure's own parts (APPENDAGE_MOVES), by part: { kind, t0, dur }
     app: { tail: null, ears: null, wings: null },
+    // (plus) the face (by exprN) the kit's own marks (MARK_FX_KEYS) were last started for, when they go off next, and how often
+    markFor: null, markAt: 0, markN: 0,
   };
   const pointer = { x: -1e4, y: -1e4, inside: false, vx: 0, samples: [] };
   let press = null, strokeAcc = 0, petCool = 0;
@@ -970,6 +994,52 @@ export function createPet(els, opts) {
       emit('glint', toStage(x + rnd(-8, 8), y + rnd(-8, 8) + (lg ? 0 : headLow())), { vx: rnd(-8, 8), vy: rnd(-18, -8), life: rnd(.5, .7) });
     }
   }
+  /** (plus) The spots either side of the head (logo units) where glints flash; lying, the lying ones. */
+  function sideSpots() {
+    const lg = proneK() > .5 && lieSet().glints, [bx, by] = A.bubble;
+    return (lg || A.glints || [[bx - 50, by + 25], [bx + 50, by + 25]]).map(([x, y]) => [x, y + (lg ? 0 : headLow())]);
+  }
+  /** (plus) The spot beside the head an idea's bulb lights at (logo units), clear of the speech bubble; lying, the lying one. */
+  function besideSpot() {
+    const L = proneK() > .5 && lieSet();
+    return L ? [L.bubble[0] + 62, L.bubble[1] + 28] : A.bulb ? [A.bulb[0], A.bulb[1] + headLow()] : [A.bubble[0] + 62, A.bubble[1] + 28 + headLow()];
+  }
+  /** (plus) The top of the head (the bubble's spot, logo units); lying, the lying one. */
+  const topSpot = () => ancPt('bubble');
+  /**
+   * (plus) The next round of the kit's marks that are particles (MARK_FX_KEYS): two puffs of steam, one off each side of
+   * the head, every .32 s; a heart that breaks, every 2.2 s; a burst of confetti thrown up over her, then a few more pieces
+   * every .45 s.
+   */
+  function emitMarks(fc) {
+    const n = pet.markN++;
+    let next = Infinity;
+    if (fc.fume) {
+      // (from just inside the glint spots, toward the top of the head)
+      const top = topSpot(), mid = toStage(...top).x;
+      for (const sp of sideSpots()) {
+        const p = toStage(lerp(sp[0], top[0], .3), lerp(sp[1], top[1], .3) + rnd(-4, 4)), out = Math.sign(p.x - mid) || 1;
+        emit('puff', p, { vx: out * rnd(30, 55), vy: rnd(-75, -55), life: rnd(.8, 1), r: rnd(.85, 1.15) });
+      }
+      next = Math.min(next, .32);
+    }
+    if (fc.heartbreak) {
+      if (n % 7 === 0) emit('broken', toStage(...besideSpot()), { vy: -6, life: 2 });
+      next = Math.min(next, .32);
+    }
+    if (fc.confetti) {
+      const [x, y] = topSpot(), c = toStage(x, y - 10);
+      for (let i = 0, m = n === 0 ? 18 : 3; i < m; i++) {
+        const burst = n === 0;
+        emit('confetti', { x: c.x + rnd(-30, 30) * S, y: c.y }, {
+          vx: rnd(-1, 1) * (burst ? 300 : 140) * S, vy: -rnd(burst ? 260 : 120, burst ? 420 : 220) * S, life: rnd(1.8, 2.4),
+          r: rnd(0, 6), c: Math.floor(rnd(0, CONFETTI.length)), ph: rnd(0, 6),
+        });
+      }
+      next = Math.min(next, .45);
+    }
+    pet.markAt = T + next;
+  }
   /** (plus) Where a spout leaves the head (logo units): lying, from the lying head; a figure that names no spout spot, just under its bubble spot. */
   function spoutPt() {
     const l = proneK() > .5 && lieSet();
@@ -1419,6 +1489,11 @@ export function createPet(els, opts) {
       pet.chipFor = pet.exprN; play('crack', 'face');
       for (let i = 0; i < 5; i++) emit('chip', toStage(rnd(100, 160), rnd(60, 200) + pet.low), { vx: rnd(-60, 60), vy: rnd(-90, -30), life: 1.2, r: rnd(0, 6) });
     }
+    // (plus) the kit's own marks that are particles: the first as the face comes on, then on their own clock
+    if (plus && (fc.fume || fc.heartbreak || fc.confetti)) {
+      if (pet.markFor !== pet.exprN) { pet.markFor = pet.exprN; pet.markAt = 0; pet.markN = 0; }
+      if (T >= pet.markAt) emitMarks(fc);
+    }
     if (fc.emit && T > pet.emitAt) {
       const z = ancPt('z'), tear = ancPt('tear');
       if (fc.emit === 'heart') { emitHeart(); pet.emitAt = T + (fc.emitEvery ?? .45); }
@@ -1440,6 +1515,9 @@ export function createPet(els, opts) {
       if (p.type === 'drop' || p.type === 'chip') { p.vy += 900 * dt; if (p.y > floorY) p.age = p.life; }
       if (p.type === 'spray') { p.vy += SPRAY_G * S * dt; if (p.y > floorY) p.age = p.life; }
       if (p.type === 'dust') p.vx *= Math.exp(-dt * 4);
+      // (plus) confetti: thrown up, slowed by the air, then fluttering down
+      if (p.type === 'confetti') { p.vx *= Math.exp(-dt * 2.5); p.vy = Math.min(p.vy + 900 * S * dt, 70 * S); if (p.y > floorY) p.age = p.life; }
+      if (p.type === 'puff') { p.vx *= Math.exp(-dt * 2); p.vy *= Math.exp(-dt * 1.2); }
       if (p.age >= p.life) P.splice(i, 1);
     }
     pet.talkK *= Math.exp(-dt * 12);
@@ -1553,10 +1631,49 @@ export function createPet(els, opts) {
       } else if (p.type === 'chip') {
         // a small grey shard of stone, tumbling
         s += `<path fill="#c9ccd4" stroke="#6b7080" stroke-width="1" stroke-linejoin="round" opacity="${f(1 - a * a)}" transform="translate(${f(p.x)} ${f(p.y)}) rotate(${f(p.r * 60 + p.age * 400)}) scale(${f(sc)})" d="M-4 -3L3 -4L5 2L-1 4Z"/>`;
+      } else if (p.type === 'puff') {
+        // (plus) a puff of steam off the head, swelling and fading as it rises
+        // (one outline round the three circles: each drawn edged, then all filled over the edges)
+        const r = (3.5 + 5.5 * a) * p.r * sc, op = (a < .12 ? a / .12 : 1 - (a - .12) / .88) * .95;
+        const c3 = `<circle cx="${f(p.x)}" cy="${f(p.y)}" r="${f(r)}"/><circle cx="${f(p.x + r * .8)}" cy="${f(p.y + r * .25)}" r="${f(r * .68)}"/><circle cx="${f(p.x - r * .75)}" cy="${f(p.y + r * .3)}" r="${f(r * .6)}"/>`;
+        s += `<g opacity="${f(op)}"><g fill="#8a93b0" stroke="#8a93b0" stroke-width="${f(2.6 * sc)}">${c3}</g><g fill="#fff">${c3}</g></g>`;
+      } else if (p.type === 'broken') {
+        // (plus) a heart pops up whole, a crack runs down it, and its two halves fall away from each other
+        const k = (a < .1 ? smooth(a / .1) * 1.12 : 1 + .12 * (1 - smooth(clamp((a - .1) / .1, 0, 1)))) * sc * .72;
+        const sp = smooth(clamp((a - .42) / .58, 0, 1)), op = 1 - smooth(clamp((a - .75) / .25, 0, 1));
+        const half = (d, side) => `<path transform="translate(${f(side * 10 * sp)} ${f(26 * sp * sp)}) rotate(${f(side * 28 * sp)} 0 14)" d="${d}"/>`;
+        const crack = a > .3 && sp === 0 ? `<path fill="none" stroke="#7a1430" stroke-width="1.6" stroke-linejoin="round" d="M0 -9L1 -6L-3 -2L2 3L-3 8L0 14"/>` : '';
+        s += `<g opacity="${f(op)}" transform="translate(${f(p.x)} ${f(p.y)}) scale(${f(k)})"><g fill="#ff5d7e" stroke="#9e1c40" stroke-width="1.6" stroke-linejoin="round">${half(HALF_HEARTS[0], -1)}${half(HALF_HEARTS[1], 1)}</g>${crack}</g>`;
+      } else if (p.type === 'confetti') {
+        // (plus) a scrap of confetti, spinning and flipping as it flutters
+        const op = a > .8 ? (1 - a) / .2 : 1, fl = Math.cos(p.age * 9 + p.ph);
+        s += `<rect fill="${CONFETTI[p.c]}" stroke="#4a3a50" stroke-width="${f(.6)}" opacity="${f(op)}" x="-4" y="-2" width="8" height="4" transform="translate(${f(p.x + Math.sin(p.age * 5 + p.ph) * 4 * sc)} ${f(p.y)}) rotate(${f(p.r * 60 + p.age * 220)}) scale(${f(sc * 1.1)} ${f(sc * 1.1 * (.25 + .75 * Math.abs(fl)))})"/>`;
       } else if (p.type === 'spray') {
         // a round bead of water with a highlight: not a tear's drop shape, so a spout does not read as crying
         const r = 3.2 * p.r * sc;
         s += `<g opacity="${f(1 - a * a)}"><circle fill="#cdeeff" stroke="${WATER}" stroke-width="${f(1.1 * sc)}" cx="${f(p.x)}" cy="${f(p.y)}" r="${f(r)}"/><circle fill="#fff" cx="${f(p.x - r * .35)}" cy="${f(p.y - r * .35)}" r="${f(r * .3)}"/></g>`;
+      }
+    }
+    // (plus) the kit's own marks that stay with the head: a rain cloud beside it, and 「……」 a dot at a time
+    if (plus && (fc.cloud || fc.dots)) {
+      // (in over .3 s as the face comes on, out over the last .3 s of it)
+      const u = T - pet.exprAt, k = smooth(clamp(u / .3, 0, 1)) * smooth(clamp((pet.exprUntil - T) / .3, 0, 1));
+      if (fc.cloud && k > 0) {
+        const [x, y] = besideSpot(), c = toStage(x, y - 6 + 2 * Math.sin(T * 2.2)), z = sc * (.5 + .2 * k);
+        let rain = '';
+        for (let i = 0; i < 4; i++) {
+          const q = (T * 1.6 + i * .37) % 1, rx = -15 + 10 * i - 4 * q, ry = 9 + 26 * q;
+          rain += `<path opacity="${f(Math.sin(Math.PI * q))}" d="M${f(rx)} ${f(ry)}l-2 6"/>`;
+        }
+        s += `<g opacity="${f(k)}" transform="translate(${f(c.x)} ${f(c.y)}) scale(${f(z)})"><g fill="none" stroke="#3f7fc4" stroke-width="2.6" stroke-linecap="round">${rain}</g>`
+          + `<path fill="#9aa1b2" stroke="#4d5363" stroke-width="1.8" stroke-linejoin="round" d="M-20 9A8 8 0 0 1 -17 -6A10 10 0 0 1 0 -12A11 11 0 0 1 17 -5A8 8 0 0 1 21 9Z"/>`
+          + `<path fill="none" stroke="#c9ced9" stroke-width="1.6" stroke-linecap="round" d="M-11 -4A8 8 0 0 1 -1 -9"/></g>`;
+      }
+      if (fc.dots) {
+        const [x, y] = besideSpot(), c = toStage(x, y), ph = u % 2.4;
+        let d = '';
+        if (k > 0) for (let i = 0; i < 3; i++) if (ph > .25 + .3 * i) d += `<circle cx="${f(-10 + 10 * i)}" cy="0" r="2.8"/>`;
+        if (d) s += `<g transform="translate(${f(c.x)} ${f(c.y)}) scale(${f(sc)})" opacity="${f(k)}"><g fill="#fff" stroke="#fff" stroke-width="3.6">${d}</g><g fill="#3a2f45">${d}</g></g>`;
       }
     }
     if (ours('spout')) {

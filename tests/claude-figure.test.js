@@ -180,8 +180,11 @@ function stubFigure(model, can = true, without = []) {
 }
 function barePet(fig, opts = {}) {
   const el = () => ({ setAttribute() {}, innerHTML: '' });
-  const pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', bounds: BOUNDS, ...opts });
+  const fxG = el();
+  const pet = createPet({ petG: el(), shadowEl: el(), fxG }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', bounds: BOUNDS, ...opts });
   pet.resize();
+  // the kit's particles and marks, as last drawn
+  pet.fxHtml = () => fxG.innerHTML;
   return pet;
 }
 const run = (pet, seconds) => { for (let i = 0; i < seconds * 60; i++) { pet.step(1 / 60); pet.render(); } };
@@ -398,6 +401,29 @@ describe('Claude-chan: motion helpers', () => {
 });
 
 describe('Claude-chan: every word on the kit', () => {
+  it("puts the kit's own marks by her head: the rain cloud and the dots beside it standing (her bulb spot), by the lying head lying", () => {
+    const { fig } = stubFigure(SYNTH);
+    const pet = barePet(fig);
+    run(pet, 1);
+    // the cloud's group and the dots' group: translate(x y) at the spot (the cloud bobs 2 units about 6 above it)
+    const spot = (re) => { const m = pet.fxHtml().match(re); return m && [+m[1], +m[2]]; };
+    const CLOUD = /<g opacity="[\d.]+" transform="translate\(([-\d.]+) ([-\d.]+)\)/, DOTS = /<g transform="translate\(([-\d.]+) ([-\d.]+)\) scale\([\d.]+\)" opacity="[\d.]+"><g fill="#fff"/;
+    const near = (p, q, d) => expect(Math.hypot(p[0] - q.x, p[1] - q.y)).toBeLessThan(d);
+    const [bx, by] = fig.anchors.bulb, S = pet.toStage(0, 1).y - pet.toStage(0, 0).y;
+    pet.setExpr('gloomy');
+    run(pet, .5);
+    near(spot(CLOUD), pet.toStage(bx, by - 6), 3 * S);
+    pet.setExpr('speechless');
+    run(pet, 1);
+    near(spot(DOTS), pet.toStage(bx, by), .5);
+    pet.act('lie');
+    run(pet, 2.5);
+    expect(pet.pet.lieK).toBeGreaterThan(.95);
+    const [lx, ly] = fig.anchors.lie.bubble;
+    pet.setExpr('speechless');
+    run(pet, 1);
+    near(spot(DOTS), pet.toStage(lx + 62, ly + 28), .5);
+  });
   for (const can of [true, false]) {
     it(`plays every word ${can ? 'with every drawing' : 'with no pose drawings or sprites'}, every frame finite`, () => {
       for (const w of ALL_WORDS) {

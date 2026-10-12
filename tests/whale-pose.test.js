@@ -865,11 +865,48 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     const figure = { ...fig, draw(g, fc, o) { frame = o; fig.draw(g, fc, o); } };
     Object.defineProperty(figure, 'anchors', { get: () => fig.anchors });
     Object.defineProperty(figure, 'poses', { get: () => fig.poses });
-    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    const fxG = el();
+    const pet = createPet({ petG, shadowEl: el(), fxG }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
     pet.resize();
     const run = (s, each = () => {}) => { for (let i = 0; i < s * 60; i++) { pet.step(1 / 60); pet.render(); each(rigSeen.st, frame); } };
-    return { pet, run, tree: rigSeen.tree, frame: () => frame, done: () => { globalThis.document = doc; } };
+    return { pet, run, tree: rigSeen.tree, frame: () => frame, fx: () => fxG.innerHTML, fig, done: () => { globalThis.document = doc; } };
   }
+  it("puts the kit's own marks by her head: the dots beside it standing, lower kneeling, by the lying head lying; steam off both sides", async () => {
+    const { pet, run, fx, fig, done } = await whaleOnKit();
+    try {
+      run(.5);
+      const DOTS = /<g transform="translate\(([-\d.]+) ([-\d.]+)\) scale\([\d.]+\)" opacity="[\d.]+"><g fill="#fff"/;
+      const dots = () => { const m = fx().match(DOTS); return [+m[1], +m[2]]; };
+      const near = (p, q) => expect(Math.hypot(p[0] - q.x, p[1] - q.y)).toBeLessThan(.5);
+      // (she names no bulb spot: beside her bubble's, as an idea's bulb)
+      expect(fig.anchors.bulb).toBeUndefined();
+      const [bx, by] = fig.anchors.bubble;
+      pet.setExpr('speechless');
+      run(1);
+      near(dots(), pet.toStage(bx + 62, by + 28));
+      const standing = dots();
+      pet.doWord('kneel');
+      run(3);
+      pet.setExpr('speechless');
+      run(1);
+      expect(dots()[1]).toBeGreaterThan(standing[1] + 2);
+      pet.doWord('lie');
+      run(3);
+      expect(pet.pet.lieK).toBeGreaterThan(.95);
+      pet.setExpr('speechless');
+      run(1);
+      const [lx, ly] = fig.anchors.lie.bubble;
+      near(dots(), pet.toStage(lx + 62, ly + 28));
+      pet.doWord('stand');
+      run(3);
+      pet.setExpr('fuming');
+      run(.1);
+      const xs = [...fx().matchAll(/<g fill="#8a93b0"[^>]*><circle cx="([-\d.]+)"/g)].map((m) => +m[1]), mid = pet.anchor().x;
+      expect(xs).toHaveLength(2);
+      expect(Math.min(...xs)).toBeLessThan(mid);
+      expect(Math.max(...xs)).toBeGreaterThan(mid);
+    } finally { done(); }
+  });
   /** A fresh whale figure drawing frames by hand (no kit): each call draws `o` with face `fc` and gives that frame's states. */
   async function whaleByHand() {
     const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });

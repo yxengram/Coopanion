@@ -18,6 +18,7 @@
 > - **表情的手臂姿势单独成词**（只在 plus 下，没有新画）：三位娘思考、期待、倾听、害羞时摆的手臂图本来只能靠表情摆出来，现在各成一个手势词：`muse` 琢磨/摸下巴/托腮/托下巴（手指抵着下巴，`chin` 图）、`fist` 加油/握拳/打气/握拳加油（举起小拳头，`fist` 图；握拳这个名字从认真挪过来，Coo 和大肥鱼仍是认真）、`jot` 记笔记/记下来/做笔记/记一下（`write` 图）、`twiddle` 对手指/戳手指/扭捏（指尖在胸前对在一起，`shy` 图）。大肥鱼只有托腮的画，所以只加 `muse`（托腮/撑下巴/托下巴/琢磨）；Coo 一个都不加。四个都是 kit 的 `ARM_GESTURES`（跪坐时走混合体、不结束跪坐），自带的脸：`muse` 没有（配什么表情都行），`fist` 期待、`jot` 看书（倾听的脸会带出声波）、`twiddle` 害羞；声音都用现成的（look、pop、page、shy），导出包不多出声音文件。
 > - **头部和身体的六个动作**（只在 plus 下，没有新画，只用现有骨架）：`droop` 低头/垂头/低下头（第 5 个头部手势：头低下去、眼睛往下看，停约 1.2 s 再抬起）、`blink` 眨眨眼/眨巴眼/眨巴眨巴（第 6 个头部手势：连着快快地眨三下眼，kit 给三次 `frame.blink`，任何形象都看得见；平时自己偶尔也会连眨两下，所以要三下才看得出是故意的）、`closer` 凑近/凑过来/凑近点（上身连头整个变大一点，像凑到你跟前）、`leanback` 后仰/往后仰/向后仰（上身往后、变小一点、下巴抬起）、`sway` 晃来晃去/左右摇晃/摇头晃脑/晃悠（整个身子绕脚左右晃三下；「摇摆」仍是跳舞）、`stamp` 跺脚/跺跺脚/直跺脚（kit 抬起前面那只脚、使劲落下两次，落地声、扬尘、整组一震；坐着、趴着会先站起来）。大肥鱼和三位娘都加，Coo 不加（kit 在 Coo 身上也做得出，但 Coo 不再扩词）。低头、眨眨眼走头部通道，跪坐保持；凑近、后仰、晃来晃去是「手,要站着或坐着不动」那组（和鞠躬、探头一样，结束跪坐、变回普通坐着），跺脚和屈膝礼一样站起来做（手 + 站位 + 身）。都没有自带的脸。声音：凑近用探头那声（包里本来就有）、晃来晃去用跳舞的曲子、跺脚用落地声（都是上游有的），眨眨眼和低头不出声；导出包不多出声音文件。看图后没收的：回头/转头（正面的三位娘转头只像往旁边看一眼，大肥鱼是转向你，和张望、害羞嘟嘴的眼神分不开；「转头」仍不是词）；连连点头、使劲摇头在桌面大小下和点头、摇头分不出，收成点头、摇头的别名（连连点头/猛点头/使劲点头、使劲摇头/拼命摇头/猛摇头，五个形象都有）。
 > - **尾巴、耳朵、翅膀的五个动作**（只在 plus 下，没有新画）：`wag` 摇尾巴/甩尾巴/摆尾巴（大肥鱼、GPT 娘、Gemini 娘）、`wingbeat` 扇翅膀/拍翅膀/扑扇翅膀（GPT 娘）、`earflick` 抖耳朵/耳朵抖抖/动动耳朵、`earsup` 竖耳朵/竖起耳朵/耳朵竖起来、`earsdown` 耳朵耷拉/耷拉耳朵/耳朵趴下（Gemini 娘）。尾巴、耳朵、翅膀各算一个部位（`CHANNELS` 的 `tail`、`ears`、`wings`；kit 的 `APPENDAGE_MOVES`，帧里的 `appendages`），和表情、头、手的动作、彼此之间都能同组，同一部位的两个词拆成先后；不带表情、不换模式，走着照走、跪着照跪（§一.11）。
+> - **六个带特效的组合脸**（只在 plus 下，没有新画，特效是代码画的）：`fuming` 气炸/气炸了/火冒三丈（生气的眼和嘴，头两边冒白烟）、`heartbroken` 心碎/心碎了/伤心欲绝（难过的眼、大哭的嘴，头旁边一颗心裂成两半掉下去）、`celebrate` 撒花/庆祝/恭喜（开心的眼和嘴，头顶撒出一把彩色纸屑）、`gloomy` 郁闷/闷闷不乐/乌云罩顶（嫌弃的眼、难过的嘴和身子，不要黑线，头旁边一朵下雨的小乌云）、`speechless` 无言以对/说不出话/哑口无言（平静的眼、尴尬的嘴，挂汗，一个点一个点地冒出「……」）、`starry` 眼冒金星/被砸晕/撞晕了（慌张的 > < 眼和嘴，不要汗，头顶晕的小星星）。前五个特效由 kit 自己画在粒子层里（`MARK_FX_KEYS`），五个形象（Coo 也是）都不用改；小星星是晕的 `orbit`，各形象本来就画。尴尬多一个名字「汗颜」（§一.9）。
 >
 > 实测：
 > - 组合扩展改动的行为，在真实 kit 上用 `/tmp/combo/` 下的脚本重新测过：
@@ -66,18 +67,18 @@
 
 | 形象 | 词数 | 表情 | 动作 |
 |---|---|---|---|
-| Coo | 96 | 51（28 + 23 个组合脸） | 45 |
-| 大肥鱼 | 104 | 51（28 + 23 个组合脸） | 53（多 `muse` 和 `droop`、`blink`、`closer`、`leanback`、`sway`、`stamp`，还有 `wag`） |
-| Claude 娘 | 105 | 51（28 + 23 个组合脸） | 54（少 `spout`，多 `muse`、`fist`、`jot`、`twiddle` 和上面六个） |
-| GPT 娘 | 107 | 51（28 + 23 个组合脸） | 56（Claude 娘的 54 个，加 `wag`、`wingbeat`） |
-| Gemini 娘 | 109 | 51（28 + 23 个组合脸） | 58（Claude 娘的 54 个，加 `wag`、`earflick`、`earsup`、`earsdown`） |
+| Coo | 102 | 57（28 + 29 个组合脸） | 45 |
+| 大肥鱼 | 110 | 57（28 + 29 个组合脸） | 53（多 `muse` 和 `droop`、`blink`、`closer`、`leanback`、`sway`、`stamp`，还有 `wag`） |
+| Claude 娘 | 111 | 57（28 + 29 个组合脸） | 54（少 `spout`，多 `muse`、`fist`、`jot`、`twiddle` 和上面六个） |
+| GPT 娘 | 113 | 57（28 + 29 个组合脸） | 56（Claude 娘的 54 个，加 `wag`、`wingbeat`） |
+| Gemini 娘 | 115 | 57（28 + 29 个组合脸） | 58（Claude 娘的 54 个，加 `wag`、`earflick`、`earsup`、`earsdown`） |
 
-- 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面；之后又加了 `tilt` 歪头，排在 `sigh` 后面；表情手臂姿势的几个手势词（`muse` 等）排在 `idea` 后面；`droop`、`blink` 排在 `tilt` 后面，`closer`、`leanback`、`sway`、`stamp` 排在 `peek` 后面。
+- 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面，后来的六个带特效的组合脸排在 `meh` 后面；之后又加了 `tilt` 歪头，排在 `sigh` 后面；表情手臂姿势的几个手势词（`muse` 等）排在 `idea` 后面；`droop`、`blink` 排在 `tilt` 后面，`closer`、`leanback`、`sway`、`stamp` 排在 `peek` 后面。
 - 一个名字在一个形象里只能指一个词（`readVocab` 校验，`vocabId` 查）。五个形象同一个词的名字相同（只有 `song` 不同：三位娘是「哼小曲」，Coo 和大肥鱼是「鲸歌」；`muse` 三位娘以「琢磨」开头、大肥鱼以「托腮」开头），包括上面那些近义名字；只有「握拳」在三位娘那里是 `fist`，在 Coo 和大肥鱼那里是 `determined`。
 - `spout` 只在 `coo/figure.json:1591` 和 `whale/figure.json:1684` 里。
 - 带 `lasting: true` 的只有 4 个词：`sit`、`sleep`、`kneel`、`lie`。
 - `seconds` 的取值（见 `coo/figure.json` 的 vocab，`claude-chan` 相同）：
-  - 表情：0.9，23 个组合脸也是；`petrify` 是 3.2。
+  - 表情：0.9，29 个组合脸也是；`petrify` 是 3.2。
   - 手势词：手势时长 + 0.1，例如 nod 0.7 → 0.8，wave 1.6 → 1.7。
   - 姿态 / 模式词是固定值：
     - lasting 的 sit、sleep、kneel、lie：都是 0.8；
@@ -219,7 +220,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
                      （5 个内置形象都没有传 opts.words）
                  KIT_MOTIONS → act；PLUS_MOTIONS 只在 plus && !face 时 → act → (plusAct)（760）
                       → setMode 改模式槽 / pulse 改手势槽或头部槽 / holdFace 记下动作自带的脸
-                 KIT_/PLUS_EXPRESSIONS（含 23 个组合脸）→ setExpr → 表情槽（761-764）
+                 KIT_/PLUS_EXPRESSIONS（含 29 个组合脸）→ setExpr → 表情槽（761-764）
                                      │
                                      ▼  每帧：动作自带的脸补位、被盖住的表情暂停（1173-1187）
                                         → faceName() 选脸 → render
@@ -365,13 +366,13 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 ### 9. 组合脸（plus）
 
 - **来源**：
-  - 表在 `body.js:211-236`（`PLUS_MIXES`）。由 `mixFace`（`283-299`）拼成 `PLUS_MIX_FACES`（`301-302`），并入 `PLUS_EXPRESSIONS`（`238`）。
+  - 表在 `body.js` 的 `PLUS_MIXES`。由 `mixFace`（`283-299`）拼成 `PLUS_MIX_FACES`（`301-302`），并入 `PLUS_EXPRESSIONS`（`238`）。
   - 音色在 `PLUS_FACE_TONES`，同样抄进 `web/sound.js` 的 `EXPR_TONES`。都是已有的音色，所以导出包需要的音效没有变。
 - **每张组合脸取用别的脸的部位**：
   - 眼（eyes、sparkle、视线、泪、腮红）取「眼」那张脸的；
   - 嘴（gap、ω、舌、puff、唱）取「嘴」那张脸的；
-  - 眉、身体语言（lean、sag、titter、rock、shake）、符号（汗、怒气、感叹号、问号、黑线、思考），默认都跟眼那张脸；
-  - `add` 只能设 `ADD_KEYS`（`276`），也就是每个形象都直接从脸对象读、不按名字查的字段。
+  - 眉、身体语言（lean、sag、titter、rock、shake）、符号（汗、怒气、感叹号、问号、黑线、思考、晕的小星星，和 kit 自己画的白烟、碎心、纸屑、乌云、「……」），默认都跟眼那张脸；
+  - `add` 只能设 `ADD_KEYS`，也就是每个形象都直接从脸对象读、不按名字查的字段。
 - 石化从来不当部位用。
 - 脸对象带上 `parts: {eyes, brows, mouth, body}`，供有画好的五官的形象按部位查表（§二.8）。
 
@@ -400,9 +401,24 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 | doubt | 狐疑 / 怀疑 / 真的吗 | smug | confused | 问号 | hmm |
 | blank | 懵 / 发愣 / 一脸懵 | confused | surprised | – | hmm |
 | meh | 呵呵 / 皮笑肉不笑 | disgusted | awkward | 不要黑线 | wry |
+| fuming | 气炸 / 气炸了 / 火冒三丈 | angry | angry | 头两边冒白烟（`fume`） | angry |
+| heartbroken | 心碎 / 心碎了 / 伤心欲绝 | sad | cry | 头旁边一颗心裂成两半掉下去（`heartbreak`） | sad |
+| celebrate | 撒花 / 庆祝 / 恭喜 | happy | happy | 撒彩色纸屑（`confetti`），闪 1 下光 | sparkle |
+| gloomy | 郁闷 / 闷闷不乐 / 乌云罩顶 | disgusted | sad | 身体取 sad，望向下方，不要黑线，头旁边一朵下雨的小乌云（`cloud`） | sad |
+| speechless | 无言以对 / 说不出话 / 哑口无言 | neutral | awkward | 冒汗，一个点一个点地冒出「……」（`dots`） | wry |
+| starry | 眼冒金星 / 被砸晕 / 撞晕了 | flustered | flustered | 不要汗，头顶晕的小星星（`orbit`） | surprised |
+
+- **kit 自己画的特效**（`MARK_FX_KEYS`：`fume`、`heartbreak`、`confetti`、`cloud`、`dots`，后六个组合脸用；都在 `MARK_KEYS` 和 `ADD_KEYS` 里，所以也跟着「眼」那张脸进表情对，作嘴时不带）：
+  - 画在 kit 自己的粒子层（`fxG`）里，和爱心、闪光、灯泡一样，五个形象（Coo 也是）都不用改代码，导出包在上游里也照样有（包自带 kit）。颜色固定、带深色描边，任何配色、任何桌面上都看得见。
+  - 白烟、碎心、纸屑是粒子：脸一出来就发第一批，之后按自己的时钟（`pet.markAt`，按 `exprN` 认是不是新的一张脸）：白烟每 0.32 s 头两边各一团（`glints` 点往头顶挪三成，往外、往上飘、变大、变淡）；碎心每 2.2 s 一颗（在灯泡的位置：先弹出来，裂开，两半往两边倒下去、往下掉，淡出）；纸屑一出来先撒 18 片（从头顶往上、往两边抛，空气阻力减速，然后飘落，翻转着闪），之后每 0.45 s 再补 3 片。
+  - 乌云和「……」跟着头每帧画：都在灯泡的位置（`anchors.bulb`，没有就是气泡点往前 62、往下 28，避开说话的气泡），0.3 s 淡入；乌云上下轻轻浮、下面四道雨；三个点每 2.4 s 一轮，0.25 s 后一个一个出来。
+  - 坐着、跪坐时跟着 `headLow` 下沉，趴着时用趴姿的 `anchors.lie`（`bubble`、`glints`），背过身、转身时跟着翻面。
+  - 不开 plus 的身体没有这些脸，也不会画这些特效；它们的随机数只在有这些字段时才取，非 plus 帧和上游逐帧一致。
+- 尴尬多一个名字「汗颜」：尴尬本来就是笑眼、八字眉、一大滴汗，「尴尬 + 冒汗」做成组合脸和尴尬一模一样，所以只收名字。
 
 - **怎么选出来的**：
-  - 候选 32 个，看渲染图后去掉 9 个，它们和已有的脸太像，或在某个形象上读错：
+  - 后六个（v0.4.2 之后）：候选是 汗颜（尴尬 + 汗）、无语的「……」、气炸的蒸汽、被砸晕的星星、心碎、撒花、郁闷的乌云、闪光一圈、感叹号。没收的：汗颜（就是尴尬，收成名字）、闪光一圈（就是开心、坏笑那几下闪光，同时最多 3 个）、感叹号（惊讶、哇已经有 `bang`）。眼冒金星用晕的小星星，但眼睛是 > < 不是晕的转圈眼，也只是一张脸，不转圈。眼和嘴的搭配避开了形象名单里的合成对（如 慌张眼 + 惊讶嘴 是三位娘的合成对，所以眼冒金星用慌张自己的嘴）。〔实测〕五个形象站、坐、跪、趴、背过身、转身时各渲染一遍（`scratch/combo6/D/`），特效都在头旁边，和已有的 27 张基本脸、23 张组合脸都分得开。
+  - 前 23 个：候选 32 个，看渲染图后去掉 9 个，它们和已有的脸太像，或在某个形象上读错：
     - shocked 震惊、dozy 迷糊、gotcha 得逞、holdback 强忍、proud 小得意；
     - sneer 不屑、sad-smile 苦中作乐、guilty 心虚；
     - grumpy 起床气：在大肥鱼上像眨眼。
@@ -430,7 +446,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **为什么 World 要读名单**：World 不知道某个包的身体跑的是哪个 kit（安装的包可能自带一份旧的，或者根本不用 kit），所以要由包自己在 manifest 里声明，就像 `vocab` 声明它做得出哪些词；按形象分开列，也能让某个形象去掉在它身上不好看的对（Coo 没有嘴；大肥鱼的名单是在她还缺几张眼睛图时挑的）。导出包的模块集合不变（`*-pack-export.test.js` 固定为 `kit/body.js` + `kit/rig.js`）。
 - **线上格式**不变，仍是 `string[]`：合成的一对是一组里的两个成员（`surprised+happy`，或 `sit+wave+surprised+happy`）。
 - **一组里三个表情**：World 按写的顺序贪心配对（一个表情能和当前组里唯一的表情配成名单里的一对，就并进去；否则照旧拆到下一组并说明），所以 World 不会在一组里发两个以上的表情，也不会发两个不在名单里的表情。直接调用 `ctl.doGroup` 时，kit 合成收到的前两个，再往后的表情照旧先做、被合成脸盖住。
-- **组合脸（23 个）**：内置形象的名单里，组合脸只做别名的目标；组合脸 + 基本表情、组合脸 + 组合脸照旧拆开。`readPairs` 也接受组合脸做成员（World 分不出组合脸和第三方包自己的表情）；kit 能合成它们（作眼时带上它的眉、记号和 `add`，作嘴时给它的嘴）。
+- **组合脸（29 个）**：内置形象的名单里，组合脸只做别名的目标；组合脸 + 基本表情、组合脸 + 组合脸照旧拆开。`readPairs` 也接受组合脸做成员（World 分不出组合脸和第三方包自己的表情）；kit 能合成它们（作眼时带上它的眉、记号和 `add`，作嘴时给它的嘴）。
 - **音色和闪光**：音色取眼那张脸的（包自带的词取它的 `sound`），没有就取嘴那张脸的（都是已有音色，导出包的音效不变）；闪光、弹跳按眼那张脸（happy 2、smug 1、组合脸按它的 `glint`，其他 0；surprised 往下压）；默认 3.2 s，两个里有 sleepy 时 4.4 s；爱心只在单独的 love 时发。
 - **和主动要的表情完全一样**：经 `setExpr('眼+嘴')` 设置（`exprAsked`），动作保留它（`keepsFace` 认得两个部分都是表情的组合名），`holdFace` 延长它，被盖住时暂停，`BODY_OWN` 手势叠加成 `眼+嘴+手势自带的脸`（唱歌、叹气换成手势的嘴），被 sleep、拎起、neutral、新表情清掉。
 - **形象怎么画**：和组合脸一样走 `fc.parts`。三位娘按 `parts.eyes/mouth/brows/body` 查自己的图；大肥鱼也一样，smug、angry、sad、shy 用自己画好的眼睛（`whale/figure.js` 的 `drawnEye`，同三位娘：睁眼和 smug 的半闭眼换成贴图；眨眼开头和结尾压扁贴图，闭上四成以上一帧切成画的眼睛合到同样程度，所以闭眼那几帧是眼皮和睫毛线，不是一条压扁的彩色细缝（这一步只有大肥鱼有，三位娘的贴图一直压扁到底）；shy 回头看你那一下仍是画的睁眼），其余的睁眼加眉的倾斜；Coo 没有嘴，环的缺口取嘴那张脸的，吐舌画得出，ω 画不出，所以很多对在 Coo 上看起来就是眼那张脸。
@@ -562,11 +578,11 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 5. **跪坐保持到手或全身动作**，表情和头部手势不结束它；大肥鱼和三位娘只占「手」的手势也不结束它。
 6. **一组词同一帧做**：World 先按部位把一组拆好（§二.6），页面把整组交给 `doAll`，kit 在同一帧里做完（`doGroup`）。组里的表情至少持续到同组手势自带的脸结束（唱歌 4.1 s、看书 4.4 s、喝茶 3.7 s、跳舞 3.4 s）。
 
-### 2. 词的分类与部位（共 96 个，数据来自 Coo 的 `figure.json`；部位见 `script.ts:84-104` 的 `CHANNELS`）
+### 2. 词的分类与部位（共 102 个，数据来自 Coo 的 `figure.json`；部位见 `script.ts:84-104` 的 `CHANNELS`）
 
 | 类 | 部位（`CHANNELS`） | 词 |
 |---|---|---|
-| **E 表情（51）** | 表情 | neutral 平静、happy 开心、wink 眨眼、love 喜欢、shy 害羞、surprised 惊讶、angry 生气、sad 难过、sleepy 犯困、thinking 思考、smug 得意、pout 嘟嘴、worried 担心、determined 认真、flustered 慌张、scared 害怕、excited 期待、cry 大哭、confused 疑惑、disgusted 嫌弃、nervous 紧张、gentle 温柔、awkward 尴尬、moved 感动、coax 撒娇、tongue 吐舌、giggle 偷笑；23 个组合脸（§一.9）；**petrify 石化**占全部部位，不和别的同时做 |
+| **E 表情（57）** | 表情 | neutral 平静、happy 开心、wink 眨眼、love 喜欢、shy 害羞、surprised 惊讶、angry 生气、sad 难过、sleepy 犯困、thinking 思考、smug 得意、pout 嘟嘴、worried 担心、determined 认真、flustered 慌张、scared 害怕、excited 期待、cry 大哭、confused 疑惑、disgusted 嫌弃、nervous 紧张、gentle 温柔、awkward 尴尬、moved 感动、coax 撒娇、tongue 吐舌、giggle 偷笑；29 个组合脸（§一.9）；**petrify 石化**占全部部位，不和别的同时做 |
 | **H 头部手势（4）** | 头 | nod 点头、shake 摇头、sigh 叹气、tilt 歪头；Coo 没有的：droop 低头、blink 眨眨眼（大肥鱼、三位娘） |
 | **P 尾巴、耳朵、翅膀（0）** | 尾巴 / 耳朵 / 翅膀，各算一个部位（提示词里按形象有的部位列成一组，如「尾巴、耳朵(各算一个部位)」；sleep、petrify 也占它们） | Coo 没有的：wag 摇尾巴（大肥鱼、GPT 娘、Gemini 娘）、wingbeat 扇翅膀（GPT 娘）、earflick 抖耳朵、earsup 竖耳朵、earsdown 耳朵耷拉（Gemini 娘） |
 | **G 手势（18）**：不改模式 | 手 | wave 招手、shiver 发抖、heart 比心、serve 奉茶、salute 敬礼、vsign 比耶、point 指、cover 捂嘴笑、cross 抱臂、stretch 伸懒腰、pray 拜托、scratch 挠头、idea 有了、hug 抱抱、hips 叉腰、spout 喷水（仅 Coo/大肥鱼）、sip 喝茶、read 看书；Coo 没有的：muse 托腮/琢磨（大肥鱼、三位娘）、fist 加油、jot 记笔记、twiddle 对手指（三位娘） |

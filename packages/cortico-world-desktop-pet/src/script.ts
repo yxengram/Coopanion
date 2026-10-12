@@ -341,12 +341,12 @@ export function lastingNote(v: VocabWord, vocab?: readonly VocabWord[]): string 
  * expression not listed (a pack's own) goes to the last, 其他.
  */
 const MOODS: ReadonlyArray<readonly [string, readonly string[]]> = [
-  ['开心(好消息)', ['happy', 'giggle', 'lol', 'laughcry', 'blissful', 'excited', 'wow', 'dreamy', 'crave']],
+  ['开心(好消息)', ['happy', 'giggle', 'lol', 'laughcry', 'blissful', 'celebrate', 'excited', 'wow', 'dreamy', 'crave']],
   ['调皮、得意(逗人、显摆)', ['wink', 'smug', 'smirk', 'tongue', 'sly', 'coax', 'innocent']],
   ['喜欢、害羞(表白、礼物)', ['love', 'flutter', 'smitten', 'shy', 'bashful', 'gentle', 'moved']],
-  ['难过(坏消息、陪对方难过)', ['sad', 'sulk', 'cry', 'whimper', 'brave', 'pained']],
-  ['生气、嫌弃(被惹、被吐槽)', ['angry', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'meh']],
-  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'blank', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
+  ['难过(坏消息、陪对方难过)', ['sad', 'sulk', 'cry', 'whimper', 'heartbroken', 'gloomy', 'brave', 'pained']],
+  ['生气、嫌弃(被惹、被吐槽)', ['angry', 'fuming', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'meh', 'speechless']],
+  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
   ['其他', ['neutral', 'thinking', 'confused', 'doubt', 'determined', 'eager', 'sleepy']],
 ];
 

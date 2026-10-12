@@ -54,7 +54,7 @@ World 在 `127.0.0.1:7797`(被占向上顺延)起一个页面服务:`/pet` 是�
 桌宠内置五个形象,在装扮页最上面一行选,存在配置 `skin.figure` 里:`coo` 是 Coo,`whale` 是 DeepSeek 大肥鱼
 (鲸鱼女仆,`web/whale`,用 `web/kit/rig.js` 画的 Live2D 式分件模型,八套配色存在 `skin.scheme`,见 [examples/whale](examples/whale/README.md)),
 `claude-chan` 是 Claude 娘(正面站着的 Q 版少女,`web/claude-chan`,同样是 rig 画的分件模型,一套配色 `original`;
-词表和大肥鱼一样,只少了 `spout`),`gpt-chan` 是 GPT 娘(正面站着的白色小龙娘,`web/gpt-chan`,龙翼和尾巴跟着心情动,
+词表和大肥鱼差不多:少了 `spout`,多了加油、记笔记、对手指三个手势词,托腮由手指抵着下巴的画来做),`gpt-chan` 是 GPT 娘(正面站着的白色小龙娘,`web/gpt-chan`,龙翼和尾巴跟着心情动,
 一套配色 `original`,词表和 Claude 娘一样),`gemini-chan` 是 Gemini 娘(正面站着的猫娘,`web/gemini-chan`,
 猫耳和尾巴跟着心情动,一套配色 `original`,词表和 Claude 娘一样)。
 选大肥鱼时装扮页的配色和配件换成她的八套配色;桌宠页第一次用到哪个形象时才加载它的贴图,只加载选中的那套。

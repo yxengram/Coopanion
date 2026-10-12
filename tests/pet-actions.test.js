@@ -82,14 +82,35 @@ function countingCtx() {
   return { ctx, made };
 }
 
+/** The arm words that are a figure's face poses as gestures of their own (托腮, 加油, 记笔记, 对手指). */
+const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
+
 describe('the words the model can use', () => {
   it('Coo and the whale do every word of their vocabularies on the kit, and the kit does no word they leave out', () => {
+    // the arm poses only a figure with that drawing shows (ARM_POSE_WORDS): Coo has none of them, the whale her chin
+    const lacks = { coo: ARM_POSE_WORDS, whale: ARM_POSE_WORDS.filter((w) => w !== 'muse') };
     for (const pack of ['coo', 'whale']) {
       const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
       // both know the kit's words and the plus body's
       expect(words('expression'), pack).toEqual([...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS].sort());
-      expect(words('motion'), pack).toEqual([...KIT_MOTIONS, ...PLUS_MOTIONS].sort());
+      expect(words('motion'), pack).toEqual([...KIT_MOTIONS, ...PLUS_MOTIONS].filter((w) => !lacks[pack].includes(w)).sort());
     }
+  });
+
+  it('the arm poses as words of their own are arm gestures that keep a kneel, with a face that poses the same arms or none', () => {
+    expect(ARM_POSE_WORDS).toEqual(['muse', 'fist', 'jot', 'twiddle']);
+    for (const w of ARM_POSE_WORDS) {
+      expect(PLUS_MOTIONS, w).toContain(w);
+      expect(ARM_GESTURES, w).toContain(w);
+      expect(CHANNELS[w], w).toEqual(['arm']);
+    }
+    // each gesture's own face: none for the chin (any face goes with it), and for the others the face whose arms the
+    // drawing is (excited's fist, shy's fingertips), or reading for the notebook (listening's would bring its arcs)
+    const own = (w) => { const pet = barePet(); run(pet, 1); pet.doWord(w); run(pet, .5); return [pet.pet.pulse?.kind, pet.pet.expr]; };
+    expect(own('muse')).toEqual(['muse', null]);
+    expect(own('fist')).toEqual(['fist', 'excited']);
+    expect(own('jot')).toEqual(['jot', 'reading']);
+    expect(own('twiddle')).toEqual(['twiddle', 'shy']);
   });
 
   it('Claude-chan, GPT-chan and Gemini-chan know the same words but spout (they have no blowhole)', () => {

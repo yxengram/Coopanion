@@ -352,6 +352,12 @@ describe('Claude-chan: motion helpers', () => {
     expect(armPlan({ mode: 'walk', gesture: null, face: 'thinking' }, all).L).toBe('book');
     // kneeling with no drawing of it: the book is put aside
     expect(armPlan({ mode: 'sit', gesture: null, face: 'neutral', kneel: true }, all)).toEqual({ L: 'hangL', R: 'hangR', fallback: null });
+    // her faces' arm poses as words of their own, under any face (托腮 with a happy face): a finger to her chin, a fist,
+    // the notebook, fingertips together; standing, seated and walking alike, gone again before the gesture ends
+    for (const [w, pose, R] of [['muse', 'chin', 'bookside'], ['fist', 'fist', 'bookside'], ['jot', 'write', 'write'], ['twiddle', 'shy', 'shy']]) {
+      for (const mode of ['idle', 'sit', 'walk']) expect(armPlan({ mode, gesture: { kind: w, k: .5 }, face: 'happy' }, all), `${w} ${mode}`).toEqual({ L: pose, R, fallback: null });
+      expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .95 }, face: 'sad' }, all).L, w).not.toBe(pose);
+    }
   });
   it('has a drawing (or the plain arms\' way) for every arm gesture, and draws only words the kit has', () => {
     const words = new Set(ALL_WORDS);

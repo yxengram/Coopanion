@@ -238,7 +238,8 @@ export const PLUS_MIXES = {
 /** The faces and motions a plus body adds to the kit's words. `lie` and `kneel` last until something else happens. */
 export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue', ...Object.keys(PLUS_MIXES)];
 export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh', 'tilt',
-  'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel'];
+  'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel',
+  'muse', 'fist', 'jot', 'twiddle'];
 /** The tones of the plus faces, filed as face sounds like the kit's. */
 const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
@@ -260,7 +261,7 @@ export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt']);
  * their poses.kneelLow) keeps kneeling through them; any other motion still ends a kneel.
  */
 export const ARM_GESTURES = ['wave', 'shiver', 'heart', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch',
-  'pray', 'scratch', 'idea', 'hug', 'hips', 'spout', 'sip', 'read'];
+  'pray', 'scratch', 'idea', 'hug', 'hips', 'spout', 'sip', 'read', 'muse', 'fist', 'jot', 'twiddle'];
 /**
  * (plus) The motions' own faces that are their gesture's body language for a figure (pray arms for a song, the chin up
  * reading…): under an asked-for face such a gesture keeps them, the face becoming `asked+mouth+own` (see `mixFace`).
@@ -684,6 +685,13 @@ export function createPet(els, opts) {
       // a curious tilt of the head to one side, held a moment and back (TILT), with a questioning little "hm?"; no face
       // of its own, so it goes with whatever face she shows
       case 'tilt': pulse('tilt', TILT.dur); play('look', 'move'); break;
+      // arm poses a figure with hands draws (its faces' poses as gestures of their own): chin on her hand, mulling it
+      // over, with a little "hm" and no face of its own (it goes with whatever face she shows); a fist raised to cheer
+      // you on; jotting in a notebook, eyes down on it; fingertips pressed together, bashful
+      case 'muse': pulse('muse', 3); play('look', 'move'); break;
+      case 'fist': pulse('fist', 1.8); holdFace('excited', 1.9, 'arm'); play('pop', 'move'); break;
+      case 'jot': pulse('jot', 3.2); holdFace('reading', 3.3, 'arm'); play('page', 'move'); break;
+      case 'twiddle': pulse('twiddle', 2.6); holdFace('shy', 2.7, 'arm'); play('shy', 'face'); break;
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9, 'arm'); play('spout', 'move'); break;
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines

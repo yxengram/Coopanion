@@ -62,7 +62,7 @@ kit 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎时�
 
 **词表**（`vocab`）：这个身体在场时 bot 能用的全部表情和动作，没列的词 bot 用不了。每个词写清 `names`（bot 可以用哪些名字写它）、
 `about`（在这个身体上是什么样子，原样进 bot 的提示词），`seconds`（连着做时等多久再做下一个）。
-用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；大肥鱼和 Coo 还列了 kit 的扩展词（见下一节，包括 23 个组合表情），一共 96 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词，只是没有喷水（`spout`），一共 95 个。
+用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 23 个组合表情），一共 96 个；大肥鱼在这些之外多一个托腮（`muse`），一共 97 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词，没有喷水（`spout`），但有托腮和加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），一共 99 个。
 
 **表情对**（`pairs`，可省）：bot 在同一组里写两个表情（`【开心+惊讶】`）时，默认拆成先后两个。想让它们合成一张脸，就在 `pairs` 里列出这一对：
 `"happy+surprised": "surprised+happy"` 是合成，值里给眼的那个在前、给嘴的在后（键里先后无所谓）；`"happy+smug": "smirk"` 是别名，显示成词表里另一个表情。
@@ -106,7 +106,7 @@ Coo、大肥鱼和三个娘（Claude 娘、GPT 娘、Gemini 娘）用的 kit 比
 `createBody(host, { figure, plus: true })`。不开时 kit 和原版的 kit 行为完全一样（只认 `KIT_EXPRESSIONS`、`KIT_MOTIONS` 和包自己的 `words`，
 表情用原版的 `FACES`），所以照上面写的形象包在这里照常能用。打开后：
 
-- 多出的词：`PLUS_EXPRESSIONS`（32 个表情）和 `PLUS_MOTIONS`（26 个动作），扩展的表情参数在 `PLUS_FACES`（害羞、难过两个表情也换成了它的）。
+- 多出的词：`PLUS_EXPRESSIONS`（32 个表情）和 `PLUS_MOTIONS`（31 个动作；其中 `muse`、`fist`、`jot`、`twiddle` 四个手势只有画了那几张手臂图的形象才看得出来，kit 自己不画，所以 Coo 不列），扩展的表情参数在 `PLUS_FACES`（害羞、难过两个表情也换成了它的）。
   32 个表情里有 23 个是组合表情（`PLUS_MIXES`，由 `mixFace` 拼成 `PLUS_MIX_FACES`）：眼睛取一种表情的，嘴取另一种的，眉、身体语言和符号可以另指；
   脸对象带 `parts: { eyes, brows, mouth, body }`（kit 的表情名），画了五官的形象按部位查自己的表，没有 `parts` 时都按 `frame.face` 查。
   找词的顺序是 kit 的词、包的 `words`、扩展词，所以包自己的同名词（比如上面例子里的 `salute`）优先。
@@ -148,7 +148,7 @@ Coo、大肥鱼和三个娘（Claude 娘、GPT 娘、Gemini 娘）用的 kit 比
 欢呼（`cheer`）时两条握拳的手臂先往上抬（近侧到 80°、远侧到 60°），在差约 15° 时（同样按手臂实际转到的角度，几乎是直接切换）各自换成举着张开手的那张画，
 两者交接时指向一致，之后画的手臂接着抬到自己的角度（`poses.cheer.arms.*.rest`），跟着节奏上下晃；放下时倒过来，随握拳手臂的角度收回、在同一段角度交回。
 缺这些图的配色照旧用握拳的手臂往上甩。
-做「思考」表情、站着或坐着时，远侧手臂换成托腮的那张画：前臂绕肘部从下往上抬到下巴，抬到一半时和原来的远侧手臂交接；
+做「思考」表情或托腮（`muse`，任何表情下都行，手势做完就放下）、站着或坐着时，远侧手臂换成托腮的那张画：前臂绕肘部从下往上抬到下巴，抬到一半时和原来的远侧手臂交接；
 它挂在脖子上，头动时手不离开下巴，思考时原本的歪头也收小。要用到远侧手臂的手势（欢呼、比心、喝茶、看书、拜托、叉腰、抱抱、翻滚、发抖、扑腾、后缩、探头）一开始她就把手放下，
 托腮的前臂也只在欢呼、比心那几张画没盖住远侧手臂的地方出现。缺这张图的配色照旧不托腮。
 托腮和比心的 `wrist` 是画里手所在的位置（测试按贴图的皮肤像素核对），它们不用 `rest`。
@@ -202,7 +202,7 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 `pnpm run export:whale [输出目录]`（即 `node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs`，默认输出到仓库的 `build/packs`）
 把大肥鱼导出成 `coopanion-whale/` 形象包，原版 v0.1.17 起的 Coopanion 也能装：放进数据目录的 `home/companion/data/figures/`。
 
-- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 96 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
+- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 97 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色、每个姿势、五官、缩略图），缺一个就报错。
 - 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 18 个，三个娘的包没有 spout，是 17 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），

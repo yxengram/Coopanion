@@ -378,6 +378,18 @@ describe('resting her chin on her hand while thinking, as the whale draws it', (
       expect(chinWanted('thinking', 'idle', 0, { kind, k: 0 }), kind).toBe(false);
     }
   });
+
+  it('props her chin on her hand when asked (托腮, `muse`) under any face, while the gesture lasts, standing or seated still', () => {
+    for (const face of ['neutral', 'happy', 'sad']) {
+      expect(chinWanted(face, 'idle', 0, { kind: 'muse', k: .5 }), face).toBe(true);
+      expect(chinWanted(face, 'sit', 0, { kind: 'muse', k: .5 }), face).toBe(true);
+      expect(chinWanted(face, 'idle', 0, { kind: 'muse', k: .95 }), face).toBe(false);
+      expect(chinWanted(face, 'idle', 0, null), face).toBe(false);
+    }
+    expect(chinWanted('happy', 'walk', 0, { kind: 'muse', k: .5 })).toBe(false);
+    expect(chinWanted('happy', 'idle', .2, { kind: 'muse', k: .5 })).toBe(false);
+    expect(FAR_ARM_GESTURES).not.toContain('muse');
+  });
 });
 
 describe('cheering with both arms up, as the whale draws it', () => {
@@ -1361,6 +1373,30 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
       expect(s.alpha('kneel_low')).toBe(0);
       s.pet.doWord('cheer'); s.run(.2);
       expect(s.o.kneel).toBe(false);
+    } finally { s.done(); }
+  });
+
+  it('opens the hybrid for her chin on her hand asked as a word (托腮), keeping the kneel, and goes back to the drawing after', async () => {
+    const s = await onKit();
+    try {
+      kneelDown(s);
+      s.pet.setExpr('happy'); s.run(.5);
+      s.pet.doWord('muse');
+      let low = 0, mixed = 0;
+      s.run(2, () => {
+        const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+        low = Math.max(low, l);
+        if (k > 0 && k < 1 && l > 0 && l < 1) mixed++;
+      });
+      expect(low).toBe(1);
+      expect(mixed).toBe(0);
+      expect(s.o.kneel).toBe(true);
+      expect(s.o.face).toBe('happy');
+      // (her chin comes off her hand slowly as the gesture ends, then the hybrid holds KNEEL_ARMS_HOLD)
+      s.run(3.5);
+      expect(s.alpha('kneel_low')).toBe(0);
+      expect(s.alpha('kneel_body')).toBe(1);
+      expect(s.o.kneel).toBe(true);
     } finally { s.done(); }
   });
 

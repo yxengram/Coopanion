@@ -262,11 +262,17 @@ export function feetFromLegs(legs) {
 
 /* ---------- arms ---------- */
 /** One-arm gestures (armL does them; armR hangs meanwhile): kit gesture → pose. */
-export const ARM_ONE = { wave: 'wave', scratch: 'scratch', idea: 'idea', salute: 'salute', vsign: 'vsign', point: 'point', cover: 'cover' };
+export const ARM_ONE = {
+  wave: 'wave', scratch: 'scratch', idea: 'idea', salute: 'salute', vsign: 'vsign', point: 'point', cover: 'cover',
+  // her faces' one-arm poses as gestures of their own: chin on her hand (thinking's), a fist raised (excited's)
+  muse: 'chin', fist: 'fist',
+};
 /** Two-arm gestures, one drawing of both arms each: kit gesture → pose. */
 export const ARM_BOTH = {
   cheer: 'cheer', heart: 'heart', read: 'read', sip: 'cup', serve: 'cup', pray: 'pray', hips: 'hips', hug: 'hug', cross: 'cross',
   stretch: 'stretch', curtsy: 'curtsy', flinch: 'oops', peek: 'search', shiver: 'cross',
+  // her faces' two-arm poses as gestures of their own: writing in a notebook (listening's), fingertips together (shy's)
+  jot: 'write', twiddle: 'shy',
 };
 /** Faces she holds her arms for, standing or sitting still with no gesture going. */
 export const FACE_ARMS = {

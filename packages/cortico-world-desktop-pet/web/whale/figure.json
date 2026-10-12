@@ -1555,6 +1555,22 @@
       "seconds": 1.9
     },
     {
+      "id": "muse",
+      "kind": "motion",
+      "names": {
+        "zh": [
+          "托腮",
+          "撑下巴",
+          "托下巴",
+          "琢磨"
+        ]
+      },
+      "about": {
+        "zh": "远侧的手托着腮琢磨,配当时的表情"
+      },
+      "seconds": 3.1
+    },
+    {
       "id": "hips",
       "kind": "motion",
       "names": {

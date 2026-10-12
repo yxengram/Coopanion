@@ -76,6 +76,12 @@ describe('exported Gemini-chan pack', () => {
     // her curious tilt (歪头) goes too; its "hm?" is upstream's own look tone, so no sound file for it
     expect(m.vocab.find((w) => w.id === 'tilt')).toMatchObject({ kind: 'motion', names: { zh: ['歪头', '歪脑袋', '偏头', '好奇'] } });
     expect(Object.keys(m.sounds)).not.toContain('look');
+    // her faces' arm poses as words of their own: a finger to her chin (look's "hm"), a fist (pop), her notebook (page,
+    // which reading ships already) and fingertips together (shy); all upstream tones but page, so no new sound files
+    expect(m.vocab.filter((w) => ['muse', 'fist', 'jot', 'twiddle'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['琢磨', '加油', '记笔记', '对手指']);
+    expect(m.vocab.find((w) => w.id === 'determined').names.zh).not.toContain('握拳');
+    for (const t of ['pop', 'shy']) expect(Object.keys(m.sounds)).not.toContain(t);
+    expect(Object.keys(m.sounds)).toContain('page');
     // she draws arm gestures kneeling: her kneel says so (keepsArms), and her pack ships the drawing's lower body
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     expect(m.vocab.length).toBe(builtin.vocab.length);

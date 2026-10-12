@@ -110,9 +110,13 @@ export function ballLift(support, deg) {
 }
 /** How far the cup comes up to her mouth (0..1) at `k` of the sip: over its middle, while the kit shuts her eyes. */
 export const sipLift = k => smooth(.38, .5, k) * (1 - smooth(.56, .66, k));
-/** Whether she props her chin on her far hand: thinking, standing or sitting still, the far arm free. */
+/**
+ * Whether she props her chin on her far hand: thinking, or asked to (`muse`, its own gesture, under any face), standing
+ * or sitting still, the far arm free.
+ */
 export function chinWanted(face, mode, lieK, gesture) {
-  return face === 'thinking' && !lieK && (mode === 'idle' || mode === 'sit' || mode === 'wake') && !FAR_ARM_GESTURES.includes(gesture?.kind);
+  const muse = gesture?.kind === 'muse' && gesture.k > .02 && gesture.k < .9;
+  return (face === 'thinking' || muse) && !lieK && (mode === 'idle' || mode === 'sit' || mode === 'wake') && !FAR_ARM_GESTURES.includes(gesture?.kind);
 }
 
 export function poseMix(lieK) {
@@ -1616,7 +1620,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
      * The gestures she draws herself, from the frame's `gesture` (nod, shake, sigh and tilt from its `head` on a kit that has
      * one: gesturesOf); the kit leaves them off the body.
      */
-    gestures: ['nod', 'shake', 'tilt', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh', 'pray', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy'],
+    gestures: ['nod', 'shake', 'tilt', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh', 'pray', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'muse'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**

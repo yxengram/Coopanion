@@ -15,6 +15,7 @@
 > - **歪头**（`tilt`，歪头/歪脑袋/偏头/好奇）：第 4 个头部手势，好奇地把头歪向一边，停约 1.2 s 再回正（§一.10）；五个形象都画（三位娘和大肥鱼站、坐、跪、趴都画，Coo 由 kit 整组侧倾，趴着时不歪）。
 > - **近义名字**：评测里 bot 写了、词表没有而被略过的词，意思确实对得上的收成现有词的名字（挥手、摆手→招手，兴奋、眼睛亮→期待，打哈欠、揉眼、打盹→犯困，微笑→温柔，心疼→担心，站起来→站起，偷偷抬眼、移开视线→害羞，握拳→认真，轻轻点头→点头，抖抖→发抖，好奇→歪头）；拍手、盖被子、被戳、转头没有对得上的词，仍略过（§四）。
 > - **跪坐时也能做手上的动作**（大肥鱼和三位娘）：跪坐图的下半身（`poses.kneelLow`，只从跪坐图裁剪，没有生成新图）上面换回会动的上半身，做手势或摆手臂的表情时一帧切进去，手放下 0.25 s 后一帧切回跪坐图；形象声明 `kneelArms`，词表的 `kneel` 带 `keepsArms`，所以 `跪坐+招手` 能同组（§二.5、§二.7、§二.8）。
+> - **表情的手臂姿势单独成词**（只在 plus 下，没有新画）：三位娘思考、期待、倾听、害羞时摆的手臂图本来只能靠表情摆出来，现在各成一个手势词：`muse` 琢磨/摸下巴/托腮/托下巴（手指抵着下巴，`chin` 图）、`fist` 加油/握拳/打气/握拳加油（举起小拳头，`fist` 图；握拳这个名字从认真挪过来，Coo 和大肥鱼仍是认真）、`jot` 记笔记/记下来/做笔记/记一下（`write` 图）、`twiddle` 对手指/戳手指/扭捏（指尖在胸前对在一起，`shy` 图）。大肥鱼只有托腮的画，所以只加 `muse`（托腮/撑下巴/托下巴/琢磨）；Coo 一个都不加。四个都是 kit 的 `ARM_GESTURES`（跪坐时走混合体、不结束跪坐），自带的脸：`muse` 没有（配什么表情都行），`fist` 期待、`jot` 看书（倾听的脸会带出声波）、`twiddle` 害羞；声音都用现成的（look、pop、page、shy），导出包不多出声音文件。
 >
 > 实测：
 > - 组合扩展改动的行为，在真实 kit 上用 `/tmp/combo/` 下的脚本重新测过：
@@ -63,11 +64,12 @@
 
 | 形象 | 词数 | 表情 | 动作 |
 |---|---|---|---|
-| Coo、大肥鱼 | 96 | 51（28 + 23 个组合脸） | 45 |
-| Claude 娘、GPT 娘、Gemini 娘 | 95 | 51（28 + 23 个组合脸） | 44（少 `spout`） |
+| Coo | 96 | 51（28 + 23 个组合脸） | 45 |
+| 大肥鱼 | 97 | 51（28 + 23 个组合脸） | 46（多 `muse`） |
+| Claude 娘、GPT 娘、Gemini 娘 | 99 | 51（28 + 23 个组合脸） | 48（少 `spout`，多 `muse`、`fist`、`jot`、`twiddle`） |
 
-- 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面；之后又加了 `tilt` 歪头，排在 `sigh` 后面。
-- 一个名字在一个形象里只能指一个词（`readVocab` 校验，`vocabId` 查）。五个形象同一个词的名字相同（只有 `song` 不同：三位娘是「哼小曲」，Coo 和大肥鱼是「鲸歌」），包括上面那些近义名字。
+- 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面；之后又加了 `tilt` 歪头，排在 `sigh` 后面；表情手臂姿势的几个手势词（`muse` 等）排在 `idea` 后面。
+- 一个名字在一个形象里只能指一个词（`readVocab` 校验，`vocabId` 查）。五个形象同一个词的名字相同（只有 `song` 不同：三位娘是「哼小曲」，Coo 和大肥鱼是「鲸歌」；`muse` 三位娘以「琢磨」开头、大肥鱼以「托腮」开头），包括上面那些近义名字；只有「握拳」在三位娘那里是 `fist`，在 Coo 和大肥鱼那里是 `determined`。
 - `spout` 只在 `coo/figure.json:1591` 和 `whale/figure.json:1684` 里。
 - 带 `lasting: true` 的只有 4 个词：`sit`、`sleep`、`kneel`、`lie`。
 - `seconds` 的取值（见 `coo/figure.json` 的 vocab，`claude-chan` 相同）：
@@ -545,7 +547,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 |---|---|---|
 | **E 表情（51）** | 表情 | neutral 平静、happy 开心、wink 眨眼、love 喜欢、shy 害羞、surprised 惊讶、angry 生气、sad 难过、sleepy 犯困、thinking 思考、smug 得意、pout 嘟嘴、worried 担心、determined 认真、flustered 慌张、scared 害怕、excited 期待、cry 大哭、confused 疑惑、disgusted 嫌弃、nervous 紧张、gentle 温柔、awkward 尴尬、moved 感动、coax 撒娇、tongue 吐舌、giggle 偷笑；23 个组合脸（§一.9）；**petrify 石化**占全部部位，不和别的同时做 |
 | **H 头部手势（4）** | 头 | nod 点头、shake 摇头、sigh 叹气、tilt 歪头 |
-| **G 手势（18）**：不改模式 | 手 | wave 招手、shiver 发抖、heart 比心、serve 奉茶、salute 敬礼、vsign 比耶、point 指、cover 捂嘴笑、cross 抱臂、stretch 伸懒腰、pray 拜托、scratch 挠头、idea 有了、hug 抱抱、hips 叉腰、spout 喷水（仅 Coo/大肥鱼）、sip 喝茶、read 看书 |
+| **G 手势（18）**：不改模式 | 手 | wave 招手、shiver 发抖、heart 比心、serve 奉茶、salute 敬礼、vsign 比耶、point 指、cover 捂嘴笑、cross 抱臂、stretch 伸懒腰、pray 拜托、scratch 挠头、idea 有了、hug 抱抱、hips 叉腰、spout 喷水（仅 Coo/大肥鱼）、sip 喝茶、read 看书；Coo 没有的：muse 托腮/琢磨（大肥鱼、三位娘）、fist 加油、jot 记笔记、twiddle 对手指（三位娘） |
 | **GB 要她停下来做的手势（7）** | 手 + 站位（提示词里归在「手,要站着或坐着不动」一组） | song 唱歌、spin 转圈、bow 鞠躬、flinch 后缩、peek 探头、away 背过身、cheer 欢呼（详见表下） |
 | **turn 转身** | 站位（提示词里写「身」） | 只翻身，不调 `pulse()`（`body.js:576`） |
 | **L 持续姿态（4）** | sit：身；kneel、lie：身 + 手（带 `keepsArms` 的 kneel：身 + 站位）；sleep：表情 + 头 + 手 + 身 | sit 坐下、kneel 跪坐、lie 趴下、sleep 睡觉 |
@@ -862,7 +864,7 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 **大肥鱼**
 
 - 手臂角度按源码顺序叠加，后写的赢（`whale/figure.js:1028-1192`）。
-- 只有 thinking 会摆托腮姿势；遇到占用远侧手臂的手势会很快放下（`:71, 934-935`）。
+- 托腮姿势只有 thinking 和 `muse` 手势（播放中 `k` 0.02–0.9，任何表情下）会摆（`chinWanted`）；遇到占用远侧手臂的手势会很快放下（`:71, 934-935`）。跪坐时 `muse` 和 thinking 一样切进混合体，托腮的手放下（约 1.5 s，`chinK` 慢慢回落）再过 `KNEEL_ARMS_HOLD` 切回跪坐图。
 - `nervous` 的僵硬手臂写在 dance 之后、各手势之前（`:1041`）：
   - 它压过走路、被拎、空中、坐着和跳舞的手臂；
   - 但手势从它出发，手臂图照常接手，wave、cheer、stretch、scratch、point 在 nervous 时都画得出来。
@@ -878,7 +880,7 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 
 **Claude 娘**
 
-- 手臂由 `armPlan`（`cc/motion.js:275-295`）决定。手臂类手势（`ARM_ONE`/`ARM_BOTH`，`:230-235`）在播放期间以及结束后 0.4 s 内，都会压住表情带来的手臂姿势（`FACE_ARMS`，`:237-240`）。头部手势不进 `armPlan`，不压手臂。
+- 手臂由 `armPlan`（`cc/motion.js:275-295`）决定。手臂类手势（`ARM_ONE`/`ARM_BOTH`，`:230-235`）在播放期间以及结束后 0.4 s 内，都会压住表情带来的手臂姿势（`FACE_ARMS`，`:237-240`）。`FACE_ARMS` 的四张图也各有自己的手势词：`muse`→`chin`、`fist`→`fist`（单手，另一只手抱书）、`jot`→`write`、`twiddle`→`shy`（双手）。跪坐时不摆倾听的笔记本（`KNEEL_FACE_SKIP` 按表情算），`jot` 手势照样切进混合体。头部手势不进 `armPlan`，不压手臂。
 - 表情要摆手臂，需要两个条件：处在平静模式（idle/look/sit/sleep/wake），并且表情持续超过 0.3 s。组合脸按 body 部位摆手臂，比如 huff 抱臂；唱歌叠加时是祈祷手。
 - **抱书**：
   - 空闲时抱着书；

@@ -382,6 +382,12 @@ describe('GPT-chan: motion helpers', () => {
     // the gesture's arms go back before it ends; a settled face poses them only while she is still
     expect(armPlan({ mode: 'idle', gesture: { kind: 'wave', k: .95 }, face: 'happy' }, all)).toEqual(hang);
     expect(armPlan({ mode: 'idle', gesture: null, face: 'thinking' }, all)).toEqual({ L: 'chin', R: 'hangR', fallback: null });
+    // her faces' arm poses as words of their own, under any face (托腮 with a happy face): a finger to her chin, a fist,
+    // the notebook, fingertips together; standing, seated and walking alike, gone again before the gesture ends
+    for (const [w, pose, R] of [['muse', 'chin', 'hangR'], ['fist', 'fist', 'hangR'], ['jot', 'write', 'write'], ['twiddle', 'shy', 'shy']]) {
+      for (const mode of ['idle', 'sit', 'walk']) expect(armPlan({ mode, gesture: { kind: w, k: .5 }, face: 'happy' }, all), `${w} ${mode}`).toEqual({ L: pose, R, fallback: null });
+      expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .95 }, face: 'sad' }, all).L, w).not.toBe(pose);
+    }
     expect(armPlan({ mode: 'idle', gesture: null, face: 'listening' }, all).L).toBe('write');
     expect(armPlan({ mode: 'idle', gesture: null, face: 'thinking', faceOK: false }, all)).toEqual(hang);
     expect(armPlan({ mode: 'walk', gesture: null, face: 'thinking' }, all)).toEqual(hang);

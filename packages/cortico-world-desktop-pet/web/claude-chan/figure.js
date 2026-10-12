@@ -24,7 +24,8 @@ const SVGNS = 'http://www.w3.org/2000/svg';
  * without it the kit turns her whole group over (`roll: 'spin'`).
  */
 export const GESTURES = ['nod', 'shake', 'tilt', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'sigh', 'pray',
-  'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy'];
+  'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy',
+  'muse', 'fist', 'jot', 'twiddle'];
 
 function loadImage(url) {
   return new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = url; });

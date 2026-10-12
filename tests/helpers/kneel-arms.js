@@ -212,6 +212,32 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
       expect(o2.plan.L).not.toMatch(/^hang/);
     });
 
+    it('does her faces\' arm poses as words of their own kneeling (托腮, 加油, 记笔记, 对手指): the hybrid, the kneel kept, back after', () => {
+      // (记笔记 too: the kneel leaves out listening's notebook, KNEEL_FACE_SKIP, which is keyed on the face, not the drawing)
+      expect(M.KNEEL_FACE_SKIP).toEqual(['listening']);
+      for (const [w, pose] of [['muse', 'chin'], ['fist', 'fist'], ['jot', 'write'], ['twiddle', 'shy']]) {
+        const s = onKit();
+        kneelDown(s);
+        s.pet.doWord(w);
+        let mixed = 0, posed = 0;
+        s.run(1, () => {
+          const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+          if (k > 0 && k < 1) mixed++;
+          expect(k >= 1 || l >= 1 || (k === 0 && l === 0), w).toBe(true);
+          posed = Math.max(posed, s.motion.arms[pose] || 0);
+        });
+        expect(mixed, w).toBeLessThanOrEqual(Math.ceil(M.BODY_CUT * 60));
+        expect(s.motion.kneelArmsK, w).toBe(1);
+        expect(posed, w).toBe(1);
+        expect(s.o.kneel, w).toBe(true);
+        s.run(4);
+        expect(s.alpha('kneel_body'), w).toBe(1);
+        expect(s.alpha('kneel_low'), w).toBe(0);
+        expect(s.o.kneel, w).toBe(true);
+        expect(s.bad, w).toEqual([]);
+      }
+    });
+
     it('gets up from the middle of a gesture by the hybrid and the kneeling drawing, never the seated body', () => {
       const s = onKit();
       kneelDown(s);

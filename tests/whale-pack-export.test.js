@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   PACK_ID, UPSTREAM_REF, buildManifest, encodeWav, finishSound, packFiles, packSounds, requestedTones, toneNamesIn, upstreamToneNames,
 } from '../packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs';
@@ -85,7 +85,9 @@ describe('exported whale pack', () => {
 
     // and upstream's own packs.ts, when git has it
     if (fromGit) {
-      const up = mkdtempSync(join(tmpdir(), 'upstream-packs-'));
+      // (inside the project: vitest cannot load a module from Windows' temp dir, whose 8.3 name RUNNER~1 it mangles)
+      const up = fileURLToPath(new URL('../node_modules/.cache/upstream-packs-whale/', import.meta.url));
+      mkdirSync(up, { recursive: true });
       for (const f of ['packs.ts', 'script.ts']) {
         writeFileSync(join(up, f), execFileSync('git', ['show', `${UPSTREAM_REF}:packages/cortico-world-desktop-pet/src/${f}`], { encoding: 'utf8' }));
       }

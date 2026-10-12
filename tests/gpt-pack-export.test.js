@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   PACK_ID, buildManifest, modules, packFiles, packReadme, packSounds, requestedTones,
 } from '../packages/cortico-world-desktop-pet/scripts/export-gpt-pack.mjs';
@@ -97,7 +97,9 @@ describe('exported GPT-chan pack', () => {
 
     // and upstream's own packs.ts (readManifest, its readVocab and readSounds, scanPacks) at the pinned tag
     if (fromGit) {
-      const up = mkdtempSync(join(tmpdir(), 'upstream-packs-'));
+      // (inside the project: vitest cannot load a module from Windows' temp dir, whose 8.3 name RUNNER~1 it mangles)
+      const up = fileURLToPath(new URL('../node_modules/.cache/upstream-packs-gpt-chan/', import.meta.url));
+      mkdirSync(up, { recursive: true });
       for (const f of ['packs.ts', 'script.ts']) {
         writeFileSync(join(up, f), execFileSync('git', ['show', `${UPSTREAM_REF}:packages/cortico-world-desktop-pet/src/${f}`], { cwd: ROOT, encoding: 'utf8' }));
       }

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
@@ -1029,7 +1030,7 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       }
       // two faces of one group shown as one (`eyes+mouth`, the face a plus kit composes of them): test samples, and every
       // pair her manifest composes
-      const listed = Object.values(readManifest(new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url).pathname, true).pairs)
+      const listed = Object.values(readManifest(fileURLToPath(new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url)), true).pairs)
         .filter((v) => !('as' in v));
       const pairs = [{ eyes: 'surprised', mouth: 'happy' }, { eyes: 'smug', mouth: 'coax' }, ...listed];
       for (const d of pairs) {

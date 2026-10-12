@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
@@ -1134,7 +1135,7 @@ describe('Claude-chan: a head gesture beside the arms\' one, kneeling, and faces
     }
   });
   it('draws two faces of one group shown as one (`eyes+mouth`: test samples, and every pair her manifest composes, as the World sends it) from her own art', () => {
-    const listed = Object.values(readManifest(DIR.pathname, true).pairs).filter((v) => !('as' in v));
+    const listed = Object.values(readManifest(fileURLToPath(DIR), true).pairs).filter((v) => !('as' in v));
     const table = [{ eyes: 'surprised', mouth: 'happy' }, { eyes: 'smug', mouth: 'coax' }, ...listed];
     const w = watched();
     run(w.pet, .5);

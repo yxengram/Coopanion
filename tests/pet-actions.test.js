@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ADD_KEYS, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
@@ -2565,7 +2566,7 @@ describe('two faces of one group shown as one (plus)', () => {
     const maps = {};
     const mixes = new Set(Object.values(PLUS_MIXES).map((d) => `${d.eyes}+${d.mouth}`));
     for (const p of ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']) {
-      const m = readManifest(new URL(`web/${p}/`, PKG).pathname, true);
+      const m = readManifest(fileURLToPath(new URL(`web/${p}/`, PKG)), true);
       expect(typeof m, p).toBe('object');
       maps[p] = m.pairs;
       const pet = barePet();

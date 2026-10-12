@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ADD_KEYS, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
@@ -86,12 +86,16 @@ function countingCtx() {
 const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
 /** The head's and the body's own moves: 低头, 眨眨眼 (the head's channel); 凑近, 后仰, 摇摆, 跺脚 (standing or seated still). */
 const MORE_WORDS = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
+/** The moves of a figure's own tail, ears and wings (摇尾巴; 抖耳朵, 竖耳朵, 耳朵耷拉; 扇翅膀), by part. */
+const PART_WORDS = { tail: ['wag'], ears: ['earflick', 'earsup', 'earsdown'], wings: ['wingbeat'] };
+const ALL_PART_WORDS = Object.values(PART_WORDS).flat();
 
 describe('the words the model can use', () => {
   it('Coo and the whale do every word of their vocabularies on the kit, and the kit does no word they leave out', () => {
     // the arm poses only a figure with that drawing shows (ARM_POSE_WORDS): Coo has none of them, the whale her chin;
-    // the head's and body's moves of batch B (MORE_WORDS) the whale has, Coo not (her ring would only tip about)
-    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS], whale: ARM_POSE_WORDS.filter((w) => w !== 'muse') };
+    // the head's and body's moves of batch B (MORE_WORDS) the whale has, Coo not (her ring would only tip about); of the
+    // moves of a tail, ears and wings (PART_WORDS) the whale has the tail's, Coo none
+    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS, ...ALL_PART_WORDS], whale: [...ARM_POSE_WORDS.filter((w) => w !== 'muse'), ...PART_WORDS.ears, ...PART_WORDS.wings] };
     for (const pack of ['coo', 'whale']) {
       const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
       // both know the kit's words and the plus body's
@@ -175,6 +179,53 @@ describe('the words the model can use', () => {
     for (const w of MORE_WORDS) expect(kit.doWord(w), w).toBe(false);
   });
 
+  it('the moves of a tail, ears or wings (摇尾巴, 抖耳朵, 竖耳朵, 耳朵耷拉, 扇翅膀): a slot each, beside everything else, no face, a kneel and a walk go on', () => {
+    expect(Object.fromEntries(Object.entries(APPENDAGE_MOVES).map(([w, [p]]) => [w, p]))).toEqual({ wag: 'tail', earflick: 'ears', earsup: 'ears', earsdown: 'ears', wingbeat: 'wings' });
+    for (const [part, ws] of Object.entries(PART_WORDS)) for (const w of ws) {
+      expect(PLUS_MOTIONS, w).toContain(w);
+      expect(CHANNELS[w], w).toEqual([part]);
+      expect(HEAD_GESTURES.has(w), w).toBe(false);
+      expect(ARM_GESTURES, w).not.toContain(w);
+    }
+    // all at once, beside an arm gesture and a head gesture, each in its slot, handed to the figure in the frame
+    const frames = [];
+    const pet = hearingPet({ figure: { draw: (g, face, o) => frames.push(o) } });
+    run(pet, 1);
+    pet.setExpr('happy', 6);
+    expect(pet.doGroup(['wave', 'nod', 'wag', 'earsup', 'wingbeat'])).toEqual([true, true, true, true, true]);
+    expect(pet.heard).toContainEqual(['whoosh', 'move']);
+    run(pet, .5);
+    expect(pet.pet.pulse.kind).toBe('wave');
+    expect(pet.pet.head.kind).toBe('nod');
+    expect(pet.pet.app).toMatchObject({ tail: { kind: 'wag', dur: APPENDAGE_MOVES.wag[1] }, ears: { kind: 'earsup' }, wings: { kind: 'wingbeat' } });
+    expect(pet.pet._fname).toBe('happy');
+    const o = frames.at(-1);
+    expect(o.appendages.tail).toEqual({ kind: 'wag', k: expect.closeTo(.5 / APPENDAGE_MOVES.wag[1], 1) });
+    expect(o.appendages.ears.kind).toBe('earsup');
+    // another word for the ears takes their slot; each ends on its own clock
+    pet.act('earsdown');
+    expect(pet.pet.app.ears.kind).toBe('earsdown');
+    run(pet, 2.6);
+    expect(pet.pet.app).toEqual({ tail: null, ears: null, wings: null });
+    expect(frames.at(-1).appendages).toEqual({ tail: null, ears: null, wings: null });
+    // kneeling she stays kneeling; walking she keeps walking; none brings a face of its own
+    pet.act('kneel'); run(pet, 2);
+    for (const w of ALL_PART_WORDS) { expect(pet.act(w), w).toBe(true); run(pet, .2); expect(pet.pet.kneel, w).toBe(true); }
+    run(pet, 3);
+    pet.act('stand'); run(pet, 2);
+    pet.walkTo(BOUNDS().W - 60, false, 0); run(pet, .2);
+    expect(pet.pet.mode).toBe('walk');
+    pet.act('wag'); run(pet, .3);
+    expect(pet.pet.mode).toBe('walk');
+    for (const w of ALL_PART_WORDS) { const p = barePet(); run(p, 1); p.doWord(w); run(p, .3); expect(p.pet.expr, w).toBe(null); }
+    // the kit as any other pack knows it has none of them, and its frames no slot for them
+    const plain = [];
+    const kit = barePet(undefined, { plus: false, figure: { draw: (g, face, o) => plain.push(o) } });
+    run(kit, 1);
+    for (const w of ALL_PART_WORDS) expect(kit.doWord(w), w).toBe(false);
+    expect('appendages' in plain.at(-1)).toBe(false);
+  });
+
   it('眨眨眼 blinks her three times in a row, whatever figure draws her (the frame\'s blink): more than an idle double blink', () => {
     const blinks = [];
     const pet = barePet(undefined, { figure: { draw: (g, face, o) => blinks.push(o.blink) } });
@@ -191,11 +242,13 @@ describe('the words the model can use', () => {
     expect(pet.pet.head).toBe(null);
   });
 
-  it('Claude-chan, GPT-chan and Gemini-chan know the same words but spout (they have no blowhole)', () => {
+  it('Claude-chan, GPT-chan and Gemini-chan know the same words but spout (they have no blowhole), and each the moves of the parts she has', () => {
+    // GPT-chan a tail and wings, Gemini-chan a tail and ears, Claude-chan none of them
+    const has = { 'claude-chan': [], 'gpt-chan': [...PART_WORDS.tail, ...PART_WORDS.wings], 'gemini-chan': [...PART_WORDS.tail, ...PART_WORDS.ears] };
     for (const pack of ['claude-chan', 'gpt-chan', 'gemini-chan']) {
       const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
       expect(words('expression'), pack).toEqual([...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS].sort());
-      expect(words('motion'), pack).toEqual([...KIT_MOTIONS, ...PLUS_MOTIONS].filter((w) => w !== 'spout').sort());
+      expect(words('motion'), pack).toEqual([...KIT_MOTIONS, ...PLUS_MOTIONS].filter((w) => w !== 'spout' && (!ALL_PART_WORDS.includes(w) || has[pack].includes(w))).sort());
     }
   });
 

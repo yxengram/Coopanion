@@ -239,7 +239,8 @@ export const PLUS_MIXES = {
 export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue', ...Object.keys(PLUS_MIXES)];
 export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh', 'tilt',
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel',
-  'muse', 'fist', 'jot', 'twiddle', 'droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
+  'muse', 'fist', 'jot', 'twiddle', 'droop', 'blink', 'closer', 'leanback', 'sway', 'stamp', 'wag', 'earflick', 'earsup', 'earsdown',
+  'wingbeat'];
 /** The tones of the plus faces, filed as face sounds like the kit's. */
 const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
@@ -282,6 +283,15 @@ export const stampLift = k => {
   }
   return 0;
 };
+/**
+ * (plus) Moves of a figure's own parts beyond the kit's body, by word: [part, seconds]. `wag` (摇尾巴) wags the tail,
+ * `earflick` (抖耳朵) flicks the ears a few times quickly, `earsup` (竖耳朵) stands them tall, `earsdown` (耳朵耷拉) lays them
+ * down, `wingbeat` (扇翅膀) beats the wings. Each part plays in its own slot (`pet.app[part]`, the frame's `appendages`:
+ * { tail, ears, wings }, each { kind, k: 0..1 } or null), beside the head's and the arms' gestures, without a face or a
+ * change of mode (a walk goes on, a kneel stays). The kit draws none of them: a figure that has the part draws it, over its
+ * mood's own movement of that part while the word lasts; one without it shows nothing.
+ */
+export const APPENDAGE_MOVES = { wag: ['tail', 2.4], earflick: ['ears', 1.1], earsup: ['ears', 2], earsdown: ['ears', 2], wingbeat: ['wings', 2] };
 /** (plus) Gestures of the head alone: they play in their own channel (`pet.head`, the frame's `head`), alongside any other gesture. */
 export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt', ...Object.keys(HEAD_MORE)]);
 /**
@@ -395,7 +405,8 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  * that cannot lie just stays seated), `prone` says the rest it is in (lying, or a sleep begun lying, until it is up) is a
  * lying one, `kneel` that its sit is a kneel, `away` (0..1) how far its back is turned, `head` ({ kind, k: 0..1 }, or
  * null) the head's own gesture (HEAD_GESTURES: nod, shake, sigh, tilt), which plays beside `gesture` on its own clock (a
- * figure reading `gesture` alone, made for a kit without it, misses them). While lying, the fidgets kick, chin and
+ * figure reading `gesture` alone, made for a kit without it, misses them), `appendages` ({ tail, ears, wings }, each
+ * { kind, k: 0..1 } or null) the moves of a figure's own parts (APPENDAGE_MOVES). While lying, the fidgets kick, chin and
  * thump come as gestures; the body itself does nothing with them but kick the legs.
  * A plus body's faces: an expression asked for (a word, or setExpr) outlives the motions that come after it (stone
  * does not, nor does falling asleep), waits under what covers it (carried, dizzy, asleep, listening: COVER_MAX at
@@ -457,6 +468,8 @@ export function createPet(els, opts) {
     // motions playing, by channel ({ n, at, until }); how long the asked-for face has been covered in a row; the head's
     // gesture (nod, shake, sigh, tilt: { kind, t0, dur }), played beside `pulse`
     exprAsked: false, exprN: 0, own: { arm: null, head: null, body: null }, coverT: 0, head: null,
+    // (plus) the moves of a figure's own parts (APPENDAGE_MOVES), by part: { kind, t0, dur }
+    app: { tail: null, ears: null, wings: null },
   };
   const pointer = { x: -1e4, y: -1e4, inside: false, vx: 0, samples: [] };
   let press = null, strokeAcc = 0, petCool = 0;
@@ -492,6 +505,8 @@ export function createPet(els, opts) {
   const topOwn = (ok = () => true) => ['arm', 'head', 'body'].map(c => pet.own[c]).filter(x => x && T < x.until && ok(x.n)).sort((x, y) => y.at - x.at)[0];
   /** (plus) No motion's own face is left to come back (picked up, dizzy, a plain face asked for). */
   const clearOwn = () => { pet.own.arm = pet.own.head = pet.own.body = null; };
+  /** (plus) A move of a tail, ears or wings is playing (APPENDAGE_MOVES). */
+  const appMoving = () => !!(pet.app.tail || pet.app.ears || pet.app.wings);
 
   /** The lying points (plus), while the figure can show the pose. */
   const lieSet = () => (!plus || (custom?.poses && !custom.poses.lie) ? null : A.lie);
@@ -599,8 +614,9 @@ export function createPet(els, opts) {
     // (a song needs her standing or sitting, awake and not being talked to)
     if (plus && a === 'song' && !own && (pet.listening || (pet.mode !== 'idle' && pet.mode !== 'sit'))) return false;
     // (plus) kneeling lasts until a motion moves more than her head: nod, shake, sigh and tilt keep it (expressions are no
-    // motion), and so does an arm gesture for a figure that draws arms kneeling; anything else is plain sitting again
-    const keepKneel = !own && (a === 'kneel' || HEAD_GESTURES.has(a) || (!!custom?.kneelArms && ARM_GESTURES.includes(a)));
+    // motion), and so do the moves of a tail, ears or wings and, for a figure that draws arms kneeling, an arm gesture;
+    // anything else is plain sitting again
+    const keepKneel = !own && (a === 'kneel' || HEAD_GESTURES.has(a) || !!APPENDAGE_MOVES[a] || (!!custom?.kneelArms && ARM_GESTURES.includes(a)));
     if (plus && !keepKneel) pet.kneel = false;
     // (plus) an asked-for expression outlives the motion (stone does not: any motion ends it; nor does falling asleep).
     // Anything else in the slot goes; the own face of a motion still playing in another channel comes back from `own`
@@ -723,6 +739,10 @@ export function createPet(els, opts) {
       case 'leanback': if (!seated) setMode('idle'); pulse('leanback', BODY_MORE.leanback); break;
       case 'sway': if (!seated) setMode('idle'); pulse('sway', BODY_MORE.sway); play('dance', 'move'); break;
       case 'stamp': setMode('idle'); pulse('stamp', BODY_MORE.stamp); break;
+      // a tail, ears or wings of the figure's own, each in its slot, with whatever face she shows (APPENDAGE_MOVES); a
+      // wingbeat whooshes
+      case 'wag': case 'earflick': case 'earsup': case 'earsdown': pulse(a, APPENDAGE_MOVES[a][1]); break;
+      case 'wingbeat': pulse(a, APPENDAGE_MOVES[a][1]); play('whoosh', 'move'); break;
       // arm poses a figure with hands draws (its faces' poses as gestures of their own): chin on her hand, mulling it
       // over, with a little "hm" and no face of its own (it goes with whatever face she shows); a fist raised to cheer
       // you on; jotting in a notebook, eyes down on it; fingertips pressed together, bashful
@@ -743,10 +763,12 @@ export function createPet(els, opts) {
   /**
    * Starts a short gesture (`pack`: one of the pack's own words); a plus body's song is cut short by any other one.
    * (plus) A nod, a shake, a sigh or a tilt plays in the head's own channel instead, beside whatever gesture is playing (a song
-   * goes on); any other gesture takes the place of the one before and of its face (a lying fidget has none).
+   * goes on), and a move of a tail, ears or wings in that part's slot (APPENDAGE_MOVES); any other gesture takes the place of
+   * the one before and of its face (a lying fidget has none).
    */
   function pulse(kind, dur, pack = false) {
     if (plus && !pack && HEAD_GESTURES.has(kind)) { pet.head = { kind, t0: T, dur }; pet.own.head = null; return; }
+    if (plus && !pack && APPENDAGE_MOVES[kind]) { pet.app[APPENDAGE_MOVES[kind][0]] = { kind, t0: T, dur }; return; }
     if (ours('song') && (kind !== 'song' || pack)) play('stop:song', 'move');
     if (plus && !FIDGETS[kind]) pet.own.arm = null;
     pet.pulse = pack ? { kind, t0: T, dur, pack } : { kind, t0: T, dur };
@@ -838,7 +860,7 @@ export function createPet(els, opts) {
   /** (plus) Whether word `w` is a face (the kit's, the plus body's, or one of the pack's own). */
   const isFace = w => KIT_EXPRESSIONS.includes(w) || PLUS_EXPRESSIONS.includes(w) || !!words[w]?.expression;
   /** (plus) Where a word goes in a group: posture and mode first, then arm and head gestures, then what leaves her busy, then the face. */
-  const groupRank = w => (isFace(w) ? 4 : BUSY_WORDS.has(w) ? 3 : HEAD_GESTURES.has(w) ? 2 : MODE_WORDS.has(w) ? 0 : 1);
+  const groupRank = w => (isFace(w) ? 4 : BUSY_WORDS.has(w) ? 3 : HEAD_GESTURES.has(w) || APPENDAGE_MOVES[w] ? 2 : MODE_WORDS.has(w) ? 0 : 1);
   /** (plus) Whether word `w` is a face two of which in a group make one (any face but the plain one and stone). */
   const composes = w => w !== 'neutral' && w !== 'petrify' && isFace(w);
   /**
@@ -1061,7 +1083,7 @@ export function createPet(els, opts) {
         if (T > pet.fidgetAt) {
           pet.fidgetAt = T + rnd(4, 8);
           const kinds = Object.keys(FIDGETS), k = kinds[Math.floor(Math.random() * kinds.length)];
-          if (!pet.listening && pet.talkK < .1 && !pet.pulse && !pet.head && Math.abs(pet.faceVis - pet.facing) < .05) pulse(k, FIDGETS[k]);
+          if (!pet.listening && pet.talkK < .1 && !pet.pulse && !pet.head && !appMoving() && Math.abs(pet.faceVis - pet.facing) < .05) pulse(k, FIDGETS[k]);
         }
         if (free && mt > pet.dur) {
           if (Math.random() < .5) setMode('sleep', { dur: rnd(8, 12) });
@@ -1208,6 +1230,8 @@ export function createPet(els, opts) {
         sqT += -.05 * inh + .07 * exh; leanT += 6 * exh;
       }
     }
+    // (plus) the moves of the figure's own parts end on their own clocks (the figure draws them, from the frame's `appendages`)
+    for (const [p, g] of Object.entries(pet.app)) if (g && T - g.t0 >= g.dur) pet.app[p] = null;
     // short gestures layered over whatever the body is doing
     // (a figure that lists a gesture in `figure.gestures` draws it itself, from the frame's `gesture`)
     if (pet.pulse) {
@@ -1478,12 +1502,14 @@ export function createPet(els, opts) {
     // (plus) the head's gesture in its own field, beside the arms' and body's
     const head = pet.head ? { kind: pet.head.kind, k: clamp((T - pet.head.t0) / pet.head.dur, 0, 1) } : null;
     const gesture = pet.pulse ? { kind: pet.pulse.kind, k: clamp((T - pet.pulse.t0) / pet.pulse.dur, 0, 1) } : null;
+    // (plus) the moves of the figure's own parts, each in its slot
+    const appendages = Object.fromEntries(Object.entries(pet.app).map(([p, g]) => [p, g ? { kind: g.kind, k: clamp((T - g.t0) / g.dur, 0, 1) } : null]));
     // (plus) how far the roll carries her, so a figure's ball turns only that far round
     if (ours('roll')) gesture.travel = pet.pulse.travel;
     custom.draw(petG, face, {
       look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing,
       face: fname, mode: pet.mode, modeT: pet.modeT, talk: pet.talkK, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot, gesture,
-      talkShape: pet.talkShape, lie: pet.lieK, prone: pet.prone, kneel: !!pet.kneel, away: pet.awayK, ...(plus ? { head } : {}),
+      talkShape: pet.talkShape, lie: pet.lieK, prone: pet.prone, kneel: !!pet.kneel, away: pet.awayK, ...(plus ? { head, appendages } : {}),
     });
 
     const footY = drag ? pet.dy + 220 * S * 1.09 : pet.fy;
@@ -1674,7 +1700,7 @@ export function createPet(els, opts) {
   }
   /** Pressed, carried, airborne, walking, running, dancing, turning round, or in a short gesture (not a lying fidget). */
   const isMoving = () => !!press || MOVING_MODES.has(pet.mode) || (!!pet.pulse && !(plus && FIDGETS[pet.pulse.kind] && !pet.pulse.pack))
-    || !!pet.head || Math.abs(pet.faceVis - pet.facing) > .05;
+    || !!pet.head || appMoving() || Math.abs(pet.faceVis - pet.facing) > .05;
 
   /**
    * Where the body is and what it is doing, in stage pixels, for the page around it: its box and hit

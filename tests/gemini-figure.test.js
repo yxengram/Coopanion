@@ -9,7 +9,7 @@ import {
   tailField, WHOLE_POSES, EAR, EAR_MOOD, earFlick, earStates, TAIL, tailFlick, liveAnchors,
 } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
-import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
+import { appendagesOf, earFlickOf, LIE_DRAWN, EAR_WORDS, gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gemini-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
@@ -151,11 +151,12 @@ function badValues(R, out) {
     if (!q.every(Number.isFinite)) bad.push(`point of ${p.id}`);
   }
   // the ears never turn far (each is its own drawing, turned about its base), nor stretch or squash past their bounds
+  // (stood up or laid down by a word, 竖耳朵 / 耳朵耷拉, a little further: EAR_WORDS)
   for (const e of ['earL', 'earR']) {
     const s = out.st[e];
     if (!s) { bad.push(`no ${e}`); continue; }
     if (Math.abs(s.a) > EAR.max + 10) bad.push(`${e}.a=${s.a}`);
-    if (s.sy < EAR.flatSy - 1e-9 || s.sy > EAR.upSy + 1e-9) bad.push(`${e}.sy=${s.sy}`);
+    if (s.sy < EAR.flatSy * EAR_WORDS.downSy - 1e-9 || s.sy > EAR.upSy * EAR_WORDS.upSy + 1e-9) bad.push(`${e}.sy=${s.sy}`);
     if (s.sx < 1 - 1e-9 || s.sx > 1.04 + 1e-9) bad.push(`${e}.sx=${s.sx}`);
   }
   if (!out.st.tailRot || !out.st.tail) bad.push('no tail');
@@ -1522,6 +1523,90 @@ describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces
       w.pet.setExpr('neutral', .01);
       run(w.pet, .2);
     }
+  });
+
+  it('wags her tail (摇尾巴) wider and faster than any mood, lying too (the drawn tail), then hands it back to the mood', () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched(), R = w.R, [, , x1, y1] = R.deformers.tail.rect;
+      const range = (sec, at) => { const xs = []; for (let i = 0; i < sec * 60; i++) { run(w.pet, 1 / 60); xs.push(at()); } return Math.max(...xs) - Math.min(...xs); };
+      const tip = () => w.seen.last.st.tail.fn(1, 1, x1, y1)[0];
+      run(w.pet, 1);
+      w.pet.setExpr('excited', 12); run(w.pet, 1.5);
+      const glad = range(2, tip);
+      expect(w.pet.act('wag')).toBe(true);
+      run(w.pet, .3);
+      expect(range(1.8, tip)).toBeGreaterThan(glad * 1.4);
+      run(w.pet, 1);
+      expect(w.o.appendages.tail).toBe(null);
+      // lying: the tail drawn up in the air behind her swings about its root
+      w.pet.setExpr('neutral', .1);
+      w.pet.doWord('lie'); run(w.pet, 3);
+      const [tx, ty] = LIE_DRAWN.tail.path.at(-1);
+      const drawn = (x, y) => { const f = w.seen.last.st.lieParts?.fn; return f ? f(0, 0, x, y) : [0, 0]; };
+      expect(drawn(tx, ty)).toEqual([0, 0]);
+      w.pet.act('wag'); run(w.pet, .3);
+      expect(range(1.5, () => drawn(tx, ty)[0])).toBeGreaterThan(15);
+      expect(w.seen.bad).toEqual([]);
+    } finally { rand.mockRestore(); }
+  });
+
+  it('flicks her ears (抖耳朵), stands them up (竖耳朵) and lays them down (耳朵耷拉) standing, seated, kneeling (the hybrid) and lying (the drawn ears)', () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched();
+      const mean = (sec, at) => { let a = 0, n = 0; for (let i = 0; i < sec * 60; i++) { run(w.pet, 1 / 60); a += at(); n++; } return a / n; };
+      const range = (sec, at) => { const xs = []; for (let i = 0; i < sec * 60; i++) { run(w.pet, 1 / 60); xs.push(at()); } return Math.max(...xs) - Math.min(...xs); };
+      const out = () => (w.seen.last.st.earR.a - w.seen.last.st.earL.a) / 2, tall = () => w.seen.last.st.earL.sy;
+      run(w.pet, 1);
+      for (const mode of ['stand', 'sit']) {
+        w.pet.doWord(mode); run(w.pet, 2.5);
+        const rest = { out: mean(.5, out), tall: mean(.5, tall) };
+        w.pet.act('earsup'); run(w.pet, .5);
+        expect(mean(.8, tall), mode).toBeGreaterThan(EAR.upSy + .04);
+        expect(mean(.3, out), mode).toBeLessThan(rest.out - 2);
+        run(w.pet, 1.2);
+        w.pet.act('earsdown'); run(w.pet, .5);
+        expect(mean(.8, out), mode).toBeGreaterThan(rest.out + 20);
+        expect(mean(.3, tall), mode).toBeLessThan(EAR.flatSy);
+        run(w.pet, 1.2);
+        w.pet.act('earflick');
+        expect(range(1.1, out), mode).toBeGreaterThan(EAR_WORDS.deg * .7);
+        run(w.pet, .5);
+        expect(Math.abs(mean(.5, out) - rest.out), mode).toBeLessThan(2);
+      }
+      // kneeling: the kneeling drawing's ears cannot move, so the hybrid shows while they do; she stays kneeling
+      w.pet.setExpr('neutral', .1);
+      w.pet.doWord('kneel'); run(w.pet, 3);
+      expect(w.motion.kneelArmsK).toBe(0);
+      w.pet.act('earsdown'); run(w.pet, .5);
+      expect(w.motion.kneelArmsK).toBe(1);
+      expect(w.o.kneel).toBe(true);
+      run(w.pet, 3);
+      // lying: the ears drawn on the lying drawing turn out laid down, in stood up, each about its base
+      w.pet.doWord('lie'); run(w.pet, 3);
+      const tipL = LIE_DRAWN.earL.path.at(-1), tipR = LIE_DRAWN.earR.path.at(-1);
+      const drawn = ([x, y]) => { const f = w.seen.last.st.lieParts?.fn; return f ? f(0, 0, x, y) : [0, 0]; };
+      w.pet.act('earsdown'); run(w.pet, 1);
+      expect(drawn(tipL)[0]).toBeLessThan(-4);
+      expect(drawn(tipR)[0]).toBeGreaterThan(4);
+      run(w.pet, 1.5);
+      w.pet.act('earsup'); run(w.pet, 1);
+      expect(drawn(tipL)[0]).toBeGreaterThan(1);
+      expect(drawn(tipR)[0]).toBeLessThan(-1);
+      expect(w.seen.bad).toEqual([]);
+    } finally { rand.mockRestore(); }
+  });
+
+  it('takes her tail\'s and ears\' words from the gesture when the kit has no slot for them (upstream\'s); 抖耳朵 flicks each ear out and back n times', () => {
+    expect(appendagesOf({ gesture: { kind: 'earsup', k: .3 } })).toEqual({ ears: { kind: 'earsup', k: .3 } });
+    expect(appendagesOf({ gesture: { kind: 'wingbeat', k: .3 } })).toEqual({});
+    let n = 0, prev = 0;
+    for (let k = 0; k <= 1; k += .001) { const f = earFlickOf(k, 0); if (f > .9 && prev <= .9) n++; prev = f; }
+    expect(n).toBe(EAR_WORDS.n);
+    expect(earFlickOf(0, 0)).toBe(0);
+    expect(earFlickOf(1, 1)).toBeCloseTo(0, 6);
+    expect(R0.deformers.lieParts.rect).toEqual(LIE_DRAWN.box.map((v, i) => (i < 2 ? v : v + LIE_DRAWN.box[i - 2])));
   });
 });
 

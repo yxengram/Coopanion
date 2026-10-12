@@ -88,6 +88,8 @@ describe('exported Gemini-chan pack', () => {
       .toEqual(['低头', '眨眨眼', '凑近', '后仰', '晃来晃去', '跺脚'].sort());
     for (const t of ['dance', 'land']) expect(Object.keys(m.sounds)).not.toContain(t);
     expect(Object.keys(m.sounds)).toContain('peek');
+    // her tail's and ears' words (摇尾巴, 抖耳朵, 竖耳朵, 耳朵耷拉) go too, silent
+    expect(m.vocab.filter((w) => ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['摇尾巴', '抖耳朵', '竖耳朵', '耳朵耷拉']);
     // she draws arm gestures kneeling: her kneel says so (keepsArms), and her pack ships the drawing's lower body
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     expect(m.vocab.length).toBe(builtin.vocab.length);

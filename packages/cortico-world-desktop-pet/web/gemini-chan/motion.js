@@ -218,8 +218,85 @@ export const DROOP = { pitch: .9, neckTy: 3.5, look: 4 };
  * and of the neck on top of it (degrees).
  */
 export const BODY_LEAN = { closer: 7, near: .1, back: 10, far: .07, chinUp: .6, swayBody: 3, swayNeck: 4 };
+/**
+ * A part drawn into a floor drawing (her tail, an ear) turned by a word: the points near its `path` (rig units, from
+ * root to tip; within `r` [at the root, at the tip, widening late] of it, fading out over `band`) turn about the root by `a` degrees, the
+ * more the further along the path (^1.5), so the part bends from its root and what lies beside it stays put (and what
+ * lies against it, its `keep` rect).
+ */
+export function drawnTurn(spec, a, x, y) {
+  const P = spec.path, [rx, ry] = P[0];
+  let best = Infinity, at = 0, run = 0;
+  for (let i = 1; i < P.length; i++) {
+    const [ax, ay] = P[i - 1], [bx, by] = P[i], lx = bx - ax, ly = by - ay, len = Math.hypot(lx, ly) || 1;
+    const t = clamp(((x - ax) * lx + (y - ay) * ly) / (len * len), 0, 1), d = Math.hypot(x - ax - t * lx, y - ay - t * ly);
+    if (d < best) { best = d; at = run + t * len; }
+    run += len;
+  }
+  const s = at / run, half = lerp(spec.r[0], spec.r[1], s * s);
+  // (what lies against it in the drawing, `keep` [x0, y0, x1, y1], stays put, fading in over `band`)
+  const k = spec.keep, out = k ? Math.max(k[0] - x, x - k[2], k[1] - y, y - k[3]) : Infinity;
+  const w = (1 - smooth(half, half + spec.band, best)) * s ** 1.5 * smooth(0, spec.band, out);
+  if (!w || !a) return [0, 0];
+  const r = a * w * Math.PI / 180, c = Math.cos(r) - 1, sn = Math.sin(r), dx = x - rx, dy = y - ry;
+  return [dx * c - dy * sn, dx * sn + dy * c];
+}
+/** The warp over a floor drawing turning its drawn parts: `turns` maps a part of `drawn` to its degrees (+ clockwise). */
+export function drawnField(drawn, turns) {
+  const on = Object.entries(turns).filter(([k, a]) => a && drawn[k]);
+  return (u, v, x, y) => {
+    let dx = 0, dy = 0;
+    for (const [k, a] of on) { const d = drawnTurn(drawn[k], a, x, y); dx += d[0]; dy += d[1]; }
+    return [dx, dy];
+  };
+}
+/**
+ * Lying, the parts drawn into the lying drawing that her words move (its lie_body is one texture, so a warp over it,
+ * `lieParts`, drawnField): her tail up in the air behind her (摇尾巴) and her ears (抖耳朵, 竖耳朵, 耳朵耷拉). Measured on
+ * lie_body.png at `box`: a drawing on another box (redrawn, another pack) leaves them still.
+ */
+export const LIE_DRAWN = {
+  box: [9.02, 64.25, 237.96, 191.75],
+  tail: { path: [[87, 158], [83, 134], [79, 114], [69, 98], [55, 92]], r: [8, 26], band: 10 },
+  earL: { path: [[129, 120], [123, 98], [119, 80]], r: [12, 5], band: 4 },
+  earR: { path: [[209, 122], [217, 104], [223, 89]], r: [12, 5], band: 4 },
+};
+/** Lying, how far those parts turn (degrees): the tail's swing each way, the ears out laid down, in stood up. */
+export const LIE_PARTS = { wag: 12, earsDown: 16, earsUp: 7 };
 /** Lying, those moves of the head about the chin (degrees; a lean in also shifts it toward you, rig units). */
 export const LIE_MORE = { down: 9, closer: 6, back: 5, sway: 6 };
+/**
+ * The moves of her own parts a word asks for (the kit's APPENDAGE_MOVES): word → part. A plus kit hands them in the
+ * frame's `appendages`, one slot a part; a kit without it (upstream's, should it ever draw her) plays them as the gesture.
+ */
+export const APPENDAGE_WORDS = { wag: 'tail', earflick: 'ears', earsup: 'ears', earsdown: 'ears' };
+/** The frame's moves of her parts, by part ({ tail, ears }: { kind, k } or null). */
+export function appendagesOf(o) {
+  const g = o.gesture, part = g && APPENDAGE_WORDS[g.kind];
+  return { ...(o.appendages || {}), ...(!o.appendages && part ? { [part]: g } : {}) };
+}
+/**
+ * How strongly a part's word holds it at k (0..1): all of it until its last seventh, then it hands back to the mood (each
+ * share is eased again over frames, APP_EASE, so a word starting or cut short never jumps).
+ */
+export const appHold = (A, kind) => (A?.kind === kind ? 1 - smooth(6 / 7, 1, A.k) : 0);
+export const APP_EASE = 10;
+/**
+ * 摇尾巴 (wag): the tail swings `swing` degrees at the tip (an excited face's is TAIL.swing + TAIL.wag, 16) at `rate`
+ * radians a second (excited: TAIL.wagRate, 9; its tip flicks besides, up to 8 more), its tip curled up a little (`curl`, as a glad face's 0..1).
+ */
+export const WAG = { swing: 36, rate: 13, curl: .6 };
+/**
+ * Her ears' words: 抖耳朵 (earflick) flicks both out `deg` degrees `n` times, the right ear a little behind (`lag`, of a
+ * flick); 竖耳朵 (earsup) stands them up as tall as they go, taller still (`upSy`) and turned in toward upright (`upIn`
+ * degrees); 耳朵耷拉 (earsdown) lays them flat out and down (`downFlat`, `downDroop` as EAR_MOOD's), lower still (`downSy`).
+ */
+export const EAR_WORDS = { deg: 16, n: 4, lag: .3, upSy: 1.1, upIn: 6, downFlat: 1, downDroop: .7, downSy: .93 };
+/** An ear's flick of 抖耳朵 at k (0..1) of the word, `side` 0 or 1: 0..1, each flick out and back. */
+export function earFlickOf(k, side) {
+  const u = k * (EAR_WORDS.n + EAR_WORDS.lag) - EAR_WORDS.lag * side;
+  return u < 0 || u >= EAR_WORDS.n ? 0 : Math.sin(Math.PI * (u % 1)) ** 2;
+}
 /**
  * Kneeling and lying, the tilt the drawing's head takes (standing and seated, sp.head eases it): `x` follows the tilt `to`
  * over and back as it plays, but when another head gesture cuts a held tilt short (a nod, a shake, a sigh, another
@@ -679,6 +756,12 @@ export function buildRig(model) {
     const L = lieDeformers(P.lie);
     Object.assign(deformers, L.deformers);
     W.lie = { pose: P.lie, parts: floorParts(P.lie, L.inner, Object.keys(L.deformers)) };
+    // (the drawing's own parts a word moves, LIE_DRAWN: on a warp of their own over it, if it is the drawing measured)
+    const body = W.lie.parts.find(p => p.id === 'lie_body');
+    if (body && LIE_DRAWN.box.every((v, i) => Math.abs(v - body.box[i]) < .5)) {
+      deformers.lieParts = { kind: 'warp', parent: body.parent, rect: rectOfBox(body.box) };
+      body.parent = 'lieParts';
+    }
     liveFace(W.lie, L.inner, 'lie');
   }
   if (P.back?.required?.length) {
@@ -832,6 +915,7 @@ export function createMotion(model, R) {
   let bodyB = { from: 'stand', to: 'stand', x: 1 }, dropNow = null;  // the body hand-over; the head's sink seated (eased)
   let lieB = { on: false, a: 0 };  // the lying drawing's cut (lieStep)
   let prevSit = 0;  // the kit's sit last frame (rising out of a kneel she stays kneeling)
+  let wagK = 0, tailPh = 0, earUpW = 0, earDownW = 0;  // (appendages) a wag's share and its clock; ears stood up, laid down
   let perk = 0, swish = 0, droop = 0, curl = 0, wagPh = 0, puff = 0, earUp = 0, earFlat = 0, earDroop = 0, twitchT = 9, lastFace = null, lastMode = null, browLift = 0, browInner = 0, browSide = 0, backA = 0, backOn = 1, awayA = 0, faceArmT = 0, sinceArmG = 9, lastFaceArm = null, lastArmG = null;
   let armA = { hangL: 1, hangR: 1 };
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
@@ -876,6 +960,7 @@ export function createMotion(model, R) {
     /* the kit's short gestures, as she does them */
     // (a nod, a shake or a sigh is the head's, on its own clock beside the arms' gesture: gesturesOf, headMoves)
     const G = gesturesOf(o), g = G.arm, gk = g ? g.k : 0, gkind = g?.kind;
+    const AP = appendagesOf(o);  // (a word's move of her tail or ears: APPENDAGE_WORDS)
     const env = (a, b) => smooth(0, a, gk) * (1 - smooth(b, 1, gk));
     const is = k => gkind === k;
     const { nod, shake, inh, exh, puffK, tilt, down } = headMoves(G.head);
@@ -929,8 +1014,11 @@ export function createMotion(model, R) {
     const planPosed = !!plan.fallback || [plan.L, plan.R].some(k => !KNEEL_REST.includes(k));
     const inHybrid = bodyB.to === 'kneelArms' || (bodyB.from === 'kneelArms' && bodyB.x < 1);
     const fading = Object.keys(armA).some(k => !KNEEL_REST.includes(k) && armA[k] > 0);
-    armsT = planPosed || fading ? 0 : armsT + dt;
-    const withArms = lowOK && (planPosed || (inHybrid && armsT < KNEEL_ARMS_HOLD));
+    // (and a word moving her live upper body's own ears: the kneeling drawing has its own, which
+    // cannot move, so she shows the hybrid while it plays)
+    const ownParts = !!AP.ears;
+    armsT = planPosed || fading || ownParts ? 0 : armsT + dt;
+    const withArms = lowOK && (planPosed || ownParts || (inHybrid && armsT < KNEEL_ARMS_HOLD));
     bodyB = bodyStep(bodyB, bodyWant(bodyB.to, o.sit ?? 0, { kneel: kneelNow, kneelArms: withArms, sitOK }), dt);
     const bodyA = bodyAlphas(bodyB);
     kneelArmsK = bodyA.kneelArms;
@@ -1000,6 +1088,15 @@ export function createMotion(model, R) {
     droop = lerp(droop, droopT, ease(droopT < droop ? 1.1 : 3, dt));
     // the tail's swing runs slow at rest and fast glad (TAIL)
     wagPh += dt * (TAIL.rate + (TAIL.wagRate - TAIL.rate) * clamp(swish, 0, 1) ** 1.5);
+    // (appendages) a word for her tail or ears takes the part over from the mood while it lasts (APPENDAGE_WORDS)
+    wagK = lerp(wagK, appHold(AP.tail, 'wag'), ease(APP_EASE, dt));
+    earUpW = lerp(earUpW, appHold(AP.ears, 'earsup'), ease(APP_EASE, dt));
+    earDownW = lerp(earDownW, appHold(AP.ears, 'earsdown'), ease(APP_EASE, dt));
+    if (wagK < 1e-3) wagK = 0;
+    if (earUpW < 1e-3) earUpW = 0;
+    if (earDownW < 1e-3) earDownW = 0;
+    tailPh += dt * lerp(TAIL.rate + (TAIL.wagRate - TAIL.rate) * clamp(swish, 0, 1) ** 1.5, WAG.rate, wagK);
+    const flickW = AP.ears?.kind === 'earflick' ? side => EAR_WORDS.deg * earFlickOf(AP.ears.k, side) : () => 0;
     // startled she puffs her tail at once, and it settles slowly
     const puffT = face === 'surprised' || face === 'scared' || mode === 'wake' ? 1 : flinch;
     puff = lerp(puff, puffT, ease(puffT > puff ? 14 : 1.5, dt));
@@ -1161,6 +1258,7 @@ export function createMotion(model, R) {
     // mood (and the step, the dance, a flap), its tip flicking now and then; it curls up glad, stands up startled and
     // puffs, hangs low when down or carried, floats up in the air and lies out seated
     curl = lerp(curl, clamp(pk * sw, 0, 1), ease(3, dt));
+    const curlNow = lerp(curl, WAG.curl, wagK);
     const startle = face === 'surprised' ? puff : 0;
     const tailA = sp.tail.step(sway * 9 - droop * 7 + hairY * 6 + (held ? 6 : 0) - 10 * sitK - 8 * startle, dt)
       + (walking ? (mode === 'run' ? 6 : 3) * walkS : 0) + danceK * 8 * Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1) + flap * 10 * Math.sin(t * 17);
@@ -1169,7 +1267,7 @@ export function createMotion(model, R) {
     st.tailRot = { a: tailA * .6, tx: rootX, ty: rootY, sx: puffS, sy: puffS };
     const asleep = mode === 'sleep', swing = asleep ? 1.2 : (TAIL.swing + TAIL.wag * clamp(swish, 0, 1)) * (1 - .6 * clamp(-droop, 0, 1)) * (1 - .7 * startle);
     const tip = asleep ? 0 : tailFlick(t) * (1 - clamp(-droop, 0, 1)) + 8 * clamp(swish - .7, 0, .3) / .3 * Math.sin(wagPh * 2);
-    st.tail = { fn: tailField(tailPv, tailReach, tailA * .4 - curl * 16 - 10 * startle, swing, wagPh, TAIL.lag, tip) };
+    st.tail = { fn: tailField(tailPv, tailReach, tailA * .4 - curlNow * 16 - 10 * startle, lerp(swing, WAG.swing, wagK), tailPh, TAIL.lag, tip * (1 - wagK)) };
 
     st.neck = {
       a: headA + clamp(tiltRest * .8, -10, 12),
@@ -1217,10 +1315,18 @@ export function createMotion(model, R) {
       },
     };
     // the ears, mirrored about her middle
-    Object.assign(st, earStates(earUp, earFlat, earDroop, earExtra(0), earExtra(1), earLag));
+    // (a word for them: stood up taller and turned in, laid flat and low, or flicked: EAR_WORDS)
+    const E = EAR_WORDS, wu = lerp(lerp(earUp, 1, earUpW), 0, earDownW), wf = lerp(earFlat * (1 - earUpW), E.downFlat, earDownW), wd = lerp(earDroop * (1 - earUpW), E.downDroop, earDownW);
+    const ex = side => earExtra(side) * (1 - earUpW) * (1 - earDownW) - E.upIn * earUpW + flickW(side);
+    Object.assign(st, earStates(wu, wf, wd, ex(0), ex(1), earLag));
+    const earSy = lerp(1, E.upSy, earUpW) * lerp(1, E.downSy, earDownW);
+    if (earSy !== 1) { st.earL.sy *= earSy; st.earR.sy *= earSy; }
 
     /* whole-body drawings */
-    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK, down: downK, closer, leanback, sway: swayG }, g, gk, caps);
+    // (lying: her drawn tail swings and her drawn ears turn out or in, LIE_DRAWN)
+    const lieEarOut = side => LIE_PARTS.earsDown * earDownW - LIE_PARTS.earsUp * earUpW + flickW(side);
+    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK, down: downK, closer, leanback, sway: swayG,
+      drawn: { tail: wagK * LIE_PARTS.wag * Math.sin(tailPh), earL: -lieEarOut(0), earR: lieEarOut(1) } }, g, gk, caps);
     const awayBack = is('away') ? smooth(.05, .07, gk) * (1 - smooth(.93, .95, gk)) : 0;
     awayA = awayStep(awayA, awayBack, g, dt);
     const view = backView(o.facing, awayA), backK = BACK && caps.pose('back') ? view.k : 0;
@@ -1310,7 +1416,8 @@ export function createMotion(model, R) {
   const MOOD_KICK = { happy: [1.6, 1.4], love: [1.6, 1.2], excited: [1.9, 1.7], wink: [1.3, 1.2], angry: [1.2, 2], sad: [.3, .6], cry: [.2, .6], sleepy: [.4, .7], scared: [.2, 1], worried: [.5, .8] };
   let kickPh = 0;
   function lying(st, o, fc, face, mode, t, dt, breath, poseA, gs, g, gk, caps) {
-    const { nod, shake, bow, flinch, peek, flap, inh, exh, tilt = 0, down = 0, closer = 0, leanback = 0, sway = 0 } = gs, L = LIE.pose;
+    const { nod, shake, bow, flinch, peek, flap, inh, exh, tilt = 0, down = 0, closer = 0, leanback = 0, sway = 0, drawn = {} } = gs, L = LIE.pose;
+    if (deformers.lieParts) st.lieParts = Object.values(drawn).some(Boolean) ? { fn: drawnField(LIE_DRAWN, drawn) } : {};
     const pv = L.pivots || {}, still = mode === 'sleep' || fc.listen;
     const fid = kind => (g?.kind === kind ? Math.sin(Math.PI * gk) : 0);
     const flopUp = 1 - smooth(.2, .6, lieK);
@@ -1339,6 +1446,7 @@ export function createMotion(model, R) {
     springs();
     prevTilt = prevYaw = prevLow = wTilt = wLean = sitK = danceK = lieK = 0;
     tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0;
+    wagK = tailPh = earUpW = earDownW = 0;
     perk = swish = droop = curl = wagPh = puff = earUp = earFlat = earDroop = browLift = browInner = browSide = backA = awayA = faceArmT = kickPh = 0;
     backOn = 1;
     sinceArmG = 9; lastFaceArm = lastArmG = null;

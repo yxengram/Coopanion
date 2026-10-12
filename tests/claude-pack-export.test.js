@@ -84,6 +84,8 @@ describe('exported Claude-chan pack', () => {
       .toEqual(['低头', '眨眨眼', '凑近', '后仰', '晃来晃去', '跺脚'].sort());
     for (const t of ['dance', 'land']) expect(Object.keys(m.sounds)).not.toContain(t);
     expect(Object.keys(m.sounds)).toContain('peek');
+    // she has no tail, ears or wings of her own to move: none of their words
+    for (const id of ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat']) expect(m.vocab.some((w) => w.id === id), id).toBe(false);
     // she draws arm gestures kneeling: her kneel says so (keepsArms), and her pack ships the drawing's lower body
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     expect(m.vocab.length).toBe(builtin.vocab.length);

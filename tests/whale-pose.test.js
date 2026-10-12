@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN, WAG, appendagesOf } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -1076,6 +1076,34 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       const f = kneelHeadField([0, 0, 100, 100], { tilt: 1 });
       expect(f(.5, .3, 50, 30)[0]).toBeCloseTo(KNEEL_HEAD.tilt * Math.PI / 180 * 70, 9);
       expect(f(.5, 1, 50, 100)).toEqual([0, 0]);
+    } finally { done(); rand.mockRestore(); }
+  });
+
+  it('wags her tail (摇尾巴) wider and faster than any mood standing, seated and lying, then hands it back', async () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    const { pet, run, frame: last, done } = await whaleOnKit();
+    try {
+      const range = (s, at) => { const xs = []; run(s, x => xs.push(at(x))); return Math.max(...xs) - Math.min(...xs); };
+      run(1, () => {});
+      pet.setExpr('excited', 30); run(1.5, () => {});
+      const glad = range(2, x => x.tail.a);
+      for (const mode of ['stand', 'sit']) {
+        pet.doWord(mode); run(2.5, () => {});
+        expect(pet.act('wag'), mode).toBe(true);
+        run(.3, () => {});
+        expect(last().appendages.tail, mode).toMatchObject({ kind: 'wag' });
+        expect(range(1.8, x => x.tail.a), mode).toBeGreaterThan(Math.max(glad * 1.5, WAG.swing * 1.5));
+        run(1, () => {});
+      }
+      expect(range(1.5, x => x.tail.a)).toBeLessThan(glad * 1.3);
+      // lying, the tail on the floor; turned away, the back drawing's fluke
+      pet.doWord('lie'); run(3, () => {});
+      const lying = range(1.5, x => x.lieTail.a);
+      pet.act('wag'); run(.3, () => {});
+      expect(range(1.8, x => x.lieTail.a)).toBeGreaterThan(Math.max(lying * 1.5, WAG.lie * 1.5));
+      run(1, () => {});
+      expect(appendagesOf({ gesture: { kind: 'wag', k: .3 } })).toEqual({ tail: { kind: 'wag', k: .3 } });
+      expect(appendagesOf({ gesture: { kind: 'earsup', k: .3 } })).toEqual({});
     } finally { done(); rand.mockRestore(); }
   });
 

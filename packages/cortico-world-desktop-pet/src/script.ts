@@ -82,9 +82,16 @@ export interface ParsedScript {
 
 export const INLINE_TAG_MAX = 32;
 
-/** A part of her a word takes (web/kit/body.js), for groups of words done at once and the prompt's 部位 column. */
-export type Channel = 'face' | 'head' | 'arm' | 'body' | 'stance';
-const ALL: readonly Channel[] = ['face', 'head', 'arm', 'body', 'stance'];
+/**
+ * A part of her a word takes (web/kit/body.js), for groups of words done at once and the prompt's 部位 column. A tail,
+ * ears and wings are parts of their own (the kit's APPENDAGE_MOVES, a slot each): only a figure that has one has its words.
+ */
+export type Channel = 'face' | 'head' | 'arm' | 'body' | 'stance' | 'tail' | 'ears' | 'wings';
+/** The parts of her a figure may have beyond the kit's body. */
+const APPENDAGES: readonly Channel[] = ['tail', 'ears', 'wings'];
+/** Their names in the prompt. */
+const APPENDAGE_NAMES: Partial<Record<Channel, string>> = { tail: '尾巴', ears: '耳朵', wings: '翅膀' };
+const ALL: readonly Channel[] = ['face', 'head', 'arm', 'body', 'stance', ...APPENDAGES];
 /**
  * What part of her a kit word takes. It also encodes what the kit refuses or changes when words come together: a
  * song needs her standing or seated still; a curtsy and a stamp stand her up; kneeling, lying and sleep leave no arm
@@ -94,6 +101,8 @@ const ALL: readonly Channel[] = ['face', 'head', 'arm', 'body', 'stance'];
  */
 export const CHANNELS: Record<string, readonly Channel[]> = {
   nod: ['head'], shake: ['head'], sigh: ['head'], tilt: ['head'], droop: ['head'], blink: ['head'],
+  // a tail, ears, wings: each its own part, beside everything else
+  wag: ['tail'], earflick: ['ears'], earsup: ['ears'], earsdown: ['ears'], wingbeat: ['wings'],
   wave: ['arm'], shiver: ['arm'], heart: ['arm'], serve: ['arm'], salute: ['arm'], vsign: ['arm'], point: ['arm'],
   cover: ['arm'], cross: ['arm'], stretch: ['arm'], pray: ['arm'], scratch: ['arm'], idea: ['arm'], hug: ['arm'], hips: ['arm'],
   spout: ['arm'], sip: ['arm'], read: ['arm'], muse: ['arm'], fist: ['arm'], jot: ['arm'], twiddle: ['arm'],
@@ -107,7 +116,7 @@ export const CHANNELS: Record<string, readonly Channel[]> = {
   // an arm gesture ends a kneel (unless the figure draws them kneeling: KNEEL_WITH_ARMS); lying, none shows
   kneel: ['body', 'arm'], lie: ['body', 'arm'],
   // asleep, nothing else shows; the dizzy face covers any other
-  sleep: ['face', 'head', 'arm', 'body'],
+  sleep: ['face', 'head', 'arm', 'body', ...APPENDAGES],
   dizzy: ['body', 'stance', 'face'],
   stand: ['body', 'stance'], walk: ['body', 'stance'], run: ['body', 'stance'], look: ['body', 'stance'],
   dance: ['body', 'stance'], jump: ['body', 'stance'], hop: ['body', 'stance'],
@@ -148,8 +157,9 @@ export type Pairs = Readonly<Record<string, PairFace>>;
 /** The key of the pair of `a` and `b`, whichever is written first. */
 export const pairKey = (a: string, b: string): string => (a < b ? `${a}~${b}` : `${b}~${a}`);
 
-/** Where a word goes in a group: body and stance first, then arms, head, face. */
-const rankOf = (cs: readonly Channel[]) => (cs.includes('body') || cs.includes('stance') ? 0 : cs.includes('arm') ? 1 : cs.includes('head') ? 2 : 3);
+/** Where a word goes in a group: body and stance first, then arms, head (and a tail, ears, wings), face. */
+const rankOf = (cs: readonly Channel[]) => (cs.includes('body') || cs.includes('stance') ? 0 : cs.includes('arm') ? 1
+  : cs.includes('head') || cs.some((c) => APPENDAGES.includes(c)) ? 2 : 3);
 
 export const GROUP_SEP = /[+＋]/;
 /** `a + b`, `a＋ b` → `a+b`: spaces around a plus belong to the group, not the list. */
@@ -310,12 +320,16 @@ const KNEEL_KEEPS: ReadonlyArray<readonly [string, string]> = [
  * lying and sleeping stay through gestures and expressions and end on another posture or a move of the whole
  * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh, tilt, droop,
  * blink) and ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
- * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS). Given the
- * figure's `vocab`, the kneel's note names only the head gestures it has (a pack without 歪头 is not told it keeps one).
+ * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS); the moves of a
+ * tail, ears or wings keep it as well. Given the figure's `vocab`, the kneel's note names only the head gestures and the
+ * parts it has (a pack without 歪头 is not told it keeps one).
  */
 export function lastingNote(v: VocabWord, vocab?: readonly VocabWord[]): string {
   if (v.id !== 'kneel') return '一直保持:做手势、换表情不影响,换别的姿势或走、跑、跳这类全身动作才结束';
-  const keeps = ['换表情', ...KNEEL_KEEPS.filter(([id]) => !vocab || vocab.some((w) => w.id === id)).map(([, n]) => n)].join('、');
+  // (and the moves of a tail, ears or wings, the kit's APPENDAGE_MOVES: of the parts the figure has words for)
+  const parts = APPENDAGES.filter((c) => !vocab || vocab.some((w) => w.kind === 'motion' && channelsOf(w).length === 1 && channelsOf(w)[0] === c));
+  const keeps = ['换表情', ...KNEEL_KEEPS.filter(([id]) => !vocab || vocab.some((w) => w.id === id)).map(([, n]) => n),
+    ...(parts.length ? [`${parts.map((c) => APPENDAGE_NAMES[c]).join('、')}的动作`] : [])].join('、');
   return v.keepsArms
     ? `保持到下一个全身动作,然后变回普通坐着;${keeps}、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着`
     : `保持到下一个手或全身动作,然后变回普通坐着;${keeps}不影响`;
@@ -337,17 +351,25 @@ const MOODS: ReadonlyArray<readonly [string, readonly string[]]> = [
 ];
 
 /**
- * The motions' parts as the prompt groups them (for words done at once): 头 the head alone, 手 the arms, 手 with her
- * standing or seated still, 身 the whole body (a pack's own motion too). A whole-body word that also takes the arms, the
- * head or the face says so after its names, so the groups show every clash `channelsOf` makes.
+ * The motions' parts as the prompt groups them (for words done at once): 头 the head alone, the figure's tail, ears or
+ * wings (APPENDAGE_NAMES: the ones it has words for, each a part of its own, so an ear word and a tail word go together),
+ * 手 the arms, 手 with her standing or seated still, 身 the whole body (a pack's own motion too). A whole-body word that
+ * also takes the arms, the head or the face says so after its names, so the groups show every clash `channelsOf` makes.
  */
-const PARTS = ['头', '手', '手,要站着或坐着不动(不和走、跑、跳这类移动同组,坐下可以)', '身'] as const;
-function partOf(v: VocabWord): { part: number; also: string } {
+const PARTS = ['头', '', '手', '手,要站着或坐着不动(不和走、跑、跳这类移动同组,坐下可以)', '身'] as const;
+/** The label of the group of a tail's, ears' or wings' words, naming the parts `words` take. */
+function appendageLabel(words: readonly VocabWord[]): string {
+  const names = APPENDAGES.filter((c) => words.some((v) => channelsOf(v)[0] === c)).map((c) => APPENDAGE_NAMES[c]);
+  return names.length > 1 ? `${names.join('、')}(各算一个部位)` : `${names[0]}(单独算一个部位)`;
+}
+function partOf(v: VocabWord, has: readonly Channel[] = []): { part: number; also: string } {
   const cs = channelsOf(v);
   if (cs.length === 1 && cs[0] === 'head') return { part: 0, also: '' };
-  if (cs.includes('arm') && !cs.includes('body')) return { part: cs.includes('stance') ? 2 : 1, also: '' };
-  const also = (['arm', 'head', 'face'] as const).filter((c) => cs.includes(c)).map((c) => ({ arm: '手', head: '头', face: '表情' })[c]);
-  return { part: 3, also: also.length ? `(也占${also.join('、')})` : '' };
+  if (cs.length === 1 && APPENDAGES.includes(cs[0])) return { part: 1, also: '' };
+  if (cs.includes('arm') && !cs.includes('body')) return { part: cs.includes('stance') ? 3 : 2, also: '' };
+  // (a tail, ears or wings only when the figure has words for them, `has`)
+  const also = (['arm', 'head', 'face', ...has] as const).filter((c) => cs.includes(c)).map((c) => ({ arm: '手', head: '头', face: '表情', ...APPENDAGE_NAMES })[c]);
+  return { part: 4, also: also.length ? `(也占${also.join('、')})` : '' };
 }
 
 /**
@@ -398,10 +420,11 @@ export function vocabTable(vocab: readonly VocabWord[], language = 'zh', pairs: 
     const vs = ordered.filter((v) => mood(v) === m);
     return vs.length ? `${label}:\n${vs.map((v) => line(v, recipes.has(v.id) ? `(=${recipes.get(v.id)!.join('、')})` : '')).join('\n')}` : '';
   }).filter(Boolean).join('\n');
-  const motions = vocab.filter((v) => v.kind === 'motion').map((v) => ({ v, ...partOf(v) }));
+  const own = APPENDAGES.filter((c) => vocab.some((v) => v.kind === 'motion' && channelsOf(v).length === 1 && channelsOf(v)[0] === c));
+  const motions = vocab.filter((v) => v.kind === 'motion').map((v) => ({ v, ...partOf(v, own) }));
   const motionText = PARTS.map((label, i) => {
     const vs = motions.filter((m) => m.part === i);
-    return vs.length ? `${label}:\n${vs.map((m) => line(m.v, m.also)).join('\n')}` : '';
+    return vs.length ? `${label || appendageLabel(vs.map((m) => m.v))}:\n${vs.map((m) => line(m.v, m.also)).join('\n')}` : '';
   }).filter(Boolean).join('\n');
   // composed pairs: under whichever of the two comes first above, the eyes' face named in the example
   const composed = entries.filter((e): e is [string, { eyes: string; mouth: string }] => !('as' in e[1]));

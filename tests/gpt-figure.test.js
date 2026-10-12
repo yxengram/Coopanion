@@ -10,7 +10,7 @@ import {
   tailField, WHOLE_POSES, WING, wingStates, liveAnchors,
 } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gpt-chan/face.js';
-import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
+import { appendagesOf, drawnTurn, LIE_DRAWN, WINGBEAT, gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gpt-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
@@ -1504,6 +1504,81 @@ describe('GPT-chan: a head gesture beside the arms\' one, kneeling, and faces ma
       w.pet.setExpr('neutral', .01);
       run(w.pet, .2);
     }
+  });
+
+  it('wags her tail (摇尾巴) wider and faster than any mood, then hands it back to the mood', () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched(), R = w.R, [, , x1, y1] = R.deformers.tail.rect;
+      const range = (sec, at) => { const xs = []; for (let i = 0; i < sec * 60; i++) { run(w.pet, 1 / 60); xs.push(at()); } return Math.max(...xs) - Math.min(...xs); };
+      const tip = () => w.seen.last.st.tail.fn(1, 1, x1, y1)[0];
+      run(w.pet, 1);
+      w.pet.setExpr('excited', 12); run(w.pet, 1.5);
+      const glad = range(2, tip);
+      expect(w.pet.act('wag')).toBe(true);
+      run(w.pet, .3);
+      expect(w.o.appendages.tail).toMatchObject({ kind: 'wag' });
+      expect(range(1.8, tip)).toBeGreaterThan(glad * 1.6);
+      run(w.pet, 1);
+      expect(w.o.appendages.tail).toBe(null);
+      expect(range(1.5, tip)).toBeLessThan(glad * 1.3);
+      expect(w.seen.bad).toEqual([]);
+    } finally { rand.mockRestore(); }
+  });
+
+  it('beats her wings (扇翅膀) standing, seated, kneeling (her live upper body over the drawing\'s lower one) and lying (the drawn wing)', () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched();
+      const range = (sec, at) => { const xs = []; for (let i = 0; i < sec * 60; i++) { run(w.pet, 1 / 60); xs.push(at()); } return Math.max(...xs) - Math.min(...xs); };
+      const wing = () => w.seen.last.st.wingL.a;
+      run(w.pet, 1);
+      w.pet.setExpr('excited', 30); run(w.pet, 1);
+      const flutter = range(2, wing);
+      for (const mode of ['stand', 'sit']) {
+        w.pet.doWord(mode); run(w.pet, 2.5);
+        expect(w.pet.act('wingbeat'), mode).toBe(true);
+        run(w.pet, .3);
+        expect(range(1.5, wing), mode).toBeGreaterThan(Math.max(flutter * 1.5, WINGBEAT.amp * 1.5));
+        expect(w.o.mode, mode).toBe(mode === 'stand' ? 'idle' : 'sit');
+        run(w.pet, 1);
+      }
+      // kneeling: the kneeling drawing's wings cannot move, so the hybrid shows while they beat; she stays kneeling
+      w.pet.setExpr('neutral', .1);
+      w.pet.doWord('kneel'); run(w.pet, 3);
+      expect(w.motion.kneelArmsK).toBe(0);
+      w.pet.act('wingbeat'); run(w.pet, .5);
+      expect(w.motion.kneelArmsK).toBe(1);
+      expect(w.o.kneel).toBe(true);
+      expect(range(1, wing)).toBeGreaterThan(WINGBEAT.amp);
+      run(w.pet, 3);
+      expect(w.o.kneel).toBe(true);
+      // lying: the wing drawn into the lying drawing turns about its root; nothing far from it moves
+      w.pet.doWord('lie'); run(w.pet, 3);
+      // (a point of the wing off her shin, which stays: LIE_DRAWN.wing.keep)
+      const [wx, wy] = [90, 180];
+      expect(drawnTurn(LIE_DRAWN.wing, 10, 66, 180)).toEqual([0, 0]);
+      const drawn = (x, y) => { const f = w.seen.last.st.lieParts?.fn; return f ? f(0, 0, x, y) : [0, 0]; };
+      expect(drawn(wx, wy)).toEqual([0, 0]);
+      w.pet.act('wingbeat'); run(w.pet, .3);
+      expect(range(1.2, () => drawn(wx, wy)[1])).toBeGreaterThan(4);
+      expect(drawn(200, 150)).toEqual([0, 0]);
+      expect(w.seen.bad).toEqual([]);
+    } finally { rand.mockRestore(); }
+  });
+
+  it('takes 摇尾巴 and 扇翅膀 from the gesture when the kit has no slot for them (upstream\'s); a drawn part bends from its root', () => {
+    expect(appendagesOf({ gesture: { kind: 'wag', k: .3 } })).toEqual({ tail: { kind: 'wag', k: .3 } });
+    expect(appendagesOf({ gesture: { kind: 'wave', k: .3 } })).toEqual({});
+    const both = { tail: null, wings: { kind: 'wingbeat', k: .5 } };
+    expect(appendagesOf({ gesture: { kind: 'wave', k: .3 }, appendages: both })).toEqual(both);
+    const W = { ...LIE_DRAWN.wing, keep: undefined }, [rx, ry] = W.path[0], [tx, ty] = W.path.at(-1);
+    expect(drawnTurn(W, 10, rx, ry)).toEqual([0, 0]);
+    const d = drawnTurn(W, 10, tx, ty), len = Math.hypot(tx - rx, ty - ry);
+    expect(Math.hypot(...d)).toBeCloseTo(2 * len * Math.sin(5 * Math.PI / 180), 6);
+    expect(drawnTurn(W, 10, tx, ty - 40)).toEqual([0, 0]);
+    // the drawn wing sits on the lying drawing it was measured on
+    expect(R0.deformers.lieParts.rect).toEqual(LIE_DRAWN.box.map((v, i) => (i < 2 ? v : v + LIE_DRAWN.box[i - 2])));
   });
 });
 

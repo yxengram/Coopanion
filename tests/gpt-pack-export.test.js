@@ -84,6 +84,9 @@ describe('exported GPT-chan pack', () => {
       .toEqual(['低头', '眨眨眼', '凑近', '后仰', '晃来晃去', '跺脚'].sort());
     for (const t of ['dance', 'land']) expect(Object.keys(m.sounds)).not.toContain(t);
     expect(Object.keys(m.sounds)).toContain('peek');
+    // her tail's and wings' words (摇尾巴, 扇翅膀) go too: the wings' whoosh is upstream's own tone, so no sound file for it
+    expect(m.vocab.filter((w) => ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['摇尾巴', '扇翅膀']);
+    expect(Object.keys(m.sounds)).not.toContain('whoosh');
     // she draws arm gestures kneeling: her kneel says so (keepsArms), and her pack ships the drawing's lower body
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     expect(m.vocab.length).toBe(builtin.vocab.length);

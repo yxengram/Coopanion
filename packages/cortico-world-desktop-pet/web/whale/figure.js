@@ -246,6 +246,28 @@ export function partsOf(fc, name = 'neutral') {
  */
 export const HEAD_GESTURES = ['nod', 'shake', 'sigh', 'tilt', 'droop', 'blink'];
 /**
+ * The moves of her own parts a word asks for (the kit's APPENDAGE_MOVES): word → part; she has a tail. A plus kit hands
+ * them in the frame's `appendages`; a kit without it (upstream's, should it ever draw her) plays them as the gesture.
+ */
+export const APPENDAGE_WORDS = { wag: 'tail' };
+/** The frame's moves of her parts, by part ({ tail }: { kind, k } or null). */
+export function appendagesOf(o) {
+  const g = o.gesture, part = g && APPENDAGE_WORDS[g.kind];
+  return { ...(o.appendages || {}), ...(!o.appendages && part ? { [part]: g } : {}) };
+}
+/**
+ * How strongly a part's word holds it at k (0..1): all of it until its last seventh, then it hands back to the mood (the
+ * share is eased again over frames, APP_EASE, so a word starting or cut short never jumps).
+ */
+export const appHold = (A, kind) => (A?.kind === kind ? 1 - smooth(6 / 7, 1, A.k) : 0);
+export const APP_EASE = 10;
+/**
+ * 摇尾巴 (wag): her tail swings `swing` degrees each way (an excited face's wag is 13) at `rate` radians a second (excited:
+ * 9), standing or seated; lying the tail on the floor `lie` (excited: 7), from the back `back` (excited: 6). Kneeling
+ * the drawing's fluke stays.
+ */
+export const WAG = { swing: 26, rate: 12, lie: 15, back: 13 };
+/**
  * The frame's two gestures, each on its own clock: `head` (a nod, a shake, a sigh, a tilt) and `arm` (anything else). A kit
  * with a head channel hands the head's in `o.head`; one without it (upstream's) plays them as the gesture.
  */
@@ -1009,6 +1031,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // whether the last frame may be held as stone, whether it hid the standing rig (a frozen frame draws it again as it was),
   // and how grey she is
   let frozenOK = false, lastHidden = false, stoneK = 0;
+  let wagK = 0, wagPh = 0;  // (摇尾巴) the word's share of her tail, and its own clock
   let finMood = 0, tailMood = 0, wagAmp = 0, sitK = 0, danceK = 0, lieK = 0, lieB = { on: false, a: 0 }, poseShown = 0, kickPh = 0, chinK = 0, backA = 0, awayA = 0;
   const st = { z: {}, alpha: {} };
 
@@ -1163,6 +1186,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const [fm, wg, droop = 0] = MOOD[face] || MOOD.neutral;
     finMood = lerp(finMood, lerp(fm, -.6, Math.max(shiver, exh)), ease(6, dt));
     wagAmp = lerp(wagAmp, wg, ease(3, dt));
+    // (摇尾巴: the word takes her tail over from the mood's wag while it lasts, on a clock of its own)
+    wagK = lerp(wagK, appHold(appendagesOf(o).tail, 'wag'), ease(APP_EASE, dt));
+    if (wagK < 1e-3) wagK = 0;
+    wagPh = wagK ? wagPh + dt * WAG.rate : 0;
+    const wagW = wagK * Math.sin(wagPh);
     // the tail sinks slowly (over about a second) and comes back up briskly
     const droopT = mode === 'sleep' ? -1 : Math.min(droop, -exh);
     tailMood = lerp(tailMood, droopT, ease(droopT < tailMood ? 1.1 : 3, dt));
@@ -1180,8 +1208,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       + (face === 'excited' || face === 'coax' ? (face === 'coax' ? 2.5 : 5) * burst(.6) * Math.sin(t * 21 + 1.1) : 0) + flap * 11 * Math.sin(t * 22 + .9) + titter * 4 + beat + spoutOn * (12 + 5 * Math.sin(t * 22 + .9)) - spoutC * 7;
     const ahoge = sp.ahoge.step(-tiltVel * .12 - yawVel * .5 + sway * 18 - spoutP * 40 + (face === 'surprised' ? -16 : 0) + (face === 'confused' ? 20 : 0) + (mode === 'sleep' ? 22 : 0) - hairY * 12, dt)
       + flap * 12 * Math.sin(t * 19) - titter * 6;
-    const tail = sp.tail.step(sway * 14 + tailMood * 12 + spoutP * 18, dt) + wagAmp * 13 * Math.sin(t * (4 + 5 * wagAmp)) + Math.sin(t * 1.3) * 3
-      + flap * 14 * Math.sin(t * 17);
+    const tail = sp.tail.step(sway * 14 + tailMood * 12 + spoutP * 18, dt) + (wagAmp * 13 * Math.sin(t * (4 + 5 * wagAmp)) + Math.sin(t * 1.3) * 3) * (1 - wagK)
+      + WAG.swing * wagW + flap * 14 * Math.sin(t * 17);
 
     /* legs: the kit hands hip→foot segments sized for Coo; keep their angle (forward = foot to the right) */
     const legA = o.legs.map(l => -Math.atan2(l[2] - l[0], Math.max(4, l[3] - l[1])) * 180 / Math.PI);
@@ -1433,7 +1461,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const view = backView(o.facing, awayA), backK = canBack ? view.k : 0;
     backA = smooth(0, .5, backK);
     if (BACK) {
-      const a = (3 * Math.sin(t * 1.6) + wagAmp * 6 * Math.sin(t * (3 + 4 * wagAmp))) * Math.PI / 180;
+      const a = ((3 * Math.sin(t * 1.6) + wagAmp * 6 * Math.sin(t * (3 + 4 * wagAmp))) * (1 - wagK) + WAG.back * wagW) * Math.PI / 180;
       st.backTail = { fn: backTailField(BACK, a) };
       st.backFlip = { sx: view.flip ? -1 : 1 };
       for (const p of BACK.required) st.alpha[p.id] = tex[p.tex] ? backA : 0;
@@ -1537,7 +1565,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     kickPh += dt * (2.1 * mr + 3 * fid('kick'));
     st.lieLegs = { fn: kickField(LIE.legAxis, amp * Math.sin(kickPh) * rad, Math.min(KICK.apart, amp * .35) * Math.sin(kickPh + 1.6) * rad) };
     // the tail lies on the floor behind her: a slow sway, the mood's wag, a droop when low, a thump (- swings the fluke down)
-    const tw = 4 * Math.sin(t * 1.6) + wagAmp * 7 * Math.sin(t * (3 + 4 * wagAmp)) + flap * 10 * Math.sin(t * 17);
+    const tw = (4 * Math.sin(t * 1.6) + wagAmp * 7 * Math.sin(t * (3 + 4 * wagAmp))) * (1 - wagK) + WAG.lie * wagK * Math.sin(wagPh) + flap * 10 * Math.sin(t * 17);
     st.lieTail = { a: tw + tailMood * 5 - 14 * fid('thump') };
     st.lieTailBend = { fn: u => [0, -tw * .3 * (1 - u) * (1 - u)] };
 
@@ -1682,7 +1710,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
+      lastT = null; tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; wagK = 0; wagPh = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.map(sc => loadScheme(sc.id))),

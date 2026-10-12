@@ -214,9 +214,10 @@ export const DROOP = { pitch: .9, neckTy: 3.5, look: 4 };
 /**
  * The body's own moves the kit leaves to her: leaning in (degrees of forward lean, and how much nearer her upper body
  * comes: scale), leaning back (degrees, how much further off, and the chin up: angleY), a sway's rock of the whole body
- * and of the neck on top of it (degrees).
+ * and of the neck on top of it (degrees). Leaning back is that far (her upper body down to .86, the lean at
+ * pitchFromLean's 12° stop, the chin up 1) because at the default pet size anything less looked just like her at rest.
  */
-export const BODY_LEAN = { closer: 7, near: .1, back: 10, far: .07, chinUp: .6, swayBody: 3, swayNeck: 4 };
+export const BODY_LEAN = { closer: 7, near: .1, back: 12, far: .14, chinUp: 1, swayBody: 3, swayNeck: 4 };
 /** Lying, those moves of the head about the chin (degrees; a lean in also shifts it toward you, rig units). */
 export const LIE_MORE = { down: 9, closer: 6, back: 5, sway: 6 };
 /**

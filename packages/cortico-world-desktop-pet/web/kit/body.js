@@ -768,12 +768,14 @@ export function createPet(els, opts) {
       case 'wag': case 'earflick': case 'earsup': case 'earsdown': pulse(a, APPENDAGE_MOVES[a][1]); break;
       case 'wingbeat': pulse(a, APPENDAGE_MOVES[a][1]); play('whoosh', 'move'); break;
       // arm poses a figure with hands draws (its faces' poses as gestures of their own): chin on her hand, mulling it
-      // over, with a little "hm" and no face of its own (it goes with whatever face she shows); a fist raised to cheer
-      // you on; jotting in a notebook, eyes down on it; fingertips pressed together, bashful
+      // over, with a little "hm"; a fist raised to cheer you on; jotting in a notebook, eyes down on it; fingertips
+      // pressed together, bashful. The chin, the fist and the fingertips have no face of their own (each goes with
+      // whatever face she shows): the fist's and the fingertips' would be the very faces whose arms they are (excited's,
+      // shy's), so alone they would look just like those faces
       case 'muse': pulse('muse', 3); play('look', 'move'); break;
-      case 'fist': pulse('fist', 1.8); holdFace('excited', 1.9, 'arm'); play('pop', 'move'); break;
+      case 'fist': pulse('fist', 1.8); play('pop', 'move'); break;
       case 'jot': pulse('jot', 3.2); holdFace('reading', 3.3, 'arm'); play('page', 'move'); break;
-      case 'twiddle': pulse('twiddle', 2.6); holdFace('shy', 2.7, 'arm'); play('shy', 'face'); break;
+      case 'twiddle': pulse('twiddle', 2.6); play('shy', 'face'); break;
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9, 'arm'); play('spout', 'move'); break;
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines

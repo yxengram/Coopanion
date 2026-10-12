@@ -361,6 +361,11 @@ describe('Claude-chan: motion helpers', () => {
       for (const mode of ['idle', 'sit', 'walk']) expect(armPlan({ mode, gesture: { kind: w, k: .5 }, face: 'happy' }, all), `${w} ${mode}`).toEqual({ L: pose, R, fallback: null });
       expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .95 }, face: 'sad' }, all).L, w).not.toBe(pose);
     }
+    // under a face that poses her arms itself (angry's hands on hips, thinking's chin), the gesture's arms win: 生气+加油
+    // shows the fist, not the hips
+    for (const [w, pose] of [['fist', 'fist'], ['twiddle', 'shy'], ['muse', 'chin'], ['jot', 'write']]) {
+      for (const face of ['angry', 'thinking', 'excited', 'shy']) expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .5 }, face }, all).L, `${w} ${face}`).toBe(pose);
+    }
   });
   it('has a drawing (or the plain arms\' way) for every arm gesture, and draws only words the kit has', () => {
     const words = new Set(ALL_WORDS);
@@ -1312,6 +1317,9 @@ describe('Claude-chan: a head gesture beside the arms\' one, kneeling, and faces
         expect(w.o.mode, mode).toBe(mode === 'stand' ? 'idle' : 'sit');
         const back = over('leanback', 1.7, () => w.seen.last.st.waist.sx);
         expect(Math.min(...back), mode).toBeLessThan(1 - BODY_LEAN.far * .7);
+        // (far enough to read at the default pet size: measured at S .42 the head box moves about 4-5 px and shrinks to
+        // .86-.88, against about 1 px and .93-.96 before, which looked just like her at rest; a nod's peak is about 1 px)
+        expect(Math.min(...back), mode).toBeLessThan(.89);
         const rock = over('sway', 2.5, () => w.seen.last.st.body.a);
         expect(Math.max(...rock) - Math.min(...rock), mode).toBeGreaterThan(BODY_LEAN.swayBody * 1.5);
       }

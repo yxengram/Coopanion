@@ -440,7 +440,7 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
     // the table puts them with the arm words; the whale has her chin on her hand only, Coo none of them
     const arms = vocabTable(GIRL).split('\n手:\n')[1]!.split('\n手,')[0]!;
     for (const id of ['muse', 'fist', 'jot', 'twiddle']) expect(arms, id).toContain(`\n- ${id} `);
-    expect(row('fist', GIRL)).toBe('- fist 加油/握拳/打气/握拳加油:举起小拳头给你加油,另一只手还抱着书,眼睛亮晶晶的');
+    expect(row('fist', GIRL)).toBe('- fist 加油/握拳/打气/握拳加油:举起小拳头给你加油,另一只手还抱着书,配当时的表情');
     expect(row('muse', WHALE)).toBe('- muse 托腮/撑下巴/托下巴/琢磨:远侧的手托着腮琢磨,配当时的表情');
     expect(scriptIn('【开心+托腮】', WHALE).beats[0].actions).toEqual(['muse+happy']);
     expect(scriptIn('【加油】', WHALE).dropped).toEqual(['加油']);

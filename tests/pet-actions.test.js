@@ -111,13 +111,14 @@ describe('the words the model can use', () => {
       expect(ARM_GESTURES, w).toContain(w);
       expect(CHANNELS[w], w).toEqual(['arm']);
     }
-    // each gesture's own face: none for the chin (any face goes with it), and for the others the face whose arms the
-    // drawing is (excited's fist, shy's fingertips), or reading for the notebook (listening's would bring its arcs)
+    // each gesture's own face: none for the chin, the fist and the fingertips (any face goes with them; the faces whose
+    // arms they are, excited's and shy's, would make them look just like those faces alone), and reading for the
+    // notebook (listening's would bring its arcs)
     const own = (w) => { const pet = barePet(); run(pet, 1); pet.doWord(w); run(pet, .5); return [pet.pet.pulse?.kind, pet.pet.expr]; };
     expect(own('muse')).toEqual(['muse', null]);
-    expect(own('fist')).toEqual(['fist', 'excited']);
+    expect(own('fist')).toEqual(['fist', null]);
     expect(own('jot')).toEqual(['jot', 'reading']);
-    expect(own('twiddle')).toEqual(['twiddle', 'shy']);
+    expect(own('twiddle')).toEqual(['twiddle', null]);
   });
 
   it('the head\'s and body\'s moves (低头, 眨眨眼, 凑近, 后仰, 晃来晃去, 跺脚): the head\'s keep a kneel, the body\'s need her still, none has a face', () => {

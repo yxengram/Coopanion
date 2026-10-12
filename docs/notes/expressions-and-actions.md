@@ -569,13 +569,13 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
    - `land`：被任何表情打断（`721`）；
    - `look`：不再被表情打断。
 3. **手势分两个槽**：
-   - 头（nod、shake、sigh）一个，手 / 身一个，各自同时只有一个。
+   - 头（nod、shake、sigh、tilt、droop、blink）一个，手 / 身一个，各自同时只有一个；尾巴、耳朵、翅膀各另有一个（§一.11）。
    - 两个槽能同时播，比如点头 + 招手，或者唱歌时点头。
    - 都能跨过模式变化继续播放：`setMode` 只切掉 roll、song、away 和躺着时的小动作。
 4. **被盖住的表情暂停**：
    - 被拎、甩出或放下的空中、晕、起身、倾听、睡着时，主动要的表情暂停倒计时（`1183-1186`）。
    - 盖住不超过 5 s，之后完整显示；连续超过 5 s 就丢掉。
-5. **跪坐保持到手或全身动作**，表情和头部手势不结束它；大肥鱼和三位娘只占「手」的手势也不结束它。
+5. **跪坐保持到手或全身动作**，表情、头部手势和尾巴、耳朵、翅膀的动作不结束它；大肥鱼和三位娘只占「手」的手势也不结束它。
 6. **一组词同一帧做**：World 先按部位把一组拆好（§二.6），页面把整组交给 `doAll`，kit 在同一帧里做完（`doGroup`）。组里的表情至少持续到同组手势自带的脸结束（唱歌 4.1 s、看书 4.4 s、喝茶 3.7 s、跳舞 3.4 s）。
 
 ### 2. 词的分类与部位（共 102 个，数据来自 Coo 的 `figure.json`；部位见 `script.ts:84-104` 的 `CHANNELS`）
@@ -588,11 +588,12 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 | **G 手势（18）**：不改模式 | 手 | wave 招手、shiver 发抖、heart 比心、serve 奉茶、salute 敬礼、vsign 比耶、point 指、cover 捂嘴笑、cross 抱臂、stretch 伸懒腰、pray 拜托、scratch 挠头、idea 有了、hug 抱抱、hips 叉腰、spout 喷水（仅 Coo/大肥鱼）、sip 喝茶、read 看书；Coo 没有的：muse 托腮/琢磨（大肥鱼、三位娘）、fist 加油、jot 记笔记、twiddle 对手指（三位娘） |
 | **GB 要她停下来做的手势（7）** | 手 + 站位（提示词里归在「手,要站着或坐着不动」一组） | song 唱歌、spin 转圈、bow 鞠躬、flinch 后缩、peek 探头、away 背过身、cheer 欢呼（详见表下）；Coo 没有的：closer 凑近、leanback 后仰、sway 晃来晃去（大肥鱼、三位娘） |
 | **turn 转身** | 站位（提示词里写「身」） | 只翻身，不调 `pulse()`（`body.js:576`） |
-| **L 持续姿态（4）** | sit：身；kneel、lie：身 + 手（带 `keepsArms` 的 kneel：身 + 站位）；sleep：表情 + 头 + 手 + 身 | sit 坐下、kneel 跪坐、lie 趴下、sleep 睡觉 |
+| **L 持续姿态（4）** | sit：身；kneel、lie：身 + 手（带 `keepsArms` 的 kneel：身 + 站位）；sleep：表情 + 头 + 手 + 身（还有尾巴、耳朵、翅膀） | sit 坐下、kneel 跪坐、lie 趴下、sleep 睡觉 |
 | **M 模式动作（11）** | 身 + 站位；dizzy 另占表情；flap 另占手；roll 另占手和头；curtsy 是手 + 站位 + 身 | stand 站起、walk 走走、run 跑、look 张望、dizzy 晕、dance 跳舞；**busy 类**：jump 跳、hop 小跳、flap 扑腾、roll 翻滚；curtsy 屈膝礼（回到 idle，并起自己的手势）；跺脚 stamp 同 curtsy（Coo 没有） |
 
 GB 类在 kit 里的行为：
-- spin、bow、flinch、peek、away：没坐着时先回到 idle。
+- spin、bow、flinch、peek、away，还有 closer、leanback、sway：没坐着时先回到 idle（坐着、趴着就坐着、趴着做）。
+- stamp 和 curtsy 一样总是先 `setMode('idle')`：坐着、跪着、趴着、睡着都先站起来。
 - cheer：站着时进入 crouch/air。
 - song：只在站着或坐着、没在听时能做。
 
@@ -600,7 +601,7 @@ GB 类在 kit 里的行为：
 
 **部位表反映的是 kit 实际会拒绝或改变的东西**：
 - 唱歌要她站着或坐着不动，所以和走、跳舞、张望、跳、小跳冲突（站位）。
-- 屈膝礼会让她站起来（身）。
+- 屈膝礼、跺脚会让她站起来（身）。
 - 跪坐、趴下、睡觉时看不见手势（手）；而且手势会结束跪坐。大肥鱼和三位娘例外：跪着画得出手势，手势也不结束跪坐（`keepsArms`）。
 - 晕和睡觉时显示不了别的表情（表情）。
 
@@ -626,11 +627,12 @@ GB 类在 kit 里的行为：
 - sigh → sighing（头）
 - sip → sipping
 - read → reading
+- fist → excited；jot → reading；twiddle → shy（三位娘这三张手臂图本来就是这几张脸的；主动要的表情在时让路）
 - hips → determined；cross → pout。不再是特例：和其他动作一样，主动要的表情在时它们让路。
 
 其中 singing、sighing、reading、sipping、stretching、saluting、pointing、peeking、bowing、pleading 是 `BODY_OWN`（`body.js:258`）：这些脸本身带着手势的身体语言，叠加规则见 §一.7 和 §二.4。
 
-**不带表情的动作**：stand、walk、run、jump、hop、look、turn、nod、shake、spin、sit、sleep、dizzy、shiver、kneel、lie。做完后脸回到模式默认（content、run 或 neutral）。
+**不带表情的动作**：stand、walk、run、jump、hop、look、turn、nod、shake、spin、sit、sleep、dizzy、shiver、kneel、lie，以及 tilt、muse、droop、blink、closer、leanback、sway、stamp、wag、earflick、earsup、earsdown、wingbeat（配当时的表情）。做完后脸回到模式默认（content、run 或 neutral）。
 
 ### 3. 表情 × 表情
 

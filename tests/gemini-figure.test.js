@@ -1456,7 +1456,7 @@ describe('Gemini-chan: a head gesture beside the arms\' one, kneeling, and faces
     } finally { rand.mockRestore(); }
   });
 
-  it('leans in toward you (凑近), back (后仰) and sways (摇摆) standing or seated, and stamps (跺脚) with a shoe', () => {
+  it('leans in toward you (凑近), back (后仰) and sways (晃来晃去) standing or seated, and stamps (跺脚) with a shoe', () => {
     const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
     try {
       const w = watched();

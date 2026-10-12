@@ -279,7 +279,7 @@ export const HEAD_MORE = { droop: 1.8, blink: .75 };
 export const BLINKS = [0, 1 / 3, 2 / 3];
 /**
  * (plus) Moves of the body standing or seated still, seconds each: `closer` (凑近) leans in toward you and back, `leanback`
- * (后仰) leans back and back again, `sway` (摇摆) rocks from side to side three times, `stamp` (跺脚) stamps one foot twice
+ * (后仰) leans back and back again, `sway` (晃来晃去) rocks from side to side three times, `stamp` (跺脚) stamps one foot twice
  * (standing: she gets up for it). A figure listing one in `gestures` draws it itself (the kit still lifts a stamping
  * foot: STAMP).
  */
@@ -1458,8 +1458,9 @@ export function createPet(els, opts) {
     const kick = 10 * kAmp * Math.sin(pet.kickPh) * proneK();
     // curled up for a roll, the feet tuck in under the ring (a figure that turns over whole; another reads the legs for its own)
     const rk = custom?.roll === 'spin' && ours('roll') ? envelope((T - pet.pulse.t0) / pet.pulse.dur, .15, .85) : 0;
-    // a stamp lifts the foot ahead and brings it down hard, twice: a thud, dust and a jolt each time (any figure: its feet are the kit's)
-    const sk = ours('stamp') && m === 'idle' ? (T - pet.pulse.t0) / pet.pulse.dur : -1, sf = pet.facing > 0 ? 1 : 0;
+    // a stamp lifts the foot ahead and brings it down hard, twice: a thud, dust and a jolt each time (any figure: its feet are the kit's).
+    // The foot ahead is the second in logo units whichever way she faces (the drawing is mirrored to face left)
+    const sk = ours('stamp') && m === 'idle' ? (T - pet.pulse.t0) / pet.pulse.dur : -1, sf = 1;
     if (sk >= 0 && (pet.pulse.n || 0) < STAMP.at.length && sk >= STAMP.at[pet.pulse.n || 0]) {
       pet.pulse.n = (pet.pulse.n || 0) + 1;
       play('land', 'move', false); dustAt(HIPS[sf][0] + 4, 3, 40); pet.sqv += 1.6;

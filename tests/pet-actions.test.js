@@ -84,7 +84,7 @@ function countingCtx() {
 
 /** The arm words that are a figure's face poses as gestures of their own (托腮, 加油, 记笔记, 对手指). */
 const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
-/** The head's and the body's own moves: 低头, 眨眨眼 (the head's channel); 凑近, 后仰, 摇摆, 跺脚 (standing or seated still). */
+/** The head's and the body's own moves: 低头, 眨眨眼 (the head's channel); 凑近, 后仰, 晃来晃去, 跺脚 (standing or seated still). */
 const MORE_WORDS = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
 /** The moves of a figure's own tail, ears and wings (摇尾巴; 抖耳朵, 竖耳朵, 耳朵耷拉; 扇翅膀), by part. */
 const PART_WORDS = { tail: ['wag'], ears: ['earflick', 'earsup', 'earsdown'], wings: ['wingbeat'] };
@@ -120,7 +120,7 @@ describe('the words the model can use', () => {
     expect(own('twiddle')).toEqual(['twiddle', 'shy']);
   });
 
-  it('the head\'s and body\'s moves (低头, 眨眨眼, 凑近, 后仰, 摇摆, 跺脚): the head\'s keep a kneel, the body\'s need her still, none has a face', () => {
+  it('the head\'s and body\'s moves (低头, 眨眨眼, 凑近, 后仰, 晃来晃去, 跺脚): the head\'s keep a kneel, the body\'s need her still, none has a face', () => {
     expect(MORE_WORDS).toEqual(['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp']);
     for (const w of MORE_WORDS) expect(PLUS_MOTIONS, w).toContain(w);
     for (const w of ['droop', 'blink']) { expect(HEAD_GESTURES.has(w), w).toBe(true); expect(CHANNELS[w], w).toEqual(['head']); }
@@ -163,11 +163,21 @@ describe('the words the model can use', () => {
     pet.heard.length = 0;
     expect(pet.act('stamp')).toBe(true);
     expect(pet.pet.mode).toBe('idle');
-    const front = pet.pet.facing > 0 ? 1 : 0, rest = pet.pet.feet[front][1];
-    let top = rest;
-    for (let i = 0; i < BODY_MORE.stamp * 60 + 6; i++) { run(pet, 1 / 60); top = Math.min(top, pet.pet.feet[front][1]); }
-    expect(rest - top).toBeGreaterThan(STAMP.lift * .6);
-    expect(pet.heard.filter(([n]) => n === 'land')).toEqual([['land', 'move'], ['land', 'move']]);
+    run(pet, 2);
+    // (the foot ahead is the second in logo units whichever way she faces: the drawing is mirrored to face left; the
+    // other stays down)
+    for (const facing of [1, -1]) {
+      pet.act('stand'); run(pet, 1.5);
+      pet.pet.facing = pet.pet.faceVis = facing;
+      run(pet, .5);
+      pet.heard.length = 0;
+      expect(pet.act('stamp'), `${facing}`).toBe(true);
+      const rest = pet.pet.feet.map((f) => f[1]), top = [...rest];
+      for (let i = 0; i < BODY_MORE.stamp * 60 + 6; i++) { run(pet, 1 / 60); pet.pet.feet.forEach((f, j) => { top[j] = Math.min(top[j], f[1]); }); }
+      expect(rest[1] - top[1], `${facing}`).toBeGreaterThan(STAMP.lift * .6);
+      expect(rest[0] - top[0], `${facing}`).toBeLessThan(2);
+      expect(pet.heard.filter(([n]) => n === 'land'), `${facing}`).toEqual([['land', 'move'], ['land', 'move']]);
+    }
     expect(stampLift(STAMP.at[0] - STAMP.rise * .25)).toBeCloseTo(STAMP.lift, 6);
     expect(stampLift(STAMP.at[0])).toBe(0);
     expect(stampLift(0)).toBe(0);

@@ -324,6 +324,12 @@ export function drawnEye(eyesFace, e, has) {
   // (the kit eases eye fields from face to face: past halfway back from shy's dx -6 she is looking at you)
   return eyesFace === 'shy' && !((e.dx || 0) < -2) ? null : eyesFace;
 }
+/**
+ * How far shut (a blink, or the kit closing her eyes) a drawn eye (drawnEye) may be: past it the painted eye takes over,
+ * its lid lowered by as much, so the closed frames show the lid and its lash line; squashed further, the drawn eye would
+ * be a thin sliver of colour with no lid.
+ */
+export const DRAWN_SHUT = .4;
 
 /** Faces that smile with an open mouth (the lying and kneeling drawings' smile patches show for them). */
 export const SMILING = ['happy', 'love', 'excited', 'wink', 'giggle', 'coax', 'moved', 'tongue', 'dragged'];
@@ -832,8 +838,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       const k = EYES[i], side = k === 'eyeL' ? 1 : -1;  // the near eye's inner corner is to its right
       const squash = { sy: 1 - .85 * (o.eyeClose || 0) };
       if ((P.eyes === 'surprised' || fc.wide) && e.shape === 'ring') { sprite(`surprised_${k}`, squash); return; }
-      // a face's own drawn eyes (smug, angry, sad, shy): a blink squashes them about their middle, as the girls' do
-      const own = drawnEye(P.eyes, e, hasEyes);
+      // a face's own drawn eyes (smug, angry, sad, shy): the start and end of a blink squash them about their middle;
+      // more than DRAWN_SHUT shut it cuts to the painted eye closing (one frame), whose lid comes down with its lash line
+      const own = shut > DRAWN_SHUT ? null : drawnEye(P.eyes, e, hasEyes);
       if (own) { sprite(`${own}_${k}`, { sy: 1 - .9 * shut }); return; }
       switch (e.shape) {
         case 'ring': case 'lid': {

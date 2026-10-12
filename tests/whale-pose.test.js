@@ -1199,6 +1199,39 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     } finally { done(); }
   });
 
+  it("blinks smug's, angry's, sad's and shy's drawn eyes shut with the painted lid and its lash line, not a squashed sliver", async () => {
+    // a 2D context that notes the images drawn into it (each loaded image keeps its file name)
+    const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
+    const drawn = [];
+    const ctx = new Proxy({}, { get: (_, k) => (k === 'drawImage' ? im => drawn.push(im?.src) : k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : any), set: () => true });
+    const canvas = new Proxy({}, { get: (_, k) => (k === 'getContext' ? () => ctx : any), set: () => true });
+    const doc = globalThis.document;
+    globalThis.document = { createElement: () => canvas, createElementNS: () => any };
+    try {
+      const fig = await createWhaleFigure(WHALE, { model, loadImage: async url => ({ width: 1, height: 1, src: String(url).split('/').pop() }) });
+      const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
+      const paint = (fc, o) => { drawn.length = 0; fig.draw(petG, fc, o); return drawn.filter(n => /eye[LR]/.test(n)); };
+      const t = .5, p = { exprAt: 0, exprUntil: 9, modeT: 1 };
+      for (const f of DRAWN_EYES) {
+        const fc = (PLUS_FACES[f] ?? FACES[f]).f(t, p);
+        // standing, sitting, and turned (looking off to one side): the same eyes
+        for (const x of [{}, { mode: 'sit', sit: 1 }, { look: [5, -2] }]) {
+          const at = (o) => paint(fc, frame({ face: f, t, ...x, ...o })), n = `${f} ${JSON.stringify(x)}`;
+          // open, and the start and end of a blink: her own drawn eyes (squashed a little)
+          for (const blink of [0, .3]) {
+            expect(at({ blink }), `${n} blink ${blink}`).toEqual([`${f}_eyeL.png`, `${f}_eyeR.png`]);
+          }
+          // most of the way shut and shut: the painted eye, its lid down and the lash line along it
+          for (const shut of [{ blink: .6 }, { blink: 1 }, { eyeClose: 1 }]) {
+            const eyes = at(shut);
+            expect(eyes, `${n} ${JSON.stringify(shut)}`).toEqual(expect.arrayContaining(['eyeL_ball.png', 'eyeL_lash.png', 'eyeR_ball.png', 'eyeR_lash.png']));
+            expect(eyes.filter(s => s.startsWith(`${f}_`)), `${n} ${JSON.stringify(shut)}`).toEqual([]);
+          }
+        }
+      }
+    } finally { globalThis.document = doc; }
+  });
+
   it('sings under an asked-for face with the song\'s chin up, and reads with her eyes on the book', async () => {
     const { pet, run, frame: last, done } = await whaleOnKit();
     try {
@@ -1452,6 +1485,30 @@ describe('live faces on the kneeling and lying drawings, as the whale draws them
         expect(x.alpha.kneel_live ?? 0).toBe(x.kneel);
       }
       expect(s.last().up).toContain('faceFx');
+    } finally { s.done(); }
+  });
+
+  it('kneeling and lying, a drawn eye blinks shut with the painted lid and its lash line on the drawing\'s head', async () => {
+    const s = await onKit();
+    try {
+      s.run(.5);
+      for (const [pose, face] of [['kneel', 'angry'], ['kneel', 'shy'], ['lie', 'sad'], ['lie', 'smug']]) {
+        s.pet.doWord(pose); s.run(3);
+        s.pet.setExpr(face, 30); s.run(.3);
+        const drawnOn = () => s.last()[`${pose}Drawn`].filter(n => /eye[LR]/.test(n)), P = s.pet.pet;
+        // (no blink of her own meanwhile; one started by hand: .16 s, a sine)
+        P.blinkT = 99; P.blinkAge = 9; s.run(1 / 60);
+        expect(drawnOn(), `${pose} ${face} open`).toEqual([`${face}_eyeL.png`, `${face}_eyeR.png`]);
+        P.blinkAge = 0; s.run(1 / 60);       // blink .32
+        expect(drawnOn(), `${pose} ${face} blinking`).toEqual([`${face}_eyeL.png`, `${face}_eyeR.png`]);
+        P.blinkAge = .07; s.run(1 / 60);     // blink about 1
+        const shut = drawnOn();
+        expect(s.last().o.blink, `${pose} ${face}`).toBeGreaterThan(.9);
+        // (the painted eye's ball and iris are cut in a canvas of their own, drawn in with the lashes over it)
+        expect(shut, `${pose} ${face} shut`).toEqual(expect.arrayContaining(['eyeL_lash.png', 'eyeR_lash.png']));
+        expect(shut.filter(n => n.startsWith(`${face}_`)), `${pose} ${face} shut`).toEqual([]);
+        P.blinkAge = 9; s.pet.setExpr('neutral', .1); s.pet.doWord('stand'); s.run(4);
+      }
     } finally { s.done(); }
   });
 

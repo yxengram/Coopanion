@@ -2,7 +2,9 @@
  * The standing face of a girl as her face.js paints it, call for call, for the frozen fixtures
  * tests/fixtures/face-paint-<figure>.json: they were written with this driver from each girl's face.js and model.json at
  * commit 298977d, before the live faces on the floor drawings, so painting with no `place` is checked to be the same
- * (tests/helpers/floor-face.js; the fixtures: scratch/combo3/live/tools/painter_fixture.mjs).
+ * (tests/helpers/floor-face.js; the fixtures: scratch/combo3/live/tools/painter_fixture.mjs). Gemini-chan's was re-written
+ * with that commit's face.js and the model.json of her re-cut eyes and mouths (`--art=gemini-chan`): the code is pinned,
+ * her art is the current one.
  */
 import { createHash } from 'node:crypto';
 import { FACES, PLUS_FACES } from '../../packages/cortico-world-desktop-pet/web/kit/body.js';

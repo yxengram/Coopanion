@@ -36,19 +36,26 @@ function hearingPet(opts = {}) {
   return pet;
 }
 const run = (pet, seconds) => { for (let i = 0; i < seconds * 60; i++) { pet.step(1 / 60); pet.render(); } };
-/** Upstream's kit at v0.1.17 (body.js and rig.js from the tag), or null in a checkout without the tag. */
+/**
+ * Upstream's kit at v0.1.17 (body.js and rig.js from the tag), or null in a local checkout without the tag; on CI
+ * (which fetches the tag) a missing tag fails, so the comparisons cannot skip unnoticed. The copy goes inside the
+ * project (node_modules/.cache), where vitest loads it like any other module, on Windows too.
+ */
 async function upstreamKit() {
   const { execFileSync } = await import('node:child_process');
-  const { mkdtempSync, writeFileSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
+  const { mkdirSync, writeFileSync } = await import('node:fs');
   const { join } = await import('node:path');
-  const { pathToFileURL } = await import('node:url');
-  const dir = mkdtempSync(join(tmpdir(), 'upstream-kit-'));
+  const { fileURLToPath, pathToFileURL } = await import('node:url');
+  const dir = fileURLToPath(new URL('../node_modules/.cache/upstream-kit-v0.1.17/', import.meta.url));
+  mkdirSync(dir, { recursive: true });
   try {
     for (const f of ['body.js', 'rig.js']) {
       writeFileSync(join(dir, f), execFileSync('git', ['show', `v0.1.17:packages/cortico-world-desktop-pet/web/kit/${f}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
     }
-  } catch { return null; } // a shallow checkout may lack the tag
+  } catch (e) {
+    if (process.env.CI) throw new Error(`v0.1.17 tag missing on CI (the workflow fetches it): ${e}`);
+    return null;
+  }
   writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
   return import(pathToFileURL(join(dir, 'body.js')).href);
 }

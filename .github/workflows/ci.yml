@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      # tests/pet-actions.test.js compares the kit's non-plus frames with upstream's v0.1.17 kit read from the tag
+      - run: git fetch --depth=1 origin tag v0.1.17
       - run: corepack enable
       - uses: actions/setup-node@v4
         with:

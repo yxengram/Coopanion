@@ -635,6 +635,54 @@
     747,
     791,
     795
+   ],
+   "smug_eyeL": [
+    525,
+    607,
+    736,
+    721
+   ],
+   "smug_eyeR": [
+    795,
+    626,
+    897,
+    717
+   ],
+   "angry_eyeL": [
+    524,
+    588,
+    730,
+    743
+   ],
+   "angry_eyeR": [
+    811,
+    609,
+    896,
+    737
+   ],
+   "sad_eyeL": [
+    525,
+    591,
+    712,
+    770
+   ],
+   "sad_eyeR": [
+    804,
+    606,
+    895,
+    757
+   ],
+   "shy_eyeL": [
+    525,
+    599,
+    716,
+    751
+   ],
+   "shy_eyeR": [
+    801,
+    616,
+    896,
+    751
    ]
   },
   "blush": [
@@ -905,7 +953,78 @@
     "s": 0.9
    },
    "k": 0.156,
-   "source": "gpt-image-2.5 edit of the standing rig render: lie_gpt 2; eyes closed by a masked edit, lie2_shut 1"
+   "source": "gpt-image-2.5 edit of the standing rig render: lie_gpt 2; eyes closed by a masked edit, lie2_shut 1",
+   "face": {
+    "box": [
+     135.27,
+     174.15,
+     89.57,
+     61.0
+    ],
+    "place": {
+     "eyeL": [
+      0.78695,
+      -0.14842,
+      0.15091,
+      0.80011,
+      80.67,
+      82.89
+     ],
+     "eyeR": [
+      1.04694,
+      -0.19746,
+      0.16691,
+      0.88498,
+      10.51,
+      87.53
+     ],
+     "mouth": [
+      0.81543,
+      -0.15379,
+      0.1528,
+      0.81014,
+      77.3,
+      82.14
+     ]
+    },
+    "parts": [
+     {
+      "id": "lie_blank",
+      "tex": "lie_blank",
+      "z": 21.002,
+      "parent": "lieLegs",
+      "grid": [
+       12,
+       8
+      ],
+      "box": [
+       159.13,
+       179.54,
+       57.66,
+       45.28
+      ],
+      "use": "face"
+     },
+     {
+      "id": "lie_fringe",
+      "tex": "lie_fringe",
+      "z": 21.006,
+      "parent": "lieLegs",
+      "grid": [
+       12,
+       8
+      ],
+      "box": [
+       135.05,
+       173.84,
+       89.97,
+       61.42
+      ],
+      "use": "face"
+     }
+    ],
+    "z": 21.004
+   }
   },
   "wave": {
    "required": [
@@ -1896,7 +2015,78 @@
     202.0,
     167.5
    ],
-   "source": "gpt-image-2.5 edit of the standing rig render into kneeling seiza: kneel_gpt 1"
+   "source": "gpt-image-2.5 edit of the standing rig render into kneeling seiza: kneel_gpt 1",
+   "face": {
+    "box": [
+     101.63,
+     115.35,
+     79.0,
+     53.1
+    ],
+    "place": {
+     "eyeL": [
+      0.86794,
+      0.00869,
+      -0.00983,
+      0.98249,
+      66.75,
+      10.55
+     ],
+     "eyeR": [
+      0.99885,
+      0.01,
+      -0.01008,
+      1.00755,
+      13.05,
+      11.15
+     ],
+     "mouth": [
+      0.85328,
+      0.00854,
+      -0.01002,
+      1.00104,
+      62.04,
+      11.34
+     ]
+    },
+    "parts": [
+     {
+      "id": "kneel_blank",
+      "tex": "kneel_blank",
+      "z": 21.302,
+      "parent": "kneelHead",
+      "grid": [
+       4,
+       4
+      ],
+      "box": [
+       110.76,
+       116.42,
+       64.57,
+       47.85
+      ],
+      "use": "face"
+     },
+     {
+      "id": "kneel_fringe",
+      "tex": "kneel_fringe",
+      "z": 21.306,
+      "parent": "kneelHead",
+      "grid": [
+       4,
+       4
+      ],
+      "box": [
+       101.58,
+       115.16,
+       79.13,
+       53.55
+      ],
+      "use": "face"
+     }
+    ],
+    "z": 21.304
+   }
   },
   "kneelLow": {
    "required": [

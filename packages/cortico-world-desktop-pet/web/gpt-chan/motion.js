@@ -126,6 +126,12 @@ export function backView(facing, awayA) {
   const turn = 1 - smooth(.3, .6, Math.abs(facing ?? 1));
   return { k: Math.max(turn, awayA), flip: turn > awayA };
 }
+/**
+ * The mesh of a floor drawing's live face part `<pid>_live` (its blank and fringe parts carry theirs in model.json, from
+ * build_floorface.py: lying the same [12, 8]): lying, the head turns through lieHead's falloff, which runs across the face, so the
+ * face's meshes sample it about as finely as lie_body's, or they slide against the drawing's own hair as she nods.
+ */
+export const FLOOR_GRID = { kneel: [6, 6], lie: [12, 8] };
 /** The lying drawing's deformers (poses.lie), from the floor up; `inner` is the innermost, where its parts hang. */
 export function lieDeformers(LIE) {
   const r = LIE.rects || {}, pv = LIE.pivots || {};
@@ -553,10 +559,23 @@ export function buildRig(model) {
     return q;
   });
   const W = {};
+  /**
+   * (a floor drawing with a live face, poses.<id>.face) its blank-face and fringe parts, and between them the live face
+   * texture `<id>Fx` (painted each frame like the standing one, its features placed by face.place): `F.face`
+   */
+  function liveFace(F, inner, id) {
+    const f = F.pose.face;
+    if (!f?.place || !f.box) return;
+    const own = p => ({ ...p, parent: deformers[p.parent] ? p.parent : inner, alpha: 0 });
+    const ps = (f.parts || []).map(own), live = own({ id: `${id}_live`, tex: `${id}Fx`, z: f.z ?? 21.5, parent: inner, grid: FLOOR_GRID[id] || [6, 6], box: f.box });
+    parts.push(...ps, live);
+    F.face = { ...f, id, parts: ps, live };
+  }
   if (P.lie?.required?.length) {
     const L = lieDeformers(P.lie);
     Object.assign(deformers, L.deformers);
     W.lie = { pose: P.lie, parts: floorParts(P.lie, L.inner, Object.keys(L.deformers)) };
+    liveFace(W.lie, L.inner, 'lie');
   }
   if (P.back?.required?.length) {
     deformers.backFlip = { kind: 'rot', parent: 'body', pivot: [128, 256] };
@@ -573,6 +592,7 @@ export function buildRig(model) {
     if (P.kneel.head) deformers.kneelHead = { kind: 'warp', parent: 'kneel', rect: P.kneel.head };
     const inner = P.kneel.head ? 'kneelHead' : 'kneel';
     W.kneel = { pose: P.kneel, parts: floorParts(P.kneel, inner, [inner]) };
+    liveFace(W.kneel, inner, 'kneel');
   }
   // (kneel) the kneeling drawing's lower body, for her arms posed while she kneels (the hybrid: the live upper body over
   // it, sunk by poses.kneel.headDrop): on the floor like the drawing, on its box, turned and squashed with the body
@@ -704,7 +724,12 @@ export function createMotion(model, R) {
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
   const posable = (caps, id) => !!ARM[id] && caps.pose(id);
 
+  /** (a floor drawing's live face shows once its blank and fringe files are there; else its drawn patches do) */
+  let capsNow = null;
+  const liveOn = F => !!F?.face && !!capsNow && F.face.parts.every(p => capsNow.tex(p.tex));
   function step(fc, o, dt, caps) {
+    capsNow = caps;
+    let floorFace = null;
     // `face` is the face's body language (the arms, the head's tilt and pitch, the moods); a face made of others takes
     // its brows and mouth from their own faces (partsOf)
     const t = o.t || 0, mode = o.mode || 'idle', FP = partsOf(fc, o.face || 'neutral'), face = FP.body;
@@ -1076,16 +1101,23 @@ export function createMotion(model, R) {
       const a = kneelA = kneelOK ? bodyA.kneel : 0, shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, FP.mouth, mode);
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
       if (deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(deformers.kneelHead.rect, { nod, shake, inh, exh }) };
+      // (with a live face the drawn eyes-shut, smile and talk patches stay off)
+      const live = liveOn(KNEEL);
       for (const p of KNEEL.parts) {
-        const use = p.use ? (p.use === 'shut' ? shut : m[p.use] || 0) : 1;
+        const use = p.use ? (live ? 0 : p.use === 'shut' ? shut : m[p.use] || 0) : 1;
         st.alpha[p.id] = caps.tex(p.tex) ? a * use : 0;
       }
+      // (the floor face follows the drawing's own alpha, so it cuts with it: in the one-frame hand-over from the hybrid
+      // the standing face under it and this one are the same face)
+      if (KNEEL.face) for (const p of [...KNEEL.face.parts, KNEEL.face.live]) st.alpha[p.id] = live ? a : 0;
+      if (live && a > 0) floorFace = 'kneel';
     }
     // an opaque drawing over her (lying, her back, the ball, kneeling) hides the standing and the seated body alike
     const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
     if (LOW) kneeledLow(st, caps, hideFront ? 0 : bodyA.kneelArms);
     if (SIT) seated(st, o, fc, face, mode, dt, caps, hideFront ? 0 : bodyA.sit, plan);
-    return { st, hideFront, look, turn, steam, steamAt, puffK, poseShown: poseA, plan };
+    if (LIE?.face && liveOn(LIE) && poseA > 0 && !floorFace) floorFace = 'lie';
+    return { st, hideFront, look, turn, steam, steamAt, puffK, poseShown: poseA, plan, floorFace };
   }
 
   /* ---------- (kneel) the kneeling hybrid's lower body ---------- */
@@ -1150,7 +1182,9 @@ export function createMotion(model, R) {
       st.lieLegs = { fn: kickField(L.legAxis, amp * Math.sin(kickPh) * rad, Math.min(KICK.apart, amp * .35) * Math.sin(kickPh + 1.6) * rad) };
     }
     const shut = eyesShut(o, fc.eyes, mode), mouth = lyingMouth(o, partsOf(fc, o.face).mouth, mode);
-    for (const p of LIE.parts) st.alpha[p.id] = !caps.tex(p.tex) ? 0 : !p.use ? poseA : p.use === 'shut' ? poseA * shut : poseA * (mouth[p.use] || 0);
+    const live = liveOn(LIE);
+    for (const p of LIE.parts) st.alpha[p.id] = !caps.tex(p.tex) ? 0 : !p.use ? poseA : live ? 0 : p.use === 'shut' ? poseA * shut : poseA * (mouth[p.use] || 0);
+    if (LIE.face) for (const p of [...LIE.face.parts, LIE.face.live]) st.alpha[p.id] = live ? poseA : 0;
   }
 
   function reset() {

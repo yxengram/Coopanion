@@ -273,6 +273,31 @@ export function kneelHeadField(rect, { nod = 0, shake = 0, inh = 0, exh = 0 }) {
   };
 }
 
+/**
+ * The mesh of a floor drawing's live face part `<pid>_live` (its blank and fringe parts carry theirs in model.json, from
+ * build_floorface.py: lying the same [12, 8]): lying, the head turns through lieHead's falloff, which runs across the face, so the
+ * face's meshes sample it about as finely as lie_body's, or they slide against the drawing's own hair as she nods.
+ */
+export const FLOOR_GRID = { kneel: [6, 6], lie: [12, 8] };
+
+/**
+ * Faces whose own drawn eyes (feat `<face>_eyeL` / `_eyeR`) stand in for the painted open eye, as the girls' FACE_EYES
+ * do: smug's half-lids (its `lid` eyes as well), angry's and sad's slanted lids, shy's averted glance.
+ */
+export const DRAWN_EYES = ['smug', 'angry', 'sad', 'shy'];
+/**
+ * The drawn eye standing in for eye `e` of a face whose eyes are `eyesFace`'s (partsOf(...).eyes), or null for the
+ * painted one: an open (ring) eye, or smug's half-shut lid; not shy's peek back at you (its eyes without the averting
+ * dx, the kit's dx -3 or the plus face's -6), which is the painted eye looking at you. `has(face)` says the model has that face's eyes.
+ */
+export function drawnEye(eyesFace, e, has) {
+  if (!DRAWN_EYES.includes(eyesFace) || !has(eyesFace)) return null;
+  if (e.shape === 'lid') return eyesFace === 'smug' ? eyesFace : null;
+  if (e.shape !== 'ring') return null;
+  // (the kit eases eye fields from face to face: past halfway back from shy's dx -6 she is looking at you)
+  return eyesFace === 'shy' && !((e.dx || 0) < -2) ? null : eyesFace;
+}
+
 /** Faces that smile with an open mouth (the lying and kneeling drawings' smile patches show for them). */
 export const SMILING = ['happy', 'love', 'excited', 'wink', 'giggle', 'coax', 'moved', 'tongue', 'dragged'];
 /**
@@ -397,7 +422,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   const KNEEL_PARTS = KNEEL ? [...KNEEL.required, ...(KNEEL.overlays || [])] : [];
   // kneeling with her arms posed: the kneeling drawing's lower body under her live upper body (model.poses.kneelLow)
   const KLOW = KNEEL && model.poses?.kneelLow?.required?.length ? model.poses.kneelLow : null;
-  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...PROP_PARTS, ...RAISE_PARTS, ...(BACK ? BACK.required : []), ...(ROLL ? ROLL.required : []), ...KNEEL_PARTS, ...(KLOW ? KLOW.required : [])];
+  const POSE_PARTS = [...LIE_PARTS, ...(WAVE ? WAVE.required : []), ...(CHIN ? CHIN.required : []), ...CHEER_PARTS, ...(HEART ? HEART.required : []), ...PROP_PARTS, ...RAISE_PARTS, ...(BACK ? BACK.required : []), ...(ROLL ? ROLL.required : []), ...KNEEL_PARTS, ...(KLOW ? KLOW.required : []),
+    // (a floor drawing's live face: its blank-face and fringe files, poses.<id>.face.parts)
+    ...[LIE, KNEEL].flatMap(P => P?.face?.parts || [])];
   // the scheme's accent colours the listening arcs, thought bubbles and sleep z's
   const accent = () => schemeInfo(scheme).accent || '#4d6bfe';
   const loaded = {}, ready = {};
@@ -547,6 +574,23 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const p of KNEEL_PARTS) parts.push({ ...p, parent: KNEEL.head ? 'kneelHead' : p.parent, alpha: 0 });
   }
   const kneelOK = () => !!(cur.kneel && (!fade || fade.set.kneel));
+  /**
+   * (a floor drawing with a live face, poses.<id>.face) its blank-face and fringe parts over the drawing and, between
+   * them, the live face texture `<id>Fx`: the standing face painted through face.place, one texel per master px
+   */
+  const FLOOR = {};
+  for (const [id, P, inner] of [['lie', LIE, 'lieLegs'], ['kneel', KNEEL, KNEEL?.head ? 'kneelHead' : 'kneel']]) {
+    const f = P?.face;
+    if (!f?.place || !deformers[inner]) continue;
+    const ps = f.parts.map(p => ({ ...p, parent: deformers[p.parent] ? p.parent : inner, alpha: 0 }));
+    const live = { id: `${id}_live`, tex: `${id}Fx`, z: f.z, parent: inner, grid: FLOOR_GRID[id], box: f.box, alpha: 0 };
+    parts.push(...ps, live);
+    const cv = [0, 1].map(() => { const c = document.createElement('canvas'); c.width = Math.round(f.box[2] / S); c.height = Math.round(f.box[3] / S); return c; });
+    FLOOR[id] = { parts: ps, live, place: f.place, cv, g: cv.map(c => c.getContext('2d')) };
+  }
+  /** Whether a floor drawing's live face can show (its files are there, in the outgoing and incoming dress alike). */
+  const liveOn = id => !!FLOOR[id] && FLOOR[id].parts.every(p => tex[p.tex] && (!fade || fade.set.tex[p.tex]));
+  let floorFace = null;  // the floor drawing whose live face shows this frame
   // (kneel) the hybrid's lower body stands on the floor on its own deformer, turned and squashed with the body
   if (KLOW) {
     deformers.kneelLow = { kind: 'rot', pivot: KLOW.pivots?.kneelLow || [128, 256] };
@@ -635,6 +679,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // higher than the master's: these move them down (master pixels) so the middle of each visible mouth
   // is on the master's mouth line, y 769, as the neutral, love, dizzy and surprised mouths already are.
   const MOUTH_DY = { happy_mouth: 9, drag_mouth: 16, sleep_mouth: 4 };
+  // the model has a face's drawn eyes (both of them)
+  const hasEyes = f => EYES.every(k => feat.sprites[`${f}_${k}`]);
 
   /** A whole drawn sprite (an expression's eye or mouth) at its place, optionally scaled/rotated about its centre. */
   function sprite(name, o = {}) {
@@ -651,9 +697,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   }
 
   const CHEEKS = [[618, 770, 40, 20], [852, 762, 22, 15]];
-  function paintBlush(a) {
+  function paintBlush(a, only = -1) {
     if (a < .02) return;
-    for (const [x, y, rx, ry] of CHEEKS) {
+    for (const [i, [x, y, rx, ry]] of CHEEKS.entries()) {
+      if (only >= 0 && i !== only) continue;
       fg.save();
       fg.translate(x - FACE.x, y - FACE.y); fg.scale(1, ry / rx);
       const gr = fg.createRadialGradient(0, 0, 0, 0, 0, rx);
@@ -714,11 +761,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // where the face's outline is under each eye's tear (master y), with room for the stream's rounded end
   const TEAR_END = { eyeL: 816, eyeR: 786 };
   /** Tears running from each eye's lower lid down the cheek (master pixels), wavering with `t`. */
-  function paintStreams(t, o = {}) {
+  function paintStreams(t, o = {}, only = -1) {
     // (`o`: { a, len, w } for fainter, shorter, thinner tracks, happy tears)
     const a0 = o.a ?? .95, len = o.len ?? 1, wk = o.w ?? 1;
     fg.save();
     EYES.forEach((k, i) => {
+      if (only >= 0 && i !== only) return;
       const e = EYE[k], [bx0, , bx1, by1] = e.ball, w = (bx1 - bx0) * (k === 'eyeL' ? .22 : .2) * wk;
       // from just under the shut lid, narrow where it wells up and widening as it runs down
       // (painted before the eyes, so the shut lid's lashes lie over its top; it stops above the jaw under each eye)
@@ -737,20 +785,29 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     fg.restore();
   }
 
-  function paintFace(fc, face, o, t) {
+  /**
+   * Paints the face into `fg`. `place` (a floor drawing's live face, poses.<id>.face.place): each feature through its
+   * own matrix from the face rect's pixels into fg's (an eye with its cheek and tear, the mouth).
+   */
+  function paintFace(fc, face, o, t, place = null) {
     // (a face made of others has the eyes of its eyes' face and the mouth of its mouth's)
     const P = partsOf(fc, face);
     fg.setTransform(1, 0, 0, 1, 0, 0);
-    fg.clearRect(0, 0, FACE.w, FACE.h);
-    paintBlush(fc.blush || 0);
-    if (fc.streams) paintStreams(t, fc.streams === true ? {} : fc.streams);
+    fg.clearRect(0, 0, fg.canvas.width, fg.canvas.height);
+    const at = (k, fn) => { if (!place?.[k]) { fn(); return; } fg.save(); fg.transform(...place[k]); fn(); fg.restore(); };
+    const streams = fc.streams === true ? {} : fc.streams;
+    if (place) EYES.forEach((k, i) => at(k, () => { paintBlush(fc.blush || 0, i); if (fc.streams) paintStreams(t, streams, i); }));
+    else { paintBlush(fc.blush || 0); if (fc.streams) paintStreams(t, streams); }
     const shut = Math.max(o.blink || 0, o.eyeClose || 0);
     const lx = clamp(o.look[0], -6, 6), ly = clamp(o.look[1], -5, 5);
     const tilt = fc.brows === 'angry' ? .2 : fc.brows === 'sad' ? -.16 : 0;
-    fc.eyes.forEach((e, i) => {
+    fc.eyes.forEach((e, i) => at(EYES[i], () => {
       const k = EYES[i], side = k === 'eyeL' ? 1 : -1;  // the near eye's inner corner is to its right
       const squash = { sy: 1 - .85 * (o.eyeClose || 0) };
       if ((P.eyes === 'surprised' || fc.wide) && e.shape === 'ring') { sprite(`surprised_${k}`, squash); return; }
+      // a face's own drawn eyes (smug, angry, sad, shy): a blink squashes them about their middle, as the girls' do
+      const own = drawnEye(P.eyes, e, hasEyes);
+      if (own) { sprite(`${own}_${k}`, { sy: 1 - .9 * shut }); return; }
       switch (e.shape) {
         case 'ring': case 'lid': {
           const open = (e.shape === 'ring' ? clamp(e.ry / e.rx, 0, 1) * (tilt ? .8 : 1) : clamp(e.ry / 16, 0, 1)) * (1 - shut);
@@ -767,7 +824,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
         case 'heart': sprite(`love_${k}`, { s: .94 + .06 * (e.s ?? 1) / .8 }); break;
         case 'spiral': sprite(`dizzy_${k}`, { rot: (e.rot || 0) * .6 }); break;
       }
-    });
+    }));
+    at('mouth', () => paintMouth(fc, face, o, t, P));
+  }
+
+  function paintMouth(fc, face, o, t, P) {
     // mouth: talking opens the happy mouth about its middle, which stays on the mouth line; otherwise the face's own
     // (stone does not talk)
     const talk = face === 'petrify' ? 0 : o.talk || 0;
@@ -818,6 +879,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     petG.append(fo, fxG);
     rig = createRig(canvas, { deformers, parts, view: VIEW });
     for (const n in tex) rig.upload(n, tex[n]);
+    for (const F of Object.values(FLOOR)) rig.upload(F.live.tex, F.cv[0]);
     if (fade) for (const n in fade.set.tex) rig.upload(n + '@mix', fade.set.tex[n]);
     mountedIn = petG; pxScale = 0;
   }
@@ -929,6 +991,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   function draw(petG, fc, o) {
     if (mountedIn !== petG || !petG.contains(fo)) mount(petG);
     if (frameN++ % 20 === 0) fitCanvas();
+    floorFace = null;
     const t = o.t, dt = lastT == null ? 1 / 60 : clamp(t - lastT, 0, .05);
     lastT = t;
     // turned to stone (petrify's `freeze`) she holds still: the last pose is drawn again, face and all, and only the
@@ -1254,9 +1317,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       };
     }
     if (creases) {
-      // an eye drawn with the wide (surprised) sprite has no lowered lid, whatever the brows do
+      // an eye drawn with the wide (surprised) sprite has no lowered lid, whatever the brows do; a face's own drawn
+      // eyes (drawnEye) carry their own creases, so the layer goes under them
+      const own = fc.eyes.map(e => drawnEye(FP.eyes, e, hasEyes));
       fc.eyes.forEach((e, i) => { creaseDrop[i] = lerp(creaseDrop[i], lidDrop(e, EYES[i], fc.wide && e.shape === 'ring' ? 0 : fc.brows), ease(12, dt)); });
-      creaseA = lerp(creaseA, (lidOpen(fc.eyes[0]) + lidOpen(fc.eyes[1])) / 2, ease(12, dt));
+      creaseA = lerp(creaseA, ((own[0] ? 0 : lidOpen(fc.eyes[0])) + (own[1] ? 0 : lidOpen(fc.eyes[1]))) / 2, ease(12, dt));
       st.alpha.eye_creases = creaseA;
       st.creases = { fn: (u, v, x) => [0, (x < BROW_SPLIT ? creaseDrop[0] : creaseDrop[1]) * S] };
     }
@@ -1312,7 +1377,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       const shutK = eyesShut(o, fc.eyes, mode);
       for (const p of KNEEL.required) st.alpha[p.id] = tex[p.tex] ? kneelA : 0;
       const km = lyingMouth(o, FP.mouth, mode);
-      for (const p of KNEEL.overlays || []) st.alpha[p.id] = !tex[p.tex] ? 0 : kneelA * (p.use === 'shut' ? shutK : km[p.use] || 0);
+      // (with a live face the drawn eyes-shut, smile and talk patches stay off)
+      const live = liveOn('kneel');
+      for (const p of KNEEL.overlays || []) st.alpha[p.id] = !tex[p.tex] || live ? 0 : kneelA * (p.use === 'shut' ? shutK : km[p.use] || 0);
+      if (FLOOR.kneel) for (const p of [...FLOOR.kneel.parts, FLOOR.kneel.live]) st.alpha[p.id] = live ? kneelA : 0;
+      if (live && kneelA > 0) floorFace = 'kneel';
     }
     if (KLOW) {
       st.kneelLow = { a: st.body.a, sx: st.body.sx, sy: st.body.sy };
@@ -1334,6 +1403,17 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
         paintFace(fc, name, o, t);
         img = own; fg = fg1;
         rig.upload('faceFx@mix', faceCv2);
+      }
+    }
+    // kneeling or lying with a live face: the same face, painted onto that drawing's head
+    const FL = floorFace && FLOOR[floorFace];
+    if (FL) {
+      fg = FL.g[0]; paintFace(fc, name, o, t, FL.place); fg = fg1;
+      rig.upload(FL.live.tex, FL.cv[0]);
+      if (fade) {
+        const own = img;
+        img = fade.set.img; fg = FL.g[1]; paintFace(fc, name, o, t, FL.place); img = own; fg = fg1;
+        rig.upload(`${FL.live.tex}@mix`, FL.cv[1]);
       }
     }
     // the grey follows the face, but going back to colour takes at least .4 s (a petrify cut short does not snap back)
@@ -1383,7 +1463,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const shut = eyesShut(o, fc.eyes, mode);
     for (const p of LIE.required) st.alpha[p.id] = tex[p.tex] ? poseA : 0;
     const mouth = lyingMouth(o, partsOf(fc, o.face).mouth, mode);
-    for (const p of LIE.overlays) st.alpha[p.id] = !tex[p.tex] ? 0 : p.use === 'shut' ? poseA * shut : poseA * (mouth[p.use] || 0);
+    const live = liveOn('lie');
+    for (const p of LIE.overlays) st.alpha[p.id] = !tex[p.tex] || live ? 0 : p.use === 'shut' ? poseA * shut : poseA * (mouth[p.use] || 0);
+    if (FLOOR.lie) for (const p of [...FLOOR.lie.parts, FLOOR.lie.live]) st.alpha[p.id] = live ? poseA : 0;
+    if (live && poseA > 0 && !floorFace) floorFace = 'lie';
   }
 
   /* ---------- effects over the figure (SVG, like the built-in figure's) ---------- */

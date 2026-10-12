@@ -13,6 +13,8 @@ import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf 
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/claude-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
+import { describeFloorFace } from './helpers/floor-face.js';
+import * as FaceModule from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
 import { createClaudeFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/claude-chan/figure.js';
 
 const DIR = new URL('../packages/cortico-world-desktop-pet/web/claude-chan/', import.meta.url);
@@ -616,7 +618,7 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
   it.skipIf(!realPoses.length)('has every pose file, RGBA, sized to its box, its pivot and hand on the drawing', () => {
     for (const id of realPoses) {
       const pose = real.poses[id];
-      for (const p of [...pose.required, ...(pose.overlays || [])]) texOk(new URL(`tex/${p.tex}.png`, DIR), p.box[2] * K, p.box[3] * K, `${id} ${p.tex}`);
+      for (const p of [...pose.required, ...(pose.overlays || []), ...(pose.face?.parts || [])]) texOk(new URL(`tex/${p.tex}.png`, DIR), p.box[2] * K, p.box[3] * K, `${id} ${p.tex}`);
       const A = R.ARM[id];
       if (!A) continue;
       expect(inside(A.pivot, A.rect, 12), `${id} pivot`).toBe(true);
@@ -1171,3 +1173,6 @@ describeKneelArms('Claude-chan', {
     } finally { globalThis.document = doc; }
   },
 });
+
+/* ---------- live faces on the kneeling and lying drawings (the three girls share these: tests/helpers/floor-face.js) ---------- */
+describeFloorFace('Claude-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTURES });

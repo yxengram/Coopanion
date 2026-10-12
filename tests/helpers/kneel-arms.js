@@ -86,10 +86,36 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
     });
 
     it('kneels at rest as before: the drawing, never the hybrid, through faces, listening and the head\'s gestures (frozen frames)', () => {
-      const got = restRecord(M, model);
+      // (the fixture predates the live faces on the floor drawings, poses.<id>.face: without them every frame is as it was)
+      const bare = { ...model, poses: Object.fromEntries(Object.entries(model.poses).map(([k, P]) => [k, (({ face, ...rest }) => rest)(P)])) };
+      const got = restRecord(M, bare);
       expect(got.lows.every(a => a === 0)).toBe(true);
       expect(got.ids).toEqual(fixture.ids);
       expect(got.frames).toEqual(fixture.frames);
+    });
+
+    it('kneels at rest as before with the live face on, but for the drawn patches, which the live face replaces', () => {
+      const got = restRecord(M, model), old = fixture.ids;
+      const unrun = frames => frames.flatMap(([n, r]) => Array(n).fill(r)).map(r => { const [h, raise, a] = r.split('|'); return { h, raise, a: a.split(',') }; });
+      const A = unrun(got.frames), B = unrun(fixture.frames);
+      expect(A).toHaveLength(B.length);
+      const ix = id => got.ids.indexOf(id);
+      expect(old.every(id => got.ids.includes(id))).toBe(true);
+      const patches = ['kneel', 'lie'].flatMap(p => (model.poses[p].overlays || []).map(o => o.id));
+      const live = { kneel: ['kneel_blank', 'kneel_live', 'kneel_fringe'], lie: ['lie_blank', 'lie_live', 'lie_fringe'] };
+      expect(got.ids.filter(id => !old.includes(id)).sort()).toEqual([...live.kneel, ...live.lie].sort());
+      let patched = 0;
+      A.forEach((f, i) => {
+        expect(f.h).toBe(B[i].h);
+        expect(f.raise).toBe(B[i].raise);
+        for (const id of old) {
+          if (patches.includes(id)) { expect(f.a[ix(id)], `${id} @${i}`).toBe('0.000'); if (B[i].a[old.indexOf(id)] !== '0.000') patched++; } else expect(f.a[ix(id)], `${id} @${i}`).toBe(B[i].a[old.indexOf(id)]);
+        }
+        // the live face is the drawing's: shown exactly when it is
+        for (const id of live.kneel) expect(f.a[ix(id)], `${id} @${i}`).toBe(f.a[ix('kneel_body')]);
+        for (const id of live.lie) expect(f.a[ix(id)], `${id} @${i}`).toBe(f.a[ix('lie_body')]);
+      });
+      expect(patched).toBeGreaterThan(0);  // (the patches did show before: a smile, a blink)
     });
 
     it('cuts from the kneeling drawing to the hybrid in a frame for a wave, her head and points staying put, and back once her arms are down', () => {

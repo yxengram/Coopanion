@@ -12,6 +12,8 @@ import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf 
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gemini-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
+import { describeFloorFace } from './helpers/floor-face.js';
+import * as FaceModule from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
 import { createGeminiFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/figure.js';
 
 const DIR = new URL('../packages/cortico-world-desktop-pet/web/gemini-chan/', import.meta.url);
@@ -892,7 +894,7 @@ describe.skipIf(!real)('Gemini-chan: model.json and its files', () => {
   it.skipIf(!realPoses.length)('has every pose file, RGBA, sized to its box, its pivot and hand on the drawing', () => {
     for (const id of realPoses) {
       const pose = real.poses[id];
-      for (const p of [...pose.required, ...(pose.overlays || [])]) texOk(new URL(`tex/${p.tex}.png`, DIR), p.box[2] * K, p.box[3] * K, `${id} ${p.tex}`);
+      for (const p of [...pose.required, ...(pose.overlays || []), ...(pose.face?.parts || [])]) texOk(new URL(`tex/${p.tex}.png`, DIR), p.box[2] * K, p.box[3] * K, `${id} ${p.tex}`);
       const A = R.ARM[id];
       if (!A) continue;
       expect(ARM_POSES, id).toContain(id);
@@ -1337,3 +1339,6 @@ describeKneelArms('Gemini-chan', {
     } finally { globalThis.document = doc; }
   },
 });
+
+/* ---------- live faces on the kneeling and lying drawings (the three girls share these: tests/helpers/floor-face.js) ---------- */
+describeFloorFace('Gemini-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTURES });

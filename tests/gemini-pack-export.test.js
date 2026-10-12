@@ -163,8 +163,10 @@ describe('exported Gemini-chan pack', () => {
     // every face drawing the model names (her eyes and mouths are drawn with strokes where there are none)
     for (const n of Object.keys(model.feat?.sprites ?? {})) expect(to).toContain(`feat/${n}.png`);
     // every pose drawing too
-    for (const pose of Object.values(model.poses ?? {})) for (const p of [...(pose.required ?? []), ...(pose.overlays ?? [])]) expect(to).toContain(`tex/${p.tex}.png`);
+    for (const pose of Object.values(model.poses ?? {})) for (const p of [...(pose.required ?? []), ...(pose.overlays ?? []), ...(pose.face?.parts ?? [])]) expect(to).toContain(`tex/${p.tex}.png`);
     expect(to).toContain('tex/kneel_low.png');
+    // the live faces on the kneeling and lying drawings: their blank faces and the hair over them
+    for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`tex/${n}.png`);
     // what she loads before her first frame, well inside upstream's 20 s READY_MS from a local server
     const texBytes = files.filter((f) => /^(tex|feat)\//.test(f.to)).reduce((a, f) => a + statSync(f.from).size, 0);
     expect(texBytes).toBeLessThan(32 * 1048576);

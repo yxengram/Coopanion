@@ -57,7 +57,7 @@ export async function createGeminiFigure(base = new URL('./', import.meta.url), 
     ...Object.fromEntries(Object.entries(R.ARM).map(([id, A]) => [id, A.parts.map(p => p.tex)])),
     ...Object.fromEntries(Object.entries(R.W).map(([id, F]) => [id, F.pose.required.map(p => p.tex)])),
   };
-  const POSE_TEX = [...new Set([...Object.values(R.ARM).flatMap(A => A.parts), ...Object.values(R.W).flatMap(F => F.parts)].map(p => p.tex))];
+  const POSE_TEX = [...new Set([...Object.values(R.ARM).flatMap(A => A.parts), ...Object.values(R.W).flatMap(F => [...F.parts, ...(F.face?.parts || [])])].map(p => p.tex))];
   // a scheme is a set of textures over the same geometry; the first one's are at tex/ and feat/
   const SCHEMES = (model.schemes || [{ id: 'original' }]).filter(sc => sc.ready !== false);
   const schemeInfo = id => SCHEMES.find(sc => sc.id === id) || SCHEMES[0];
@@ -96,6 +96,13 @@ export async function createGeminiFigure(base = new URL('./', import.meta.url), 
   const faceCv = document.createElement('canvas'), faceCv2 = document.createElement('canvas');
   faceCv.width = faceCv2.width = FACE.w; faceCv.height = faceCv2.height = FACE.h;
   const fg1 = faceCv.getContext('2d'), fg2 = faceCv2.getContext('2d');
+  // a floor drawing's live face (kneeling, lying): its own texture, one texel per master pixel over face.box, painted
+  // through face.place (motion.js liveFace); the drawn patches stand in while its files are missing
+  const FLOOR = Object.fromEntries(Object.values(R.W).filter(F => F.face).map(F => {
+    const w = Math.max(1, Math.round(F.face.box[2] / R.S)), h = Math.max(1, Math.round(F.face.box[3] / R.S));
+    const cv = [0, 1].map(() => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; });
+    return [F.face.id, { tex: F.face.live.tex, place: F.face.place, cv, g: cv.map(c => c.getContext('2d')) }];
+  }));
 
   /* ---------- mounting inside the pet's SVG group ---------- */
   const VIEW = model.view;
@@ -119,6 +126,7 @@ export async function createGeminiFigure(base = new URL('./', import.meta.url), 
     rig = createRig(canvas, { deformers: R.deformers, parts: R.parts, view: VIEW });
     for (const n in tex) rig.upload(n, tex[n]);
     rig.upload('faceFx', faceCv);
+    for (const F of Object.values(FLOOR)) rig.upload(F.tex, F.cv[0]);
     if (fade) for (const n in fade.set.tex) rig.upload(n + '@mix', fade.set.tex[n]);
     mountedIn = petG; pxScale = 0;
   }
@@ -186,11 +194,18 @@ export async function createGeminiFigure(base = new URL('./', import.meta.url), 
     st.mix = 0;
     if (fade) { if (fade.t0 == null) fade.t0 = t; st.mix = smooth(0, 1, (t - fade.t0) / fade.dur); }
     // once a floor drawing (or her back) covers her, the standing rig, face included, is neither painted nor drawn
+    const fo2 = { ...o, look: out.look };
     if (!out.hideFront) {
-      const fo2 = { ...o, look: out.look };
       painter.paint(fg1, img, fc, face, fo2, t);
       rig.upload('faceFx', faceCv);
       if (fade) { painter.paint(fg2, fade.set.img, fc, face, fo2, t); rig.upload('faceFx@mix', faceCv2); }
+    }
+    // kneeling or lying with a live face: the same face, painted onto that drawing's head
+    const FL = out.floorFace && FLOOR[out.floorFace];
+    if (FL) {
+      painter.paint(FL.g[0], img, fc, face, fo2, t, FL.place);
+      rig.upload(FL.tex, FL.cv[0]);
+      if (fade) { painter.paint(FL.g[1], fade.set.img, fc, face, fo2, t, FL.place); rig.upload(`${FL.tex}@mix`, FL.cv[1]); }
     }
     // the grey follows the face, but going back to colour takes at least .4 s
     stoneK = Math.max(fc.stone || 0, stoneK - dt / .4); st.stone = stoneK;

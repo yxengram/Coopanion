@@ -1,15 +1,17 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
+import { chainPoint, meshGap } from './helpers/mesh.js';
 
 // the whale's own figure.js runs below without WebGL: its rig keeps the last frame's deformer states for the tests
-const rigSeen = vi.hoisted(() => ({ st: null, tree: null }));
+// (and the names of the textures uploaded since `up` was last cleared)
+const rigSeen = vi.hoisted(() => ({ st: null, tree: null, up: [] }));
 vi.mock('../packages/cortico-world-desktop-pet/web/kit/rig.js', () => ({
-  createRig: (_canvas, tree) => (rigSeen.tree = tree, { upload() {}, render(st) { rigSeen.st = st; }, point: (_d, _st, x, y) => [x, y], dispose() {} }),
+  createRig: (_canvas, tree) => (rigSeen.tree = tree, { upload(n) { rigSeen.up.push(n); }, render(st) { rigSeen.st = st; }, point: (_d, _st, x, y) => [x, y], dispose() {} }),
 }));
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -1039,7 +1041,48 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       }
       expect(eyesOf(paint(mixFace(pairs[0], kitFace).f(t, p), frame({ face: 'surprised+happy', t })))).toContain('surprised_eyeL.png');
       expect(mouthOf(paint(mixFace(pairs[0], kitFace).f(t, p), frame({ face: 'surprised+happy', t })))).toContain('happy_mouth.png');
+      // smug, angry, sad and shy have drawn eyes of their own in place of the painted open eye (and with them every
+      // face whose eyes are theirs: the loops above compare those with these)
+      for (const f of DRAWN_EYES) {
+        const eyes = eyesOf(paint(kitFace(f).f(t, p), frame({ face: f, t })));
+        expect(eyes, f).toEqual(expect.arrayContaining([`${f}_eyeL.png`, `${f}_eyeR.png`]));
+        expect(eyes, f).not.toContain('eyeL_ball.png');
+      }
+      // (so a smirk, smug's eyes over a happy mouth, cannot fall back to the painted eye unnoticed)
+      expect(eyesOf(paint(PLUS_MIX_FACES.smirk.f(t, p), frame({ face: 'smirk', t })))).toContain('smug_eyeL.png');
+      // shy's peek back at you is the painted eye looking at you
+      const peek = { ...p, exprAt: t - .9 }, peeking = eyesOf(paint(kitFace('shy').f(t, peek), frame({ face: 'shy', t })));
+      expect(peeking).toContain('eyeL_ball.png');
+      expect(peeking.filter(n => n.startsWith('shy_'))).toEqual([]);
     } finally { globalThis.document = doc; }
+  });
+
+  it("takes smug's, angry's, sad's and shy's own drawn eyes for an open eye, not shy's peek; the lid creases go under them", async () => {
+    const has = () => true, ring = x => ({ shape: 'ring', rx: 13, ry: 12, ...x });
+    expect(drawnEye('smug', { shape: 'lid', ry: 8, dx: 4 }, has)).toBe('smug');
+    expect(drawnEye('angry', ring({ ry: 11 }), has)).toBe('angry');
+    expect(drawnEye('sad', ring({ ry: 14 }), has)).toBe('sad');
+    expect(drawnEye('shy', ring({ dx: -6, dy: 5 }), has)).toBe('shy');
+    // the peek (no dx), and easing back to it past halfway
+    expect(drawnEye('shy', ring({ dy: -2 }), has)).toBe(null);
+    expect(drawnEye('shy', ring({ dx: -1 }), has)).toBe(null);
+    // other eye shapes, a lid for another face, other faces, and a model without the art
+    expect(drawnEye('angry', { shape: 'up' }, has)).toBe(null);
+    expect(drawnEye('sad', { shape: 'heart' }, has)).toBe(null);
+    expect(drawnEye('angry', { shape: 'lid', ry: 8 }, has)).toBe(null);
+    expect(drawnEye('happy', ring(), has)).toBe(null);
+    expect(drawnEye('angry', ring(), () => false)).toBe(null);
+    for (const f of DRAWN_EYES) for (const k of ['eyeL', 'eyeR']) expect(model.feat.sprites[`${f}_${k}`], `${f}_${k}`).toHaveLength(4);
+    const { pet, run, done } = await whaleOnKit();
+    try {
+      let st = null;
+      run(1, x => { st = x; });
+      expect(st.alpha.eye_creases).toBeGreaterThan(.9);
+      pet.setExpr('angry'); run(1, x => { st = x; });
+      expect(st.alpha.eye_creases).toBeLessThan(.05);
+      pet.setExpr('neutral'); run(1, x => { st = x; });
+      expect(st.alpha.eye_creases).toBeGreaterThan(.9);
+    } finally { done(); }
   });
 
   it('sings under an asked-for face with the song\'s chin up, and reads with her eyes on the book', async () => {
@@ -1207,3 +1250,180 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
   });
 });
 
+describe('live faces on the kneeling and lying drawings, as the whale draws them', () => {
+  /**
+   * The whale's own figure.js on the kit's body (plus), without a GPU: every 2D canvas notes the images drawn into it
+   * (each loaded image keeps its file name) by its size, so the floor faces' canvases are told apart (`missing`:
+   * textures that fail to load). Each frame: the alphas, the textures uploaded, and what each canvas drew.
+   */
+  async function onKit(missing = []) {
+    const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
+    const canvases = [];
+    const makeCanvas = () => {
+      const c = { width: 0, height: 0, drawn: [], transforms: 0 };
+      const ctx = new Proxy({}, { get: (_, k) => (k === 'drawImage' ? im => c.drawn.push(im?.src) : k === 'transform' ? () => { c.transforms++; } : k === 'canvas' ? c : k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : any), set: () => true });
+      c.getContext = () => ctx;
+      canvases.push(c);
+      return c;
+    };
+    const doc = globalThis.document;
+    globalThis.document = { createElement: makeCanvas, createElementNS: () => any };
+    const fig = await createWhaleFigure(WHALE, { model, loadImage: async url => { if (missing.some(n => String(url).endsWith(`tex/${n}.png`))) throw new Error('missing'); return { width: 1, height: 1, src: String(url).split('/').pop() }; } });
+    const el = () => ({ setAttribute() {}, innerHTML: '' });
+    const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
+    const seen = { fig, frames: [] };
+    const floorCv = pid => canvases.filter(c => c.width === Math.round(model.poses[pid].face.box[2] / model.units.S) && c.height === Math.round(model.poses[pid].face.box[3] / model.units.S));
+    const figure = {
+      ...fig,
+      draw(g, fc, o) {
+        for (const c of canvases) c.drawn = [];
+        rigSeen.up = [];
+        fig.draw(g, fc, o);
+        const a = id => rigSeen.st.alpha[id] ?? 0;
+        seen.frames.push({ o, up: [...rigSeen.up], kneel: a('kneel_body'), low: a('kneel_low'), lie: a('lie_body'), alpha: { ...rigSeen.st.alpha }, kneelDrawn: floorCv('kneel')[0]?.drawn || [], lieDrawn: floorCv('lie')[0]?.drawn || [] });
+      },
+    };
+    for (const k of ['anchors', 'poses', 'kneelArms', 'kneelArmsK']) Object.defineProperty(figure, k, { get: () => fig[k] });
+    const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    pet.resize();
+    seen.pet = pet;
+    seen.floorCv = floorCv;
+    seen.run = (sec, each = () => {}) => { for (let i = 0; i < Math.round(sec * 60); i++) { pet.step(1 / 60); pet.render(); each(seen.frames.at(-1)); } };
+    seen.last = () => seen.frames.at(-1);
+    seen.done = () => { globalThis.document = doc; };
+    return seen;
+  }
+
+  it('has a blank face and the hair over it for each floor drawing, in every scheme, and its live face on the drawing\'s head', () => {
+    for (const pid of ['kneel', 'lie']) {
+      const P = model.poses[pid], f = P.face;
+      expect(f.parts.map(p => p.id)).toEqual([`${pid}_blank`, `${pid}_fringe`]);
+      for (const p of f.parts) for (const id of SCHEMES) expectFile(id, p);
+      // (the patches stay, as the fallback for a dress without the files)
+      expect(P.overlays.map(o => o.use).sort()).toEqual(['shut', 'smile', 'talk']);
+      const head = pid === 'kneel' ? 'kneelHead' : 'lieLegs', body = Math.max(...P.required.map(p => p.z));
+      expect(f.parts.every(p => p.parent === head)).toBe(true);
+      expect(body < f.parts[0].z && f.parts[0].z < f.z && f.z < f.parts[1].z).toBe(true);
+      for (const k of ['eyeL', 'eyeR', 'mouth']) {
+        const [a, b, c, d] = f.place[k], det = a * d - b * c;
+        expect(det, `${pid} ${k}`).toBeGreaterThan(.45);
+        expect(det, `${pid} ${k}`).toBeLessThan(1.7);
+        expect(Math.abs(Math.atan2(b, a)), `${pid} ${k}`).toBeLessThan(.4);
+      }
+    }
+  });
+
+  it('kneeling, her asked face is painted on the drawing\'s head (sad\'s own drawn eyes), the patches off; getting up it stays till she stands', async () => {
+    const s = await onKit();
+    try {
+      s.run(.5);
+      expect(s.last().up).not.toContain('kneelFx');
+      s.pet.doWord('kneel'); s.run(3);
+      s.pet.doWord('sad'); s.run(.6);
+      const f = s.last();
+      expect(f.kneel).toBe(1);
+      for (const id of ['kneel_blank', 'kneel_live', 'kneel_fringe']) expect(f.alpha[id], id).toBe(1);
+      for (const id of ['kneel_shut', 'kneel_smile', 'kneel_talk']) expect(f.alpha[id], id).toBe(0);
+      expect(f.up).toContain('kneelFx');
+      expect(f.up).not.toContain('faceFx');
+      expect(f.kneelDrawn).toEqual(expect.arrayContaining(['sad_eyeL.png', 'sad_eyeR.png']));
+      // each feature through its own matrix: the two eyes (with their cheeks) and the mouth
+      expect(s.floorCv('kneel')[0].transforms).toBeGreaterThanOrEqual(3);
+      // getting up: the live face on the drawing as long as it shows
+      s.frames.length = 0;
+      s.pet.doWord('stand'); s.run(4);
+      expect(s.frames.some(x => x.kneel >= 1)).toBe(true);
+      for (const x of s.frames) {
+        expect(x.up.includes('kneelFx'), `kneel ${x.kneel}`).toBe(x.kneel > 0);
+        expect(x.alpha.kneel_live ?? 0).toBe(x.kneel);
+      }
+      expect(s.last().up).toContain('faceFx');
+    } finally { s.done(); }
+  });
+
+  it('lying, a face made of two (smug+happy) is painted on the lying head', async () => {
+    const s = await onKit();
+    try {
+      s.run(.5);
+      s.pet.doGroup(['lie', 'smug', 'happy']); s.run(3);
+      const f = s.last();
+      expect(f.lie).toBe(1);
+      expect(f.up).toContain('lieFx');
+      expect(f.alpha.lie_live).toBe(1);
+      expect(f.alpha.lie_smile + f.alpha.lie_talk + f.alpha.lie_shut).toBe(0);
+      expect(f.lieDrawn).toEqual(expect.arrayContaining(['smug_eyeL.png', 'smug_eyeR.png', 'happy_mouth.png']));
+    } finally { s.done(); }
+  });
+
+  it('lying, the face\'s meshes stay on the drawing as her head nods (the fringe never slides off its hair)', async () => {
+    const s = await onKit();
+    try {
+      s.run(.5);
+      s.pet.doWord('lie'); s.run(3);
+      const { parts, deformers } = rigSeen.tree, P = Object.fromEntries(parts.map(p => [p.id, p]));
+      let worst = 0, shut = 0, turned = 0;
+      const look = () => {
+        const st = rigSeen.st, d = chainPoint(deformers, st, 'lieHead', P.lie_live.box[0], P.lie_live.box[1]), r = chainPoint(deformers, { ...st, lieHead: null }, 'lieHead', P.lie_live.box[0], P.lie_live.box[1]);
+        turned = Math.max(turned, Math.hypot(d[0] - r[0], d[1] - r[1]));
+        for (const k of ['lie_blank', 'lie_live', 'lie_fringe']) worst = Math.max(worst, meshGap(deformers, st, P[k], P.lie_body));
+        shut = Math.max(shut, meshGap(deformers, st, P.lie_shut, P.lie_body));
+      };
+      for (let n = 0; n < 2; n++) { s.pet.doWord('nod'); s.run(1.2, look); }
+      expect(s.last().lie).toBe(1);
+      expect(s.last().alpha.lie_live).toBe(1);
+      expect(turned).toBeGreaterThan(1);  // (the head did turn)
+      // (the drawn eyes-shut patch, on its [8, 6] mesh, as the yardstick; the face on [4, 4] slid ~1)
+      expect(worst).toBeLessThan(Math.max(.3, 2 * shut));
+    } finally { s.done(); }
+  });
+
+  it('hands the face over with the body at the kneeling hybrid\'s cut: one of the two faces in every frame', async () => {
+    const s = await onKit();
+    try {
+      s.run(.5);
+      s.pet.doWord('kneel'); s.run(3);
+      s.frames.length = 0;
+      s.pet.doWord('wave'); s.run(4);
+      expect(s.frames.some(x => x.low >= 1 && x.kneel === 0)).toBe(true);
+      expect(s.last().kneel).toBe(1);
+      for (const x of s.frames) {
+        const floor = x.up.includes('kneelFx'), stand = x.up.includes('faceFx');
+        expect(floor || stand, JSON.stringify({ k: x.kneel, l: x.low })).toBe(true);
+        expect(floor).toBe(x.kneel > 0);
+        expect(stand).toBe(x.kneel < 1);
+      }
+    } finally { s.done(); }
+  });
+
+  it('without the files, kneeling and lying keep the drawn patches as before', async () => {
+    const s = await onKit(['kneel_blank', 'lie_fringe']);
+    try {
+      s.run(.5);
+      s.pet.doWord('kneel'); s.run(3);
+      s.pet.doWord('happy'); s.run(.6);
+      expect(s.last().kneel).toBe(1);
+      expect(s.last().alpha.kneel_live).toBe(0);
+      expect(s.last().alpha.kneel_smile).toBeGreaterThan(0);
+      expect(s.last().up).not.toContain('kneelFx');
+      s.pet.doWord('lie'); s.run(3);
+      expect(s.last().lie).toBe(1);
+      expect(s.last().alpha.lie_live).toBe(0);
+      expect(s.last().up).not.toContain('lieFx');
+    } finally { s.done(); }
+  });
+
+  it('crossfades the floor face with a dress picked while she kneels', async () => {
+    const s = await onKit();
+    try {
+      s.run(.5);
+      s.pet.doWord('kneel'); s.run(3);
+      await s.fig.preload();
+      await s.fig.setScheme(SCHEMES[1], { fade: .5 });
+      s.run(.1);
+      expect(s.last().up).toEqual(expect.arrayContaining(['kneelFx', 'kneelFx@mix']));
+      s.run(1);
+      expect(s.last().up).not.toContain('kneelFx@mix');
+      expect(s.last().up).toContain('kneelFx');
+    } finally { s.done(); }
+  });
+});

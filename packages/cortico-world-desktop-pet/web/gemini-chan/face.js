@@ -316,9 +316,10 @@ export function createFacePainter(model, opts = {}) {
     g.restore();
   }
 
-  function paintBlush(g, a) {
+  function paintBlush(g, a, only = -1) {
     if (a < .02) return;
-    for (const [x, y, rx, ry] of CHEEKS) {
+    for (const [i, [x, y, rx, ry]] of CHEEKS.entries()) {
+      if (only >= 0 && i !== only) continue;
       g.save();
       g.translate(x - FACE.x, y - FACE.y); g.scale(1, ry / rx);
       const gr = g.createRadialGradient(0, 0, 0, 0, 0, rx);
@@ -328,10 +329,11 @@ export function createFacePainter(model, opts = {}) {
     }
   }
   /** Tears running from each eye's lower lid down the cheek, wavering with `t` (`o`: { a, len, w } for happy tears). */
-  function paintStreams(g, t, o = {}) {
+  function paintStreams(g, t, o = {}, only = -1) {
     const a0 = o.a ?? .95, len = o.len ?? 1, wk = o.w ?? 1;
     g.save();
     EYES.forEach((k, i) => {
+      if (only >= 0 && i !== only) return;
       const e = EYE[k], [bx0, , bx1, by1] = e.ball, w = (bx1 - bx0) * .21 * wk;
       const x = bx0 + (bx1 - bx0) * .5 - FACE.x, y0 = by1 - 6 - FACE.y;
       const y1 = Math.min(FACE.h - 4, tearEnd(k) - FACE.y, y0 + 110 * len), wob = 4 * Math.sin(t * 6 + i) * wk;
@@ -348,29 +350,44 @@ export function createFacePainter(model, opts = {}) {
     g.restore();
   }
 
-  /** Paints the face into `g` (the face texture's 2D context) with sprite images `img`; returns the plan it drew. */
-  function paint(g, img, fc, face, o, t) {
+  /**
+   * Paints the face into `g` (the face texture's 2D context) with sprite images `img`; returns the plan it drew.
+   * `place` (a floor drawing's live face, model poses.<id>.face.place): each feature is drawn through its own matrix
+   * [a, b, c, d, e, f] from this face rect's pixels into `g`'s (eyeL with its cheek and tear, eyeR likewise, the mouth),
+   * so the same drawn eyes and mouths sit on a kneeling or lying head, turned and foreshortened.
+   */
+  function paint(g, img, fc, face, o, t, place = null) {
     const plan = planFace(fc, face, o, t, n => !!img[n] && !!feat.sprites?.[n]);
     g.setTransform(1, 0, 0, 1, 0, 0);
-    g.clearRect(0, 0, FACE.w, FACE.h);
-    paintBlush(g, fc.blush || 0);
-    if (fc.streams) paintStreams(g, t, fc.streams === true ? {} : fc.streams);
-    for (const p of plan.eyes) {
-      if (p.kind === 'open') {
-        if (EYE[p.k].drawn && img[`${p.k}_ball`]) paintOpenEye(g, img, p.k, p.open, p.ix, p.iy, p.tilt, p.glint, t);
-        else plainEye(g, p);
-      }
-      else if (p.kind === 'sprite') sprite(g, img, p.name, p);
-      else strokeEye(g, p);
+    g.clearRect(0, 0, g.canvas?.width ?? FACE.w, g.canvas?.height ?? FACE.h);
+    const at = (k, fn) => { if (!place?.[k]) { fn(); return; } g.save(); g.transform(...place[k]); fn(); g.restore(); };
+    const streams = fc.streams === true ? {} : fc.streams;
+    if (place) {
+      EYES.forEach((k, i) => at(k, () => { paintBlush(g, fc.blush || 0, i); if (fc.streams) paintStreams(g, t, streams, i); }));
+    } else {
+      paintBlush(g, fc.blush || 0);
+      if (fc.streams) paintStreams(g, t, streams);
     }
-    // the face texture is blank skin: the nose is painted too
-    if (img.nose) sprite(g, img, 'nose');
+    plan.eyes.forEach((p, i) => {
+      at(EYES[i], () => {
+        if (p.kind === 'open') {
+          if (EYE[p.k].drawn && img[`${p.k}_ball`]) paintOpenEye(g, img, p.k, p.open, p.ix, p.iy, p.tilt, p.glint, t);
+          else plainEye(g, p);
+        }
+        else if (p.kind === 'sprite') sprite(g, img, p.name, p);
+        else strokeEye(g, p);
+      });
+    });
     const m = plan.mouth;
-    if (m.kind === 'sprite') sprite(g, img, m.name, m);
-    else if (m.kind === 'line') lineMouth(g, m.form, m.w ?? 1);
-    else if (m.kind === 'oval') ovalMouth(g, m.open);
-    else if (m.kind === 'cat') catMouth(g);
-    else if (m.kind === 'tongue') tongueMouth(g);
+    at('mouth', () => {
+      // the face texture is blank skin: the nose is painted too (a floor drawing keeps its own)
+      if (img.nose && !place) sprite(g, img, 'nose');
+      if (m.kind === 'sprite') sprite(g, img, m.name, m);
+      else if (m.kind === 'line') lineMouth(g, m.form, m.w ?? 1);
+      else if (m.kind === 'oval') ovalMouth(g, m.open);
+      else if (m.kind === 'cat') catMouth(g);
+      else if (m.kind === 'tongue') tongueMouth(g);
+    });
     return plan;
   }
 

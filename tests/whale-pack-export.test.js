@@ -128,9 +128,12 @@ describe('exported whale pack', () => {
     for (const sc of model.schemes.slice(1)) {
       expect(to).toContain(`schemes/${sc.id}/tex/kneel_body.png`);
       expect(to).toContain(`schemes/${sc.id}/tex/kneel_low.png`);
+      // the live faces on the kneeling and lying drawings: the blank face, and each dress's own hair over it
+      for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`schemes/${sc.id}/tex/${n}.png`);
       expect(to).toContain(`schemes/${sc.id}/feat/eyeL_iris.png`);
     }
     for (const p of model.parts) expect(to).toContain(`tex/${p.tex}.png`);
+    for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`tex/${n}.png`);
   });
 
   it('encodes 16-bit mono WAV and keeps the tone level through the manifest volume', () => {

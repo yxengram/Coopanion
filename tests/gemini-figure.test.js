@@ -912,6 +912,17 @@ describe.skipIf(!real)('Gemini-chan: model.json and its files', () => {
     expect([parent('ear_l'), parent('ear_r'), parent('tail')]).toEqual(['earL', 'earR', 'tail']);
     for (const id of ['wing_l', 'wing_r', 'horns']) expect(real.parts.map(p => p.id)).not.toContain(id);
   });
+  it('puts the mouth line on the master\'s own ω (not level with the eyes\' lower rims) and every mouth\'s middle on it', () => {
+    const F = real.feat.face, S = real.feat.sprites, mid = b => (b[1] + b[3]) / 2;
+    expect(Math.abs(F.mouth[1] - mid(S.neutral_mouth))).toBeLessThan(2);
+    expect(Math.abs(F.mouth[0] - (S.neutral_mouth[0] + S.neutral_mouth[2]) / 2)).toBeLessThan(2);
+    // (below the eyes: their lowest point is above the mouth line)
+    for (const e of Object.values(real.feat.eyes)) expect(e.ball[3]).toBeLessThan(F.mouth[1]);
+    for (const [n, b] of Object.entries(S)) {
+      if (!n.endsWith('_mouth') && !n.startsWith('mouth_')) continue;
+      expect(Math.abs(mid(b) + (F.mouthDy[n] || 0) - F.mouth[1]), n).toBeLessThan(2);
+    }
+  });
   it('has every part texture, RGBA, sized to its box', () => {
     for (const p of real.parts) texOk(new URL(`tex/${p.tex}.png`, DIR), p.box[2] * K, p.box[3] * K, p.tex);
   });

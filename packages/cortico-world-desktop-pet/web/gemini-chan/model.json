@@ -719,8 +719,8 @@
     ]
    ],
    "mouth": [
-    484.0,
-    618.0
+    477.0,
+    635.5
    ],
    "tearEnd": {
     "eyeL": 671,
@@ -730,30 +730,28 @@
    "ink": "#602031",
    "lashInk": "#241427",
    "mouthDy": {
-    "happy_mouth": -16,
-    "sleep_mouth": -22,
-    "surprised_mouth": -12,
-    "love_mouth": -12,
-    "dizzy_mouth": -9,
-    "drag_mouth": -16,
-    "cry_mouth": -17,
-    "smug_mouth": -6,
-    "angry_mouth": -11,
-    "sad_mouth": -7,
-    "wink_mouth": -14,
-    "halflid_mouth": -17,
-    "shy_mouth": -32,
-    "determined_mouth": -24,
-    "mouth_a": -20,
-    "mouth_i": -18,
-    "mouth_u": -10,
-    "mouth_e": -14,
-    "mouth_frown": -6,
-    "mouth_pout": -8,
-    "mouth_cat": -7,
-    "mouth_grin": -12,
-    "mouth_tongue": -13,
-    "mouth_smile": -5
+    "happy_mouth": 2,
+    "sleep_mouth": -4,
+    "surprised_mouth": -8,
+    "love_mouth": 6,
+    "dizzy_mouth": -14,
+    "drag_mouth": 2,
+    "smug_mouth": 12,
+    "angry_mouth": 6,
+    "sad_mouth": -12,
+    "wink_mouth": 3,
+    "shy_mouth": -14,
+    "determined_mouth": -6,
+    "mouth_a": -4,
+    "mouth_i": -10,
+    "mouth_u": -9,
+    "mouth_e": -6,
+    "mouth_frown": -7,
+    "mouth_pout": -6,
+    "mouth_cat": -8,
+    "mouth_grin": -6,
+    "mouth_tongue": -8,
+    "mouth_smile": -4
    }
   },
   "blush": [

@@ -69,18 +69,18 @@
 
 | 形象 | 词数 | 表情 | 动作 |
 |---|---|---|---|
-| Coo | 102 | 57（28 + 29 个组合脸） | 45 |
-| 大肥鱼 | 117 | 57（28 + 29 个组合脸） | 60（多 `muse` 和 `droop`、`blink`、`closer`、`leanback`、`sway`、`stamp`，`clap`、`shrug`、`headhold`、`raise`、`thumbs`、`shush`、`wipe`，还有 `wag`） |
-| Claude 娘 | 118 | 57（28 + 29 个组合脸） | 61（少 `spout`，多 `muse`、`fist`、`jot`、`twiddle` 和上面六个、七个） |
-| GPT 娘 | 120 | 57（28 + 29 个组合脸） | 63（Claude 娘的 61 个，加 `wag`、`wingbeat`） |
-| Gemini 娘 | 122 | 57（28 + 29 个组合脸） | 65（Claude 娘的 61 个，加 `wag`、`earflick`、`earsup`、`earsdown`） |
+| Coo | 103 | 58（28 + 30 个组合脸） | 45 |
+| 大肥鱼 | 118 | 58（28 + 30 个组合脸） | 60（多 `muse` 和 `droop`、`blink`、`closer`、`leanback`、`sway`、`stamp`，`clap`、`shrug`、`headhold`、`raise`、`thumbs`、`shush`、`wipe`，还有 `wag`） |
+| Claude 娘 | 119 | 58（28 + 30 个组合脸） | 61（少 `spout`，多 `muse`、`fist`、`jot`、`twiddle` 和上面六个、七个） |
+| GPT 娘 | 121 | 58（28 + 30 个组合脸） | 63（Claude 娘的 61 个，加 `wag`、`wingbeat`） |
+| Gemini 娘 | 123 | 58（28 + 30 个组合脸） | 65（Claude 娘的 61 个，加 `wag`、`earflick`、`earsup`、`earsdown`） |
 
-- 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面，后来的六个带特效的组合脸排在 `meh` 后面；之后又加了 `tilt` 歪头，排在 `sigh` 后面；表情手臂姿势的几个手势词（`muse` 等）排在 `idea` 后面，七个新画的手势（`clap` 到 `wipe`）紧跟在它们后面、`hips` 前面；`droop`、`blink` 排在 `tilt` 后面，`closer`、`leanback`、`sway`、`stamp` 排在 `peek` 后面。
+- 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面，后来的六个带特效的组合脸排在 `meh` 后面，安慰 `comfort` 排在 `brave` 后面；之后又加了 `tilt` 歪头，排在 `sigh` 后面；表情手臂姿势的几个手势词（`muse` 等）排在 `idea` 后面，七个新画的手势（`clap` 到 `wipe`）紧跟在它们后面、`hips` 前面；`droop`、`blink` 排在 `tilt` 后面，`closer`、`leanback`、`sway`、`stamp` 排在 `peek` 后面。
 - 一个名字在一个形象里只能指一个词（`readVocab` 校验，`vocabId` 查）。五个形象同一个词的名字相同（只有 `song` 不同：三位娘是「哼小曲」，Coo 和大肥鱼是「鲸歌」；`muse` 三位娘以「琢磨」开头、大肥鱼以「托腮」开头），包括上面那些近义名字；只有「握拳」在三位娘那里是 `fist`，在 Coo 和大肥鱼那里是 `determined`。
 - `spout` 只在 `coo/figure.json:1591` 和 `whale/figure.json:1684` 里。
 - 带 `lasting: true` 的只有 4 个词：`sit`、`sleep`、`kneel`、`lie`。
 - `seconds` 的取值（见 `coo/figure.json` 的 vocab，`claude-chan` 相同）：
-  - 表情：0.9，29 个组合脸也是；`petrify` 是 3.2。
+  - 表情：0.9，30 个组合脸也是；`petrify` 是 3.2。
   - 手势词：手势时长 + 0.1，例如 nod 0.7 → 0.8，wave 1.6 → 1.7。
   - 姿态 / 模式词是固定值：
     - lasting 的 sit、sleep、kneel、lie：都是 0.8；
@@ -222,7 +222,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
                      （5 个内置形象都没有传 opts.words）
                  KIT_MOTIONS → act；PLUS_MOTIONS 只在 plus && !face 时 → act → (plusAct)（760）
                       → setMode 改模式槽 / pulse 改手势槽或头部槽 / holdFace 记下动作自带的脸
-                 KIT_/PLUS_EXPRESSIONS（含 29 个组合脸）→ setExpr → 表情槽（761-764）
+                 KIT_/PLUS_EXPRESSIONS（含 30 个组合脸）→ setExpr → 表情槽（761-764）
                                      │
                                      ▼  每帧：动作自带的脸补位、被盖住的表情暂停（1173-1187）
                                         → faceName() 选脸 → render
@@ -399,6 +399,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 | sulk | 瘪嘴 / 委屈巴巴 | sad | pout | – | sad |
 | whimper | 哭唧唧 / 呜呜 | cry | pout | – | sad |
 | brave | 强颜欢笑 / 强撑 | worried | gentle | – | wry |
+| comfort | 安慰 / 没事的 / 别难过 / 宽心 | neutral（睁眼看着你） | gentle | 眉取 sad，身体取 gentle（慢慢点头），符号取 gentle（不冒汗），腮红 .3 | soft |
 | pained | 苦恼 / 头疼 / 头大 | bowing（闭眼） | worried | 眉取 sad，身体取 worried，冒汗 | hmm |
 | doubt | 狐疑 / 怀疑 / 真的吗 | smug | confused | 问号 | hmm |
 | blank | 懵 / 发愣 / 一脸懵 | confused | surprised | – | hmm |
@@ -409,6 +410,8 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 | gloomy | 郁闷 / 闷闷不乐 / 乌云罩顶 | disgusted | sad | 身体取 sad，望向下方，不要黑线，头旁边一朵下雨的小乌云（`cloud`） | sad |
 | speechless | 无言以对 / 说不出话 / 哑口无言 | neutral | awkward | 冒汗，一个点一个点地冒出「……」（`dots`） | wry |
 | starry | 眼冒金星 / 被砸晕 / 撞晕了 | flustered | flustered | 不要汗，头顶晕的小星星（`orbit`） | surprised |
+
+- **安慰从温柔里分出来**：评测里「温柔」一个词既当微笑又当安慰，150 句回复里用了约 70 次。现在 `gentle` 只是温柔地笑（温柔 / 微笑 / 欣慰，半眯的眼），安慰别人用 `comfort`（安慰 / 没事的 / 别难过 / 宽心：睁眼看着你、眉头微微蹙起、浅浅的笑、温柔那样慢慢点头），排在 World 提示词「难过(坏消息、陪对方难过、安慰对方)」那组的 `sad` 后面。没用强颜欢笑的担心眼：三位娘的担心眼画着泪花，看着像自己要哭；它不冒汗，和强颜欢笑分得开。不是表情对的成员。
 
 - **kit 自己画的特效**（`MARK_FX_KEYS`：`fume`、`heartbreak`、`confetti`、`cloud`、`dots`，后六个组合脸用；都在 `MARK_KEYS` 和 `ADD_KEYS` 里，所以也跟着「眼」那张脸进表情对，作嘴时不带）：
   - 画在 kit 自己的粒子层（`fxG`）里，和爱心、闪光、灯泡一样，五个形象（Coo 也是）都不用改代码，导出包在上游里也照样有（包自带 kit）。颜色固定、带深色描边，任何配色、任何桌面上都看得见。
@@ -448,7 +451,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **为什么 World 要读名单**：World 不知道某个包的身体跑的是哪个 kit（安装的包可能自带一份旧的，或者根本不用 kit），所以要由包自己在 manifest 里声明，就像 `vocab` 声明它做得出哪些词；按形象分开列，也能让某个形象去掉在它身上不好看的对（Coo 没有嘴；大肥鱼的名单是在她还缺几张眼睛图时挑的）。导出包的模块集合不变（`*-pack-export.test.js` 固定为 `kit/body.js` + `kit/rig.js`）。
 - **线上格式**不变，仍是 `string[]`：合成的一对是一组里的两个成员（`surprised+happy`，或 `sit+wave+surprised+happy`）。
 - **一组里三个表情**：World 按写的顺序贪心配对（一个表情能和当前组里唯一的表情配成名单里的一对，就并进去；否则照旧拆到下一组并说明），所以 World 不会在一组里发两个以上的表情，也不会发两个不在名单里的表情。直接调用 `ctl.doGroup` 时，kit 合成收到的前两个，再往后的表情照旧先做、被合成脸盖住。
-- **组合脸（29 个）**：内置形象的名单里，组合脸只做别名的目标；组合脸 + 基本表情、组合脸 + 组合脸照旧拆开。`readPairs` 也接受组合脸做成员（World 分不出组合脸和第三方包自己的表情）；kit 能合成它们（作眼时带上它的眉、记号和 `add`，作嘴时给它的嘴）。
+- **组合脸（30 个）**：内置形象的名单里，组合脸只做别名的目标；组合脸 + 基本表情、组合脸 + 组合脸照旧拆开。`readPairs` 也接受组合脸做成员（World 分不出组合脸和第三方包自己的表情）；kit 能合成它们（作眼时带上它的眉、记号和 `add`，作嘴时给它的嘴）。
 - **音色和闪光**：音色取眼那张脸的（包自带的词取它的 `sound`），没有就取嘴那张脸的（都是已有音色，导出包的音效不变）；闪光、弹跳按眼那张脸（happy 2、smug 1、组合脸按它的 `glint`，其他 0；surprised 往下压）；默认 3.2 s，两个里有 sleepy 时 4.4 s；爱心只在单独的 love 时发。
 - **和主动要的表情完全一样**：经 `setExpr('眼+嘴')` 设置（`exprAsked`），动作保留它（`keepsFace` 认得两个部分都是表情的组合名），`holdFace` 延长它，被盖住时暂停，`BODY_OWN` 手势叠加成 `眼+嘴+手势自带的脸`（唱歌、叹气换成手势的嘴），被 sleep、拎起、neutral、新表情清掉。
 - **形象怎么画**：和组合脸一样走 `fc.parts`。三位娘按 `parts.eyes/mouth/brows/body` 查自己的图；大肥鱼也一样，smug、angry、sad、shy 用自己画好的眼睛（`whale/figure.js` 的 `drawnEye`，同三位娘：睁眼和 smug 的半闭眼换成贴图；眨眼开头和结尾压扁贴图，闭上四成以上一帧切成画的眼睛合到同样程度，所以闭眼那几帧是眼皮和睫毛线，不是一条压扁的彩色细缝（三位娘也一样，见下面 Claude 娘一节）；shy 回头看你那一下仍是画的睁眼），其余的睁眼加眉的倾斜；Coo 没有嘴，环的缺口取嘴那张脸的，吐舌画得出，ω 画不出，所以很多对在 Coo 上看起来就是眼那张脸。
@@ -581,11 +584,11 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 5. **跪坐保持到手或全身动作**，表情、头部手势和尾巴、耳朵、翅膀的动作不结束它；大肥鱼和三位娘只占「手」的手势也不结束它。
 6. **一组词同一帧做**：World 先按部位把一组拆好（§二.6），页面把整组交给 `doAll`，kit 在同一帧里做完（`doGroup`）。组里的表情至少持续到同组手势自带的脸结束（唱歌 4.1 s、看书 4.4 s、喝茶 3.7 s、跳舞 3.4 s）。
 
-### 2. 词的分类与部位（共 102 个，数据来自 Coo 的 `figure.json`；部位见 `script.ts:84-104` 的 `CHANNELS`）
+### 2. 词的分类与部位（共 103 个，数据来自 Coo 的 `figure.json`；部位见 `script.ts:84-104` 的 `CHANNELS`）
 
 | 类 | 部位（`CHANNELS`） | 词 |
 |---|---|---|
-| **E 表情（57）** | 表情 | neutral 平静、happy 开心、wink 眨眼、love 喜欢、shy 害羞、surprised 惊讶、angry 生气、sad 难过、sleepy 犯困、thinking 思考、smug 得意、pout 嘟嘴、worried 担心、determined 认真、flustered 慌张、scared 害怕、excited 期待、cry 大哭、confused 疑惑、disgusted 嫌弃、nervous 紧张、gentle 温柔、awkward 尴尬、moved 感动、coax 撒娇、tongue 吐舌、giggle 偷笑；29 个组合脸（§一.9）；**petrify 石化**占全部部位，不和别的同时做 |
+| **E 表情（58）** | 表情 | neutral 平静、happy 开心、wink 眨眼、love 喜欢、shy 害羞、surprised 惊讶、angry 生气、sad 难过、sleepy 犯困、thinking 思考、smug 得意、pout 嘟嘴、worried 担心、determined 认真、flustered 慌张、scared 害怕、excited 期待、cry 大哭、confused 疑惑、disgusted 嫌弃、nervous 紧张、gentle 温柔、awkward 尴尬、moved 感动、coax 撒娇、tongue 吐舌、giggle 偷笑；30 个组合脸（§一.9）；**petrify 石化**占全部部位，不和别的同时做 |
 | **H 头部手势（4）** | 头 | nod 点头、shake 摇头、sigh 叹气、tilt 歪头；Coo 没有的：droop 低头、blink 眨眨眼（大肥鱼、三位娘） |
 | **P 尾巴、耳朵、翅膀（0）** | 尾巴 / 耳朵 / 翅膀，各算一个部位（提示词里按形象有的部位列成一组，如「尾巴、耳朵(各算一个部位)」；sleep、petrify 也占它们） | Coo 没有的：wag 摇尾巴（大肥鱼、GPT 娘、Gemini 娘）、wingbeat 扇翅膀（GPT 娘）、earflick 抖耳朵、earsup 竖耳朵、earsdown 耳朵耷拉（Gemini 娘） |
 | **G 手势（18）**：不改模式 | 手 | wave 招手、shiver 发抖、heart 比心、serve 奉茶、salute 敬礼、vsign 比耶、point 指、cover 捂嘴笑、cross 抱臂、stretch 伸懒腰、pray 拜托、scratch 挠头、idea 有了、hug 抱抱、hips 叉腰、spout 喷水（仅 Coo/大肥鱼）、sip 喝茶、read 看书；Coo 没有的：muse 托腮/琢磨（大肥鱼、三位娘）、fist 加油、jot 记笔记、twiddle 对手指（三位娘）；clap 拍手、shrug 摊手、headhold 抱头、raise 举手、thumbs 点赞、shush 嘘、wipe 擦汗（大肥鱼、三位娘） |
@@ -1353,3 +1356,23 @@ E 表情 27，H 头部手势 3，G 其余手势 25，L 姿态 4，M 模式动作
 | 温柔 | 69 | 69 | 70 |
 
 「温柔」从第一轮的 119 次降到 69 次左右，靠的是别名和歪头（「好奇」现在就是歪头），提示词本身没有再降低它。
+
+### 第三轮：新词和「安慰」（Claude 娘）
+
+v0.5.0 之后加了二十多个词，再测一次 bot 用不用。
+
+| 模型 | 回复数 | 用到的新词 | 新词次数 | 温柔 |
+|---|---|---|---|---|
+| DeepSeek v4.1 flash | 150 | 16 种 | 154 次（歪头 69、眨眨眼 16、拍手 13、低头 11、撒花 10…） | 146 次 |
+| Kimi k3 | 100 | 12 种 | 55 次（歪头 17、撒花 11…） | 53 次 |
+
+「温柔」一个词既当安慰又当微笑，所以用得最多。把它拆成「温柔」（微笑）和新的「安慰」（看着对方、眉头微蹙的软笑）后，同样的 DeepSeek 评测（每边 150 条，各有 6–7 条因为网络中断失败）：
+
+| 指标 | 拆分前 | 拆分后 |
+|---|---|---|
+| 温柔 | 110 次（88 条回复） | 84 次（74 条回复） |
+| 安慰 | — | 28 次（24 条回复） |
+| 用了 `+` 组合的回复 | 96.5% | 97.9% |
+| 用了组合表情的回复 | 32.6% | 52.4%（安慰本身是组合表情） |
+
+Qwen 这次没测成：评测用的 OpenRouter 工作区开了「零数据保留」限制，Qwen 的服务商都不满足。

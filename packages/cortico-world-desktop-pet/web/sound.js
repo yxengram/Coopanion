@@ -25,7 +25,7 @@ export const EXPR_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
-  brave: 'wry', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
+  brave: 'wry', comfort: 'soft', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
   fuming: 'angry', heartbroken: 'sad', celebrate: 'sparkle', gloomy: 'sad', speechless: 'wry', starry: 'surprised',
 };
 // tones only our bodies ask for (the plus words); a pack made for other apps ships them as files

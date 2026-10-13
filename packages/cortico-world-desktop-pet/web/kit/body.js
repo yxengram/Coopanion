@@ -235,6 +235,9 @@ export const PLUS_MIXES = {
   sulk:     { label: '瘪嘴', kao: '(ó 3 ò', eyes: 'sad', mouth: 'pout' },
   whimper:  { label: '哭唧唧', kao: '(T 3 T', eyes: 'cry', mouth: 'pout' },
   brave:    { label: '强颜欢笑', kao: '(ó ▽ ò;', eyes: 'worried', mouth: 'gentle' },
+  // comforting you (没事的): open eyes on you under brows drawn up a little, a soft smile, gentle's slow nod, no sweat (a
+  // brave smile's worried eyes are teary on the girls, and gentle's half-shut eyes are her own contented smile)
+  comfort:  { label: '安慰', kao: '(ó ᴗ ò)', eyes: 'neutral', brows: 'sad', mouth: 'gentle', marks: 'gentle', body: 'gentle', add: { blush: .3 } },
   pained:   { label: '苦恼', kao: '(> ~ <;', eyes: 'bowing', mouth: 'worried', brows: 'sad', body: 'worried', add: { sweat: true } },
   doubt:    { label: '狐疑', kao: '(¬ ~ ¬ ?', eyes: 'smug', mouth: 'confused', marks: 'confused' },
   blank:    { label: '懵', kao: '(0 O o ?', eyes: 'confused', mouth: 'surprised' },
@@ -258,7 +261,7 @@ const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
-  brave: 'wry', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
+  brave: 'wry', comfort: 'soft', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
   fuming: 'angry', heartbroken: 'sad', celebrate: 'sparkle', gloomy: 'sad', speechless: 'wry', starry: 'surprised',
 };
 /**

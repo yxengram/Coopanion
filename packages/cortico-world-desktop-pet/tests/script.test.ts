@@ -116,17 +116,21 @@ describe('vocabTable', () => {
     expect(groupOf('happy')).toBe('开心(好消息)');
     expect(groupOf('lol')).toBe('开心(好消息)');
     expect(groupOf('smirk')).toBe('调皮、得意(逗人、显摆)');
-    expect(groupOf('sulk')).toBe('难过(坏消息、陪对方难过)');
+    expect(groupOf('sulk')).toBe('难过(坏消息、陪对方难过、安慰对方)');
     expect(groupOf('huff')).toBe('生气、嫌弃(被惹、被吐槽)');
     expect(groupOf('petrify')).toBe('惊讶、紧张(意外、替对方担心)');
     expect(groupOf('neutral')).toBe('其他');
     // the faces with a mark of their own go by their mood, next to the face they are made of
     expect(['celebrate', 'heartbroken', 'gloomy', 'fuming', 'speechless', 'starry'].map((id) => groupOf(id))).toEqual([
-      '开心(好消息)', '难过(坏消息、陪对方难过)', '难过(坏消息、陪对方难过)', '生气、嫌弃(被惹、被吐槽)', '生气、嫌弃(被惹、被吐槽)', '惊讶、紧张(意外、替对方担心)']);
+      '开心(好消息)', '难过(坏消息、陪对方难过、安慰对方)', '难过(坏消息、陪对方难过、安慰对方)', '生气、嫌弃(被惹、被吐槽)', '生气、嫌弃(被惹、被吐槽)', '惊讶、紧张(意外、替对方担心)']);
     const t = vocabTable(VOCAB);
     expect(t.indexOf('- angry ')).toBeLessThan(t.indexOf('- fuming '));
     expect(t.indexOf('- fuming ')).toBeLessThan(t.indexOf('- huff '));
     expect(t.indexOf('- sad ')).toBeLessThan(t.indexOf('- sulk '));
+    // comfort (安慰) right after sad: the face for comforting someone sad, beside the sad faces (not gentle's soft smile)
+    expect(groupOf('comfort')).toBe('难过(坏消息、陪对方难过、安慰对方)');
+    expect(t.indexOf('- sad ')).toBeLessThan(t.indexOf('- comfort '));
+    expect(t.indexOf('- comfort ')).toBeLessThan(t.indexOf('- sulk '));
     expect(t.indexOf('- sulk ')).toBeLessThan(t.indexOf('- angry '));
     const own: VocabWord[] = [...VOCAB, { id: 'beep', kind: 'expression', names: { zh: ['哔哔脸'] }, about: { zh: '屏幕一闪' }, seconds: 1 }];
     expect(groupOf('beep', vocabTable(own))).toBe('其他');

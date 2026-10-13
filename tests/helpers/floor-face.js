@@ -47,8 +47,10 @@ export function describeFloorFace(name, { dir, M, F, GESTURES }) {
     seen.pet.resize();
     seen.run = (s, each = () => {}) => { for (let i = 0; i < Math.round(s * 60); i++) { seen.pet.step(1 / 60); seen.pet.render(); each(); } };
     seen.alpha = k => seen.last.st.alpha[k] ?? 0;
-    /** What the painter would draw this frame (the figure paints the floor face from the same frame). */
-    seen.plan = () => F.planFace(seen.fc, seen.o.face, { ...seen.o, look: seen.last.look }, seen.o.t, n => !!model.feat.sprites?.[n]);
+    /** What the painter would draw this frame (the figure paints the floor face from the same frame), `x` over the frame. */
+    seen.plan = (x = {}) => F.planFace(seen.fc, seen.o.face, { ...seen.o, look: seen.last.look, ...x }, seen.o.t, n => !!model.feat.sprites?.[n]);
+    /** The plan with her eyes open (a blink past DRAWN_SHUT is the painted eye closing). */
+    seen.openPlan = () => seen.plan({ blink: 0, eyeClose: 0 });
     return seen;
   }
 
@@ -149,7 +151,7 @@ export function describeFloorFace(name, { dir, M, F, GESTURES }) {
       expect(s.alpha('kneel_body')).toBe(1);
       expect(s.last.floorFace).toBe('kneel');
       expect(s.alpha('kneel_shut') + s.alpha('kneel_smile') + s.alpha('kneel_talk')).toBe(0);
-      const plan = s.plan();
+      const plan = s.openPlan();
       expect(plan.eyes.map(e => e.name)).toEqual(['sad_eyeL', 'sad_eyeR']);
       // getting up: the face stays live on the drawing as long as it shows, and goes with it
       s.frames.length = 0;
@@ -160,6 +162,34 @@ export function describeFloorFace(name, { dir, M, F, GESTURES }) {
       expect(s.last.floorFace).toBeFalsy();
     });
 
+    it('blinks a drawn open eye shut with the painted lid and its lash line standing, seated, turned, kneeling and lying (a face made of two too)', () => {
+      const s = onKit();
+      s.run(.5);
+      const P = s.pet.pet;
+      const eyes = x => s.plan(x).eyes.map(e => (e.kind === 'sprite' ? e.name : e.kind));
+      for (const [pose, x, floor] of [['stand', {}], ['sit', {}], ['stand', { look: [5, -2] }], ['kneel', {}, 'kneel'], ['lie', {}, 'lie']]) {
+        if (pose !== 'stand') { s.pet.doWord(pose); s.run(3); }
+        for (const [group, fam] of [[['sad'], 'sad'], [['shy'], 'shy'], [['smug', 'happy'], 'smug'], [['surprised'], 'surprised']]) {
+          const n = `${pose} ${JSON.stringify(x)} ${group.join('+')}`;
+          if (group.length > 1) s.pet.doGroup(group); else s.pet.setExpr(group[0], 30);
+          // (no blink of her own meanwhile; one started by hand: .16 s, a sine)
+          P.blinkT = 99; P.blinkAge = 9; s.run(.4);
+          if (pose === 'sit') expect(s.o.sit, n).toBeGreaterThan(.99);
+          // (kneeling, a face with an arm pose kneels in the hybrid, whose face is the standing one: sad has none)
+          if (pose !== 'kneel' || group[0] === 'sad') expect(s.last.floorFace ?? null, n).toBe(floor ?? null);
+          expect(eyes(x), `${n} open`).toEqual([`${fam}_eyeL`, `${fam}_eyeR`]);
+          P.blinkAge = 0; s.run(1 / 60);      // blink .32
+          expect(eyes(x), `${n} blinking`).toEqual([`${fam}_eyeL`, `${fam}_eyeR`]);
+          P.blinkAge = .07; s.run(1 / 60);    // blink about 1
+          expect(s.o.blink, n).toBeGreaterThan(.9);
+          expect(eyes(x), `${n} shut`).toEqual(['open', 'open']);
+          for (const e of s.plan(x).eyes) expect(e.open, `${n} shut`).toBeLessThan(.1);
+          P.blinkAge = 9; s.run(.2);
+        }
+        if (pose !== 'stand') { s.pet.setExpr('neutral', .1); s.pet.doWord('stand'); s.run(4); }
+      }
+    });
+
     it('lying, a face made of two (smug+happy) shows on the drawing\'s head', () => {
       const s = onKit();
       s.run(.5);
@@ -167,7 +197,7 @@ export function describeFloorFace(name, { dir, M, F, GESTURES }) {
       s.run(3);
       expect(s.alpha('lie_body')).toBe(1);
       expect(s.last.floorFace).toBe('lie');
-      const plan = s.plan();
+      const plan = s.openPlan();
       expect(plan.eyes.map(e => e.name)).toEqual(['smug_eyeL', 'smug_eyeR']);
       expect(M.partsOf(s.fc, s.o.face).mouth).toBe('happy');
       expect(s.alpha('lie_live')).toBe(1);

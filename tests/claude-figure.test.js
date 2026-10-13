@@ -9,7 +9,7 @@ import {
   feetFromLegs, fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, SIT_LOW, sitAnchors, sitMix, sitRaise,
   ROLL_D, WHOLE_POSES, liveAnchors,
 } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
-import { createFacePainter, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
+import { createFacePainter, DRAWN_SHUT, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
 import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/claude-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -530,6 +530,54 @@ describe('Claude-chan: faces', () => {
       for (const e of drawn) { expect(e.kind).toBe('sprite'); expect(Math.abs(e.rot)).toBeLessThanOrEqual(.12); }
       for (const e of stroked) { expect(e.kind).toBe('stroke'); expect(e.rot).toBeCloseTo(rot * .6); }
     }
+  });
+  it('blinks a drawn open eye shut with the painted lid and its lash line past DRAWN_SHUT, not a squashed sliver; shut drawings, winks and cry as before', () => {
+    const P0 = { exprAt: 0, exprUntil: 9, modeT: 1, drowse: 0 };
+    const plan = (f, o = {}, t = .5, p = P0) => planFace((PLUS_FACES[f] ?? FACES[f]).f(t, p), f, frame(f, { t, ...o }), t, fullHas).eyes;
+    const names = (f, o, t, p) => plan(f, o, t, p).map(e => e.name || e.kind);
+    const SHUT = [{ blink: .6 }, { blink: 1 }, { eyeClose: 1 }], amount = s => s.blink ?? s.eyeClose;
+    // each face's own open eyes, the wide surprised eyes, and the half lids
+    const DRAWN = [['angry', 'angry'], ['sad', 'sad'], ['worried', 'sad'], ['shy', 'shy'], ['smug', 'smug'], ['determined', 'determined'],
+      ['surprised', 'surprised'], ['scared', 'surprised'], ['content', 'halflid'], ['disgusted', 'halflid'], ['reading', 'halflid'], ['sleepy', 'halflid', 3]];
+    for (const [f, fam, t = .5] of DRAWN) {
+      // open, and the start and end of a blink: the drawing, squashed a little about its middle
+      for (const blink of [0, .3, DRAWN_SHUT]) expect(names(f, { blink }, t), `${f} blink ${blink}`).toEqual([`${fam}_eyeL`, `${fam}_eyeR`]);
+      // most of the way shut and shut: the painted eye, its lid down as far as the blink
+      for (const s of SHUT) {
+        const eyes = plan(f, s, t);
+        expect(eyes.map(e => e.kind), `${f} ${JSON.stringify(s)}`).toEqual(['open', 'open']);
+        for (const e of eyes) expect(e.open, `${f} ${JSON.stringify(s)}`).toBeLessThanOrEqual(1 - amount(s) + 1e-9);
+      }
+    }
+    // every face: an open drawing cuts to the painted eye past DRAWN_SHUT; every other drawing (cry's shut eyes, the
+    // happy, sleeping, winking, heart, > < and dizzy ones) stays itself through the blink
+    for (const f of ALL_FACES) {
+      const fc = (PLUS_FACES[f] ?? FACES[f]).f(.5, P0), open = plan(f);
+      open.forEach((e0, i) => {
+        if (e0.kind !== 'sprite') return;
+        const cuts = ['ring', 'lid'].includes(fc.eyes[i].shape) && !e0.name.startsWith('cry_');
+        for (const s of SHUT) {
+          const e = plan(f, s)[i];
+          if (cuts) expect(e.kind, `${f} ${i} ${JSON.stringify(s)}`).toBe('open');
+          else expect(e.name, `${f} ${i} ${JSON.stringify(s)}`).toBe(e0.name);
+        }
+      });
+    }
+    for (const s of SHUT) {
+      expect(names('cry', s), JSON.stringify(s)).toEqual(['cry_eyeL', 'cry_eyeR']);
+      expect(names('happy', s), JSON.stringify(s)).toEqual(['happy_eyeL', 'happy_eyeR']);
+      expect(names('sleep', s), JSON.stringify(s)).toEqual(['sleep_eyeL', 'sleep_eyeR']);
+      expect(names('love', s), JSON.stringify(s)).toEqual(['love_eyeL', 'love_eyeR']);
+      // a wink keeps its shut eye; the open one blinks as the plain eye does
+      expect(names('wink', s), JSON.stringify(s)).toEqual(['open', 'wink_eyeR']);
+      // the salute: its serious eyes while the hand is up; the wink as it comes down keeps the shut eye
+      const up = { ...P0, pulse: { kind: 'salute', t0: 0, dur: 2 } };
+      expect(names('saluting', s, .5, up), JSON.stringify(s)).toEqual(['open', 'open']);
+      expect(names('saluting', s, 1.8, up), JSON.stringify(s)).toEqual(['open', 'wink_eyeR']);
+    }
+    const up = { ...P0, pulse: { kind: 'salute', t0: 0, dur: 2 } };
+    expect(names('saluting', { blink: .3 }, .5, up)).toEqual(['determined_eyeL', 'determined_eyeR']);
+    expect(names('saluting', { blink: .3 }, 1.8, up)).toEqual(['determined_eyeL', 'wink_eyeR']);
   });
   it('draws every face into the texture without throwing, sprites or none', () => {
     const painter = createFacePainter(SYNTH, { makeCanvas: recCanvas });
@@ -1076,7 +1124,8 @@ describe('Claude-chan: a head gesture beside the arms\' one, kneeling, and faces
     expect(w.o.face).toBe('angry+singing+singing');
     expect(w.seen.last.plan).toMatchObject({ L: 'pray', R: 'pray' });
     expect(w.motion.arms.pray).toBeCloseTo(1);
-    expect(planFace(w.fc, w.o.face, w.o, w.o.t, has).eyes.map(e => e.name)).toEqual(['angry_eyeL', 'angry_eyeR']);
+    // (eyes open: a blink past DRAWN_SHUT is the painted eye closing)
+    expect(planFace(w.fc, w.o.face, { ...w.o, blink: 0, eyeClose: 0 }, w.o.t, has).eyes.map(e => e.name)).toEqual(['angry_eyeL', 'angry_eyeR']);
     expect(mouths.has('mouth_u')).toBe(true);
     // the song's chin up: the same frame as a plain angry face pitches the head by HEAD_PITCH.singing
     const plain = once({ ...w.o, face: 'angry' }, { ...w.fc, parts: undefined }), mixed = once(w.o, w.fc);

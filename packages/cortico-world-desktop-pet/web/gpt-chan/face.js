@@ -21,6 +21,12 @@ export const FACE_EYES = {
 };
 /** Faces with half-shut eyes: the drawn half lid shows while the lid is not nearly shut. */
 export const HALF_LID = ['sleepy', 'content', 'gentle', 'reading', 'sipping', 'disgusted', 'smug', 'sighing'];
+/**
+ * How far shut (a blink, or the kit closing her eyes from one face to the next) a drawn open eye may be: past it the
+ * painted eye takes over, its lid lowered by as much, so the closed frames show the lid and its lash line; squashed
+ * further, the drawing would be a thin dark sliver with no lid. (Cry's eyes are drawn shut: they only squash.)
+ */
+export const DRAWN_SHUT = .4;
 /** Faces whose shut smiling eye is a wink. */
 export const WINKS = ['wink', 'tongue', 'saluting'];
 /**
@@ -69,10 +75,15 @@ function planEye(k, e, i, face, fc, o, t, has, lx, ly, tilt, shut) {
   const squash = { sy: 1 - .85 * (o.eyeClose || 0) }, blinkSq = { sy: 1 - .9 * shut };
   if (e.shape === 'ring' || e.shape === 'lid') {
     const fam = FACE_EYES[face];
-    const own = fam && (e.shape === 'ring' || fam === 'cry' || fam === 'smug') ? spr(fam, fam === 'cry' ? squash : blinkSq) : null;
-    if (own) return own;
-    if (fc.wide && e.shape === 'ring') { const s = spr('surprised', blinkSq); if (s) return s; }
-    if (e.shape === 'lid' && HALF_LID.includes(face) && (e.ry ?? 16) >= 5) { const s = spr('halflid', blinkSq); if (s) return s; }
+    const own = fam && (e.shape === 'ring' || fam === 'cry' || fam === 'smug') ? fam : null;
+    if (own === 'cry') { const s = spr(own, squash); if (s) return s; }
+    // the start and end of a blink squash a drawn open eye about its middle; more than DRAWN_SHUT shut it cuts to the
+    // painted eye closing (one frame), whose lid comes down with its lash line
+    if (shut <= DRAWN_SHUT) {
+      if (own && own !== 'cry') { const s = spr(own, blinkSq); if (s) return s; }
+      if (fc.wide && e.shape === 'ring') { const s = spr('surprised', blinkSq); if (s) return s; }
+      if (e.shape === 'lid' && HALF_LID.includes(face) && (e.ry ?? 16) >= 5) { const s = spr('halflid', blinkSq); if (s) return s; }
+    }
     // the iris fills most of the eye: it only shifts a little, so the white never shows past the outline
     const open = (e.shape === 'ring' ? clamp((e.ry ?? 16) / (e.rx ?? 16), 0, 1) * (tilt ? .8 : 1) : clamp((e.ry ?? 0) / 16, 0, 1)) * (1 - shut);
     const ix = clamp(lx + (e.dx || 0), -6, 6), iy = clamp(ly * .7 + (e.dy || 0) * .7, -3.5, 3.5);

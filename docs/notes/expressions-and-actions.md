@@ -449,7 +449,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **组合脸（29 个）**：内置形象的名单里，组合脸只做别名的目标；组合脸 + 基本表情、组合脸 + 组合脸照旧拆开。`readPairs` 也接受组合脸做成员（World 分不出组合脸和第三方包自己的表情）；kit 能合成它们（作眼时带上它的眉、记号和 `add`，作嘴时给它的嘴）。
 - **音色和闪光**：音色取眼那张脸的（包自带的词取它的 `sound`），没有就取嘴那张脸的（都是已有音色，导出包的音效不变）；闪光、弹跳按眼那张脸（happy 2、smug 1、组合脸按它的 `glint`，其他 0；surprised 往下压）；默认 3.2 s，两个里有 sleepy 时 4.4 s；爱心只在单独的 love 时发。
 - **和主动要的表情完全一样**：经 `setExpr('眼+嘴')` 设置（`exprAsked`），动作保留它（`keepsFace` 认得两个部分都是表情的组合名），`holdFace` 延长它，被盖住时暂停，`BODY_OWN` 手势叠加成 `眼+嘴+手势自带的脸`（唱歌、叹气换成手势的嘴），被 sleep、拎起、neutral、新表情清掉。
-- **形象怎么画**：和组合脸一样走 `fc.parts`。三位娘按 `parts.eyes/mouth/brows/body` 查自己的图；大肥鱼也一样，smug、angry、sad、shy 用自己画好的眼睛（`whale/figure.js` 的 `drawnEye`，同三位娘：睁眼和 smug 的半闭眼换成贴图；眨眼开头和结尾压扁贴图，闭上四成以上一帧切成画的眼睛合到同样程度，所以闭眼那几帧是眼皮和睫毛线，不是一条压扁的彩色细缝（这一步只有大肥鱼有，三位娘的贴图一直压扁到底）；shy 回头看你那一下仍是画的睁眼），其余的睁眼加眉的倾斜；Coo 没有嘴，环的缺口取嘴那张脸的，吐舌画得出，ω 画不出，所以很多对在 Coo 上看起来就是眼那张脸。
+- **形象怎么画**：和组合脸一样走 `fc.parts`。三位娘按 `parts.eyes/mouth/brows/body` 查自己的图；大肥鱼也一样，smug、angry、sad、shy 用自己画好的眼睛（`whale/figure.js` 的 `drawnEye`，同三位娘：睁眼和 smug 的半闭眼换成贴图；眨眼开头和结尾压扁贴图，闭上四成以上一帧切成画的眼睛合到同样程度，所以闭眼那几帧是眼皮和睫毛线，不是一条压扁的彩色细缝（三位娘也一样，见下面 Claude 娘一节）；shy 回头看你那一下仍是画的睁眼），其余的睁眼加眉的倾斜；Coo 没有嘴，环的缺口取嘴那张脸的，吐舌画得出，ω 画不出，所以很多对在 Coo 上看起来就是眼那张脸。
 - **候选**：可配对的基本表情 26 个（kit 的 18 个和 plus 的 8 个，去掉 neutral、petrify 和组合脸），C(26,2) = 325 个无序对，两种眼嘴方向共 650 个候选；其中 21 对正好是已有的组合脸（可做别名）。候选表在 `scratch/combo2/pairs/`（不进仓库），看渲染图挑选后由 `scratch/combo2/tools/apply-pairs.mjs` 写进各 `figure.json`。
 - **怎么挑的**〔实测〕：
   - 5 个形象各把 650 个候选和 27 个基本表情都渲染一遍（当时用示例页的开发开关 `?pairs=ab|ba` + `ctl.doGroup`，0.9 s 时截脸部；开关已删，现在 `ctl.doGroup([眼, 嘴])` 直接就是那张脸），每个形象拼成 22 张 6×5 的对照图，外加一张基本表情参照图；同一对的两个方向挨着放。
@@ -464,7 +464,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **出厂验证**〔实测〕：用 World 自己的 `parseScript`，按每个形象的词表和 `pairs` 解析 `【A+B】`（一半按键的顺序写，一半反过来），检查得到的组是 `眼+嘴`（按名单的方向）或别名词，再把组在示例页上 `ctl.doGroup`。5 个形象共 476 格（大肥鱼重挑后重跑了她的 98 格），脸名和 `parts` 全部和名单一致，控制台 0 个错误（`scratch/combo2/tools/ship-plan.ts` → `shipshots.cjs`，图在 `scratch/combo2/verify/shipped-<形象>.png`；大肥鱼重跑的 98 格在 `scratch/combo4/verify/shipped-whale.png`，`combo2` 里的那张还是重挑前的 81 格）。
 - **测试用的参数**：World 侧 `parseScript`/`parseActions`/`vocabTable` 的 `pairs` 参数（默认空），World 运行时传当前形象的名单。
 - **没有 `doAll` 的身体、非 plus 身体**：非 plus 身体没有 `doGroup`，不变。World 只为声明了 `pairs` 的形象合并（5 个内置形象都声明了；导出给上游的包不带 `pairs`），没声明的照旧拆开。声明了合成对、身体却不会合成时（没有 `doAll`），`figure-frame.js` 逐个做，后一个表情胜出，不会出错；页面的 `acts.js` 队列按成员计时，不受影响。
-- 〔测试〕`pet-actions.test.js`「two faces of one group shown as one」（26 个基本表情两两、两个方向共 650 种都按「第一个的眼、第二个的嘴」合成；内置名单的每一对经 World 的 `parseActions` 两种写法都发成名单的方向，kit 显示的眼和嘴与名单一致）；三位娘 figure 测试和 `whale-pose.test.js` 用自己的图画名单里的每一对（大肥鱼的 smug、angry、sad、shy 用自己画好的眼睛，shy 回头看你时用画的睁眼：`whale-pose.test.js`「takes smug's, angry's, sad's and shy's own drawn eyes…」；眨眼闭到四成以上是画的眼皮和睫毛线，站、坐、转头、跪坐、趴下都是：「blinks smug's, angry's, sad's and shy's drawn eyes shut…」「kneeling and lying, a drawn eye blinks shut…」）；`PKG/tests/script.test.ts`「two expressions of one group as one face」、`packs.test.ts`、`world.test.ts`。
+- 〔测试〕`pet-actions.test.js`「two faces of one group shown as one」（26 个基本表情两两、两个方向共 650 种都按「第一个的眼、第二个的嘴」合成；内置名单的每一对经 World 的 `parseActions` 两种写法都发成名单的方向，kit 显示的眼和嘴与名单一致）；三位娘 figure 测试和 `whale-pose.test.js` 用自己的图画名单里的每一对（大肥鱼的 smug、angry、sad、shy 用自己画好的眼睛，shy 回头看你时用画的睁眼：`whale-pose.test.js`「takes smug's, angry's, sad's and shy's own drawn eyes…」；眨眼闭到四成以上是画的眼皮和睫毛线，站、坐、转头、跪坐、趴下都是：「blinks smug's, angry's, sad's and shy's drawn eyes shut…」「kneeling and lying, a drawn eye blinks shut…」；三位娘各自的 figure 测试「blinks a drawn open eye shut with the painted lid…」两条）；`PKG/tests/script.test.ts`「two expressions of one group as one face」、`packs.test.ts`、`world.test.ts`。
 
 ### 10. 头部通道（plus）
 
@@ -929,6 +929,7 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
   - 双手手势或表情姿势时，书不见；
   - 跪坐时把书放到一边（`armPlan` 的 `kneel` 是 kit 的跪坐标志）：空闲时双手放下，单手手势的另一只手垂下（`hangR`，不是 `bookside`），所以跪坐混合体里不出现书。
 - 被拎或晕时双臂下垂，任何姿势都不显示（`:278`）。
+- **画好的睁眼眨眼**（三位娘相同，`face.js` 的 `planEye`）：表情自己的睁眼贴图（angry、sad/worried、shy、smug、determined/敬礼、surprised/scared 和 `fc.wide`）和半闭眼贴图（`halflid`：犯困、惬意、温柔、看书、喝茶、嫌弃、叹气）在眨眼开头和结尾压扁（`sy = 1 - .9·shut`）；眨眼或 kit 换脸时闭眼超过 `DRAWN_SHUT`（0.4）一帧切成画的睁眼，眼皮按同样程度落下，闭眼那几帧是眼皮和睫毛线，不再是一条深色细缝（同大肥鱼）。cry 的眼睛本来就是闭着画的，照旧压扁；开心、睡觉、眨眼那只闭着的眼、爱心、>< 和晕的眼睛不变。站、坐、转头和跪坐、趴下的实时脸都走这一处。〔测试〕三位娘 figure 测试「blinks a drawn open eye shut with the painted lid and its lash line past DRAWN_SHUT…」「…standing, seated, turned, kneeling and lying…」（`tests/helpers/floor-face.js`）
 
 **GPT 娘、Gemini 娘**
 

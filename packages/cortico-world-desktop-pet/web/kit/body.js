@@ -792,7 +792,9 @@ export function createPet(els, opts) {
       case 'headhold': pulse('headhold', 2.5); holdFace('pained', 2.6, 'arm'); play('surprised', 'face'); break;
       case 'raise': pulse('raise', 1.9); holdFace('happy', 2, 'arm'); play('pop', 'move'); break;
       case 'thumbs': pulse('thumbs', 1.8); holdFace('happy', 1.9, 'arm'); play('ding', 'move'); break;
-      case 'shush': pulse('shush', 2.2); holdFace('wink', 2.3, 'arm'); play('soft', 'face'); break;
+      // (shush: a wink over a closed little mouth, the eyes and body of wink and the mouth of neutral: wink's own open
+      // smile behind the finger reads as a giggle)
+      case 'shush': pulse('shush', 2.2); holdFace('wink+neutral', 2.3, 'arm'); play('soft', 'face'); break;
       case 'wipe': pulse('wipe', 2.1); holdFace('gentle', 2.2, 'arm'); play('sigh', 'move'); break;
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9, 'arm'); play('spout', 'move'); break;

@@ -8,6 +8,9 @@ import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web
 import { createActs, WALK_MAX } from '../packages/cortico-world-desktop-pet/web/acts.js';
 import { figurePacks, readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { CHANNELS, parseActions } from '../packages/cortico-world-desktop-pet/src/script.ts';
+import { FACE_ARMS as CLAUDE_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
+import { FACE_ARMS as GPT_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
+import { FACE_ARMS as GEMINI_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 
 const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
 const vocabOf = (pack) => JSON.parse(readFileSync(new URL(`web/${pack}/figure.json`, PKG), 'utf8')).vocab;
@@ -85,6 +88,8 @@ function countingCtx() {
 /** The arm words that are a figure's face poses as gestures of their own (托腮, 加油, 记笔记, 对手指). */
 const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
 /** The arm words drawn anew for the girls and the whale (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗); Coo has none of them. */
+/** The three girls' faces that pose her arms (FACE_ARMS), by figure. */
+const GIRL_FACE_ARMS = { 'claude-chan': CLAUDE_FACE_ARMS, 'gpt-chan': GPT_FACE_ARMS, 'gemini-chan': GEMINI_FACE_ARMS };
 const NEW_ARM_WORDS = ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
 /** The head's and the body's own moves: 低头, 眨眨眼 (the head's channel); 凑近, 后仰, 晃来晃去, 跺脚 (standing or seated still). */
 const MORE_WORDS = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
@@ -138,8 +143,14 @@ describe('the words the model can use', () => {
     expect(own('headhold')).toEqual(['headhold', 'pained', ['surprised', 'face']]);
     expect(own('raise')).toEqual(['raise', 'happy', ['pop', 'move']]);
     expect(own('thumbs')).toEqual(['thumbs', 'happy', ['ding', 'move']]);
-    expect(own('shush')).toEqual(['shush', 'wink', ['soft', 'face']]);
+    // (a shush winks over a closed little mouth: wink's own open smile behind the finger read as a giggle; neither part,
+    // nor its body, wink's, poses an arm)
+    expect(own('shush')).toEqual(['shush', 'wink+neutral', ['soft', 'face']]);
     expect(own('wipe')).toEqual(['wipe', 'gentle', ['sigh', 'move']]);
+    // ...and no part of any of them (a mix's eyes, mouth and body) is a face that poses the girls' arms
+    for (const w of NEW_ARM_WORDS) {
+      for (const part of String(own(w)[1]).split('+')) for (const [fig, arms] of Object.entries(GIRL_FACE_ARMS)) expect(arms[part], `${w} ${part} ${fig}`).toBeUndefined();
+    }
     // a clap ticks softly as her hands meet, once for each of CLAP.at, and its hands are apart between (clapShut)
     const pet = hearingPet();
     run(pet, 1);

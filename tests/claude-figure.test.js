@@ -2,12 +2,12 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { CLAP, createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import {
   anchorsOf, approach, ARM_BOTH, BODY_CUT, bodyAlphas, bodyStep, bodyWant, bowPose, SIT_CUT, ARM_FALLBACK, ARM_ONE, armPlan, BACK_HAIR_REACH, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
   feetFromLegs, fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, SIT_LOW, sitAnchors, sitMix, sitRaise,
-  ROLL_D, WHOLE_POSES, liveAnchors,
+  ROLL_D, WHOLE_POSES, liveAnchors, ARM_TWIN, armPoseOf, NECK_POSES,
 } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { createFacePainter, DRAWN_SHUT, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
 import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -57,7 +57,8 @@ const inside = ([x, y], [x0, y0, x1, y1], m = 0) => x >= x0 - m && x <= x1 + m &
 const FAMS = ['happy', 'sleep', 'surprised', 'love', 'dizzy', 'drag', 'cry', 'smug', 'angry', 'sad', 'wink', 'halflid', 'shy', 'determined'];
 const MOUTH_SPRITES = ['neutral_mouth', ...TALK_SHAPES.map(s => `mouth_${s}`), ...['frown', 'pout', 'cat', 'grin', 'tongue', 'smile'].map(s => `mouth_${s}`)];
 const ARM_POSES = ['book', 'bookside', 'wave', 'chin', 'scratch', 'idea', 'salute', 'vsign', 'point', 'cover', 'fist', 'read', 'write', 'search',
-  'cheer', 'heart', 'cup', 'pray', 'hips', 'hug', 'cross', 'stretch', 'curtsy', 'oops', 'shy'];
+  'cheer', 'heart', 'cup', 'pray', 'hips', 'hug', 'cross', 'stretch', 'curtsy', 'oops', 'shy',
+  'raise', 'thumbs', 'shush', 'wipe', 'clap', 'clapo', 'shrug', 'headhold'];
 function synthModel() {
   const eye = (x0, x1) => {
     const cx = (x0 + x1) / 2;
@@ -366,17 +367,69 @@ describe('Claude-chan: motion helpers', () => {
     for (const [w, pose] of [['fist', 'fist'], ['twiddle', 'shy'], ['muse', 'chin'], ['jot', 'write']]) {
       for (const face of ['angry', 'thinking', 'excited', 'shy']) expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .5 }, face }, all).L, `${w} ${face}`).toBe(pose);
     }
+    // the new arm words (举手, 点赞, 嘘, 擦汗 with armL; 摊手, 抱头 with both): standing, seated and walking alike, under any
+    // face, gone again before the gesture ends
+    for (const [w, R] of [['raise', 'bookside'], ['thumbs', 'bookside'], ['shush', 'bookside'], ['wipe', 'bookside'], ['shrug', 'shrug'], ['headhold', 'headhold']]) {
+      for (const mode of ['idle', 'sit', 'walk']) expect(armPlan({ mode, gesture: { kind: w, k: .5 }, face: 'happy' }, all), `${w} ${mode}`).toEqual({ L: w, R, fallback: null });
+      expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .5 }, face: 'angry' }, all).L, w).toBe(w);
+      expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .95 }, face: 'sad' }, all).L, w).not.toBe(w);
+    }
+    // clapping (拍手): her hands apart (clapo) till they first meet, together (clap) for each of the kit's CLAP.at, apart
+    // between; with no drawing of them apart, together throughout; with neither, pressed together (pray), then the plain arms
+    const clapAt = (s, has = all) => armPlan({ mode: 'idle', gesture: { kind: 'clap', k: s / CLAP.dur }, face: 'happy' }, has);
+    expect(clapAt(.1)).toEqual({ L: 'clapo', R: 'clapo', fallback: null });
+    for (const a of CLAP.at) {
+      expect(clapAt(a + .05).L, `${a}`).toBe('clap');
+      expect(clapAt(a + CLAP.shut + .05).L, `${a}`).toBe('clapo');
+    }
+    expect(CLAP.at.length).toBe(4);
+    expect(CLAP.at[3] + CLAP.shut).toBeLessThan(.9 * CLAP.dur);
+    expect(clapAt(.1, only(['clap'])).L).toBe('clap');
+    expect(clapAt(.1, only(['pray'])).L).toBe('pray');
+    expect(clapAt(.1, none)).toEqual({ L: 'hangL', R: 'hangR', fallback: 'clapo' });
+    expect(armPoseOf('clap', .01)).toBe('clapo');
+    expect(armPoseOf('wave', .5)).toBe('wave');
+  });
+  it.skipIf(!real)('claps by cutting between her two drawings of it in a frame, never both at once, four times, then lets her hands down', () => {
+    const { fig, motion, seen } = stubFigure(real);
+    const pet = barePet(fig);
+    run(pet, .5);
+    pet.doWord('clap');
+    let both = 0, cuts = 0, was = null;
+    const peak = { clap: 0, clapo: 0 };
+    for (let i = 0; i < 3 * 60; i++) {
+      run(pet, 1 / 60);
+      const A = motion.arms, a = A.clap || 0, b = A.clapo || 0;
+      if (a > 0 && b > 0) both++;
+      peak.clap = Math.max(peak.clap, a); peak.clapo = Math.max(peak.clapo, b);
+      const now = a > 0 ? 'clap' : b > 0 ? 'clapo' : null;
+      if (now && was && now !== was) cuts++;
+      if (now) was = now;
+    }
+    expect(both).toBe(0);
+    expect(peak).toEqual({ clap: 1, clapo: 1 });
+    // apart → together and back for each clap
+    expect(cuts).toBe(2 * CLAP.at.length);
+    expect((motion.arms.clap || 0) + (motion.arms.clapo || 0)).toBe(0);
+    expect(seen.bad).toEqual([]);
+  });
+  it.skipIf(!real)('keeps a hand on her lips, her brow or her head as her head nods (【嘘+点头】): the drawing rides the neck', () => {
+    expect(NECK_POSES).toEqual(['cover', 'shush', 'wipe', 'headhold']);
+    const R = buildRig(real);
+    for (const id of ['shush', 'wipe', 'headhold']) expect(R.deformers[R.ARM[id].rot].parent, id).toBe('neck');
+    for (const id of ['raise', 'thumbs', 'clap', 'clapo', 'shrug']) expect(R.deformers[R.ARM[id].rot].parent, id).toBe('waist');
   });
   it('has a drawing (or the plain arms\' way) for every arm gesture, and draws only words the kit has', () => {
     const words = new Set(ALL_WORDS);
     for (const g of [...Object.keys(ARM_ONE), ...Object.keys(ARM_BOTH), ...GESTURES]) expect(words.has(g), g).toBe(true);
     for (const pose of [...Object.values(ARM_ONE), ...Object.values(ARM_BOTH)]) expect(ARM_FALLBACK[pose], pose).toBeTruthy();
-    for (const pose of [...Object.values(FACE_ARMS), ...Object.values(POSE_ALT).flat()]) expect(ARM_POSES, pose).toContain(pose);
+    for (const pose of [...Object.values(FACE_ARMS), ...Object.values(POSE_ALT).flat(), ...Object.values(ARM_TWIN)]) expect(ARM_POSES, pose).toContain(pose);
+    for (const pose of Object.values(ARM_TWIN)) expect(ARM_FALLBACK[pose], pose).toBeTruthy();
     for (const f of Object.keys(FACE_ARMS)) expect(ALL_FACES, f).toContain(f);
   });
   it('keeps no arm drawing, stand-in or plain-arms way that nothing asks for', () => {
     // asked for: by a gesture, by a face, or held (the book)
-    const asked = new Set(['book', 'bookside', ...Object.values(ARM_ONE), ...Object.values(ARM_BOTH), ...Object.values(FACE_ARMS)]);
+    const asked = new Set(['book', 'bookside', ...Object.values(ARM_ONE), ...Object.values(ARM_BOTH), ...Object.values(FACE_ARMS), ...Object.values(ARM_TWIN)]);
     for (const k of [...Object.keys(POSE_ALT), ...Object.keys(ARM_FALLBACK)]) expect(asked.has(k), k).toBe(true);
     for (const id of realPoses.filter(id => !WHOLE_POSES.includes(id))) expect(asked.has(id), `drawing ${id}`).toBe(true);
     expect(existsSync(new URL('tex/pose_offer.png', DIR))).toBe(false);
@@ -387,7 +440,8 @@ describe('Claude-chan: motion helpers', () => {
     for (const id of ARM_POSES) {
       const A = R.ARM[id];
       expect(A, id).toBeTruthy();
-      expect(R.deformers[A.rot].parent, id).toBe(id === 'cover' ? 'neck' : 'waist');
+      // (a hand on her face or head rides the neck: NECK_POSES)
+      expect(R.deformers[A.rot].parent, id).toBe(['cover', 'shush', 'wipe', 'headhold'].includes(id) ? 'neck' : 'waist');
       for (const p of A.parts) { expect(p.parent).toBe(A.lift); expect(R.STANDING[p.id]).toBe(true); }
     }
     for (const id of ['lie', 'kneel', 'sit', 'back', 'roll']) {
@@ -707,7 +761,8 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
       for (const p of [...pose.required, ...(pose.overlays || []), ...(pose.face?.parts || [])]) texOk(new URL(`tex/${p.tex}.png`, DIR), p.box[2] * K, p.box[3] * K, `${id} ${p.tex}`);
       const A = R.ARM[id];
       if (!A) continue;
-      expect(inside(A.pivot, A.rect, 12), `${id} pivot`).toBe(true);
+      // (both hands on her head, a hand raised high: the drawing may end well above the shoulder it turns about)
+      expect(inside(A.pivot, A.rect, ['headhold', 'raise', 'wipe'].includes(id) ? 30 : 12), `${id} pivot`).toBe(true);
       expect(inside(A.wrist, A.rect, 4), `${id} wrist`).toBe(true);
     }
   });

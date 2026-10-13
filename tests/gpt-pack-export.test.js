@@ -75,6 +75,12 @@ describe('exported GPT-chan pack', () => {
     // her faces' arm poses as words of their own: a finger to her chin (look's "hm"), a fist (pop), her notebook (page,
     // which reading ships already) and fingertips together (shy); all upstream tones but page, so no new sound files
     expect(m.vocab.filter((w) => ['muse', 'fist', 'jot', 'twiddle'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['琢磨', '加油', '记笔记', '对手指']);
+    // the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗): their tones are upstream's (tick, pop, hmm, surprised)
+    // or ones the pack ships already (ding, soft, sigh), so no new sound files
+    expect(m.vocab.filter((w) => ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'].includes(w.id)).map((w) => w.names.zh[0]))
+      .toEqual(['拍手', '摊手', '抱头', '举手', '点赞', '嘘', '擦汗']);
+    for (const t of ['tick', 'pop', 'hmm', 'surprised']) expect(Object.keys(m.sounds), t).not.toContain(t);
+    for (const t of ['ding', 'soft', 'sigh']) expect(Object.keys(m.sounds), t).toContain(t);
     expect(m.vocab.find((w) => w.id === 'determined').names.zh).not.toContain('握拳');
     for (const t of ['pop', 'shy']) expect(Object.keys(m.sounds)).not.toContain(t);
     expect(Object.keys(m.sounds)).toContain('page');

@@ -68,21 +68,36 @@ export function cheerHandover(on, ang, to, rest) {
 }
 
 /** Gestures that pose the far arm themselves: she takes her chin off her hand for them. */
-export const FAR_ARM_GESTURES = ['cheer', 'heart', 'shiver', 'flap', 'flinch', 'peek', 'sip', 'read', 'roll', 'pray', 'hips', 'hug', 'serve', 'cross', 'stretch', 'curtsy', 'point'];
+export const FAR_ARM_GESTURES = ['cheer', 'heart', 'shiver', 'flap', 'flinch', 'peek', 'sip', 'read', 'roll', 'pray', 'hips', 'hug', 'serve', 'cross', 'stretch', 'curtsy', 'point',
+  'clap', 'shrug', 'headhold'];
 /** The gestures that put something in her hands, and the pose (model.poses.<pose>) that draws it. */
 export const PROP_GESTURES = { sip: 'cup', read: 'book' };
 /** Every gesture done with one drawing of both forearms (the held things above, and hands pressed together, on the hips, held out). */
-export const BOTH_HANDS = { ...PROP_GESTURES, pray: 'pray', hips: 'hips', hug: 'hug', serve: 'tea', cross: 'cross', stretch: 'stretch', curtsy: 'curtsy' };
+export const BOTH_HANDS = { ...PROP_GESTURES, pray: 'pray', hips: 'hips', hug: 'hug', serve: 'tea', cross: 'cross', stretch: 'stretch', curtsy: 'curtsy',
+  clap: 'clap', shrug: 'shrug', headhold: 'headhold' };
+/**
+ * A gesture's second drawing, cut to and from its own in a frame (no crossfade: two pairs of hands half seen at once read
+ * as a double exposure): the clap's hands apart, shown between the claps (the kit's clapShut).
+ */
+export const ARM_TWIN = { clap: 'clapo' };
+/** Both-hands drawings that ride the neck, so the hands stay on her head as it moves (both hands on her head). */
+export const NECK_HANDS = ['headhold'];
 /** Gestures that raise the near arm into a drawing of its own, handed over the cheer's way: hand at her head, finger up. */
-export const NEAR_RAISES = { scratch: 'scratch', idea: 'idea', salute: 'salute', vsign: 'vsign', cover: 'cover', point: 'point' };
+export const NEAR_RAISES = { scratch: 'scratch', idea: 'idea', salute: 'salute', vsign: 'vsign', cover: 'cover', point: 'point',
+  raise: 'raise', thumbs: 'thumbs', shush: 'shush', wipe: 'wipe' };
 /** Of those, the ones that raise the far arm instead (pointing ahead, where she faces). */
 export const FAR_RAISES = ['point'];
 /** Raised arms that ride the neck, so the hand stays on her face as the head moves (a hand over her mouth). */
-export const NECK_RAISES = ['cover'];
+export const NECK_RAISES = ['cover', 'shush', 'wipe'];
 /** Raises whose drawing is a bent arm (much shorter than the fist arm): they come in the heart's way, not by angle. */
-export const BENT_RAISES = ['idea', 'salute', 'vsign', 'cover'];
+export const BENT_RAISES = ['idea', 'salute', 'vsign', 'cover', 'thumbs', 'shush', 'wipe'];
 /** How far up (°) the fist arm goes for a near-arm raise before the drawing takes it on to its own angle. */
 export const RAISE_TO = 80;
+/**
+ * ...and for a raise whose drawing is a long straight arm held high (a hand raised above her head): the fist arm goes on
+ * nearly that high first, or the drawing, turned down to the fist arm's angle at the hand-over, sticks out sideways.
+ */
+export const RAISE_HIGH = { raise: 140 };
 /** A roll (`roll`) turns once, eased, over this part of the gesture (as the kit's rollTurn; the body travels with it). */
 export const rollTurn = k => smooth(.2, .8, k);
 /** How far one roll carries her (kit/body.js ROLL_D, rig units). */
@@ -485,7 +500,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // a heart made with both hands in front of her chest: one drawing of both forearms (model.poses.heart)
   const HEART = model.poses?.heart;
   // a cup held in both hands, a book held open: one drawing of both forearms and the thing they hold (model.poses.cup / .book)
-  const PROPS = Object.fromEntries(Object.entries(BOTH_HANDS).filter(([, k]) => model.poses?.[k]).map(([g, k]) => [g, model.poses[k]]));
+  // (and the clap's hands apart, ARM_TWIN, under the drawing's own name: no gesture asks for it by that)
+  const PROPS = Object.fromEntries(Object.entries({ ...BOTH_HANDS, ...Object.fromEntries(Object.values(ARM_TWIN).map(k => [k, k])) })
+    .filter(([, k]) => model.poses?.[k]).map(([g, k]) => [g, model.poses[k]]));
+  const TWIN_OF = Object.fromEntries(Object.entries(ARM_TWIN).map(([g, k]) => [k, g]));
   const PROP_PARTS = Object.values(PROPS).flatMap(p => p.required);
   // the near arm raised to her head or with a finger up: one drawing each, whole and its hand again over the head
   const RAISES = Object.fromEntries(Object.entries(NEAR_RAISES).filter(([, k]) => model.poses?.[k]).map(([g, k]) => [g, model.poses[k]]));
@@ -618,7 +636,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // each held thing rides the upper body like the heart; its top half (hands and cup) lifts on a warp for the sip
   for (const [g, pose] of Object.entries(PROPS)) {
     const [id, pivot] = Object.entries(pose.pivots)[0], [bx, by, bw, bh] = pose.required[0].box;
-    deformers[id] = { kind: 'rot', parent: 'waist', pivot };
+    deformers[id] = { kind: 'rot', parent: NECK_HANDS.includes(g) ? 'neck' : 'waist', pivot };
     deformers[id + 'Lift'] = { kind: 'warp', parent: id, rect: [bx, by, bx + bw, by + bh] };
     for (const p of pose.required) { parts.push({ ...p, parent: id + 'Lift', alpha: 0 }); STANDING[p.id] = true; }
   }
@@ -1258,7 +1276,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // a raise: the fist arm goes up part way, and the drawing takes over (see cheerHandover); without it the fist stays up
     const raiseOn = raiseG && propOK(raiseG) && !lieK ? raise : 0;
     const farRaise = FAR_RAISES.includes(raiseG);
-    if (raise && !farRaise) aN = lerp(aN, BENT_RAISES.includes(raiseG) ? 30 : raiseOn ? RAISE_TO : 100, raise);
+    if (raise && !farRaise) aN = lerp(aN, BENT_RAISES.includes(raiseG) ? 30 : raiseOn ? RAISE_HIGH[raiseG] ?? RAISE_TO : 100, raise);
     if (raise && farRaise) aF = lerp(aF, raiseOn ? -RAISE_TO : -100, raise);
     if (shiver) { aN = lerp(aN, -10, shiver); aF = lerp(aF, 8, shiver); }
     // coaxing, the hands come in together in front, swaying with her
@@ -1360,7 +1378,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     for (const [pg, pose] of Object.entries(PROPS)) {
       // as the heart's: up from a little lower into place; the cup sways a little, the book less. For the sip the hands
       // and the cup (the drawing's top half) come up toward her mouth, the sleeves stretching after them
-      const id = Object.keys(pose.pivots)[0], on = pg === propG ? holdOn : 0;
+      // (the clap's two drawings: one or the other, cut by clapShut, while the clap's hands show)
+      const g0 = TWIN_OF[pg] || pg, twin = ARM_TWIN[g0] && PROPS[ARM_TWIN[g0]] && propOK(ARM_TWIN[g0]);
+      const id = Object.keys(pose.pivots)[0], on = g0 === propG && (!TWIN_OF[pg] || twin) ? holdOn * (!twin || (pg !== g0) !== kit.clapShut(gk) ? 1 : 0) : 0;
       // (the stretch's drawing is overhead: it takes over by the fist arms' angle as they go up and comes back the same way)
       const swap = pg === 'stretch' ? (on > 0 ? smooth(70, 95, armBase) : 0) : gk < .5 ? smooth(.05, .3, on) : smooth(.4, .55, on);
       const up = smooth(.1, .5, on), lift = pg === propG ? 11 * sip : 0;
@@ -1384,9 +1404,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
           dir: pose.rest - 25 * (1 - smooth(.03, .12, gk)) + 6 * Math.sin(Math.PI * clamp((gk - .12) / .08, 0, 1)) - 20 * smooth(.86, .93, gk) }
         : BENT_RAISES.includes(rg)
           ? { swap: gk < .5 ? smooth(.05, .3, on) : smooth(.4, .55, on), lift: smooth(.1, .5, on), dir: pose.rest + 12 * (1 - smooth(.1, .5, on)) }
-          : cheerHandover(on, FAR_RAISES.includes(rg) ? armFBase : armBase, RAISE_TO, pose.rest);
+          : cheerHandover(on, FAR_RAISES.includes(rg) ? armFBase : armBase, RAISE_HIGH[rg] ?? RAISE_TO, pose.rest);
       const wig = rg === 'scratch' ? 3 * Math.sin(t * 16) : rg === 'idea' ? -4 * Math.sin(Math.PI * smooth(.2, .45, gk))
-        : rg === 'vsign' ? -3 * Math.sin(Math.PI * smooth(.2, .4, gk)) : rg === 'point' ? 3 * Math.sin(Math.PI * smooth(.3, .45, gk)) : 0;
+        : rg === 'vsign' ? -3 * Math.sin(Math.PI * smooth(.2, .4, gk)) : rg === 'point' ? 3 * Math.sin(Math.PI * smooth(.3, .45, gk))
+          : rg === 'raise' ? 2 * Math.sin(t * 6) : rg === 'wipe' ? 4 * Math.sin(Math.PI * smooth(.25, .6, gk)) : 0;
       // (the hand over her mouth sits a little nearer it than drawn)
       st[id] = { a: dir - pose.rest + wig * lift, tx: rg === 'cover' ? 6 * lift : 0 };
       for (const p of pose.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
@@ -1682,7 +1703,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
      * that has one: gesturesOf; and the moves of the body the kit leaves to her: closer, leanback, sway); the kit leaves
      * them off the body.
      */
-    gestures: ['nod', 'shake', 'tilt', 'droop', 'closer', 'leanback', 'sway', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh', 'pray', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'muse'],
+    gestures: ['nod', 'shake', 'tilt', 'droop', 'closer', 'leanback', 'sway', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh', 'pray', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'muse',
+      'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**

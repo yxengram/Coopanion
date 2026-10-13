@@ -67,7 +67,7 @@ kit 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎时�
 
 **词表**（`vocab`）：这个身体在场时 bot 能用的全部表情和动作，没列的词 bot 用不了。每个词写清 `names`（bot 可以用哪些名字写它）、
 `about`（在这个身体上是什么样子，原样进 bot 的提示词），`seconds`（连着做时等多久再做下一个）。
-用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 29 个组合表情），一共 102 个；大肥鱼在这些之外多一个托腮（`muse`）和六个头部、身体的动作（低头 `droop`、眨眨眼 `blink`、凑近 `closer`、后仰 `leanback`、晃来晃去 `sway`、跺脚 `stamp`），还有摇尾巴（`wag`），一共 110 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词和这六个动作，没有喷水（`spout`），但有托腮和加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），Claude 娘一共 111 个；GPT 娘再多摇尾巴、扇翅膀（`wingbeat`），113 个；Gemini 娘再多摇尾巴、抖耳朵（`earflick`）、竖耳朵（`earsup`）、耳朵耷拉（`earsdown`），115 个。
+用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 29 个组合表情），一共 102 个；大肥鱼在这些之外多一个托腮（`muse`）和六个头部、身体的动作（低头 `droop`、眨眨眼 `blink`、凑近 `closer`、后仰 `leanback`、晃来晃去 `sway`、跺脚 `stamp`），还有摇尾巴（`wag`）和七个新画的手势（拍手 `clap`、摊手 `shrug`、抱头 `headhold`、举手 `raise`、点赞 `thumbs`、嘘 `shush`、擦汗 `wipe`），一共 117 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词、这六个动作和七个手势，没有喷水（`spout`），但有托腮和加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），Claude 娘一共 118 个；GPT 娘再多摇尾巴、扇翅膀（`wingbeat`），120 个；Gemini 娘再多摇尾巴、抖耳朵（`earflick`）、竖耳朵（`earsup`）、耳朵耷拉（`earsdown`），122 个。
 
 **表情对**（`pairs`，可省）：bot 在同一组里写两个表情（`【开心+惊讶】`）时，默认拆成先后两个。想让它们合成一张脸，就在 `pairs` 里列出这一对：
 `"happy+surprised": "surprised+happy"` 是合成，值里给眼的那个在前、给嘴的在后（键里先后无所谓）；`"happy+smug": "smirk"` 是别名，显示成词表里另一个表情。
@@ -111,7 +111,7 @@ Coo、大肥鱼和三个娘（Claude 娘、GPT 娘、Gemini 娘）用的 kit 比
 `createBody(host, { figure, plus: true })`。不开时 kit 和原版的 kit 行为完全一样（只认 `KIT_EXPRESSIONS`、`KIT_MOTIONS` 和包自己的 `words`，
 表情用原版的 `FACES`），所以照上面写的形象包在这里照常能用。打开后：
 
-- 多出的词：`PLUS_EXPRESSIONS`（38 个表情）和 `PLUS_MOTIONS`（42 个动作；尾巴、耳朵、翅膀的五个（`APPENDAGE_MOVES`）kit 自己不画，只有长着它们的形象才列；其中 `muse`、`fist`、`jot`、`twiddle` 四个手势只有画了那几张手臂图的形象才看得出来，kit 自己不画，所以 Coo 不列；低头、眨眨眼、凑近、后仰、晃来晃去、跺脚六个 kit 在 Coo 身上也能做（整个圆环前倾、后仰、左右晃，眨眼、抬脚是 kit 自己的），但 Coo 的词表没有列），扩展的表情参数在 `PLUS_FACES`（害羞、难过两个表情也换成了它的）。
+- 多出的词：`PLUS_EXPRESSIONS`（38 个表情）和 `PLUS_MOTIONS`（49 个动作；尾巴、耳朵、翅膀的五个（`APPENDAGE_MOVES`）kit 自己不画，只有长着它们的形象才列；其中 `muse`、`fist`、`jot`、`twiddle` 四个手势和 `clap`、`shrug`、`headhold`、`raise`、`thumbs`、`shush`、`wipe` 七个手势只有画了那几张手臂图的形象才看得出来，kit 自己不画（拍手的四声轻响是 kit 的，按 `CLAP.at` 在两手合上时响），所以 Coo 不列；低头、眨眨眼、凑近、后仰、晃来晃去、跺脚六个 kit 在 Coo 身上也能做（整个圆环前倾、后仰、左右晃，眨眼、抬脚是 kit 自己的），但 Coo 的词表没有列），扩展的表情参数在 `PLUS_FACES`（害羞、难过两个表情也换成了它的）。
   38 个表情里有 29 个是组合表情（`PLUS_MIXES`，由 `mixFace` 拼成 `PLUS_MIX_FACES`）：眼睛取一种表情的，嘴取另一种的，眉、身体语言和符号可以另指；
   其中六个带 kit 自己画的特效（`MARK_FX_KEYS` 和 `orbit`）：气炸 `fume` 头两边冒白烟、心碎 `heartbreak` 一颗心裂成两半掉下去、撒花 `confetti` 撒出彩色纸屑、郁闷 `cloud` 头旁边一朵下雨的小乌云、无言以对 `dots` 一个点一个点地冒出「……」，画在 kit 的粒子层里（位置按 `anchors` 的 `bubble`、`glints`、`bulb`，趴着时按 `anchors.lie`），形象不用管；眼冒金星的 `orbit` 是晕的小星星，由形象自己画（同晕）；
   脸对象带 `parts: { eyes, brows, mouth, body }`（kit 的表情名），画了五官的形象按部位查自己的表，没有 `parts` 时都按 `frame.face` 查。
@@ -185,6 +185,9 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 之后完全定住，放下也快；脸 `saluting` 举手时一脸认真，放下时眨眼。比耶时歪一下头、眨眼，头旁闪一下星光。
 指（`point`）举起的是远侧手臂（`FAR_RAISES`），朝她面向的方向伸直，按欢呼的方式按角度交接（远侧手臂转角为负），袖根往肩膀方向渐隐（贴图做时的 `fade_root`），压在头发上也不露切口；脸 `pointing` 盯着前方。
 捂嘴笑（`cover`）是弯着的近侧手臂，挂在脖子上（`NECK_RAISES`），头一抖手也跟着，不会离开嘴；脸是偷笑。
+举手（`raise`）是伸直的近侧手臂，按挠头的方式按角度交接，举过头顶的手轻轻晃；点赞（`thumbs`）、嘘（`shush`）、擦汗（`wipe`）是弯着的近侧手臂，按有了的方式进来，
+嘘和擦汗也挂在脖子上（`NECK_RAISES`），擦汗时手腕在额前抹一下；拍手（`clap`）、摊手（`shrug`）、抱头（`headhold`）是两条前臂一起画的图，抱头的那张挂在脖子上（`NECK_HANDS`），
+点头、摇头时手不离开头；拍手有合掌和分开两张画（`ARM_TWIN`），按 kit 的 `clapShut(k)` 一帧切换，绝不两张同时露出来，先分开、合上四次、最后分开放下。
 抱臂（`cross`）、伸懒腰（`stretch`）、屈膝礼（`curtsy`）都是两条前臂一起画的图：抱臂和叉腰一样沿用当时的表情，没有就嘟嘴；
 伸懒腰时握拳手臂先往上举再换成十指相扣举过头顶的那张（袖子盖在刘海上、往下渐隐），身子拉长、仰头、闭眼打哈欠；
 伸懒腰按手臂转到的角度交接（握拳手臂过 70–95° 才换），那张画比画的位置稍微往上一点，手在头饰上方；
@@ -209,7 +212,7 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 `pnpm run export:whale [输出目录]`（即 `node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs`，默认输出到仓库的 `build/packs`）
 把大肥鱼导出成 `coopanion-whale/` 形象包，原版 v0.1.17 起的 Coopanion 也能装：放进数据目录的 `home/companion/data/figures/`。
 
-- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 110 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
+- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 117 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色、每个姿势、五官、缩略图），缺一个就报错。
 - 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 18 个，三个娘的包没有 spout，是 17 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），
@@ -243,9 +246,10 @@ Gemini 娘同理：`pnpm run export:gemini [输出目录]`（`scripts/export-gem
 围裙上的喷水小鲸鱼是手写的矢量图（`examples/whale/apron-whale.svg`）：围裙抹成空白布面后，按这套裙子的深色印在右下角
 （白色的眼睛和肚皮保持白色，乘上布面的明暗），坐姿的围裙是俯视的，印得扁一些；团成球的那张也一样。
 
-新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、跪坐 `tex/kneel_*.png`、趴着的嘴 `tex/lie_smile.png`、`tex/lie_talk.png`、指、捂嘴笑、抱臂、伸懒腰、屈膝礼 `tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
+新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、跪坐 `tex/kneel_*.png`、趴着的嘴 `tex/lie_smile.png`、`tex/lie_talk.png`、指、捂嘴笑、抱臂、伸懒腰、屈膝礼 `tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、拍手、摊手、抱头、举手、点赞、嘘、擦汗 `tex/arm_clap*.png`、`tex/arm_shrug.png`、`tex/arm_headhold.png`、`tex/arm_raise.png`、`tex/arm_thumbs.png`、`tex/arm_shush*.png`、`tex/arm_wipe.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
 `model.json` 的 `poses`）也来自 ChatGPT 的图像模型（gpt-image-2.5，经本地代理用 ChatGPT 订阅调用），和原来的贴图同源：
 把站姿渲染成一张参考图，对它做编辑。先试过本地的 FLUX.2-klein-4B，画风和比例都不如它（手画得太大，趴姿的头发变短）。
+  拍手、摊手、抱头、举手、点赞、嘘、擦汗这七个手势的手臂是后来用 OpenAI 官方 API 的同一模型（`gpt-image-2.5-sunburst`）做的同样的编辑：官方 API 只给固定的 2:3 尺寸，参考图先在底部补白边到 2:3，出图后缩回再去掉补的部分。
 - 手臂：编辑只改手臂（举到头边张开手掌、托着下巴、双手举到头两侧、双手在胸前比心）。输出比参考图大约 1%，缩放回参考图尺寸再配准；
   在手臂的多边形里取皮肤、白袖口和深蓝袖子连同描边抠出来，袖子边缘混进后面头发颜色的像素去掉。举起的手臂画两份、挂在同一个变形上：
   整条手臂在原手臂的层（袖根藏在侧发或上身后面），只留手和小臂的一份在头部之上：招手和欢呼近侧的那份在头部所有部件之上（盖住鳍和发饰），

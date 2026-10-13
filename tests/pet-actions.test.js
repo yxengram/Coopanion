@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
@@ -84,6 +84,8 @@ function countingCtx() {
 
 /** The arm words that are a figure's face poses as gestures of their own (托腮, 加油, 记笔记, 对手指). */
 const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
+/** The arm words drawn anew for the girls and the whale (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗); Coo has none of them. */
+const NEW_ARM_WORDS = ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
 /** The head's and the body's own moves: 低头, 眨眨眼 (the head's channel); 凑近, 后仰, 晃来晃去, 跺脚 (standing or seated still). */
 const MORE_WORDS = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
 /** The moves of a figure's own tail, ears and wings (摇尾巴; 抖耳朵, 竖耳朵, 耳朵耷拉; 扇翅膀), by part. */
@@ -95,7 +97,8 @@ describe('the words the model can use', () => {
     // the arm poses only a figure with that drawing shows (ARM_POSE_WORDS): Coo has none of them, the whale her chin;
     // the head's and body's moves of batch B (MORE_WORDS) the whale has, Coo not (her ring would only tip about); of the
     // moves of a tail, ears and wings (PART_WORDS) the whale has the tail's, Coo none
-    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS, ...ALL_PART_WORDS], whale: [...ARM_POSE_WORDS.filter((w) => w !== 'muse'), ...PART_WORDS.ears, ...PART_WORDS.wings] };
+    // (and the arm words drawn anew, NEW_ARM_WORDS: the whale all of them, Coo none)
+    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS, ...ALL_PART_WORDS, ...NEW_ARM_WORDS], whale: [...ARM_POSE_WORDS.filter((w) => w !== 'muse'), ...PART_WORDS.ears, ...PART_WORDS.wings] };
     for (const pack of ['coo', 'whale']) {
       const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
       // both know the kit's words and the plus body's
@@ -119,6 +122,36 @@ describe('the words the model can use', () => {
     expect(own('fist')).toEqual(['fist', null]);
     expect(own('jot')).toEqual(['jot', 'reading']);
     expect(own('twiddle')).toEqual(['twiddle', null]);
+  });
+
+  it('the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗) are arm gestures that keep a kneel, each with a face and a tone it already had', () => {
+    for (const w of NEW_ARM_WORDS) {
+      expect(PLUS_MOTIONS, w).toContain(w);
+      expect(ARM_GESTURES, w).toContain(w);
+      expect(CHANNELS[w], w).toEqual(['arm']);
+    }
+    // each one's own face: none of them the face of a pose of her arms (FACE_ARMS: determined's hands on hips, so not
+    // eager for a raised hand), so the face left after it brings no other drawing
+    const own = (w) => { const pet = hearingPet(); run(pet, 1); pet.heard.length = 0; pet.doWord(w); run(pet, .5); return [pet.pet.pulse?.kind, pet.pet.expr, pet.heard[0]]; };
+    expect(own('clap')).toEqual(['clap', 'happy', ['tick', 'move']]);
+    expect(own('shrug')).toEqual(['shrug', 'sighing', ['hmm', 'face']]);
+    expect(own('headhold')).toEqual(['headhold', 'pained', ['surprised', 'face']]);
+    expect(own('raise')).toEqual(['raise', 'happy', ['pop', 'move']]);
+    expect(own('thumbs')).toEqual(['thumbs', 'happy', ['ding', 'move']]);
+    expect(own('shush')).toEqual(['shush', 'wink', ['soft', 'face']]);
+    expect(own('wipe')).toEqual(['wipe', 'gentle', ['sigh', 'move']]);
+    // a clap ticks softly as her hands meet, once for each of CLAP.at, and its hands are apart between (clapShut)
+    const pet = hearingPet();
+    run(pet, 1);
+    pet.heard.length = 0;
+    pet.doWord('clap');
+    const at = [];
+    for (let i = 0; i < 3 * 60; i++) { const n = pet.heard.length; run(pet, 1 / 60); if (pet.heard.length > n) at.push([(i + 1) / 60, ...pet.heard.slice(n)]); }
+    expect(at.map(([, ...h]) => h)).toEqual(CLAP.at.map(() => [['tick', 'move']]));
+    at.forEach(([s], i) => expect(Math.abs(s - CLAP.at[i]), `${i}`).toBeLessThanOrEqual(1 / 60 + 1e-9));
+    expect(CLAP.at.map((a) => clapShut((a + .01) / CLAP.dur))).toEqual([true, true, true, true]);
+    expect(CLAP.at.map((a) => clapShut((a - .01) / CLAP.dur))).toEqual([false, false, false, false]);
+    expect(clapShut((CLAP.at[3] + CLAP.shut + .01) / CLAP.dur)).toBe(false);
   });
 
   it('the head\'s and body\'s moves (低头, 眨眨眼, 凑近, 后仰, 晃来晃去, 跺脚): the head\'s keep a kneel, the body\'s need her still, none has a face', () => {

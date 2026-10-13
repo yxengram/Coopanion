@@ -106,6 +106,7 @@ export const CHANNELS: Record<string, readonly Channel[]> = {
   wave: ['arm'], shiver: ['arm'], heart: ['arm'], serve: ['arm'], salute: ['arm'], vsign: ['arm'], point: ['arm'],
   cover: ['arm'], cross: ['arm'], stretch: ['arm'], pray: ['arm'], scratch: ['arm'], idea: ['arm'], hug: ['arm'], hips: ['arm'],
   spout: ['arm'], sip: ['arm'], read: ['arm'], muse: ['arm'], fist: ['arm'], jot: ['arm'], twiddle: ['arm'],
+  clap: ['arm'], shrug: ['arm'], headhold: ['arm'], raise: ['arm'], thumbs: ['arm'], shush: ['arm'], wipe: ['arm'],
   // gestures that need her still (standing or seated): they cannot go with a walk, a dance, a look, a jump
   song: ['arm', 'stance'], bow: ['arm', 'stance'], flinch: ['arm', 'stance'], peek: ['arm', 'stance'], away: ['arm', 'stance'],
   spin: ['arm', 'stance'], cheer: ['arm', 'stance'], turn: ['stance'],

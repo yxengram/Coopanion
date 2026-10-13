@@ -252,7 +252,7 @@ export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'g
 export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh', 'tilt',
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel',
   'muse', 'fist', 'jot', 'twiddle', 'droop', 'blink', 'closer', 'leanback', 'sway', 'stamp', 'wag', 'earflick', 'earsup', 'earsdown',
-  'wingbeat'];
+  'wingbeat', 'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
 /** The tones of the plus faces, filed as face sounds like the kit's. */
 const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
@@ -304,6 +304,13 @@ export const stampLift = k => {
  * change of mode (a walk goes on, a kneel stays). The kit draws none of them: a figure that has the part draws it, over its
  * mood's own movement of that part while the word lasts; one without it shows nothing.
  */
+/**
+ * (plus) A clap (拍手): seconds in all, when her hands meet (`at`, seconds from its start) and how long they stay together
+ * each time (`shut`): four claps, hands apart before, between and after them, a soft tick as they meet. A figure with
+ * a drawing of each (hands together, hands apart) cuts between the two in a frame by `clapShut(k)` (k of the clap).
+ */
+export const CLAP = { dur: 2.2, at: [.35, .75, 1.15, 1.55], shut: .2 };
+export const clapShut = k => CLAP.at.some(a => { const s = k * CLAP.dur - a; return s >= 0 && s < CLAP.shut; });
 export const APPENDAGE_MOVES = { wag: ['tail', 2.4], earflick: ['ears', 1.1], earsup: ['ears', 2], earsdown: ['ears', 2], wingbeat: ['wings', 2] };
 /** (plus) Gestures of the head alone: they play in their own channel (`pet.head`, the frame's `head`), alongside any other gesture. */
 export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt', ...Object.keys(HEAD_MORE)]);
@@ -312,7 +319,8 @@ export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt', ...Object.
  * their poses.kneelLow) keeps kneeling through them; any other motion still ends a kneel.
  */
 export const ARM_GESTURES = ['wave', 'shiver', 'heart', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch',
-  'pray', 'scratch', 'idea', 'hug', 'hips', 'spout', 'sip', 'read', 'muse', 'fist', 'jot', 'twiddle'];
+  'pray', 'scratch', 'idea', 'hug', 'hips', 'spout', 'sip', 'read', 'muse', 'fist', 'jot', 'twiddle',
+  'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
 /**
  * (plus) The motions' own faces that are their gesture's body language for a figure (pray arms for a song, the chin up
  * reading…): under an asked-for face such a gesture keeps them, the face becoming `asked+mouth+own` (see `mixFace`).
@@ -776,6 +784,16 @@ export function createPet(els, opts) {
       case 'fist': pulse('fist', 1.8); play('pop', 'move'); break;
       case 'jot': pulse('jot', 3.2); holdFace('reading', 3.3, 'arm'); play('page', 'move'); break;
       case 'twiddle': pulse('twiddle', 2.6); play('shy', 'face'); break;
+      // more arm poses a figure with hands draws, each with a face and an existing tone of its own: clapping (CLAP: the
+      // ticks come as her hands meet), a shrug with the palms up, both hands on her head, a hand raised high, a thumbs
+      // up, a finger to her lips, the back of her wrist wiping her brow
+      case 'clap': pulse('clap', CLAP.dur); holdFace('happy', CLAP.dur, 'arm'); break;
+      case 'shrug': pulse('shrug', 2.1); holdFace('sighing', 2.2, 'arm'); play('hmm', 'face'); break;
+      case 'headhold': pulse('headhold', 2.5); holdFace('pained', 2.6, 'arm'); play('surprised', 'face'); break;
+      case 'raise': pulse('raise', 1.9); holdFace('happy', 2, 'arm'); play('pop', 'move'); break;
+      case 'thumbs': pulse('thumbs', 1.8); holdFace('happy', 1.9, 'arm'); play('ding', 'move'); break;
+      case 'shush': pulse('shush', 2.2); holdFace('wink', 2.3, 'arm'); play('soft', 'face'); break;
+      case 'wipe': pulse('wipe', 2.1); holdFace('gentle', 2.2, 'arm'); play('sigh', 'move'); break;
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9, 'arm'); play('spout', 'move'); break;
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
@@ -1268,6 +1286,10 @@ export function createPet(els, opts) {
       const L = proneK() > .5 && lieSet();
       const [bx, by] = L ? [L.bubble[0] + 62, L.bubble[1] + 28] : A.bulb ? [A.bulb[0], A.bulb[1] + pet.low] : [A.bubble[0] + 62, A.bubble[1] + 28 + pet.low];
       emit('bulb', toStage(bx, by), { vy: -12, life: 1.2 });
+    }
+    // a clap ticks softly each time her hands meet (CLAP.at)
+    if (ours('clap') && (pet.pulse.n || 0) < CLAP.at.length && T - pet.pulse.t0 >= CLAP.at[pet.pulse.n || 0]) {
+      pet.pulse.n = (pet.pulse.n || 0) + 1; play('tick', 'move');
     }
     // a spout throws spray up out of the column as it breaks (it falls back under gravity)
     if (ours('spout')) {

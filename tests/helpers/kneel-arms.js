@@ -21,8 +21,14 @@ function pngSize(url) {
  * The tests of the hybrid for one girl: `name` her name in the titles, `dir` her web directory, `M` her motion.js,
  * `make(missing)` her real figure on a stand-in page (textures named in `missing` fail to load), `GESTURES` her figure's.
  */
+/** The arm drawings added after the frozen fixtures (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗): never shown kneeling at rest. */
+const NEW_POSES = ['clap', 'clapo', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
+
 export function describeKneelArms(name, { dir, M, make, GESTURES }) {
   const model = JSON.parse(readFileSync(new URL('model.json', dir), 'utf8'));
+  /** model.json without the arm drawings the fixtures predate. */
+  const older = { ...model, poses: Object.fromEntries(Object.entries(model.poses).filter(([k]) => !NEW_POSES.includes(k))) };
+  const newParts = NEW_POSES.flatMap(k => model.poses[k]?.required.map(p => p.id) ?? []);
   const fixture = JSON.parse(readFileSync(new URL(`../fixtures/kneel-rest-${dir.pathname.split('/').filter(Boolean).pop()}.json`, import.meta.url), 'utf8'));
   const R0 = M.buildRig(model);
 
@@ -87,7 +93,8 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
 
     it('kneels at rest as before: the drawing, never the hybrid, through faces, listening and the head\'s gestures (frozen frames)', () => {
       // (the fixture predates the live faces on the floor drawings, poses.<id>.face: without them every frame is as it was)
-      const bare = { ...model, poses: Object.fromEntries(Object.entries(model.poses).map(([k, P]) => [k, (({ face, ...rest }) => rest)(P)])) };
+      // (nor the arm drawings added since, NEW_POSES: their parts would be more columns, all 0, see the next test)
+      const bare = { ...older, poses: Object.fromEntries(Object.entries(older.poses).map(([k, P]) => [k, (({ face, ...rest }) => rest)(P)])) };
       const got = restRecord(M, bare);
       expect(got.lows.every(a => a === 0)).toBe(true);
       expect(got.ids).toEqual(fixture.ids);
@@ -103,7 +110,8 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
       expect(old.every(id => got.ids.includes(id))).toBe(true);
       const patches = ['kneel', 'lie'].flatMap(p => (model.poses[p].overlays || []).map(o => o.id));
       const live = { kneel: ['kneel_blank', 'kneel_live', 'kneel_fringe'], lie: ['lie_blank', 'lie_live', 'lie_fringe'] };
-      expect(got.ids.filter(id => !old.includes(id)).sort()).toEqual([...live.kneel, ...live.lie].sort());
+      expect(got.ids.filter(id => !old.includes(id)).sort()).toEqual([...live.kneel, ...live.lie, ...newParts].sort());
+      expect(newParts.length).toBeGreaterThan(0);
       let patched = 0;
       A.forEach((f, i) => {
         expect(f.h).toBe(B[i].h);
@@ -114,6 +122,8 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
         // the live face is the drawing's: shown exactly when it is
         for (const id of live.kneel) expect(f.a[ix(id)], `${id} @${i}`).toBe(f.a[ix('kneel_body')]);
         for (const id of live.lie) expect(f.a[ix(id)], `${id} @${i}`).toBe(f.a[ix('lie_body')]);
+        // the arm drawings added since never show at rest
+        for (const id of newParts) expect(f.a[ix(id)], `${id} @${i}`).toBe('0.000');
       });
       expect(patched).toBeGreaterThan(0);  // (the patches did show before: a smile, a blink)
     });
@@ -229,6 +239,33 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
         expect(mixed, w).toBeLessThanOrEqual(Math.ceil(M.BODY_CUT * 60));
         expect(s.motion.kneelArmsK, w).toBe(1);
         expect(posed, w).toBe(1);
+        expect(s.o.kneel, w).toBe(true);
+        s.run(4);
+        expect(s.alpha('kneel_body'), w).toBe(1);
+        expect(s.alpha('kneel_low'), w).toBe(0);
+        expect(s.o.kneel, w).toBe(true);
+        expect(s.bad, w).toEqual([]);
+      }
+    });
+
+    it('does the new arm words kneeling (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗): the hybrid, the kneel kept, back after', () => {
+      for (const [w, poses] of [['clap', ['clap', 'clapo']], ['shrug', ['shrug']], ['headhold', ['headhold']], ['raise', ['raise']],
+        ['thumbs', ['thumbs']], ['shush', ['shush']], ['wipe', ['wipe']]]) {
+        const s = onKit();
+        kneelDown(s);
+        s.pet.doWord(w);
+        let mixed = 0, both = 0;
+        const posed = {};
+        s.run(2.5, () => {
+          const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+          if (k > 0 && k < 1) mixed++;
+          expect(k >= 1 || l >= 1 || (k === 0 && l === 0), w).toBe(true);
+          for (const p of poses) posed[p] = Math.max(posed[p] || 0, s.motion.arms[p] || 0);
+          if (poses.length > 1 && poses.every(p => (s.motion.arms[p] || 0) > 0)) both++;
+        });
+        expect(mixed, w).toBeLessThanOrEqual(Math.ceil(M.BODY_CUT * 60));
+        for (const p of poses) expect(posed[p], `${w} ${p}`).toBe(1);
+        expect(both, w).toBe(0);
         expect(s.o.kneel, w).toBe(true);
         s.run(4);
         expect(s.alpha('kneel_body'), w).toBe(1);

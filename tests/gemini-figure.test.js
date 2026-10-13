@@ -1,12 +1,12 @@
 import { fileURLToPath } from 'node:url';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { CLAP, createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import {
   anchorsOf, approach, ARM_BOTH, ARM_FALLBACK, ARM_ONE, armPlan, ballAngle, bowPose, buildRig, createMotion, extentOf, FACE_ARMS, feetFromLegs,
   fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, ROLL_D, SIT_BESIDE, SIT_LOW, sitAnchors, sitOwnArms, sitRaise,
-  tailField, WHOLE_POSES, EAR, EAR_MOOD, earFlick, earStates, TAIL, tailFlick, liveAnchors,
+  tailField, WHOLE_POSES, EAR, EAR_MOOD, earFlick, earStates, TAIL, tailFlick, liveAnchors, ARM_TWIN, armPoseOf, NECK_POSES,
 } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { createFacePainter, DRAWN_SHUT, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
 import { appendagesOf, earFlickOf, LIE_DRAWN, EAR_WORDS, gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
@@ -43,8 +43,9 @@ const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
 const FAMS = ['happy', 'sleep', 'surprised', 'love', 'dizzy', 'drag', 'cry', 'smug', 'angry', 'sad', 'wink', 'halflid', 'shy', 'determined'];
 const MOUTH_SPRITES = ['neutral_mouth', ...TALK_SHAPES.map(s => `mouth_${s}`), ...['frown', 'pout', 'cat', 'grin', 'tongue', 'smile'].map(s => `mouth_${s}`)];
 // her arm drawings: two-arm ones, then armL's own
-const BOTH_POSES = ['cheer', 'pray', 'cross', 'oops', 'search', 'read', 'write', 'heart', 'hips', 'stretch', 'shy', 'cup', 'hug', 'curtsy'];
-const ONE_POSES = ['chin', 'salute', 'cover', 'scratch', 'vsign', 'fist', 'wave', 'idea', 'point'];
+const BOTH_POSES = ['cheer', 'pray', 'cross', 'oops', 'search', 'read', 'write', 'heart', 'hips', 'stretch', 'shy', 'cup', 'hug', 'curtsy',
+  'clap', 'clapo', 'shrug', 'headhold'];
+const ONE_POSES = ['chin', 'salute', 'cover', 'scratch', 'vsign', 'fist', 'wave', 'idea', 'point', 'raise', 'thumbs', 'shush', 'wipe'];
 const ARM_POSES = [...BOTH_POSES, ...ONE_POSES];
 function synthModel() {
   const eye = (x0, x1) => {
@@ -419,6 +420,28 @@ describe('Gemini-chan: motion helpers', () => {
     for (const [w, pose] of [['fist', 'fist'], ['twiddle', 'shy'], ['muse', 'chin'], ['jot', 'write']]) {
       for (const face of ['angry', 'thinking', 'excited', 'shy']) expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .5 }, face }, all).L, `${w} ${face}`).toBe(pose);
     }
+    // the new arm words (举手, 点赞, 嘘, 擦汗 with armL; 摊手, 抱头 with both): standing, seated and walking alike, under any
+    // face, gone again before the gesture ends
+    for (const [w, R] of [['raise', 'hangR'], ['thumbs', 'hangR'], ['shush', 'hangR'], ['wipe', 'hangR'], ['shrug', 'shrug'], ['headhold', 'headhold']]) {
+      for (const mode of ['idle', 'sit', 'walk']) expect(armPlan({ mode, gesture: { kind: w, k: .5 }, face: 'happy' }, all), `${w} ${mode}`).toEqual({ L: w, R, fallback: null });
+      expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .5 }, face: 'angry' }, all).L, w).toBe(w);
+      expect(armPlan({ mode: 'idle', gesture: { kind: w, k: .95 }, face: 'sad' }, all).L, w).not.toBe(w);
+    }
+    // clapping (拍手): her hands apart (clapo) till they first meet, together (clap) for each of the kit's CLAP.at, apart
+    // between; with no drawing of them apart, together throughout; with neither, pressed together (pray), then the plain arms
+    const clapAt = (s, has = all) => armPlan({ mode: 'idle', gesture: { kind: 'clap', k: s / CLAP.dur }, face: 'happy' }, has);
+    expect(clapAt(.1)).toEqual({ L: 'clapo', R: 'clapo', fallback: null });
+    for (const a of CLAP.at) {
+      expect(clapAt(a + .05).L, `${a}`).toBe('clap');
+      expect(clapAt(a + CLAP.shut + .05).L, `${a}`).toBe('clapo');
+    }
+    expect(CLAP.at.length).toBe(4);
+    expect(CLAP.at[3] + CLAP.shut).toBeLessThan(.9 * CLAP.dur);
+    expect(clapAt(.1, only(['clap'])).L).toBe('clap');
+    expect(clapAt(.1, only(['pray'])).L).toBe('pray');
+    expect(clapAt(.1, none)).toEqual({ L: 'hangL', R: 'hangR', fallback: 'clapo' });
+    expect(armPoseOf('clap', .01)).toBe('clapo');
+    expect(armPoseOf('wave', .5)).toBe('wave');
     expect(armPlan({ mode: 'idle', gesture: null, face: 'listening' }, all).L).toBe('write');
     expect(armPlan({ mode: 'idle', gesture: null, face: 'thinking', faceOK: false }, all)).toEqual(hang);
     expect(armPlan({ mode: 'walk', gesture: null, face: 'thinking' }, all)).toEqual(hang);
@@ -427,17 +450,47 @@ describe('Gemini-chan: motion helpers', () => {
     expect(sitOwnArms({ L: 'wave', R: 'hangR' })).toBe(false);
     expect(SIT_BESIDE).toEqual(['torso']);
   });
+  it.skipIf(!real)('claps by cutting between her two drawings of it in a frame, never both at once, four times, then lets her hands down', () => {
+    const { fig, motion, seen } = stubFigure(real);
+    const pet = barePet(fig);
+    run(pet, .5);
+    pet.doWord('clap');
+    let both = 0, cuts = 0, was = null;
+    const peak = { clap: 0, clapo: 0 };
+    for (let i = 0; i < 3 * 60; i++) {
+      run(pet, 1 / 60);
+      const A = motion.arms, a = A.clap || 0, b = A.clapo || 0;
+      if (a > 0 && b > 0) both++;
+      peak.clap = Math.max(peak.clap, a); peak.clapo = Math.max(peak.clapo, b);
+      const now = a > 0 ? 'clap' : b > 0 ? 'clapo' : null;
+      if (now && was && now !== was) cuts++;
+      if (now) was = now;
+    }
+    expect(both).toBe(0);
+    expect(peak).toEqual({ clap: 1, clapo: 1 });
+    // apart → together and back for each clap
+    expect(cuts).toBe(2 * CLAP.at.length);
+    expect((motion.arms.clap || 0) + (motion.arms.clapo || 0)).toBe(0);
+    expect(seen.bad).toEqual([]);
+  });
+  it.skipIf(!real)('keeps a hand on her lips, her brow or her head as her head nods (【嘘+点头】): the drawing rides the neck', () => {
+    expect(NECK_POSES).toEqual(['cover', 'shush', 'wipe', 'headhold']);
+    const R = buildRig(real);
+    for (const id of ['shush', 'wipe', 'headhold']) expect(R.deformers[R.ARM[id].rot].parent, id).toBe('neck');
+    for (const id of ['raise', 'thumbs', 'clap', 'clapo', 'shrug']) expect(R.deformers[R.ARM[id].rot].parent, id).toBe('waist');
+  });
   it('has a drawing (or the plain arms\' way) for every arm gesture, and asks only for drawings she has a place for', () => {
     const words = new Set(ALL_WORDS);
     for (const g of [...Object.keys(ARM_ONE), ...Object.keys(ARM_BOTH), ...GESTURES]) expect(words.has(g), g).toBe(true);
     for (const pose of [...Object.values(ARM_ONE), ...Object.values(ARM_BOTH)]) expect(ARM_FALLBACK[pose], pose).toBeTruthy();
-    for (const pose of [...Object.values(ARM_ONE), ...Object.values(ARM_BOTH), ...Object.values(FACE_ARMS), ...Object.values(POSE_ALT).flat()]) expect(ARM_POSES, pose).toContain(pose);
+    for (const pose of [...Object.values(ARM_ONE), ...Object.values(ARM_BOTH), ...Object.values(FACE_ARMS), ...Object.values(POSE_ALT).flat(), ...Object.values(ARM_TWIN)]) expect(ARM_POSES, pose).toContain(pose);
+    for (const pose of Object.values(ARM_TWIN)) expect(ARM_FALLBACK[pose], pose).toBeTruthy();
     for (const f of Object.keys(FACE_ARMS)) expect(ALL_FACES, f).toContain(f);
     // the one-arm drawings are armL's; nothing is armR's alone (her other arm just hangs)
     expect(Object.keys(POSE_KIND).sort()).toEqual([...ONE_POSES].sort());
     expect(new Set(Object.values(POSE_KIND))).toEqual(new Set(['armL']));
     // and no drawing, stand-in or plain-arms way that nothing asks for
-    const asked = new Set([...Object.values(ARM_ONE), ...Object.values(ARM_BOTH), ...Object.values(FACE_ARMS)]);
+    const asked = new Set([...Object.values(ARM_ONE), ...Object.values(ARM_BOTH), ...Object.values(FACE_ARMS), ...Object.values(ARM_TWIN)]);
     for (const k of [...Object.keys(POSE_ALT), ...Object.keys(ARM_FALLBACK)]) expect(asked.has(k), k).toBe(true);
     for (const id of ARM_POSES) expect(asked.has(id), id).toBe(true);
   });
@@ -448,7 +501,8 @@ describe('Gemini-chan: motion helpers', () => {
       const A = R.ARM[id];
       expect(A, id).toBeTruthy();
       expect(A.kind, id).toBe(ONE_POSES.includes(id) ? 'armL' : 'both');
-      expect(R.deformers[A.rot].parent, id).toBe(id === 'cover' ? 'neck' : 'waist');
+      // (a hand on her face or head rides the neck: NECK_POSES)
+      expect(R.deformers[A.rot].parent, id).toBe(['cover', 'shush', 'wipe', 'headhold'].includes(id) ? 'neck' : 'waist');
       for (const p of A.parts) { expect(p.parent).toBe(A.lift); expect(R.STANDING[p.id]).toBe(true); }
     }
     for (const id of ['lie', 'kneel', 'sit', 'back', 'roll']) {
@@ -997,7 +1051,8 @@ describe.skipIf(!real)('Gemini-chan: model.json and its files', () => {
       if (!A) continue;
       expect(ARM_POSES, id).toContain(id);
       expect(A.kind, id).toBe(ONE_POSES.includes(id) ? 'armL' : 'both');
-      expect(inside(A.pivot, A.rect, 12), `${id} pivot`).toBe(true);
+      // (both hands on her head, a hand raised high: the drawing may end well above the shoulder it turns about)
+      expect(inside(A.pivot, A.rect, ['headhold', 'raise', 'wipe'].includes(id) ? 30 : 12), `${id} pivot`).toBe(true);
       expect(inside(A.wrist, A.rect, 4), `${id} wrist`).toBe(true);
     }
   });

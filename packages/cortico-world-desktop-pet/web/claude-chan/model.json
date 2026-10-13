@@ -1341,6 +1341,130 @@
    ],
    "kind": "both"
   },
+  "clap": {
+   "required": [
+    {
+     "id": "pose_clap",
+     "tex": "pose_clap",
+     "z": 15.5,
+     "parent": "poseClap",
+     "grid": [
+      8,
+      5
+     ],
+     "box": [
+      101.6,
+      129.0,
+      53.2,
+      36.4
+     ]
+    }
+   ],
+   "pivots": {
+    "poseClap": [
+     128,
+     145.0
+    ]
+   },
+   "wrist": [
+    129.25,
+    148.28
+   ],
+   "kind": "both"
+  },
+  "clapo": {
+   "required": [
+    {
+     "id": "pose_clapo",
+     "tex": "pose_clapo",
+     "z": 15.5,
+     "parent": "poseClapo",
+     "grid": [
+      10,
+      7
+     ],
+     "box": [
+      93.8,
+      119.2,
+      68.4,
+      47.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseClapo": [
+     128,
+     145.0
+    ]
+   },
+   "wrist": [
+    128.03,
+    130.6
+   ],
+   "kind": "both"
+  },
+  "shrug": {
+   "required": [
+    {
+     "id": "pose_shrug",
+     "tex": "pose_shrug",
+     "z": 15.5,
+     "parent": "poseShrug",
+     "grid": [
+      12,
+      6
+     ],
+     "box": [
+      78.0,
+      123.2,
+      101.2,
+      45.4
+     ]
+    }
+   ],
+   "pivots": {
+    "poseShrug": [
+     128,
+     145.0
+    ]
+   },
+   "wrist": [
+    124.95,
+    152.08
+   ],
+   "kind": "both"
+  },
+  "headhold": {
+   "required": [
+    {
+     "id": "pose_headhold",
+     "tex": "pose_headhold",
+     "z": 15.5,
+     "parent": "poseHeadhold",
+     "grid": [
+      12,
+      10
+     ],
+     "box": [
+      64.8,
+      50.4,
+      119.4,
+      70.6
+     ]
+    }
+   ],
+   "pivots": {
+    "poseHeadhold": [
+     128,
+     145.0
+    ]
+   },
+   "wrist": [
+    126.51,
+    61.79
+   ],
+   "kind": "both"
+  },
   "bookside": {
    "required": [
     {
@@ -1660,6 +1784,134 @@
    ],
    "kind": "armL",
    "rest": 128
+  },
+  "raise": {
+   "required": [
+    {
+     "id": "pose_raise",
+     "tex": "pose_raise",
+     "z": 15.8,
+     "parent": "poseRaise",
+     "grid": [
+      5,
+      12
+     ],
+     "box": [
+      69.8,
+      -2.6,
+      36.8,
+      129.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseRaise": [
+     103.4,
+     145.0
+    ]
+   },
+   "wrist": [
+    76.43,
+    8.8
+   ],
+   "kind": "armL",
+   "rest": 169
+  },
+  "thumbs": {
+   "required": [
+    {
+     "id": "pose_thumbs",
+     "tex": "pose_thumbs",
+     "z": 15.8,
+     "parent": "poseThumbs",
+     "grid": [
+      4,
+      6
+     ],
+     "box": [
+      83.2,
+      115.2,
+      27.2,
+      40.4
+     ]
+    }
+   ],
+   "pivots": {
+    "poseThumbs": [
+     103.4,
+     145.0
+    ]
+   },
+   "wrist": [
+    104.31,
+    126.61
+   ],
+   "kind": "armL",
+   "rest": -177
+  },
+  "shush": {
+   "required": [
+    {
+     "id": "pose_shush",
+     "tex": "pose_shush",
+     "z": 15.8,
+     "parent": "poseShush",
+     "grid": [
+      5,
+      7
+     ],
+     "box": [
+      94.4,
+      108.4,
+      36.4,
+      50.4
+     ]
+    }
+   ],
+   "pivots": {
+    "poseShush": [
+     103.4,
+     145.0
+    ]
+   },
+   "wrist": [
+    126.55,
+    121.95
+   ],
+   "kind": "armL",
+   "rest": -135
+  },
+  "wipe": {
+   "required": [
+    {
+     "id": "pose_wipe",
+     "tex": "pose_wipe",
+     "z": 15.8,
+     "parent": "poseWipe",
+     "grid": [
+      8,
+      8
+     ],
+     "box": [
+      69.4,
+      64.8,
+      54.6,
+      54.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseWipe": [
+     103.4,
+     145.0
+    ]
+   },
+   "wrist": [
+    101.11,
+    74.1
+   ],
+   "kind": "armL",
+   "rest": 178
   },
   "back": {
    "required": [

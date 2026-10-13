@@ -163,8 +163,10 @@ describe('vocabulary', () => {
       // (握拳 is the girls' fist of their own, 加油, now; Coo and the whale, with no fist drawn, keep it for 认真)
       const girl = ['claude-chan', 'gpt-chan', 'gemini-chan'].includes(p.id);
       for (const [name, id] of Object.entries({ ...MEANT, 握拳: girl ? 'fist' : 'determined' })) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(id);
+      // (拍手 is the clap drawn for the girls and the whale; Coo, with no hands, still has no word for it)
+      expect(vocabId('拍手', p.manifest.vocab), p.id).toBe(p.id === 'coo' ? null : 'clap');
       // (still none for these: no word of hers means them)
-      for (const name of ['拍手', '盖被子', '被戳', '转头']) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(null);
+      for (const name of ['盖被子', '被戳', '转头']) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(null);
     }
     // the evals' own lines
     expect(parseScript('【温柔+歪头】唱完啦。').beats[0].actions).toEqual(['tilt+gentle']);
@@ -492,6 +494,28 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
       for (const n of ['连连点头', '猛点头', '使劲点头']) expect(vocabId(n, p.manifest.vocab), `${p.id} ${n}`).toBe('nod');
       for (const n of ['使劲摇头', '拼命摇头', '猛摇头']) expect(vocabId(n, p.manifest.vocab), `${p.id} ${n}`).toBe('shake');
     }
+  });
+
+  it('does the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗) as arm words: with a face, a head gesture or a kneel in one group, one after another with another arm word', () => {
+    const NEW_ARMS = ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
+    const WHALE = figurePacks([]).packs.find((p) => p.id === 'whale')!.manifest.vocab;
+    for (const id of NEW_ARMS) expect(CHANNELS[id], id).toEqual(['arm']);
+    for (const [s, want] of [['【开心+拍手】', 'clap+happy'], ['【无奈+摊手】', 'shrug+sigh'], ['【抱头+摇头】', 'headhold+shake'], ['【举手】', 'raise'],
+      ['【点赞+点头】', 'thumbs+nod'], ['【跪坐+嘘】', 'kneel+shush'], ['【害羞+擦汗】', 'wipe+shy'], ['【跪坐+鼓掌+歪头】', 'kneel+clap+tilt']] as const) {
+      const got = girlScript(s);
+      expect(got.beats[0].actions, s).toEqual([want]);
+      expect(got.notes, s).toEqual([]);
+      expect(scriptIn(s, WHALE).beats[0].actions, `whale ${s}`).toEqual([want]);
+    }
+    // two arm words cannot go together: one after the other
+    expect(girlScript('【拍手+招手】').beats[0].actions).toEqual(['clap', 'wave']);
+    expect(girlScript('【拍手+招手】').notes).toEqual(['拍手 和 招手 不能同时做,改成先后做。']);
+    // the table puts them with the arm words; Coo has none of them
+    const arms = vocabTable(GIRL).split('\n手:\n')[1]!.split('\n手,')[0]!;
+    for (const id of NEW_ARMS) expect(arms, id).toContain(`\n- ${id} `);
+    expect(row('thumbs', GIRL)).toBe('- thumbs 点赞/竖大拇指/真棒/厉害/给你点赞:在胸前竖起大拇指,另一只手还抱着书,笑着给你点赞');
+    expect(row('clap', WHALE)).toBe('- clap 拍手/鼓掌/拍拍手/啪啪啪:在胸前啪啪地拍手,开开心心的');
+    expect(parseScript('【拍手】').dropped).toEqual(['拍手']);
   });
 
   it('still splits a kneel from gestures that need her standing or seated still, and from a turn', () => {

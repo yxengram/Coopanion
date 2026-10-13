@@ -131,26 +131,29 @@ describe('figure packs', () => {
     expect(unaliasSkin({ figure: 'coopanion-gemini-chan', scheme: 'original' })).toEqual({ figure: 'gemini-chan', scheme: 'original' });
   });
 
-  it('Coo knows 102 words (73 and 29 faces made of parts), the whale those, her chin on her hand, six moves of the head and body and a wag of her tail (110), Claude-chan, GPT-chan and Gemini-chan all but spout and the wag and three more arm poses (111), GPT-chan her tail\'s and wings\' (113), Gemini-chan her tail\'s and ears\' (115), sit, sleep, lie and kneel lasting', () => {
+  it('Coo knows 102 words (73 and 29 faces made of parts), the whale those, her chin on her hand, six moves of the head and body, seven arm words drawn anew and a wag of her tail (117), Claude-chan, GPT-chan and Gemini-chan all but spout and the wag and three more arm poses (118), GPT-chan her tail\'s and wings\' (120), Gemini-chan her tail\'s and ears\' (122), sit, sleep, lie and kneel lasting', () => {
     const { packs } = figurePacks([]);
     let [coo, whale, claude, gpt, gemini] = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab);
     // (the faces' arm poses as words of their own: drawn by the whale (her chin) and the girls (all four), not by Coo;
     // the moves of the head and body (低头, 眨眨眼, 凑近, 后仰, 晃来晃去, 跺脚): the whale and the girls, not Coo)
     const POSES = ['muse', 'fist', 'jot', 'twiddle'];
     const MORE = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
+    // (the arm words drawn anew, 拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗: the whale and the girls, not Coo)
+    const NEW_ARMS = ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
     // (the moves of a tail, ears or wings: each figure those of the parts she has)
     const PARTS = ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat'];
     const parts = (v: typeof coo) => v!.filter((w) => PARTS.includes(w.id)).map((w) => w.id);
     expect([coo, whale, claude, gpt, gemini].map(parts)).toEqual([[], ['wag'], [], ['wag', 'wingbeat'], ['wag', 'earflick', 'earsup', 'earsdown']]);
     [coo, whale, claude, gpt, gemini] = [coo, whale, claude, gpt, gemini].map((v) => v!.filter((w) => !PARTS.includes(w.id)));
-    expect(coo!.map((w) => w.id)).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'muse' && !MORE.includes(id)));
+    expect(coo!.map((w) => w.id)).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'muse' && !MORE.includes(id) && !NEW_ARMS.includes(id)));
+    for (const v of [whale, claude, gpt, gemini]) expect(v!.filter((w) => NEW_ARMS.includes(w.id)).map((w) => w.id)).toEqual(NEW_ARMS);
     expect(whale!.filter((w) => MORE.includes(w.id)).map((w) => w.id).sort()).toEqual([...MORE].sort());
     expect(claude!.filter((w) => MORE.includes(w.id)).map((w) => w.id).sort()).toEqual([...MORE].sort());
     expect(coo).toHaveLength(102);
-    expect(whale).toHaveLength(109);
-    expect(claude).toHaveLength(111);
-    expect([gpt, gemini].map((v) => v!.length)).toEqual([111, 111]);
-    expect(['whale', 'gpt-chan', 'gemini-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab.length)).toEqual([110, 113, 115]);
+    expect(whale).toHaveLength(116);
+    expect(claude).toHaveLength(118);
+    expect([gpt, gemini].map((v) => v!.length)).toEqual([118, 118]);
+    expect(['whale', 'claude-chan', 'gpt-chan', 'gemini-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab.length)).toEqual([117, 118, 120, 122]);
     expect(coo!.filter((w) => w.kind === 'expression')).toHaveLength(57);
     expect(claude!.map((w) => w.id).filter((id) => !POSES.includes(id))).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'spout' && !POSES.includes(id)));
     expect(claude!.filter((w) => POSES.includes(w.id)).map((w) => w.id)).toEqual(POSES);

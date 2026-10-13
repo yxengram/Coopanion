@@ -2118,6 +2118,274 @@
    ],
    "cut": 201.17,
    "source": "cut from kneel_body (no generation): arms (near/far polygons) and hair beside the skirt removed; her standing skirt sunk by headDrop and an inpaint of the drawing's own cloth under them; per scheme from its own kneel_body and skirt"
+  },
+  "clap": {
+   "required": [
+    {
+     "id": "arm_clap",
+     "tex": "arm_clap",
+     "z": 9.6,
+     "parent": "armClap",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      104.5,
+      165.5,
+      52.0,
+      28.67
+     ]
+    }
+   ],
+   "pivots": {
+    "armClap": [
+     133.67,
+     186.0
+    ]
+   },
+   "wrist": [
+    142.0,
+    179.33
+   ],
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: clap_gpt2 1"
+  },
+  "clapo": {
+   "required": [
+    {
+     "id": "arm_clapo",
+     "tex": "arm_clapo",
+     "z": 9.6,
+     "parent": "armClapo",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      102.17,
+      165.83,
+      67.17,
+      32.33
+     ]
+    }
+   ],
+   "pivots": {
+    "armClapo": [
+     133.67,
+     186.0
+    ]
+   },
+   "wrist": [
+    142.0,
+    182.67
+   ],
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: clapo_gpt3 2"
+  },
+  "shrug": {
+   "required": [
+    {
+     "id": "arm_shrug",
+     "tex": "arm_shrug",
+     "z": 9.6,
+     "parent": "armShrug",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      88.33,
+      164.67,
+      88.17,
+      31.17
+     ]
+    }
+   ],
+   "pivots": {
+    "armShrug": [
+     133.67,
+     186.0
+    ]
+   },
+   "wrist": [
+    133.67,
+    173.5
+   ],
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: shrug_gpt 1"
+  },
+  "headhold": {
+   "required": [
+    {
+     "id": "arm_headhold",
+     "tex": "arm_headhold",
+     "z": 14.6,
+     "parent": "armHeadhold",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      84.17,
+      78.67,
+      108.17,
+      66.5
+     ]
+    }
+   ],
+   "pivots": {
+    "armHeadhold": [
+     130.33,
+     126.0
+    ]
+   },
+   "wrist": [
+    143.67,
+    89.33
+   ],
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: headhold_gpt 2"
+  },
+  "raise": {
+   "required": [
+    {
+     "id": "arm_raise",
+     "tex": "arm_raise",
+     "z": 14.2,
+     "parent": "armRaise",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      77.17,
+      24.5,
+      44.0,
+      143.5
+     ]
+    }
+   ],
+   "pivots": {
+    "armRaise": [
+     113.67,
+     166.0
+    ]
+   },
+   "wrist": [
+    88.0,
+    57.0
+   ],
+   "rest": 167,
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: raise_gpt2 1"
+  },
+  "thumbs": {
+   "required": [
+    {
+     "id": "arm_thumbs",
+     "tex": "arm_thumbs",
+     "z": 9.6,
+     "parent": "armThumbs",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      96.67,
+      147.0,
+      21.5,
+      39.17
+     ]
+    }
+   ],
+   "pivots": {
+    "armThumbs": [
+     105.33,
+     179.33
+    ]
+   },
+   "wrist": [
+    107.0,
+    162.67
+   ],
+   "rest": -174,
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: thumbs_gpt 1"
+  },
+  "shush": {
+   "required": [
+    {
+     "id": "arm_shush",
+     "tex": "arm_shush",
+     "z": 6,
+     "parent": "armShush",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      111.0,
+      143.67,
+      43.17,
+      41.67
+     ]
+    },
+    {
+     "id": "arm_shush_top",
+     "tex": "arm_shush_top",
+     "z": 14.2,
+     "parent": "armShush",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      111.0,
+      143.67,
+      43.17,
+      41.67
+     ]
+    }
+   ],
+   "pivots": {
+    "armShush": [
+     112.0,
+     169.33
+    ]
+   },
+   "wrist": [
+    142.0,
+    166.0
+   ],
+   "rest": -96,
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: shush_gpt 1"
+  },
+  "wipe": {
+   "required": [
+    {
+     "id": "arm_wipe",
+     "tex": "arm_wipe",
+     "z": 14.2,
+     "parent": "armWipe",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      88.17,
+      100.0,
+      51.83,
+      51.33
+     ]
+    }
+   ],
+   "pivots": {
+    "armWipe": [
+     102.0,
+     151.0
+    ]
+   },
+   "wrist": [
+    120.33,
+    112.67
+   ],
+   "rest": -154,
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: wipe_gpt 2"
   }
  }
 }

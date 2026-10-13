@@ -27,7 +27,7 @@ const SVGNS = 'http://www.w3.org/2000/svg';
  */
 export const GESTURES = ['nod', 'shake', 'tilt', 'droop', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read',
   'sigh', 'pray', 'closer', 'leanback', 'sway', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy',
-  'muse', 'fist', 'jot', 'twiddle'];
+  'muse', 'fist', 'jot', 'twiddle', 'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
 
 function loadImage(url) {
   return new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = url; });

@@ -2,8 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN, WAG, appendagesOf } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, RAISE_HIGH, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN, WAG, appendagesOf, ARM_TWIN } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { CLAP, createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { chainPoint, meshGap } from './helpers/mesh.js';
@@ -1512,6 +1512,104 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
       expect(s.alpha('kneel_body')).toBe(1);
       expect(s.o.kneel).toBe(true);
     } finally { s.done(); }
+  });
+
+  it('draws the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗) on their own arms: hands on her face or head ride the neck', async () => {
+    const s = await onKit();
+    try {
+      const D = rigSeen.tree.deformers;
+      const parentOf = pose => D[Object.keys(model.poses[pose].pivots)[0]].parent;
+      for (const pose of ['shush', 'wipe', 'headhold']) expect(parentOf(pose), pose).toBe('neck');
+      for (const pose of ['clap', 'clapo', 'shrug', 'raise', 'thumbs']) expect(parentOf(pose), pose).toBe('waist');
+      expect(ARM_TWIN).toEqual({ clap: 'clapo' });
+      for (const g of ['clap', 'shrug', 'headhold']) { expect(BOTH_HANDS[g], g).toBe(g); expect(FAR_ARM_GESTURES, g).toContain(g); }
+      for (const g of ['raise', 'thumbs', 'shush', 'wipe']) expect(NEAR_RAISES[g], g).toBe(g);
+      expect(BENT_RAISES.filter(g => ['raise', 'thumbs', 'shush', 'wipe'].includes(g))).toEqual(['thumbs', 'shush', 'wipe']);
+      // standing, each shows its drawing and takes the arms it draws
+      for (const [w, parts, arm] of [['shrug', ['arm_shrug'], 'arm_far'], ['headhold', ['arm_headhold'], 'arm_far'], ['raise', ['arm_raise'], 'arm_near'],
+        ['thumbs', ['arm_thumbs'], 'arm_near'], ['shush', ['arm_shush', 'arm_shush_top'], 'arm_near'], ['wipe', ['arm_wipe'], 'arm_near']]) {
+        s.run(1);
+        s.pet.doWord(w);
+        let shown = 0, plain = 1;
+        s.run(1.2, () => { shown = Math.max(shown, Math.min(...parts.map(s.alpha))); plain = Math.min(plain, s.alpha(arm)); });
+        expect(shown, w).toBe(1);
+        expect(plain, w).toBe(0);
+        s.run(2.5);
+        for (const p of parts) expect(s.alpha(p), `${w} ${p}`).toBe(0);
+      }
+    } finally { s.done(); }
+  });
+
+  it('hands the raised arm (举手) over from a fist arm already high: the long drawing never shows turned down off her shoulder', async () => {
+    expect(RAISE_HIGH.raise).toBeGreaterThan(RAISE_TO);
+    for (const kneel of [false, true]) {
+      const s = await onKit();
+      try {
+        if (kneel) kneelDown(s); else s.run(1);
+        s.pet.doWord('raise');
+        let worst = 0, shown = 0;
+        // (the drawing's turn off its own angle while any of it shows: at RAISE_TO it would stick out sideways, ~-100°)
+        s.run(2.4, () => { const a = s.alpha('arm_raise'); shown = Math.max(shown, a); if (a > .02) worst = Math.min(worst, s.st.armRaise.a); });
+        expect(shown, `kneel ${kneel}`).toBe(1);
+        expect(worst, `kneel ${kneel}`).toBeGreaterThan(-50);
+      } finally { s.done(); }
+    }
+  });
+
+  it('claps by cutting between her two drawings of it in a frame, never both at once, four times', async () => {
+    const s = await onKit();
+    try {
+      s.run(1);
+      s.pet.doWord('clap');
+      let both = 0, cuts = 0, was = null;
+      const peak = { arm_clap: 0, arm_clapo: 0 };
+      s.run(3, () => {
+        const a = s.alpha('arm_clap'), b = s.alpha('arm_clapo');
+        if (a > 0 && b > 0) both++;
+        peak.arm_clap = Math.max(peak.arm_clap, a); peak.arm_clapo = Math.max(peak.arm_clapo, b);
+        const now = a > 0 ? 'clap' : b > 0 ? 'clapo' : null;
+        if (now && was && now !== was) cuts++;
+        if (now) was = now;
+      });
+      expect(both).toBe(0);
+      expect(peak).toEqual({ arm_clap: 1, arm_clapo: 1 });
+      expect(cuts).toBe(2 * CLAP.at.length);
+      // without the hands-apart drawing (a scheme lacking it), the hands-together one shows throughout
+      const t = await onKit(['arm_clapo']);
+      try {
+        t.run(1); t.pet.doWord('clap');
+        let on = 0;
+        t.run(1.6, () => { if (t.alpha('arm_clap') >= 1) on++; expect(t.alpha('arm_clapo')).toBe(0); });
+        expect(on).toBeGreaterThan(60);
+      } finally { t.done(); }
+    } finally { s.done(); }
+  });
+
+  it('does the arm words drawn anew kneeling, in the hybrid, keeping the kneel, and goes back to the drawing after', async () => {
+    for (const [w, parts] of [['clap', ['arm_clap', 'arm_clapo']], ['shrug', ['arm_shrug']], ['headhold', ['arm_headhold']], ['raise', ['arm_raise']],
+      ['thumbs', ['arm_thumbs']], ['shush', ['arm_shush']], ['wipe', ['arm_wipe']]]) {
+      const s = await onKit();
+      try {
+        kneelDown(s);
+        s.pet.doWord(w);
+        let low = 0, mixed = 0;
+        const shown = {};
+        s.run(2.5, () => {
+          const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+          low = Math.max(low, l);
+          if (k > 0 && k < 1 && l > 0 && l < 1) mixed++;
+          for (const p of parts) shown[p] = Math.max(shown[p] || 0, s.alpha(p));
+        });
+        expect(low, w).toBe(1);
+        expect(mixed, w).toBe(0);
+        for (const p of parts) expect(shown[p], `${w} ${p}`).toBe(1);
+        expect(s.o.kneel, w).toBe(true);
+        s.run(4);
+        expect(s.alpha('kneel_low'), w).toBe(0);
+        expect(s.alpha('kneel_body'), w).toBe(1);
+        expect(s.o.kneel, w).toBe(true);
+      } finally { s.done(); }
+    }
   });
 
   it('kneels right after a seated gesture or her chin on her hand in one cut, the seated rig to the drawing (no hybrid between)', async () => {

@@ -13,6 +13,7 @@
  * Her dragon wings (wingL, wingR) carry her mood the way the whale's fins do, and her tail (tailRot, with the warp
  * `tail` along it) wags and droops the way the whale's does.
  */
+import { clapShut } from '../kit/body.js';
 
 export const f1 = n => Math.round(n * 100) / 100;
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -356,6 +357,8 @@ export const ARM_ONE = {
   wave: 'wave', scratch: 'scratch', idea: 'idea', salute: 'salute', vsign: 'vsign', point: 'point', cover: 'cover',
   // her faces' one-arm poses as gestures of their own: chin on her hand (thinking's), a fist raised (excited's)
   muse: 'chin', fist: 'fist',
+  // more one-arm poses: a hand raised high, a thumbs up, a finger to her lips, the back of her wrist wiping her brow
+  raise: 'raise', thumbs: 'thumbs', shush: 'shush', wipe: 'wipe',
 };
 /** Two-arm gestures, one drawing of both arms each: kit gesture → pose. */
 export const ARM_BOTH = {
@@ -363,7 +366,16 @@ export const ARM_BOTH = {
   stretch: 'stretch', curtsy: 'curtsy', flinch: 'oops', peek: 'search', shiver: 'cross',
   // her faces' two-arm poses as gestures of their own: writing in a notebook (listening's), fingertips together (shy's)
   jot: 'write', twiddle: 'shy',
+  // more two-arm poses: clapping (two drawings, see ARM_TWIN), a shrug with the palms up, both hands on her head
+  clap: 'clap', shrug: 'shrug', headhold: 'headhold',
 };
+/**
+ * A gesture's second drawing, cut to and from its own in a frame (no crossfade: two pairs of hands half seen at once
+ * read as a double exposure): the clap's hands apart, shown between the claps (the kit's clapShut).
+ */
+export const ARM_TWIN = { clap: 'clapo' };
+/** The drawing arm gesture `g` shows at `k` of it: its own (ARM_ONE / ARM_BOTH), or its twin while the clap's hands are apart. */
+export const armPoseOf = (g, k) => (ARM_TWIN[g] && !clapShut(k) ? ARM_TWIN[g] : ARM_BOTH[g] || ARM_ONE[g]);
 /** Faces she holds her arms for, standing or sitting still with no gesture going. */
 export const FACE_ARMS = {
   thinking: 'chin', listening: 'write', determined: 'hips', angry: 'hips', excited: 'fist', shy: 'shy', flustered: 'shy',
@@ -372,9 +384,11 @@ export const FACE_ARMS = {
 /** Which arms a pose drawing replaces, unless model.poses.<id>.kind says. */
 export const POSE_KIND = {
   wave: 'armL', chin: 'armL', scratch: 'armL', idea: 'armL', salute: 'armL', vsign: 'armL', point: 'armL', cover: 'armL', fist: 'armL',
+  raise: 'armL', thumbs: 'armL', shush: 'armL', wipe: 'armL',
 };
 /** A missing drawing stands in for another that is there (the book and the notebook for each other). */
-export const POSE_ALT = { read: ['write'], write: ['read'], search: ['read'], fist: ['vsign'], shy: ['pray'], oops: ['cover'] };
+export const POSE_ALT = { read: ['write'], write: ['read'], search: ['read'], fist: ['vsign'], shy: ['pray'], oops: ['cover'],
+  thumbs: ['fist'], raise: ['wave'], shush: ['cover'], wipe: ['scratch'], clapo: ['clap', 'pray'], clap: ['pray'] };
 /** The calm modes, where faces pose her arms. */
 export const CALM_MODES = ['idle', 'look', 'sit', 'sleep', 'wake'];
 /** The plain arms' spring (stiffness, damping) and limit. */
@@ -393,6 +407,8 @@ export const ARM_FALLBACK = {
   cheer: [115, -115], heart: [-28, 28], read: [-26, 26], cup: [-28, 28], pray: [-30, 30], hips: [24, -24],
   hug: [70, -70], cross: [-34, 34], stretch: [165, -165], curtsy: [16, -16], oops: [-36, 36], search: [-26, 26], shy: [-30, 30],
   write: [-26, 26],
+  raise: [175, null], thumbs: [-20, null], shush: [-32, null], wipe: [150, null], clap: [-30, 30], clapo: [-22, 22], shrug: [30, -30],
+  headhold: [160, -160],
 };
 
 /**
@@ -406,7 +422,7 @@ export function armPlan({ mode, gesture, face, faceOK = true }, has) {
   // carried, or reeling: her arms are free
   if (mode === 'drag' || mode === 'dizzy') return hang;
   const g = gesture && gesture.k > .02 && gesture.k < .9 ? gesture.kind : null;
-  const armG = g ? ARM_BOTH[g] || ARM_ONE[g] : null;
+  const armG = g ? armPoseOf(g, gesture.k) : null;
   const faceArm = !armG && faceOK && CALM_MODES.includes(mode) ? FACE_ARMS[face] : null;
   const want = armG || faceArm;
   if (want) {
@@ -480,7 +496,7 @@ export const HEAD_PITCH = { singing: -.25, sad: .1, cry: .45, worried: .15, disg
 // the head's parallax gains [x, y] per layer, front to back
 export const PARALLAX = { headFront: [5, 3], headFeat: [3.5, 2], headMid: [2, 1.4], headBack: [-2, -1.2] };
 /** Poses whose drawing rides the neck (the hand stays on her face as the head moves). */
-export const NECK_POSES = ['cover'];
+export const NECK_POSES = ['cover', 'shush', 'wipe', 'headhold'];
 /** Whole-body drawings: kept out of the arm machinery. */
 export const WHOLE_POSES = ['lie', 'kneel', 'kneelLow', 'back', 'roll', 'sit'];
 
@@ -939,6 +955,10 @@ export function createMotion(model, R) {
     const has = Object.assign(id => posable(caps, id), { kind: id => ARM[id]?.kind });
     const plan = lieK > .5 ? { L: 'hangL', R: 'hangR', fallback: null } : armPlan({ mode, gesture: g, face, faceOK }, has);
     const want = new Set([plan.L, plan.R]);
+    // the clap's two drawings trade places in a frame (ARM_TWIN): the one wanted takes over the other's share
+    for (const [g, b] of Object.entries(ARM_TWIN)) {
+      for (const [x, y] of [[ARM_BOTH[g], b], [b, ARM_BOTH[g]]]) if (want.has(x) && !want.has(y) && armA[y] > 0) { armA[x] = Math.max(armA[x] || 0, armA[y]); delete armA[y]; }
+    }
     for (const k of new Set([...Object.keys(armA), ...want])) {
       armA[k] = approach(armA[k] || 0, want.has(k) ? 1 : 0, dt, ARM_FADE);
       if (armA[k] <= 0 && !want.has(k)) delete armA[k];
@@ -1103,6 +1123,10 @@ export function createMotion(model, R) {
           case 'salute': if (own) s.a = 5 * Math.sin(Math.PI * clamp((gk - .1) / .1, 0, 1)); break;
           case 'chin': s.a = .8 * Math.sin(t * 1.3); break;
           case 'fist': s.ty -= 2.5 * Math.abs(Math.sin(t * 7)); break;
+          // the raised hand waggles a little (pick me); the shrug's shoulders come up once; the wrist wipes across her brow
+          case 'raise': s.a = 2 * Math.sin(t * 6); break;
+          case 'shrug': s.ty -= own ? 2 * Math.sin(Math.PI * clamp((gk - .15) / .5, 0, 1)) : 0; break;
+          case 'wipe': if (own) s.a = 4 * Math.sin(Math.PI * smooth(.25, .6, gk)); break;
           case 'cheer': s.ty -= 3 * Math.abs(Math.sin(t * 11)); break;
           case 'heart': { const b = .025 * Math.sin(t * 8); s.sx = s.sy = 1 + b; break; }
           case 'pray': s.ty += 1.5 * Math.abs(Math.sin(t * 6)); break;

@@ -214,7 +214,7 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 
 - `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 118 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色、每个姿势、五官、缩略图），缺一个就报错。
-- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 18 个，三个娘的包没有 spout，是 17 个），用 `node_modules` 里的 Electron
+- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 33 个；Claude 娘的包没有 spout 和摇尾巴的 wag、多加油、记笔记、对手指的 fist、jot、twiddle，是 34 个；GPT 娘再多 wag 和扇翅膀的 wingbeat，Gemini 娘再多 wag 和抖耳朵的 earflick，各 36 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），
   去掉结尾的静音，存成 44.1 kHz 16 位单声道 WAV。文件按峰值 -1 dBFS 存，`volume` 把它调回原来的响度：页面播放时同样经过总音量和压缩器，听起来和内置音色一样。
   渲染出来是静音或超过满幅都会报错。

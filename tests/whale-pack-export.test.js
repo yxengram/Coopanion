@@ -36,8 +36,13 @@ describe('exported whale pack', () => {
     const sounds = await packSounds({ upstreamTones });
     const names = sounds.map((s) => s.name);
     const asked = requestedTones();
-    expect(names.length).toBe(18);
+    expect(names.length).toBe(33);
     expect(names).toEqual(expect.arrayContaining(['song', 'spout', 'sip', 'roll', 'sigh', 'soft', 'wry', 'hehe', 'crack']));
+    // the sounds of the words added since v0.5.0: the arm words drawn anew, her tail's wag, and the faces with marks of
+    // their own and 安慰; not the girls' fist, notebook and fingertips (no words of hers), nor ears or wings
+    expect(names).toEqual(expect.arrayContaining(['clap', 'shush', 'wipe', 'thumbs', 'raise', 'shrug', 'headhold', 'wag',
+      'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort']));
+    for (const n of ['fist', 'jot', 'twiddle', 'earflick', 'wingbeat']) expect(names, n).not.toContain(n);
     expect(names).not.toContain('huff');
     for (const n of names) expect(upstreamTones).not.toContain(n);
     for (const n of asked) if (!upstreamTones.includes(n)) expect(names).toContain(n);
@@ -61,10 +66,10 @@ describe('exported whale pack', () => {
     // 凑近, 后仰, 晃来晃去, 跺脚, her tail's 摇尾巴 and the faces made of parts (PLUS_MIXES), which the pack's own kit draws
     // and the arm words drawn anew for her (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗)
     expect(m.vocab.length).toBe(88 + Object.keys(PLUS_MIXES).length);
-    // (their tones are upstream's (tick, pop, hmm, surprised) or ones the pack ships already (ding, soft, sigh): no new sound files)
+    // (each with a sound of its own the pack ships)
     expect(m.vocab.filter((w) => NEW_ARM_WORDS.includes(w.id)).map((w) => w.names.zh[0])).toEqual(['拍手', '摊手', '抱头', '举手', '点赞', '嘘', '擦汗']);
+    for (const t of NEW_ARM_WORDS) { expect(upstreamTones, t).not.toContain(t); expect(Object.keys(m.sounds), t).toContain(t); }
     for (const t of ['tick', 'pop', 'hmm', 'surprised']) { expect(upstreamTones, t).toContain(t); expect(Object.keys(m.sounds), t).not.toContain(t); }
-    for (const t of ['ding', 'soft', 'sigh']) expect(Object.keys(m.sounds), t).toContain(t);
     for (const id of ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp']) expect(m.vocab.some((w) => w.id === id), id).toBe(true);
     // (托腮's "hm" is upstream's look tone too; the girls' fist, notebook and fingertips have no drawing of hers)
     expect(m.vocab.find((w) => w.id === 'muse')).toMatchObject({ kind: 'motion', names: { zh: ['托腮', '撑下巴', '托下巴', '琢磨'] } });
@@ -78,8 +83,9 @@ describe('exported whale pack', () => {
       .toEqual(['低头', '眨眨眼', '凑近', '后仰', '晃来晃去', '跺脚'].sort());
     for (const t of ['dance', 'land']) expect(Object.keys(m.sounds)).not.toContain(t);
     expect(Object.keys(m.sounds)).toContain('peek');
-    // her tail's word (摇尾巴) goes too, silent; the ears' and wings' she has no part for
+    // her tail's word (摇尾巴) goes too, with its swishes; the ears' and wings' she has no part for
     expect(m.vocab.find((w) => w.id === 'wag')).toMatchObject({ kind: 'motion', names: { zh: ['摇尾巴', '甩尾巴', '摆尾巴'] } });
+    expect(Object.keys(m.sounds)).toContain('wag');
     for (const id of ['earflick', 'earsup', 'earsdown', 'wingbeat']) expect(m.vocab.some((w) => w.id === id), id).toBe(false);
     expect(m.vocab.filter((w) => w.id in PLUS_MIXES).map((w) => w.kind)).toEqual(Object.keys(PLUS_MIXES).map(() => 'expression'));
     expect(m.axes).toEqual(whale.axes);

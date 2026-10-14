@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
-import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
+import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS, TONES } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
 import { createActs, WALK_MAX } from '../packages/cortico-world-desktop-pet/web/acts.js';
 import { figurePacks, readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
@@ -85,6 +85,8 @@ function countingCtx() {
   return { ctx, made };
 }
 
+/** The faces made of parts with a tone of their own: 安慰 and the faces with marks of their own (气炸 … 眼冒金星). */
+const MIX_OWN_TONES = { comfort: 'comfort', fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry' };
 /** The arm words that are a figure's face poses as gestures of their own (托腮, 加油, 记笔记, 对手指). */
 const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
 /** The arm words drawn anew for the girls and the whale (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗); Coo has none of them. */
@@ -129,7 +131,7 @@ describe('the words the model can use', () => {
     expect(own('twiddle')).toEqual(['twiddle', null]);
   });
 
-  it('the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗) are arm gestures that keep a kneel, each with a face and a tone it already had', () => {
+  it('the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗) are arm gestures that keep a kneel, each with a face and a sound of its own', () => {
     for (const w of NEW_ARM_WORDS) {
       expect(PLUS_MOTIONS, w).toContain(w);
       expect(ARM_GESTURES, w).toContain(w);
@@ -138,27 +140,27 @@ describe('the words the model can use', () => {
     // each one's own face: none of them the face of a pose of her arms (FACE_ARMS: determined's hands on hips, so not
     // eager for a raised hand), so the face left after it brings no other drawing
     const own = (w) => { const pet = hearingPet(); run(pet, 1); pet.heard.length = 0; pet.doWord(w); run(pet, .5); return [pet.pet.pulse?.kind, pet.pet.expr, pet.heard[0]]; };
-    expect(own('clap')).toEqual(['clap', 'happy', ['tick', 'move']]);
-    expect(own('shrug')).toEqual(['shrug', 'sighing', ['hmm', 'face']]);
-    expect(own('headhold')).toEqual(['headhold', 'pained', ['surprised', 'face']]);
-    expect(own('raise')).toEqual(['raise', 'happy', ['pop', 'move']]);
-    expect(own('thumbs')).toEqual(['thumbs', 'happy', ['ding', 'move']]);
+    expect(own('clap')).toEqual(['clap', 'happy', ['clap', 'move']]);
+    expect(own('shrug')).toEqual(['shrug', 'sighing', ['shrug', 'face']]);
+    expect(own('headhold')).toEqual(['headhold', 'pained', ['headhold', 'face']]);
+    expect(own('raise')).toEqual(['raise', 'happy', ['raise', 'move']]);
+    expect(own('thumbs')).toEqual(['thumbs', 'happy', ['thumbs', 'move']]);
     // (a shush winks over a closed little mouth: wink's own open smile behind the finger read as a giggle; neither part,
     // nor its body, wink's, poses an arm)
-    expect(own('shush')).toEqual(['shush', 'wink+neutral', ['soft', 'face']]);
-    expect(own('wipe')).toEqual(['wipe', 'gentle', ['sigh', 'move']]);
+    expect(own('shush')).toEqual(['shush', 'wink+neutral', ['shush', 'face']]);
+    expect(own('wipe')).toEqual(['wipe', 'gentle', ['wipe', 'move']]);
     // ...and no part of any of them (a mix's eyes, mouth and body) is a face that poses the girls' arms
     for (const w of NEW_ARM_WORDS) {
       for (const part of String(own(w)[1]).split('+')) for (const [fig, arms] of Object.entries(GIRL_FACE_ARMS)) expect(arms[part], `${w} ${part} ${fig}`).toBeUndefined();
     }
-    // a clap ticks softly as her hands meet, once for each of CLAP.at, and its hands are apart between (clapShut)
+    // a clap sounds as her hands meet, once for each of CLAP.at, and its hands are apart between (clapShut)
     const pet = hearingPet();
     run(pet, 1);
     pet.heard.length = 0;
     pet.doWord('clap');
     const at = [];
     for (let i = 0; i < 3 * 60; i++) { const n = pet.heard.length; run(pet, 1 / 60); if (pet.heard.length > n) at.push([(i + 1) / 60, ...pet.heard.slice(n)]); }
-    expect(at.map(([, ...h]) => h)).toEqual(CLAP.at.map(() => [['tick', 'move']]));
+    expect(at.map(([, ...h]) => h)).toEqual(CLAP.at.map(() => [['clap', 'move']]));
     at.forEach(([s], i) => expect(Math.abs(s - CLAP.at[i]), `${i}`).toBeLessThanOrEqual(1 / 60 + 1e-9));
     expect(CLAP.at.map((a) => clapShut((a + .01) / CLAP.dur))).toEqual([true, true, true, true]);
     expect(CLAP.at.map((a) => clapShut((a - .01) / CLAP.dur))).toEqual([false, false, false, false]);
@@ -248,7 +250,10 @@ describe('the words the model can use', () => {
     run(pet, 1);
     pet.setExpr('happy', 6);
     expect(pet.doGroup(['wave', 'nod', 'wag', 'earsup', 'wingbeat'])).toEqual([true, true, true, true, true]);
-    expect(pet.heard).toContainEqual(['whoosh', 'move']);
+    // the wag's swishes and the wingbeat's whumps (ears stood up are quiet)
+    expect(pet.heard).toContainEqual(['wag', 'move']);
+    expect(pet.heard).toContainEqual(['wingbeat', 'move']);
+    expect(pet.heard.map(([n]) => n)).not.toContain('earsup');
     run(pet, .5);
     expect(pet.pet.pulse.kind).toBe('wave');
     expect(pet.pet.head.kind).toBe('nod');
@@ -2632,8 +2637,11 @@ describe('faces made of parts of others (plus)', () => {
       for (const k of Object.keys(d.add ?? {})) expect(ADD_KEYS, `${n}.add.${k}`).toContain(k);
       const fc = PLUS_MIX_FACES[n].f(.5);
       for (const k of ['stone', 'crack', 'freeze']) expect(fc[k], `${n}.${k}`).toBeUndefined();
-      // one of the tones the other faces play
-      expect(Object.entries(EXPR_TONES).filter(([f]) => !(f in PLUS_MIXES)).map(([, t]) => t), n).toContain(EXPR_TONES[n]);
+      // one of the tones the other faces play, or (comfort and the faces with marks of their own) a face tone of its own
+      const own = MIX_OWN_TONES[n];
+      if (own) expect(EXPR_TONES[n], n).toBe(own);
+      else expect(Object.entries(EXPR_TONES).filter(([f]) => !(f in PLUS_MIXES)).map(([, t]) => t), n).toContain(EXPR_TONES[n]);
+      if (own) expect(SOUND_KINDS.face, n).toContain(own);
       expect(d.label, n).toBe(vocabOf('coo').find((w) => w.id === n).names.zh[0]);
     }
   });
@@ -3155,5 +3163,86 @@ describe("a face in a group lasts as long as the group's gestures (plus)", () =>
     expect(pet.pet._fname).toBe('surprised+singing+singing');
     run(pet, .3);
     expect(pet.pet._fname).toBe('neutral');
+  });
+});
+
+describe('the sounds of the words added since v0.5.0 (plus)', () => {
+  /** Each word's own tone, the kind it is filed under, and how long the word lasts (its sound must be over by then). */
+  const MOVES = {
+    clap: ['clap', 'move', CLAP.shut], raise: ['raise', 'move', 1.9], thumbs: ['thumbs', 'move', 1.8], wipe: ['wipe', 'move', 2.1],
+    fist: ['fist', 'move', 1.8], jot: ['jot', 'move', 3.2], twiddle: ['twiddle', 'move', 2.6], wag: ['wag', 'move', APPENDAGE_MOVES.wag[1]],
+    earflick: ['earflick', 'move', APPENDAGE_MOVES.earflick[1]], wingbeat: ['wingbeat', 'move', APPENDAGE_MOVES.wingbeat[1]],
+    shush: ['shush', 'face', 2.2], shrug: ['shrug', 'face', 2.1], headhold: ['headhold', 'face', 2.5],
+  };
+  /** An audio context that keeps when each voice stops and each gain's value before its automation. */
+  function timingCtx() {
+    const made = { stops: [], gains: [] };
+    // (`before`: the value a param had when its first event was set)
+    const param = () => ({ value: 1, setValueAtTime() { this.before ??= this.value; }, exponentialRampToValueAtTime() {}, cancelScheduledValues() {}, setTargetAtTime() {} });
+    const node = () => ({ connect() {}, start() {}, stop(t) { made.stops.push(t); }, frequency: param(), gain: param(), Q: {} });
+    const ctx = {
+      currentTime: 0, state: 'running', sampleRate: 8, destination: {}, createDynamicsCompressor: node, createBiquadFilter: node,
+      createGain() { const g = node(); made.gains.push(g.gain); return g; },
+      createOscillator: node, createBufferSource: node,
+      createBuffer: () => ({ getChannelData: () => new Float32Array(8) }),
+    };
+    return { ctx, made };
+  }
+
+  it('each word plays a tone of its own, filed under the kind the body asks for it with, and over before the word ends', () => {
+    for (const [w, [tone, kind, dur]] of Object.entries(MOVES)) {
+      const pet = hearingPet();
+      run(pet, 1);
+      pet.heard.length = 0;
+      expect(pet.doWord(w), w).toBe(true);
+      run(pet, w === 'clap' ? CLAP.dur : .3);
+      expect(pet.heard, w).toContainEqual([tone, kind]);
+      expect(SOUND_KINDS[kind], w).toContain(tone);
+      expect(TONES.find((t) => t.name === tone), w).toMatchObject({ kind, plus: true });
+      const { ctx, made } = timingCtx();
+      createSfx({ ctx, compress: false }).play(tone, kind);
+      expect(made.stops.length, w).toBeGreaterThan(0);
+      // (a voice stops .03 s after its sound fades out)
+      expect(Math.max(...made.stops), w).toBeLessThanOrEqual(dur + .05);
+    }
+    // ears stood up or laid down stay quiet; a stamp still thuds on each landing (upstream's own tone)
+    for (const w of ['earsup', 'earsdown']) {
+      const pet = hearingPet();
+      run(pet, 1);
+      pet.heard.length = 0;
+      pet.doWord(w); run(pet, 2.2);
+      expect(pet.heard.filter(([, k]) => k === 'move'), w).toEqual([]);
+    }
+    expect(TONES.find((t) => t.name === 'land')).toMatchObject({ plus: false });
+  });
+
+  it("the faces with marks of their own and comfort sound their own tones, over before the face's 3.2 s", () => {
+    for (const [face, tone] of Object.entries(MIX_OWN_TONES)) {
+      expect(TONES.find((t) => t.name === tone), face).toMatchObject({ kind: 'face', plus: true });
+      const { ctx, made } = timingCtx();
+      createSfx({ ctx, compress: false }).expr(face);
+      expect(made.stops.length, face).toBeGreaterThan(0);
+      expect(Math.max(...made.stops), face).toBeLessThan(3.2);
+    }
+    // the dots' blips come as each dot of 「……」 is drawn (.25 s, then .3 s apart)
+    const { ctx, made } = timingCtx();
+    createSfx({ ctx, compress: false }).play('dots', 'face');
+    expect(made.stops.map((t) => +(t - .1).toFixed(2))).toEqual([.25, .55, .85]);
+  });
+
+  it('only our own bodies hear them; every voice is silent until it starts', () => {
+    const { ctx, made } = timingCtx();
+    const sfx = createSfx({ ctx, compress: false });
+    sfx.usePack('/packs/robot/', {}, { plus: false });
+    const ours = [...Object.values(MOVES).map(([t]) => t), ...Object.values(MIX_OWN_TONES)];
+    for (const t of ours) sfx.play(t, 'move');
+    expect(made.stops).toEqual([]);
+    sfx.usePack('/web/whale/', {}, { plus: true });
+    for (const t of ours) sfx.play(t, 'face');
+    expect(made.stops.length).toBeGreaterThan(ours.length);
+    // (a gain left at its default of 1 before its first event clicks at full level in the frame its voice starts)
+    const faded = made.gains.filter((g) => g.before !== undefined);
+    expect(faded.length).toBeGreaterThan(ours.length);
+    for (const g of faded) expect(g.before).toBeLessThanOrEqual(.0001);
   });
 });

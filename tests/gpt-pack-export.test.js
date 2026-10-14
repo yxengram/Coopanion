@@ -56,8 +56,10 @@ describe('exported GPT-chan pack', () => {
     expect(names).toEqual(expect.arrayContaining(['song', 'sip', 'page', 'roll', 'sigh', 'ding', 'crack', 'soft', 'hehe', 'wry', 'clink', 'snap', 'cheese']));
     expect(builtin.vocab.map((w) => w.id)).not.toContain('spout');
     expect(names).not.toContain('spout');
-    // the same as Claude-chan's: the same kit and the same words
-    expect(names).toEqual((await claudeSounds({ upstreamTones })).map((s) => s.name));
+    // Claude-chan's (the same kit and the same words), and her tail's swish and wings' whumps
+    const claude = (await claudeSounds({ upstreamTones })).map((s) => s.name);
+    expect(names).toEqual(TONES.map((t) => t.name).filter((n) => claude.includes(n) || n === 'wag' || n === 'wingbeat'));
+    expect(names.length).toBe(36);
   });
 
   it('builds a manifest our World and upstream v0.1.17 accept', async () => {
@@ -72,27 +74,29 @@ describe('exported GPT-chan pack', () => {
     // her curious tilt (歪头) goes too; its "hm?" is upstream's own look tone, so no sound file for it
     expect(m.vocab.find((w) => w.id === 'tilt')).toMatchObject({ kind: 'motion', names: { zh: ['歪头', '歪脑袋', '偏头', '好奇'] } });
     expect(Object.keys(m.sounds)).not.toContain('look');
-    // her faces' arm poses as words of their own: a finger to her chin (look's "hm"), a fist (pop), her notebook (page,
-    // which reading ships already) and fingertips together (shy); all upstream tones but page, so no new sound files
+    // her faces' arm poses as words of their own: a finger to her chin (upstream's look "hm"), and a fist, her notebook
+    // and fingertips together, each with a sound of its own the pack ships (fist, jot, twiddle)
     expect(m.vocab.filter((w) => ['muse', 'fist', 'jot', 'twiddle'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['琢磨', '加油', '记笔记', '对手指']);
-    // the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗): their tones are upstream's (tick, pop, hmm, surprised)
-    // or ones the pack ships already (ding, soft, sigh), so no new sound files
+    // the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗), each with a sound of its own the pack ships
     expect(m.vocab.filter((w) => ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'].includes(w.id)).map((w) => w.names.zh[0]))
       .toEqual(['拍手', '摊手', '抱头', '举手', '点赞', '嘘', '擦汗']);
+    for (const t of ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe']) expect(Object.keys(m.sounds), t).toContain(t);
     for (const t of ['tick', 'pop', 'hmm', 'surprised']) expect(Object.keys(m.sounds), t).not.toContain(t);
-    for (const t of ['ding', 'soft', 'sigh']) expect(Object.keys(m.sounds), t).toContain(t);
     expect(m.vocab.find((w) => w.id === 'determined').names.zh).not.toContain('握拳');
     for (const t of ['pop', 'shy']) expect(Object.keys(m.sounds)).not.toContain(t);
-    expect(Object.keys(m.sounds)).toContain('page');
+    for (const t of ['fist', 'jot', 'twiddle', 'page']) expect(Object.keys(m.sounds), t).toContain(t);
+    // the faces with marks of their own (气炸 … 眼冒金星) and 安慰 have tones of their own the pack ships too
+    for (const t of ['fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort']) expect(Object.keys(m.sounds), t).toContain(t);
     // the head's and body's moves (低头, 眨眨眼, 凑近, 后仰, 晃来晃去, 跺脚) go too, with sounds upstream has or the pack ships
     // already (peek's hum, the dance's tune, a landing's thud): no new sound files
     expect(m.vocab.filter((w) => ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'].includes(w.id)).map((w) => w.names.zh[0]).sort())
       .toEqual(['低头', '眨眨眼', '凑近', '后仰', '晃来晃去', '跺脚'].sort());
     for (const t of ['dance', 'land']) expect(Object.keys(m.sounds)).not.toContain(t);
     expect(Object.keys(m.sounds)).toContain('peek');
-    // her tail's and wings' words (摇尾巴, 扇翅膀) go too: the wings' whoosh is upstream's own tone, so no sound file for it
+    // her tail's and wings' words (摇尾巴, 扇翅膀) go too, with their sounds (the swishes, the whumps)
     expect(m.vocab.filter((w) => ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['摇尾巴', '扇翅膀']);
-    expect(Object.keys(m.sounds)).not.toContain('whoosh');
+    for (const t of ['wag', 'wingbeat']) expect(Object.keys(m.sounds), t).toContain(t);
+    expect(Object.keys(m.sounds)).not.toContain('earflick');
     // she draws arm gestures kneeling: her kneel says so (keepsArms), and her pack ships the drawing's lower body
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     expect(m.vocab.length).toBe(builtin.vocab.length);

@@ -6,9 +6,11 @@
  */
 /** Which kind each sound belongs to; a kind can be silenced on its own (`sfx.configure`). */
 export const SOUND_KINDS = {
-  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout', 'sigh', 'ding', 'hips', 'song', 'clink', 'snap', 'cheese'],
+  move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout', 'sigh', 'ding', 'hips', 'song', 'clink', 'snap', 'cheese',
+    'clap', 'wipe', 'thumbs', 'raise', 'fist', 'jot', 'twiddle', 'wag', 'earflick', 'wingbeat'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
-  face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe', 'crack'],
+  face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe', 'crack',
+    'shush', 'shrug', 'headhold', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort'],
   snore: ['snore'],
   talk: ['babble', 'blub'],
   ui: ['tick', 'pop', 'sparkle', 'select', 'listenStart', 'listenEnd'],
@@ -25,12 +27,13 @@ export const EXPR_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
-  brave: 'wry', comfort: 'soft', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
-  fuming: 'angry', heartbroken: 'sad', celebrate: 'sparkle', gloomy: 'sad', speechless: 'wry', starry: 'surprised',
+  brave: 'wry', comfort: 'comfort', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
+  fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry',
 };
 // tones only our bodies ask for (the plus words); a pack made for other apps ships them as files
 const PLUS_TONES = new Set(['flinch', 'peek', 'huff', 'away', 'hips', 'roll', 'sip', 'song', 'clink', 'snap', 'cheese', 'ding', 'sigh',
-  'spout', 'page', 'soft', 'wry', 'crack', 'hehe']);
+  'spout', 'page', 'soft', 'wry', 'crack', 'hehe', 'clap', 'shush', 'wipe', 'thumbs', 'raise', 'shrug', 'headhold', 'fist', 'jot',
+  'twiddle', 'wag', 'earflick', 'wingbeat', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort']);
 // kinds for the helper tones no sound is filed under: 'hmm' is borrowed by faces, 'huff' by away/hips
 const HELPER_KIND = { hmm: 'face', huff: 'move' };
 
@@ -129,6 +132,102 @@ function voices({ tone, noise, R, hold }) {
     hehe() { for (let i = 0; i < 3; i++) tone({ type: 'triangle', f0: 620 - i * 30, f1: 520 - i * 30, dur: .06, vol: .07, at: i * .12, filter: 900 }); },
     // stone cracking: a sharp snap and a crumble
     crack() { tone({ type: 'square', f0: 1400, f1: 500, dur: .05, vol: .06, filter: 2600 }); noise({ type: 'highpass', f0: 2600, f1: 900, dur: .35, vol: .07, at: .04 }); },
+    // (the arm words' own sounds, each timed to its drawing) one clap as the palms meet (the kit plays it at each of
+    // CLAP.at): a dry slap with its two quick echoes off the hands, and a soft thump under it
+    clap() {
+      const f = R(1300, 1700);
+      [0, .009, .019].forEach((at, i) => noise({ f0: f, f1: f * .7, q: .9, dur: .06 - i * .015, vol: .2 - i * .06, attack: .002, at }));
+      noise({ type: 'lowpass', f0: 600, f1: 250, dur: .05, vol: .07, attack: .002 });
+    },
+    // a finger to the lips: a soft, breathy "shh" as it gets there
+    shush() { noise({ f0: 3600, f1: 3000, q: .8, dur: .65, vol: .09, attack: .18, at: .12 }); },
+    // the wrist across the brow: a little swish as it wipes, then a short "phew" breathed out
+    wipe() {
+      noise({ f0: 900, f1: 2000, q: 1.3, dur: .4, vol: .07, attack: .14, at: .5 });
+      noise({ type: 'lowpass', f0: 1200, f1: 380, dur: .5, vol: .09, attack: .05, at: 1.15 });
+      tone({ type: 'triangle', f0: 440, f1: 349, dur: .3, vol: .03, attack: .04, at: 1.17, filter: 900 });
+    },
+    // a thumbs up: the thumb's little click, then a bright, sure "good!" going up a fifth
+    thumbs() {
+      tone({ type: 'square', f0: 1100, f1: 800, dur: .025, vol: .04, filter: 2400 });
+      tone({ type: 'triangle', f0: 784, f1: 800, dur: .1, vol: .09, at: .04 });
+      tone({ type: 'triangle', f0: 1175, f1: 1190, dur: .3, vol: .09, at: .13 });
+      tone({ f0: 2350, dur: .22, vol: .02, at: .15 });
+    },
+    // a hand shot up high: a quick swish up, then "me, me!" in two little pings as it waggles
+    raise() {
+      noise({ f0: 500, f1: 1800, q: 1.3, dur: .2, vol: .08, attack: .06 });
+      tone({ type: 'triangle', f0: 587, f1: 1175, dur: .15, vol: .07, at: .04 });
+      tone({ type: 'triangle', f0: 1175, f1: 1220, dur: .1, vol: .06, at: .28 });
+      tone({ type: 'triangle', f0: 1175, f1: 1220, dur: .12, vol: .05, at: .46 });
+    },
+    // a shrug, palms up: a lilting "eh… eh~" (who knows), the second wavering a little
+    shrug() {
+      tone({ type: 'triangle', f0: 494, f1: 440, dur: .14, vol: .08, at: .25 });
+      tone({ type: 'triangle', f0: 392, f1: 440, dur: .28, vol: .08, at: .43, vib: 6, vibRate: 7 });
+    },
+    // both hands on her head: a wobbling, sinking "ohh…", then a dull throb, twice, as of a headache
+    headhold() {
+      tone({ type: 'triangle', f0: 466, f1: 311, dur: .45, vol: .1, vib: 14, vibRate: 7, filter: 1400, attack: .02 });
+      tone({ f0: 120, f1: 90, dur: .14, vol: .1, at: .55 });
+      tone({ f0: 120, f1: 90, dur: .14, vol: .08, at: .92 });
+    },
+    // a little fist raised to cheer you on: a punch of air, a firm thump and a rising "go!"
+    fist() {
+      noise({ f0: 600, f1: 1600, q: 1.4, dur: .14, vol: .08, attack: .04 });
+      tone({ f0: 180, f1: 90, dur: .1, vol: .12, at: .1 });
+      tone({ type: 'triangle', f0: 660, f1: 990, dur: .14, vol: .08, at: .12 });
+    },
+    // jotting in a notebook: a pencil's scratches, two little runs of three
+    jot() { for (let i = 0; i < 6; i++) noise({ f0: R(3000, 4200), f1: R(2200, 3000), q: 2, dur: R(.08, .13), vol: .12, attack: .01, at: .5 + i * .17 + (i > 2 ? .3 : 0) }); },
+    // fingertips pressed together: four tiny, shy taps, back and forth
+    twiddle() { for (let i = 0; i < 4; i++) { const fr = i % 2 ? 1568 : 1397; tone({ f0: fr, f1: fr * 1.05, dur: .05, vol: .06, at: .2 + i * .28 }); } },
+    // a tail wagged hard: soft swishes from side to side, dying away as the wag ends
+    wag() { for (let i = 0; i < 8; i++) noise({ f0: i % 2 ? 900 : 1150, f1: i % 2 ? 620 : 780, q: 1.6, dur: .14, vol: .12 * (i < 6 ? 1 : .55), attack: .04, at: .1 + i * .26 }); },
+    // ears flicked: four tiny flutters, one for each flick
+    earflick() { for (let i = 0; i < 4; i++) noise({ f0: 1800, f1: 1100, q: 1.5, dur: .045, vol: .14, attack: .004, at: .1 + i * .256 }); },
+    // wings beaten: a soft "whump" of air on each downstroke (WINGBEAT's 2.6 a second), the last dying away
+    wingbeat() {
+      for (let i = 0; i < 5; i++) {
+        const k = i < 4 ? 1 : .5;
+        noise({ type: 'lowpass', f0: 900, f1: 280, dur: .2, vol: .16 * k, attack: .05, at: .14 + i * .385 });
+        noise({ f0: 1500, f1: 700, q: 1, dur: .16, vol: .05 * k, attack: .04, at: .15 + i * .385 });
+      }
+    },
+    // (the faces with marks of their own) fuming: a low grumble under the hiss of steam, a puff for each of the first three
+    fume() {
+      tone({ type: 'sawtooth', f0: 110, f1: 90, dur: .4, vol: .07, vib: 10, vibRate: 14, filter: 600 });
+      for (let i = 0; i < 3; i++) noise({ type: 'highpass', f0: 4200, f1: 2600, dur: .22, vol: .05 * (1 - i * .25), attack: .02, at: .05 + i * .32 });
+    },
+    // a heart breaking: it pops up, cracks (with the crack drawn on it), and its halves fall away on a sad, sinking note
+    heartbreak() {
+      tone({ f0: 880, f1: 990, dur: .12, vol: .06 });
+      tone({ type: 'square', f0: 1300, f1: 600, dur: .04, vol: .05, filter: 2600, at: .6 });
+      noise({ type: 'highpass', f0: 2600, f1: 1400, dur: .12, vol: .06, at: .61 });
+      tone({ type: 'triangle', f0: 392, f1: 262, dur: .55, vol: .1, vib: 8, vibRate: 5, at: .84 });
+    },
+    // confetti thrown: a party popper's pop and a shower of twinkles
+    confetti() {
+      noise({ f0: 1400, f1: 600, q: .8, dur: .09, vol: .2, attack: .002 });
+      tone({ f0: 260, f1: 120, dur: .08, vol: .08 });
+      [1568, 2093, 2637, 2093, 3136].forEach((fr, i) => tone({ f0: fr, dur: .2, vol: .045, at: .1 + i * .07 }));
+    },
+    // gloomy under a rain cloud: a dull, sinking "mm…", and a few raindrops plinking
+    gloom() {
+      tone({ type: 'triangle', f0: 294, f1: 262, dur: .4, vol: .09, filter: 1000, attack: .04 });
+      tone({ type: 'triangle', f0: 262, f1: 196, dur: .7, vol: .09, filter: 900, at: .38, vib: 5, vibRate: 4 });
+      for (let i = 0; i < 4; i++) tone({ f0: R(1500, 1900), f1: 1100, dur: .05, vol: .025, at: .55 + i * .3 });
+    },
+    // lost for words: a small, flat blip for each dot of 「……」 as it appears
+    dots() { for (let i = 0; i < 3; i++) tone({ type: 'triangle', f0: 660, f1: 640, dur: .07, vol: .07 - i * .012, at: .25 + .3 * i }); },
+    // seeing stars: little twinkles wobbling round and round her head
+    starry() { [2093, 2637, 2349, 2794, 2349].forEach((fr, i) => tone({ f0: fr, f1: fr * .94, dur: .13, vol: .045, vib: 50, vibRate: 28, at: i * .15 })); },
+    // comforting you: a warm "there, there", three soft notes stepping down and coming to rest
+    comfort() {
+      tone({ type: 'triangle', f0: 659, f1: 650, dur: .3, vol: .065, attack: .06 });
+      tone({ type: 'triangle', f0: 587, f1: 580, dur: .3, vol: .06, attack: .06, at: .28 });
+      tone({ type: 'triangle', f0: 523, dur: .55, vol: .06, attack: .08, at: .56 });
+    },
     tick() { tone({ f0: 1200, f1: 1000, dur: .03, vol: .05 }); },
     pop() { tone({ f0: 240, f1: 720, dur: .07, vol: .14 }); },
     sparkle() { [1568, 2093, 2637].forEach((fr, i) => tone({ f0: fr, dur: .25, vol: .06, at: i * .06 })); },
@@ -203,7 +302,8 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
       l.frequency.value = vibRate; lg.gain.value = vib;
       l.connect(lg); lg.connect(o.frequency); l.start(t0); l.stop(t0 + dur + .05);
     }
-    g.gain.setValueAtTime(.0001, t0);
+    // (silent before t0 too: left at its default of 1, the frame the source starts in could click at full level)
+    g.gain.value = .0001; g.gain.setValueAtTime(.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
     g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
     let node = o;
@@ -223,7 +323,8 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
     s.buffer = noiseBuf; bq.type = type; bq.Q.value = q;
     bq.frequency.setValueAtTime(f0, t0);
     bq.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
-    g.gain.setValueAtTime(.0001, t0);
+    // (silent before t0 too: left at its default of 1, the frame the source starts in could click at full level)
+    g.gain.value = .0001; g.gain.setValueAtTime(.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
     g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
     s.connect(bq); bq.connect(g); g.connect(master);

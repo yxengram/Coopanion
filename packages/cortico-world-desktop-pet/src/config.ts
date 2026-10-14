@@ -192,9 +192,9 @@ export const DESKTOP_PET_SOUND_CONFIG_GROUP: ConfigGroup = {
     title: '音效',
     properties: {
       [`${K}.sound`]: { type: 'boolean', title: '音效总开关', description: '桌宠菜单里的音效按钮切的就是这个。', 'x-hot': true },
-      [`${K}.sounds.move`]: { type: 'boolean', title: '动作', description: '走路、跑、跳、落地、被甩出去、点头、摇头、转圈、晕、发抖、跳舞、张望、探头、后缩、背过身、翻滚、喝茶、翻书、喷水、叹气、歪头、托腮、加油、记笔记、拍手、举手、点赞、擦汗、凑近、晃来晃去、跺脚、扇翅膀、灵光一闪、叉腰、唱歌、奉茶、敬礼、比耶。', 'x-hot': true },
+      [`${K}.sounds.move`]: { type: 'boolean', title: '动作', description: '走路、跑、跳、落地、被甩出去、点头、摇头、转圈、晕、发抖、跳舞、张望、探头、后缩、背过身、翻滚、喝茶、翻书、喷水、叹气、歪头、托腮、加油、记笔记、对手指、拍手、举手、点赞、擦汗、凑近、晃来晃去、跺脚、摇尾巴、抖耳朵、扇翅膀、灵光一闪、叉腰、唱歌、奉茶、敬礼、比耶。', 'x-hot': true },
       [`${K}.sounds.touch`]: { type: 'boolean', title: '互动', description: '被拎起来、拎着晃、被摸、被戳。', 'x-hot': true },
-      [`${K}.sounds.face`]: { type: 'boolean', title: '表情', description: '开心、眨眼、喜欢、惊讶、生气、难过、害羞、打哈欠、温柔、苦笑、偷笑、石化裂开、吐舌、摊手、抱头、嘘。', 'x-hot': true },
+      [`${K}.sounds.face`]: { type: 'boolean', title: '表情', description: '开心、眨眼、喜欢、惊讶、生气、难过、害羞、打哈欠、温柔、苦笑、偷笑、石化裂开、吐舌、安慰、气炸、心碎、撒花、郁闷、无言以对、眼冒金星、摊手、抱头、嘘。', 'x-hot': true },
       [`${K}.sounds.snore`]: { type: 'boolean', title: '打呼噜', 'x-hot': true },
       [`${K}.sounds.snoreSeconds`]: { type: 'integer', title: '呼噜打多久', minimum: 0, maximum: 3600, 'x-suffix': '秒', description: '每次睡着后打这么久呼噜就安静下来,Z 照样飘;0 = 一直打到醒。', 'x-hot': true },
       [`${K}.sounds.talk`]: { type: 'boolean', title: '说话', description: '气泡里逐字冒出的叽咕声、选项卡片弹出的声音。', 'x-hot': true },

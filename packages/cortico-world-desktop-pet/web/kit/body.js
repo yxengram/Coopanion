@@ -262,13 +262,14 @@ export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel',
   'muse', 'fist', 'jot', 'twiddle', 'droop', 'blink', 'closer', 'leanback', 'sway', 'stamp', 'wag', 'earflick', 'earsup', 'earsdown',
   'wingbeat', 'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
-/** The tones of the plus faces, filed as face sounds like the kit's. */
+/** The tones of the plus faces, filed as face sounds like the kit's; comfort and the faces with marks of their own have
+ *  tones of their own (web/sound.js), timed to the marks (the steam's puffs, the heart's crack, the dots). */
 const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
-  brave: 'wry', comfort: 'soft', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
-  fuming: 'angry', heartbroken: 'sad', celebrate: 'sparkle', gloomy: 'sad', speechless: 'wry', starry: 'surprised',
+  brave: 'wry', comfort: 'comfort', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
+  fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry',
 };
 /**
  * (plus) A curious head tilt (`tilt`): seconds in all, and degrees for a body the kit tilts itself (Coo, whose whole ring
@@ -785,31 +786,33 @@ export function createPet(els, opts) {
       case 'leanback': if (!seated) setMode('idle'); pulse('leanback', BODY_MORE.leanback); break;
       case 'sway': if (!seated) setMode('idle'); pulse('sway', BODY_MORE.sway); play('dance', 'move'); break;
       case 'stamp': setMode('idle'); pulse('stamp', BODY_MORE.stamp); break;
-      // a tail, ears or wings of the figure's own, each in its slot, with whatever face she shows (APPENDAGE_MOVES); a
-      // wingbeat whooshes
-      case 'wag': case 'earflick': case 'earsup': case 'earsdown': pulse(a, APPENDAGE_MOVES[a][1]); break;
-      case 'wingbeat': pulse(a, APPENDAGE_MOVES[a][1]); play('whoosh', 'move'); break;
+      // a tail, ears or wings of the figure's own, each in its slot, with whatever face she shows (APPENDAGE_MOVES): a
+      // wag swishes, a flick of the ears flutters, a wingbeat whumps on each downstroke; ears stood up or laid down are quiet
+      case 'wag': pulse(a, APPENDAGE_MOVES[a][1]); play('wag', 'move'); break;
+      case 'earflick': pulse(a, APPENDAGE_MOVES[a][1]); play('earflick', 'move'); break;
+      case 'earsup': case 'earsdown': pulse(a, APPENDAGE_MOVES[a][1]); break;
+      case 'wingbeat': pulse(a, APPENDAGE_MOVES[a][1]); play('wingbeat', 'move'); break;
       // arm poses a figure with hands draws (its faces' poses as gestures of their own): chin on her hand, mulling it
       // over, with a little "hm"; a fist raised to cheer you on; jotting in a notebook, eyes down on it; fingertips
       // pressed together, bashful. The chin, the fist and the fingertips have no face of their own (each goes with
       // whatever face she shows): the fist's and the fingertips' would be the very faces whose arms they are (excited's,
       // shy's), so alone they would look just like those faces
       case 'muse': pulse('muse', 3); play('look', 'move'); break;
-      case 'fist': pulse('fist', 1.8); play('pop', 'move'); break;
-      case 'jot': pulse('jot', 3.2); holdFace('reading', 3.3, 'arm'); play('page', 'move'); break;
-      case 'twiddle': pulse('twiddle', 2.6); play('shy', 'face'); break;
-      // more arm poses a figure with hands draws, each with a face and an existing tone of its own: clapping (CLAP: the
-      // ticks come as her hands meet), a shrug with the palms up, both hands on her head, a hand raised high, a thumbs
-      // up, a finger to her lips, the back of her wrist wiping her brow
+      case 'fist': pulse('fist', 1.8); play('fist', 'move'); break;
+      case 'jot': pulse('jot', 3.2); holdFace('reading', 3.3, 'arm'); play('jot', 'move'); break;
+      case 'twiddle': pulse('twiddle', 2.6); play('twiddle', 'move'); break;
+      // more arm poses a figure with hands draws, each with a face and a sound of its own: clapping (CLAP: a clap each
+      // time her hands meet), a shrug with the palms up, both hands on her head, a hand raised high, a thumbs up, a finger
+      // to her lips, the back of her wrist wiping her brow
       case 'clap': pulse('clap', CLAP.dur); holdFace('happy', CLAP.dur, 'arm'); break;
-      case 'shrug': pulse('shrug', 2.1); holdFace('sighing', 2.2, 'arm'); play('hmm', 'face'); break;
-      case 'headhold': pulse('headhold', 2.5); holdFace('pained', 2.6, 'arm'); play('surprised', 'face'); break;
-      case 'raise': pulse('raise', 1.9); holdFace('happy', 2, 'arm'); play('pop', 'move'); break;
-      case 'thumbs': pulse('thumbs', 1.8); holdFace('happy', 1.9, 'arm'); play('ding', 'move'); break;
+      case 'shrug': pulse('shrug', 2.1); holdFace('sighing', 2.2, 'arm'); play('shrug', 'face'); break;
+      case 'headhold': pulse('headhold', 2.5); holdFace('pained', 2.6, 'arm'); play('headhold', 'face'); break;
+      case 'raise': pulse('raise', 1.9); holdFace('happy', 2, 'arm'); play('raise', 'move'); break;
+      case 'thumbs': pulse('thumbs', 1.8); holdFace('happy', 1.9, 'arm'); play('thumbs', 'move'); break;
       // (shush: a wink over a closed little mouth, the eyes and body of wink and the mouth of neutral: wink's own open
       // smile behind the finger reads as a giggle)
-      case 'shush': pulse('shush', 2.2); holdFace('wink+neutral', 2.3, 'arm'); play('soft', 'face'); break;
-      case 'wipe': pulse('wipe', 2.1); holdFace('gentle', 2.2, 'arm'); play('sigh', 'move'); break;
+      case 'shush': pulse('shush', 2.2); holdFace('wink+neutral', 2.3, 'arm'); play('shush', 'face'); break;
+      case 'wipe': pulse('wipe', 2.1); holdFace('gentle', 2.2, 'arm'); play('wipe', 'move'); break;
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9, 'arm'); play('spout', 'move'); break;
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
@@ -1322,9 +1325,9 @@ export function createPet(els, opts) {
       const [bx, by] = L ? [L.bubble[0] + 62, L.bubble[1] + 28] : A.bulb ? [A.bulb[0], A.bulb[1] + pet.low] : [A.bubble[0] + 62, A.bubble[1] + 28 + pet.low];
       emit('bulb', toStage(bx, by), { vy: -12, life: 1.2 });
     }
-    // a clap ticks softly each time her hands meet (CLAP.at)
+    // a clap sounds each time her hands meet (CLAP.at, the first frame of the palms-together drawing: clapShut)
     if (ours('clap') && (pet.pulse.n || 0) < CLAP.at.length && T - pet.pulse.t0 >= CLAP.at[pet.pulse.n || 0]) {
-      pet.pulse.n = (pet.pulse.n || 0) + 1; play('tick', 'move');
+      pet.pulse.n = (pet.pulse.n || 0) + 1; play('clap', 'move');
     }
     // a spout throws spray up out of the column as it breaks (it falls back under gravity)
     if (ours('spout')) {

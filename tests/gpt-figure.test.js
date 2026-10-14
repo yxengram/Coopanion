@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CLAP, createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import {
-  anchorsOf, approach, ARM_BOTH, ARM_FALLBACK, ARM_ONE, armPlan, ballAngle, bowPose, buildRig, createMotion, extentOf, FACE_ARMS, feetFromLegs,
+  anchorsOf, tearDropOf, approach, ARM_BOTH, ARM_FALLBACK, ARM_ONE, armPlan, ballAngle, bowPose, buildRig, createMotion, extentOf, FACE_ARMS, feetFromLegs,
   fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, ROLL_D, SIT_BESIDE, SIT_LOW, sitAnchors, sitOwnArms, sitRaise,
   tailField, WHOLE_POSES, WING, wingStates, liveAnchors, ARM_TWIN, armPoseOf, NECK_POSES,
 } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
@@ -1228,6 +1228,20 @@ describe.skipIf(!real)('GPT-chan: the figure', () => {
       return { fig, loaded };
     } finally { globalThis.document = doc; }
   };
+  it('cries small drops (tearDrop, the kit\'s): about a quarter of an eye across, sliding from under each eye to the face\'s outline', async () => {
+    const { fig } = await make(), R = buildRig(real), td = tearDropOf(real, R), A = anchorsOf(real, R);
+    expect(fig.tearDrop).toEqual(td);
+    // (the kit's own drop is 22.5 units across, an eye and more)
+    for (const k of ['eyeL', 'eyeR']) {
+      const b = real.feat.eyes[k].ball, w = R.U(b[2]) - R.U(b[0]);
+      expect(td.w / w, k).toBeGreaterThan(.18);
+      expect(td.w / w, k).toBeLessThan(.32);
+    }
+    // the slide ends where her painted streams do (feat.face.tearEnd), from the kit's tear points
+    const ends = ['eyeL', 'eyeR'].map((k, i) => R.V(real.feat.face.tearEnd[k]) - A.tears[i][1]);
+    expect(Math.abs(td.run - (ends[0] + ends[1]) / 2)).toBeLessThan(1);
+    expect(td.run).toBeGreaterThan(2);
+  });
   it('builds from her model.json as it is, loading every part texture and only the face files it names', async () => {
     const { fig, loaded } = await make();
     for (const p of real.parts) expect(loaded).toContain(`tex/${p.tex}.png`);

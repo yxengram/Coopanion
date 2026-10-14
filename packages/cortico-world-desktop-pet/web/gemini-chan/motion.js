@@ -848,6 +848,21 @@ export function anchorsOf(model, R) {
   else if (!LIE) delete out.lie;
   return out;
 }
+/**
+ * (plus) Her tears for the kit (figure.tearDrop, kit units): drops about a quarter of an eye across (a little wider than
+ * the painted streams), sliding from under the eye (the kit's anchors.tears) to where the face's outline is below it
+ * (feat.face.tearEnd, as the streams), then falling.
+ */
+export function tearDropOf(model, R) {
+  const eyes = model.feat?.eyes || {}, F = model.feat?.face || {}, FACE = F.rect;
+  const ks = ['eyeL', 'eyeR'].filter(k => eyes[k]?.ball);
+  if (!ks.length) return null;
+  const end = k => (Array.isArray(F.tearEnd) ? F.tearEnd[k === 'eyeL' ? 0 : 1] : F.tearEnd?.[k]) ?? (FACE ? FACE[1] + FACE[3] - 4 : eyes[k].ball[3] + 40);
+  const mean = fn => ks.reduce((a, k) => a + fn(eyes[k].ball, k), 0) / ks.length;
+  const tears = anchorsOf(model, R).tears;
+  const w = mean(b => R.U(b[2]) - R.U(b[0])) * .24, run = mean((b, k) => R.V(end(k)) - tears[k === 'eyeL' ? 0 : 1][1]);
+  return { w: f1(w), run: f1(Math.max(2, run)) };
+}
 /** Where the effects over her go (rig units): model.fx over defaults from the head rect, brows and mouth. */
 export function fxPointsOf(model, R) {
   const [x0, y0, x1, y1] = R.HEAD, cx = (x0 + x1) / 2, h = y1 - y0;

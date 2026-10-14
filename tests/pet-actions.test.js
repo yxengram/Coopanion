@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
@@ -1317,6 +1317,95 @@ describe('a sigh, happy tears and turning to stone', () => {
     expect(moved.n).toBeLessThan(cry.n);
     const op = h => +h.match(/class="tearf" opacity="([\d.]+)"/)[1];
     expect(op(moved.html)).toBeLessThan(op(cry.html));
+  });
+
+  describe("a figure's own small tears (tearDrop)", () => {
+    const TEARS = [[110, 106], [148, 106]], TD = { w: 5, run: 8 };
+    // the small drops as drawn: the tip's stage point (translate is the drop's middle, 9 path units below its tip) and width
+    const drops = pet => [...pet.fxHtml().matchAll(/class="tearf" opacity=".92" transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([\d.]+)\)"/g)]
+      .map(m => ({ x: +m[1], y: +m[2] - 9 * +m[3], w: 12 * +m[3] }));
+    const tearPet = (S = .42, o = {}) => barePet(undefined, { figure: { ...cooFigure(), anchors: { tear: TEARS[0], tears: TEARS }, tearDrop: TD }, bounds: () => ({ ...BOUNDS(), S }), ...o });
+    const crying = (pet, face = 'cry') => { run(pet, 1); pet.setExpr(face, 30); };
+
+    it('well up under each eye in turn, as wide as the figure says at its size (never under TEAR_FX.minPx)', () => {
+      for (const S of [.21, .42, .84]) {
+        const pet = tearPet(S);
+        crying(pet);
+        run(pet, TEAR_FX.well + .05);
+        const [d] = drops(pet), want = Math.max(TD.w * S, TEAR_FX.minPx);
+        expect(d.w, `S ${S}`).toBeCloseTo(want, 1);
+        // its tip under the first eye
+        const at = pet.toStage(TEARS[0][0], TEARS[0][1] + pet.pet.low);
+        expect(Math.hypot(d.x - at.x, d.y - at.y), `S ${S}`).toBeLessThan(1.5 + 2 * S);
+        // the next one under the other eye
+        run(pet, TEAR_FX.every);
+        const e = drops(pet).at(-1), at2 = pet.toStage(TEARS[1][0], TEARS[1][1] + pet.pet.low);
+        expect(Math.abs(e.x - at2.x), `S ${S}`).toBeLessThan(2);
+      }
+      // far smaller than the kit's own drop, which is as wide as an eye
+      const coo = barePet();
+      crying(coo);
+      run(coo, .3);
+      const big = +coo.fxHtml().match(/class="tearf" transform="translate\([-\d.]+ [-\d.]+\) scale\(([\d.]+)\)"/)[1] * 12;
+      expect(Math.abs(big - 12 * .9 * .42 / .48)).toBeLessThan(.7);
+      const small = tearPet(.42);
+      crying(small);
+      run(small, .3);
+      expect(drops(small)[0].w).toBeLessThan(big / 3);
+    });
+
+    it('slide down the cheek with the head, then fall to the floor', () => {
+      const pet = tearPet(.42);
+      crying(pet, 'sad');
+      run(pet, TEAR_FX.well);
+      const [a] = drops(pet);
+      // the body moves while the drop clings: the drop goes with it
+      // (a frame late: the particles go where the body was last drawn)
+      pet.pet.x += 40;
+      run(pet, 2 / 60);
+      const [b] = drops(pet);
+      expect(b.x - a.x).toBeCloseTo(40, 0);
+      // at the end of its slide it is `run` lower on the face
+      run(pet, TEAR_FX.slide - 1 / 20);
+      const [c] = drops(pet), top = pet.toStage(TEARS[0][0], TEARS[0][1] + pet.pet.low);
+      expect(c.y - top.y).toBeGreaterThan(TD.run * .42 * .85);
+      expect(c.y - top.y).toBeLessThan(TD.run * .42 * 1.15);
+      // then it falls, straight down, and is gone at the floor
+      pet.pet.x -= 40;
+      run(pet, .3);
+      const [d] = drops(pet);
+      expect(d.y - c.y).toBeGreaterThan(20);
+      expect(Math.abs(d.x - (c.x + 0))).toBeLessThan(1);
+      run(pet, 1.2);
+      expect(drops(pet).every(x => x.y < 380)).toBe(true);
+    });
+
+    it('slide as far as each eye\'s own `run` when the figure gives two', () => {
+      const pet = tearPet(.42, { figure: { ...cooFigure(), anchors: { tear: TEARS[0], tears: TEARS }, tearDrop: { w: 5, run: [12, 4] } } });
+      crying(pet);
+      // the first under the left eye, the next under the right; each at the end of its slide
+      const ends = [];
+      // (the second one TEAR_FX.every after the first)
+      for (const [i, wait] of [[0, TEAR_FX.well + TEAR_FX.slide - 2 / 60], [1, TEAR_FX.every]]) {
+        run(pet, wait);
+        const top = pet.toStage(TEARS[i][0], TEARS[i][1] + pet.pet.low);
+        const d = drops(pet).filter(x => Math.abs(x.x - top.x) < 2).sort((a, b) => a.y - b.y)[0];
+        ends.push(d.y - top.y);
+      }
+      // (nearly at the end: u² of the way)
+      expect(ends[0] / (12 * .42)).toBeGreaterThan(.8);
+      expect(ends[0] / (12 * .42)).toBeLessThan(1.05);
+      expect(ends[0] / ends[1]).toBeCloseTo(3, 0);
+    });
+
+    it('are the kit\'s own big drops for Coo and without plus', () => {
+      for (const pet of [barePet(), tearPet(.42, { plus: false })]) {
+        crying(pet);
+        run(pet, .5);
+        expect(drops(pet)).toEqual([]);
+        expect(pet.fxHtml()).toMatch(/class="tearf" transform=/);
+      }
+    });
   });
 
   it('turned to stone does not turn round to the pointer behind it', () => {

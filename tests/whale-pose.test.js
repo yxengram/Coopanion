@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
 import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, RAISE_HIGH, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN, WAG, appendagesOf, ARM_TWIN } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { CLAP, createPet, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { CLAP, createPet, TEAR_FX, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { chainPoint, meshGap } from './helpers/mesh.js';
@@ -871,6 +871,38 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     const run = (s, each = () => {}) => { for (let i = 0; i < s * 60; i++) { pet.step(1 / 60); pet.render(); each(rigSeen.st, frame); } };
     return { pet, run, tree: rigSeen.tree, frame: () => frame, fx: () => fxG.innerHTML, fig, done: () => { globalThis.document = doc; } };
   }
+  it('cries small drops (tearDrop): about a quarter of an eye across, from under each eye standing and kneeling, from the lying head lying', async () => {
+    const { pet, run, fx, fig, done } = await whaleOnKit();
+    try {
+      const { w, run: slide } = fig.tearDrop;
+      // her eyes are 125 and 67 master px across (S .19 a px): the kit's own drop is 22.5 units, wider than either
+      expect(w).toBeGreaterThan(3.5);
+      expect(w).toBeLessThan(5.5);
+      // (one per eye: the far cheek's outline is higher, nearer its eye)
+      expect(slide[0]).toBeGreaterThan(9);
+      expect(slide[0]).toBeLessThan(15);
+      expect(slide[1]).toBeGreaterThan(4);
+      expect(slide[1]).toBeLessThan(slide[0]);
+      // the drops as drawn: each one's tip (stage px) and width
+      const drops = () => [...fx().matchAll(/class="tearf" opacity=".92" transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([\d.]+)\)"/g)].map(m => ({ x: +m[1], y: +m[2] - 9 * +m[3], w: 12 * +m[3] }));
+      const near = (d, [x, y], low = pet.pet.low) => { const q = pet.toStage(x, y + low); expect(Math.hypot(d.x - q.x, d.y - q.y)).toBeLessThan(1.5); };
+      const firstTwo = () => { pet.setExpr('neutral', .1); run(1.5); pet.setExpr('cry', 30); run(TEAR_FX.well + .03); const a = drops().at(-1); run(TEAR_FX.every); return [a, drops().at(-1)]; };
+      run(.5);
+      let [a, b] = firstTwo();
+      expect(a.w).toBeCloseTo(Math.max(w * .42, TEAR_FX.minPx), 1);
+      const tears = fig.anchors.tears;
+      near(a, tears[0]); near(b, tears[1]);
+      pet.doWord('kneel');
+      run(3);
+      [a, b] = firstTwo();
+      near(a, fig.anchors.tears[0]); near(b, fig.anchors.tears[1]);
+      pet.doWord('lie');
+      run(3);
+      expect(pet.pet.lieK).toBeGreaterThan(.95);
+      [a] = firstTwo();
+      near(a, fig.anchors.lie.tear, 0);
+    } finally { done(); }
+  });
   it("puts the kit's own marks by her head: the dots beside it standing, lower kneeling, by the lying head lying; steam off both sides", async () => {
     const { pet, run, fx, fig, done } = await whaleOnKit();
     try {

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CLAP, createPet, FACES, ROLL_D as KIT_ROLL_D, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MOTIONS, STAND } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import {
-  anchorsOf, approach, ARM_BOTH, BODY_CUT, bodyAlphas, bodyStep, bodyWant, bowPose, SIT_CUT, ARM_FALLBACK, ARM_ONE, armPlan, BACK_HAIR_REACH, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
+  anchorsOf, tearDropOf, approach, ARM_BOTH, BODY_CUT, bodyAlphas, bodyStep, bodyWant, bowPose, SIT_CUT, ARM_FALLBACK, ARM_ONE, armPlan, BACK_HAIR_REACH, backHairField, ballAngle, ballLift, buildRig, createMotion, extentOf, FACE_ARMS,
   feetFromLegs, fxPointsOf, GROUP, hitsOf, MOOD, pitchFromLean, pointOf, POSE_ALT, POSE_KIND, poseMix, SIT_LOW, sitAnchors, sitMix, sitRaise,
   ROLL_D, WHOLE_POSES, liveAnchors, ARM_TWIN, armPoseOf, NECK_POSES,
 } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -1095,6 +1095,20 @@ describe.skipIf(!real)('Claude-chan: the figure', () => {
       });
     } finally { globalThis.document = doc; }
   };
+  it('cries small drops (tearDrop, the kit\'s): about a quarter of an eye across, sliding from under each eye to the face\'s outline', async () => {
+    const fig = await make(), R = buildRig(real), td = tearDropOf(real, R), A = anchorsOf(real, R);
+    expect(fig.tearDrop).toEqual(td);
+    // (the kit's own drop is 22.5 units across, an eye and more)
+    for (const k of ['eyeL', 'eyeR']) {
+      const b = real.feat.eyes[k].ball, w = R.U(b[2]) - R.U(b[0]);
+      expect(td.w / w, k).toBeGreaterThan(.18);
+      expect(td.w / w, k).toBeLessThan(.32);
+    }
+    // the slide ends where her painted streams do (feat.face.tearEnd), from the kit's tear points
+    const ends = ['eyeL', 'eyeR'].map((k, i) => R.V(real.feat.face.tearEnd[k]) - A.tears[i][1]);
+    expect(Math.abs(td.run - (ends[0] + ends[1]) / 2)).toBeLessThan(1);
+    expect(td.run).toBeGreaterThan(2);
+  });
   it('lies with the lying drawing, rolls with the ball, and has her back', async () => {
     const fig = await make();
     expect(fig.poses).toEqual({ lie: true, back: true });

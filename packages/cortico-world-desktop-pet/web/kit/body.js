@@ -42,6 +42,12 @@ const LIE_HIPS = [[62, 200], [78, 206]], LIE_FEET = [[8, 240], [18, 178]];
 export const DROP = 'M0 -9C4 -3 6 0 6 3.5A6 6 0 0 1 -6 3.5C-6 0 -4 -3 0 -9Z';
 // (plus) a spout's water: its own fixed colours (any scheme, any desktop), and the spray's fall, per unit of the stage scale
 const WATER = '#2f7fd0', SPRAY_G = 2200;
+/**
+ * (plus) A figure's own small tears (`figure.tearDrop`): seconds one wells up under the eye, then slides down the cheek
+ * (gathering speed) before it falls; its fall per unit of the stage scale; its least width on screen (px), so it still
+ * shows on a small pet; and how often crying (`tears`) lets one go, the eyes taking turns.
+ */
+export const TEAR_FX = { well: .25, slide: .6, g: 2200, minPx: 2, every: .45 };
 // (plus) the kit's own marks (MARK_FX_KEYS): fixed colours with a dark edge, so they show on any scheme and any desktop
 const CONFETTI = ['#ff5d73', '#ffc93c', '#3fb8e8', '#5fd17a', '#a77bf3', '#ff9a3c'];
 // the two halves of a broken heart, meeting along one zigzag crack
@@ -467,6 +473,11 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  * - `squashFaces: true`: the faces' `sag` and `titter` squash the whole group.
  * - `liePoint(x, y, lie)`: where a standing point is in the lying drawing, for a figure that lies by turning its standing
  *   one (the bubble's spot and the box's top follow it).
+ * - `tearDrop: { w, run }`: the figure's tears are small drops (logo units: `w` across, about a quarter of an eye; at least
+ *   TEAR_FX.minPx on screen) that well up at `anchors.tears` (or `anchors.tear`; lying, the lying one), slide `run` (or
+ *   `[left, right]`, one per eye of `anchors.tears`) down
+ *   the cheek following the head, then fall; crying lets one go every TEAR_FX.every s, the eyes taking turns. A figure
+ *   without it (Coo) gets the kit's own big drops, popping up out of the eye.
  * - `kneelArms: true`: the figure draws arm gestures kneeling (the three girls and the whale, with poses.kneelLow), so
  *   ARM_GESTURES do not end a kneel; the World groups them with kneeling when the pack's `kneel` word has `keepsArms`.
  */
@@ -1004,6 +1015,25 @@ export function createPet(els, opts) {
 
   /* particles */
   function emit(type, p, o = {}) { P.push({ type, x: p.x, y: p.y, vx: 0, vy: 0, age: 0, life: 1, ...o }); }
+  /** (plus) The figure's own small tears ({ w, run }, logo units), or null: the kit's own big drop, as for Coo. */
+  const tearDrop = () => (plus && custom?.tearDrop?.w > 0 ? custom.tearDrop : null);
+  /** (plus) Where a small tear starts, in logo units: under eye `i` (-1: the one tear spot; lying, the lying one). */
+  const tearAt = i => {
+    if (i < 0 || proneK() > .5 || !A.tears) return ancPt('tear');
+    const [x, y] = A.tears[i % A.tears.length];
+    return [x, y + headLow()];
+  };
+  /**
+   * (plus) A small tear on the cheek under eye `i` (`tearAt`), `run` logo units below its start after `u` of its slide
+   * (0..1, slow at first): in stage px, the drop's tip.
+   */
+  const tearOn = (p, u) => { const [x, y] = tearAt(p.eye); return toStage(x, y + p.run * u * u); };
+  /** (plus) A figure's small tear: it wells up under the eye, slides down the cheek, then falls (see the particles' step). */
+  function emitTear(eye, td) {
+    // (`run` may be one per eye; the one tear spot, and lying, take the first)
+    const p = { eye, run: (Array.isArray(td.run) ? td.run[eye > 0 && !(proneK() > .5) ? 1 : 0] : td.run) ?? 0, w: td.w };
+    emit('tear', tearOn(p, 0), { ...p, cling: true, life: 4 });
+  }
   function emitHeart() {
     const lh = proneK() > .5 && lieSet().hearts, h = lh || A.hearts;
     emit('heart', toStage(rnd(h[0], h[1]), h[2] + (lh ? 0 : headLow())), { vx: rnd(-20, 20), vy: rnd(-70, -45), life: 1.6 });
@@ -1528,8 +1558,11 @@ export function createPet(els, opts) {
       const z = ancPt('z'), tear = ancPt('tear');
       if (fc.emit === 'heart') { emitHeart(); pet.emitAt = T + (fc.emitEvery ?? .45); }
       if (fc.emit === 'z') { emit('z', toStage(...z), { vx: pet.facing * 16, vy: -26, life: 2.4 }); pet.emitAt = T + 1.3; play('snore', 'snore', pet.modeT); }
-      if (fc.emit === 'tear') { emit('drop', toStage(tear[0] + pet.look[0], tear[1]), { vx: pet.facing * rnd(10, 30), vy: -20, life: 3 }); pet.emitAt = T + (fc.emitEvery ?? .8); }
-      if (fc.emit === 'tears') {
+      const td = tearDrop();
+      if (td && fc.emit === 'tear') { emitTear(-1, td); pet.emitAt = T + (fc.emitEvery ?? .8); }
+      else if (td && fc.emit === 'tears') { emitTear(pet.tearN++ % 2, td); pet.emitAt = T + TEAR_FX.every; }
+      else if (fc.emit === 'tear') { emit('drop', toStage(tear[0] + pet.look[0], tear[1]), { vx: pet.facing * rnd(10, 30), vy: -20, life: 3 }); pet.emitAt = T + (fc.emitEvery ?? .8); }
+      else if (fc.emit === 'tears') {
         // both eyes cry, taking turns; a figure that names only its one tear spot cries from there, and lying from the lying one
         const eyes = proneK() > .5 ? [tear] : (A.tears ?? [A.tear]).map(([x, y]) => [x, y + headLow()]);
         const [ex, ey] = eyes[pet.tearN++ % eyes.length];
@@ -1543,6 +1576,14 @@ export function createPet(els, opts) {
       const p = P[i];
       p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.type === 'drop' || p.type === 'chip') { p.vy += 900 * dt; if (p.y > floorY) p.age = p.life; }
+      // (plus) a figure's small tear stays on the cheek, following the head, till its slide is over; then it falls
+      if (p.type === 'tear') {
+        if (p.cling) {
+          const u = clamp((p.age - TEAR_FX.well) / TEAR_FX.slide, 0, 1), q = tearOn(p, u);
+          p.x = q.x; p.y = q.y;
+          if (u >= 1) { p.cling = false; p.vx = 0; p.vy = 2 * p.run * S / TEAR_FX.slide; }
+        } else { p.vy += TEAR_FX.g * S * dt; if (p.y > floorY) p.age = p.life; }
+      }
       if (p.type === 'spray') { p.vy += SPRAY_G * S * dt; if (p.y > floorY) p.age = p.life; }
       if (p.type === 'dust') p.vx *= Math.exp(-dt * 4);
       // (plus) confetti: thrown up, slowed by the air, then fluttering down
@@ -1644,6 +1685,11 @@ export function createPet(els, opts) {
         s += `<g opacity="${f(op)}" transform="translate(${f(p.x + Math.sin(p.age * 3) * 8)} ${f(p.y)}) scale(${f(z)})"><path ${zPaint} fill="none" stroke-width="2.4" stroke-linecap="round" d="M3 4V-9L9 -6"/><circle ${zPaint} fill="none" stroke-width="3.6" cx="0" cy="4.5" r="1.8"/></g>`;
       } else if (p.type === 'drop') {
         s += `<path class="tearf" transform="translate(${f(p.x)} ${f(p.y)}) scale(${f(.9 * sc)})" d="${DROP}"/>`;
+      } else if (p.type === 'tear') {
+        // (plus) the drop hangs from its tip: growing as it wells up, no smaller on screen than TEAR_FX.minPx across
+        // (its scale finer than f's tenth: a small drop's is .2 or so)
+        const z = Math.max(p.w * S, TEAR_FX.minPx) / 12 * (.35 + .65 * smooth(clamp(p.age / TEAR_FX.well, 0, 1)));
+        s += `<path class="tearf" opacity=".92" transform="translate(${f(p.x)} ${f(p.y + 9 * z)}) scale(${z.toFixed(3)})" d="${DROP}"/>`;
       } else if (p.type === 'glint') {
         // a four-point star that pops in and out, warm white with a gold edge so it shows on any desktop
         const k = Math.sin(Math.PI * a) * sc * 1.1;

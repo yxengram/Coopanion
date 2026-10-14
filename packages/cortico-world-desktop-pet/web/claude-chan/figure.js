@@ -12,7 +12,7 @@
  */
 import { createRig } from '../kit/rig.js';
 import * as kit from '../kit/body.js';
-import { anchorsOf, buildRig, clamp, createMotion, extentOf, fxPointsOf, hitsOf, liveAnchors, smooth } from './motion.js';
+import { anchorsOf, buildRig, clamp, createMotion, extentOf, fxPointsOf, hitsOf, liveAnchors, smooth, tearDropOf } from './motion.js';
 import { createFacePainter, EYES } from './face.js';
 import { fxMarkup } from './fx.js';
 
@@ -228,7 +228,7 @@ export async function createClaudeFigure(base = new URL('./', import.meta.url), 
     if (s !== fxStr) { fxG.innerHTML = s; fxStr = s; }
   }
 
-  const anchors = anchorsOf(model, R), extent = extentOf(model, R), hits = hitsOf(model, R);
+  const anchors = anchorsOf(model, R), extent = extentOf(model, R), hits = hitsOf(model, R), tearDrop = tearDropOf(model, R);
   const ownRoll = () => !!R.W.roll && caps.pose('roll'), WITH_ROLL = [...GESTURES, 'roll'];
   return {
     draw,
@@ -286,6 +286,8 @@ export async function createClaudeFigure(base = new URL('./', import.meta.url), 
     get anchors() { return liveAnchors(anchors, motion.sitRaise); },
     extent,
     hits,
+    /** (plus) Her tears are small drops running down the cheek (the kit's own drop is as wide as her eye). */
+    tearDrop,
     model,
   };
 }

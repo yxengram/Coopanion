@@ -1695,9 +1695,18 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     ...(LIE ? { lie: { ...LIE.anchors, spout: [(LIE.rects.head[0] + LIE.rects.head[2]) / 2, LIE.rects.head[1] + 12] } } : {}),
   };
 
+  // (plus) her tears for the kit: drops about a quarter of an eye across, sliding from under each eye (POINTS.tears) to
+  // where her streams end (TEAR_END: the far cheek's outline is higher, so its drops run less far), then falling (the
+  // kit's own drop is as wide as her eye)
+  const TEAR_DROP = {
+    w: +(EYES.reduce((a, k) => a + (feat.eyes[k].ball[2] - feat.eyes[k].ball[0]) * S, 0) / 2 * .24).toFixed(2),
+    run: EYES.map((k, i) => +(V(TEAR_END[k]) - POINTS.tears[i][1]).toFixed(2)),
+  };
+
   return {
     draw,
     groupTilt,
+    tearDrop: TEAR_DROP,
     /**
      * The gestures she draws herself, from the frame's `gesture` (nod, shake, sigh, tilt and droop from its `head` on a kit
      * that has one: gesturesOf; and the moves of the body the kit leaves to her: closer, leanback, sway); the kit leaves

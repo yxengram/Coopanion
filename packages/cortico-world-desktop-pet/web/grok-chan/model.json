@@ -1,0 +1,2525 @@
+{
+ "units": {
+  "S": 0.2,
+  "X0": 514,
+  "FEET": 1333,
+  "DS": 1,
+  "featDS": 1
+ },
+ "pivots": {
+  "body": [
+   128,
+   256
+  ],
+  "waist": [
+   128.0,
+   150.4
+  ],
+  "neck": [
+   128.0,
+   115.4
+  ],
+  "head": [
+   128.0,
+   78.2
+  ],
+  "armL": [
+   104.2,
+   137.4
+  ],
+  "armR": [
+   151.8,
+   137.4
+  ],
+  "footL": [
+   117.6,
+   253.0
+  ],
+  "footR": [
+   138.4,
+   253.0
+  ],
+  "ornament": [
+   128.0,
+   49.4
+  ],
+  "twinL": [
+   77.6,
+   50.4
+  ],
+  "twinR": [
+   175.6,
+   49.4
+  ],
+  "wingL": [
+   71.2,
+   73.0
+  ],
+  "wingR": [
+   182.4,
+   70.4
+  ]
+ },
+ "parts": [
+  {
+   "id": "hair_back",
+   "tex": "hair_back",
+   "z": 1,
+   "parent": "hairSway",
+   "grid": [
+    10,
+    14
+   ],
+   "box": [
+    72.4,
+    -0.4,
+    111.2,
+    152.4
+   ]
+  },
+  {
+   "id": "twin_l",
+   "tex": "twin_l",
+   "z": 1.1,
+   "parent": "twinL",
+   "grid": [
+    6,
+    16
+   ],
+   "box": [
+    34.8,
+    38.4,
+    55.6,
+    162.6
+   ]
+  },
+  {
+   "id": "twin_r",
+   "tex": "twin_r",
+   "z": 1.15,
+   "parent": "twinR",
+   "grid": [
+    6,
+    16
+   ],
+   "box": [
+    163.6,
+    36.6,
+    57.2,
+    164.4
+   ]
+  },
+  {
+   "id": "shoe_l",
+   "tex": "shoe_l",
+   "z": 2,
+   "parent": "footL",
+   "grid": [
+    3,
+    6
+   ],
+   "box": [
+    107.6,
+    188.4,
+    20.4,
+    68.2
+   ]
+  },
+  {
+   "id": "shoe_r",
+   "tex": "shoe_r",
+   "z": 2.05,
+   "parent": "footR",
+   "grid": [
+    3,
+    6
+   ],
+   "box": [
+    128.4,
+    188.2,
+    20.6,
+    68.4
+   ]
+  },
+  {
+   "id": "skirt",
+   "tex": "skirt",
+   "z": 3,
+   "parent": "skirt",
+   "grid": [
+    10,
+    8
+   ],
+   "box": [
+    71.8,
+    147.6,
+    113.0,
+    109.0
+   ]
+  },
+  {
+   "id": "torso",
+   "tex": "torso",
+   "z": 4,
+   "parent": "waist",
+   "grid": [
+    6,
+    4
+   ],
+   "box": [
+    101.6,
+    107.0,
+    53.8,
+    50.0
+   ]
+  },
+  {
+   "id": "arm_l",
+   "tex": "arm_l",
+   "z": 5,
+   "parent": "armL",
+   "grid": [
+    4,
+    8
+   ],
+   "box": [
+    73.8,
+    131.2,
+    39.2,
+    58.4
+   ]
+  },
+  {
+   "id": "arm_r",
+   "tex": "arm_r",
+   "z": 5.05,
+   "parent": "armR",
+   "grid": [
+    4,
+    8
+   ],
+   "box": [
+    144.2,
+    131.2,
+    38.4,
+    58.6
+   ]
+  },
+  {
+   "id": "face",
+   "tex": "face",
+   "z": 8,
+   "parent": "headMid",
+   "grid": [
+    6,
+    6
+   ],
+   "box": [
+    76.0,
+    29.2,
+    103.6,
+    85.4
+   ]
+  },
+  {
+   "id": "brows",
+   "tex": "brows",
+   "z": 8.6,
+   "parent": "headFeat",
+   "grid": [
+    12,
+    2
+   ],
+   "box": [
+    99.2,
+    72.6,
+    53.2,
+    6.4
+   ]
+  },
+  {
+   "id": "locks",
+   "tex": "locks",
+   "z": 12.9,
+   "parent": "bangsSway",
+   "grid": [
+    8,
+    8
+   ],
+   "box": [
+    84.6,
+    88.8,
+    83.8,
+    60.6
+   ]
+  },
+  {
+   "id": "bangs",
+   "tex": "bangs",
+   "z": 13,
+   "parent": "bangsSway",
+   "grid": [
+    8,
+    10
+   ],
+   "box": [
+    86.8,
+    -0.6,
+    82.6,
+    108.4
+   ]
+  },
+  {
+   "id": "wing_l",
+   "tex": "wing_l",
+   "z": 13.5,
+   "parent": "wingL",
+   "grid": [
+    4,
+    4
+   ],
+   "box": [
+    40.2,
+    64.6,
+    36.4,
+    24.4
+   ]
+  },
+  {
+   "id": "wing_r",
+   "tex": "wing_r",
+   "z": 13.55,
+   "parent": "wingR",
+   "grid": [
+    4,
+    4
+   ],
+   "box": [
+    175.0,
+    61.6,
+    37.8,
+    26.6
+   ]
+  },
+  {
+   "id": "ornament",
+   "tex": "ornament",
+   "z": 14,
+   "parent": "ornament",
+   "grid": [
+    8,
+    6
+   ],
+   "box": [
+    64.6,
+    9.6,
+    122.2,
+    97.0
+   ]
+  }
+ ],
+ "rects": {
+  "head": [
+   55.2,
+   -2.6,
+   201.2,
+   117.4
+  ],
+  "hair": [
+   72.4,
+   -0.4,
+   183.6,
+   152.0
+  ],
+  "twinL": [
+   34.8,
+   38.4,
+   90.4,
+   201.0
+  ],
+  "twinR": [
+   163.6,
+   36.6,
+   220.8,
+   201.0
+  ]
+ },
+ "feat": {
+  "eyes": {
+   "eyeL": {
+    "lash": [
+     345,
+     465,
+     464,
+     542
+    ],
+    "ball": [
+     366,
+     486,
+     465,
+     562
+    ],
+    "iris": [
+     392,
+     489,
+     462,
+     560
+    ],
+    "lidFit": [
+     0.017787536894110553,
+     -15.112652766008605,
+     3694.542985265867
+    ],
+    "rimFit": [
+     -0.007834640940740352,
+     6.497767462416288,
+     -789.4852933204096
+    ]
+   },
+   "eyeR": {
+    "lash": [
+     556,
+     447,
+     683,
+     522
+    ],
+    "ball": [
+     556,
+     464,
+     663,
+     545
+    ],
+    "iris": [
+     567,
+     472,
+     637,
+     543
+    ],
+    "lidFit": [
+     0.020933174518046608,
+     -25.193626083588263,
+     8042.995006130708
+    ],
+    "rimFit": [
+     -0.007803298812044365,
+     9.451558909022287,
+     -2320.0329067579246
+    ]
+   }
+  },
+  "sprites": {
+   "happy_eyeL": [
+    359,
+    492,
+    462,
+    551
+   ],
+   "happy_eyeR": [
+    559,
+    445,
+    671,
+    525
+   ],
+   "happy_mouth": [
+    473,
+    549,
+    557,
+    615
+   ],
+   "sleep_eyeL": [
+    366,
+    525,
+    464,
+    559
+   ],
+   "sleep_eyeR": [
+    559,
+    466,
+    666,
+    530
+   ],
+   "sleep_mouth": [
+    507,
+    577,
+    528,
+    593
+   ],
+   "surprised_eyeL": [
+    351,
+    448,
+    465,
+    563
+   ],
+   "surprised_eyeR": [
+    560,
+    441,
+    677,
+    552
+   ],
+   "surprised_mouth": [
+    503,
+    573,
+    528,
+    610
+   ],
+   "love_eyeL": [
+    347,
+    457,
+    464,
+    554
+   ],
+   "love_eyeR": [
+    557,
+    440,
+    671,
+    532
+   ],
+   "love_mouth": [
+    481,
+    550,
+    551,
+    609
+   ],
+   "dizzy_eyeL": [
+    356,
+    466,
+    458,
+    562
+   ],
+   "dizzy_eyeR": [
+    559,
+    455,
+    659,
+    555
+   ],
+   "dizzy_mouth": [
+    484,
+    578,
+    541,
+    592
+   ],
+   "drag_eyeL": [
+    376,
+    486,
+    459,
+    554
+   ],
+   "drag_eyeR": [
+    563,
+    452,
+    645,
+    525
+   ],
+   "drag_mouth": [
+    484,
+    569,
+    553,
+    585
+   ],
+   "cry_eyeL": [
+    356,
+    482,
+    468,
+    605
+   ],
+   "cry_eyeR": [
+    554,
+    447,
+    668,
+    592
+   ],
+   "cry_mouth": [
+    458,
+    538,
+    576,
+    618
+   ],
+   "smug_eyeL": [
+    353,
+    476,
+    472,
+    549
+   ],
+   "smug_eyeR": [
+    549,
+    439,
+    671,
+    523
+   ],
+   "smug_mouth": [
+    500,
+    559,
+    561,
+    580
+   ],
+   "angry_eyeL": [
+    353,
+    476,
+    466,
+    552
+   ],
+   "angry_eyeR": [
+    549,
+    448,
+    671,
+    535
+   ],
+   "angry_mouth": [
+    495,
+    569,
+    531,
+    591
+   ],
+   "sad_eyeL": [
+    346,
+    487,
+    471,
+    558
+   ],
+   "sad_eyeR": [
+    554,
+    467,
+    682,
+    538
+   ],
+   "sad_mouth": [
+    502,
+    591,
+    543,
+    601
+   ],
+   "wink_eyeL": [
+    346,
+    473,
+    469,
+    563
+   ],
+   "wink_eyeR": [
+    565,
+    488,
+    667,
+    530
+   ],
+   "wink_mouth": [
+    486,
+    567,
+    551,
+    609
+   ],
+   "halflid_eyeL": [
+    350,
+    493,
+    472,
+    545
+   ],
+   "halflid_eyeR": [
+    559,
+    447,
+    676,
+    521
+   ],
+   "halflid_mouth": [
+    514,
+    574,
+    529,
+    582
+   ],
+   "shy_eyeL": [
+    353,
+    480,
+    463,
+    557
+   ],
+   "shy_eyeR": [
+    547,
+    446,
+    666,
+    534
+   ],
+   "shy_mouth": [
+    501,
+    594,
+    537,
+    602
+   ],
+   "determined_eyeL": [
+    353,
+    447,
+    475,
+    556
+   ],
+   "determined_eyeR": [
+    538,
+    430,
+    672,
+    546
+   ],
+   "determined_mouth": [
+    487,
+    576,
+    544,
+    587
+   ],
+   "neutral_mouth": [
+    492,
+    568,
+    542,
+    581
+   ],
+   "mouth_a": [
+    479,
+    551,
+    555,
+    616
+   ],
+   "mouth_i": [
+    457,
+    553,
+    574,
+    616
+   ],
+   "mouth_u": [
+    505,
+    571,
+    525,
+    595
+   ],
+   "mouth_e": [
+    487,
+    560,
+    549,
+    613
+   ],
+   "mouth_frown": [
+    497,
+    578,
+    534,
+    592
+   ],
+   "mouth_pout": [
+    503,
+    567,
+    519,
+    597
+   ],
+   "mouth_cat": [
+    484,
+    564,
+    546,
+    593
+   ],
+   "mouth_grin": [
+    462,
+    565,
+    566,
+    607
+   ],
+   "mouth_tongue": [
+    490,
+    563,
+    548,
+    608
+   ],
+   "mouth_smile": [
+    484,
+    564,
+    550,
+    584
+   ],
+   "nose": [
+    510,
+    543,
+    513,
+    546
+   ]
+  },
+  "face": {
+   "rect": [
+    329,
+    414,
+    370,
+    216
+   ],
+   "cheeks": [
+    [
+     417,
+     574,
+     33,
+     18
+    ],
+    [
+     610,
+     562,
+     36,
+     20
+    ]
+   ],
+   "mouth": [
+    517.0,
+    574.5
+   ],
+   "tearEnd": {
+    "eyeL": 610,
+    "eyeR": 605
+   },
+   "browSplit": 505,
+   "ink": "#772424",
+   "lashInk": "#150e1b",
+   "mouthDy": {
+    "happy_mouth": -8,
+    "sleep_mouth": -10,
+    "surprised_mouth": -17,
+    "love_mouth": -5,
+    "dizzy_mouth": -10,
+    "drag_mouth": -2,
+    "cry_mouth": -4,
+    "smug_mouth": 5,
+    "angry_mouth": -6,
+    "sad_mouth": -22,
+    "wink_mouth": -14,
+    "halflid_mouth": -4,
+    "shy_mouth": -24,
+    "determined_mouth": -7,
+    "mouth_a": -9,
+    "mouth_i": -10,
+    "mouth_u": -8,
+    "mouth_e": -12,
+    "mouth_frown": -10,
+    "mouth_pout": -8,
+    "mouth_cat": -4,
+    "mouth_grin": -12,
+    "mouth_tongue": -11
+   }
+  },
+  "blush": [
+   254,
+   217,
+   209
+  ],
+  "skin": [
+   254,
+   238,
+   228
+  ]
+ },
+ "schemes": [
+  {
+   "id": "original",
+   "brand": "Grok 娘",
+   "label": "原版",
+   "accent": "#A3304A",
+   "ready": true
+  }
+ ],
+ "view": [
+  -12,
+  -12,
+  268,
+  272
+ ],
+ "anchors": {
+  "gaze": [
+   128.0,
+   91.4
+  ],
+  "tear": [
+   110.2,
+   101.4
+  ],
+  "tears": [
+   [
+    110.2,
+    101.4
+   ],
+   [
+    146.4,
+    99.0
+   ]
+  ],
+  "z": [
+   197.2,
+   29.4
+  ],
+  "hearts": [
+   89.2,
+   167.2,
+   41.4
+  ],
+  "bubble": [
+   128.0,
+   -4.6
+  ],
+  "glints": [
+   [
+    53.2,
+    35.4
+   ],
+   [
+    203.2,
+    39.4
+   ]
+  ],
+  "kneelRaise": 0
+ },
+ "fx": {
+  "top": [
+   128.0,
+   -1.6
+  ],
+  "side": [
+   201.2,
+   36.4
+  ],
+  "listen": [
+   194.2,
+   95.4
+  ],
+  "sweat": [
+   158.8,
+   69.4
+  ],
+  "anger": [
+   145.2,
+   41.8
+  ],
+  "bang": [
+   196.2,
+   19.4
+  ],
+  "question": [
+   196.2,
+   19.4
+  ],
+  "puff": [
+   128.0,
+   107.0
+  ],
+  "gloom": [
+   [
+    116.0,
+    69.4
+   ],
+   [
+    128.0,
+    72.2
+   ],
+   [
+    140.0,
+    69.4
+   ]
+  ],
+  "gloomTop": 55.4
+ },
+ "poses": {
+  "read": {
+   "required": [
+    {
+     "id": "pose_read",
+     "tex": "pose_read",
+     "z": 15.5,
+     "parent": "poseRead",
+     "grid": [
+      12,
+      8
+     ],
+     "box": [
+      81.8,
+      121.4,
+      91.8,
+      56.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseRead": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    127.3,
+    127.11
+   ],
+   "kind": "both"
+  },
+  "write": {
+   "required": [
+    {
+     "id": "pose_write",
+     "tex": "pose_write",
+     "z": 15.5,
+     "parent": "poseWrite",
+     "grid": [
+      12,
+      10
+     ],
+     "box": [
+      85.6,
+      109.2,
+      84.6,
+      70.6
+     ]
+    }
+   ],
+   "pivots": {
+    "poseWrite": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    129.95,
+    161.0
+   ],
+   "kind": "both"
+  },
+  "search": {
+   "required": [
+    {
+     "id": "pose_search",
+     "tex": "pose_search",
+     "z": 15.5,
+     "parent": "poseSearch",
+     "grid": [
+      12,
+      12
+     ],
+     "box": [
+      70.8,
+      77.2,
+      116.4,
+      107.4
+     ]
+    }
+   ],
+   "pivots": {
+    "poseSearch": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    96.2,
+    114.4
+   ],
+   "kind": "both"
+  },
+  "cheer": {
+   "required": [
+    {
+     "id": "pose_cheer",
+     "tex": "pose_cheer",
+     "z": 15.5,
+     "parent": "poseCheer",
+     "grid": [
+      12,
+      9
+     ],
+     "box": [
+      43.4,
+      84.4,
+      168.2,
+      64.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseCheer": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    126.83,
+    94.83
+   ],
+   "kind": "both"
+  },
+  "heart": {
+   "required": [
+    {
+     "id": "pose_heart",
+     "tex": "pose_heart",
+     "z": 15.5,
+     "parent": "poseHeart",
+     "grid": [
+      11,
+      6
+     ],
+     "box": [
+      89.0,
+      122.2,
+      77.4,
+      45.0
+     ]
+    }
+   ],
+   "pivots": {
+    "poseHeart": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    127.75,
+    134.04
+   ],
+   "kind": "both"
+  },
+  "cup": {
+   "required": [
+    {
+     "id": "pose_cup",
+     "tex": "pose_cup",
+     "z": 15.5,
+     "parent": "poseCup",
+     "grid": [
+      11,
+      7
+     ],
+     "box": [
+      88.8,
+      122.4,
+      77.4,
+      45.6
+     ]
+    }
+   ],
+   "pivots": {
+    "poseCup": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    132.2,
+    127.4
+   ],
+   "kind": "both"
+  },
+  "pray": {
+   "required": [
+    {
+     "id": "pose_pray",
+     "tex": "pose_pray",
+     "z": 15.5,
+     "parent": "posePray",
+     "grid": [
+      10,
+      6
+     ],
+     "box": [
+      94.0,
+      120.4,
+      67.2,
+      43.2
+     ]
+    }
+   ],
+   "pivots": {
+    "posePray": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    127.93,
+    133.79
+   ],
+   "kind": "both"
+  },
+  "hips": {
+   "required": [
+    {
+     "id": "pose_hips",
+     "tex": "pose_hips",
+     "z": 15.5,
+     "parent": "poseHips",
+     "grid": [
+      12,
+      7
+     ],
+     "box": [
+      79.4,
+      122.8,
+      96.8,
+      48.0
+     ]
+    }
+   ],
+   "pivots": {
+    "poseHips": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    128.02,
+    154.66
+   ],
+   "kind": "both"
+  },
+  "hug": {
+   "required": [
+    {
+     "id": "pose_hug",
+     "tex": "pose_hug",
+     "z": 15.5,
+     "parent": "poseHug",
+     "grid": [
+      12,
+      7
+     ],
+     "box": [
+      56.4,
+      122.0,
+      142.6,
+      46.2
+     ]
+    }
+   ],
+   "pivots": {
+    "poseHug": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    127.63,
+    140.24
+   ],
+   "kind": "both"
+  },
+  "cross": {
+   "required": [
+    {
+     "id": "pose_cross",
+     "tex": "pose_cross",
+     "z": 15.5,
+     "parent": "poseCross",
+     "grid": [
+      9,
+      7
+     ],
+     "box": [
+      98.2,
+      122.4,
+      60.0,
+      45.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseCross": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    128.53,
+    128.91
+   ],
+   "kind": "both"
+  },
+  "stretch": {
+   "required": [
+    {
+     "id": "pose_stretch",
+     "tex": "pose_stretch",
+     "z": 15.5,
+     "parent": "poseStretch",
+     "grid": [
+      12,
+      12
+     ],
+     "box": [
+      78.6,
+      25.0,
+      95.4,
+      112.0
+     ]
+    }
+   ],
+   "pivots": {
+    "poseStretch": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    124.67,
+    31.29
+   ],
+   "kind": "both"
+  },
+  "curtsy": {
+   "required": [
+    {
+     "id": "pose_curtsy",
+     "tex": "pose_curtsy",
+     "z": 15.5,
+     "parent": "poseCurtsy",
+     "grid": [
+      12,
+      7
+     ],
+     "box": [
+      71.6,
+      122.6,
+      112.0,
+      49.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseCurtsy": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    127.52,
+    163.88
+   ],
+   "kind": "both"
+  },
+  "oops": {
+   "required": [
+    {
+     "id": "pose_oops",
+     "tex": "pose_oops",
+     "z": 15.5,
+     "parent": "poseOops",
+     "grid": [
+      11,
+      8
+     ],
+     "box": [
+      91.4,
+      112.8,
+      74.2,
+      52.6
+     ]
+    }
+   ],
+   "pivots": {
+    "poseOops": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    129.72,
+    120.37
+   ],
+   "kind": "both"
+  },
+  "shy": {
+   "required": [
+    {
+     "id": "pose_shy",
+     "tex": "pose_shy",
+     "z": 15.5,
+     "parent": "poseShy",
+     "grid": [
+      10,
+      6
+     ],
+     "box": [
+      93.6,
+      122.6,
+      69.2,
+      43.0
+     ]
+    }
+   ],
+   "pivots": {
+    "poseShy": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    128.16,
+    137.72
+   ],
+   "kind": "both"
+  },
+  "clap": {
+   "required": [
+    {
+     "id": "pose_clap",
+     "tex": "pose_clap",
+     "z": 15.5,
+     "parent": "poseClap",
+     "grid": [
+      9,
+      7
+     ],
+     "box": [
+      96.0,
+      122.6,
+      64.2,
+      50.6
+     ]
+    }
+   ],
+   "pivots": {
+    "poseClap": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    127.83,
+    148.32
+   ],
+   "kind": "both"
+  },
+  "clapo": {
+   "required": [
+    {
+     "id": "pose_clapo",
+     "tex": "pose_clapo",
+     "z": 15.5,
+     "parent": "poseClapo",
+     "grid": [
+      12,
+      8
+     ],
+     "box": [
+      86.8,
+      122.4,
+      82.2,
+      57.2
+     ]
+    }
+   ],
+   "pivots": {
+    "poseClapo": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    128.37,
+    151.59
+   ],
+   "kind": "both"
+  },
+  "shrug": {
+   "required": [
+    {
+     "id": "pose_shrug",
+     "tex": "pose_shrug",
+     "z": 15.5,
+     "parent": "poseShrug",
+     "grid": [
+      12,
+      7
+     ],
+     "box": [
+      68.4,
+      121.2,
+      118.8,
+      48.2
+     ]
+    }
+   ],
+   "pivots": {
+    "poseShrug": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    123.16,
+    144.81
+   ],
+   "kind": "both"
+  },
+  "headhold": {
+   "required": [
+    {
+     "id": "pose_headhold",
+     "tex": "pose_headhold",
+     "z": 15.5,
+     "parent": "poseHeadhold",
+     "grid": [
+      12,
+      12
+     ],
+     "box": [
+      55.2,
+      44.6,
+      145.4,
+      84.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseHeadhold": [
+     128.0,
+     137.4
+    ]
+   },
+   "wrist": [
+    130.29,
+    56.84
+   ],
+   "kind": "both"
+  },
+  "wave": {
+   "required": [
+    {
+     "id": "pose_wave",
+     "tex": "pose_wave",
+     "z": 15.8,
+     "parent": "poseWave",
+     "grid": [
+      7,
+      9
+     ],
+     "box": [
+      65.4,
+      96.4,
+      47.8,
+      65.0
+     ]
+    }
+   ],
+   "pivots": {
+    "poseWave": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    77.89,
+    110.32
+   ],
+   "kind": "armL",
+   "rest": 136
+  },
+  "chin": {
+   "required": [
+    {
+     "id": "pose_chin",
+     "tex": "pose_chin",
+     "z": 15.8,
+     "parent": "poseChin",
+     "grid": [
+      5,
+      8
+     ],
+     "box": [
+      88.2,
+      109.0,
+      32.8,
+      57.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseChin": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    113.83,
+    122.55
+   ],
+   "kind": "armL",
+   "rest": -147
+  },
+  "scratch": {
+   "required": [
+    {
+     "id": "pose_scratch",
+     "tex": "pose_scratch",
+     "z": 15.8,
+     "parent": "poseScratch",
+     "grid": [
+      7,
+      10
+     ],
+     "box": [
+      68.4,
+      75.0,
+      47.4,
+      66.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseScratch": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    90.59,
+    79.22
+   ],
+   "kind": "armL",
+   "rest": 167
+  },
+  "idea": {
+   "required": [
+    {
+     "id": "pose_idea",
+     "tex": "pose_idea",
+     "z": 15.8,
+     "parent": "poseIdea",
+     "grid": [
+      6,
+      8
+     ],
+     "box": [
+      73.8,
+      116.0,
+      41.8,
+      52.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseIdea": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    91.91,
+    162.9
+   ],
+   "kind": "armL",
+   "rest": 26
+  },
+  "salute": {
+   "required": [
+    {
+     "id": "pose_salute",
+     "tex": "pose_salute",
+     "z": 15.8,
+     "parent": "poseSalute",
+     "grid": [
+      9,
+      11
+     ],
+     "box": [
+      53.6,
+      72.6,
+      62.2,
+      76.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseSalute": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    96.08,
+    78.68
+   ],
+   "kind": "armL",
+   "rest": 172
+  },
+  "vsign": {
+   "required": [
+    {
+     "id": "pose_vsign",
+     "tex": "pose_vsign",
+     "z": 15.8,
+     "parent": "poseVsign",
+     "grid": [
+      6,
+      8
+     ],
+     "box": [
+      70.2,
+      110.8,
+      45.4,
+      56.4
+     ]
+    }
+   ],
+   "pivots": {
+    "poseVsign": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    79.47,
+    124.15
+   ],
+   "kind": "armL",
+   "rest": 118
+  },
+  "point": {
+   "required": [
+    {
+     "id": "pose_point",
+     "tex": "pose_point",
+     "z": 15.8,
+     "parent": "posePoint",
+     "grid": [
+      12,
+      6
+     ],
+     "box": [
+      28.2,
+      119.8,
+      87.6,
+      43.4
+     ]
+    }
+   ],
+   "pivots": {
+    "posePoint": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    37.54,
+    130.7
+   ],
+   "kind": "armL",
+   "rest": 96
+  },
+  "cover": {
+   "required": [
+    {
+     "id": "pose_cover",
+     "tex": "pose_cover",
+     "z": 15.8,
+     "parent": "poseCover",
+     "grid": [
+      6,
+      7
+     ],
+     "box": [
+      85.0,
+      102.8,
+      39.4,
+      48.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseCover": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    117.84,
+    110.08
+   ],
+   "kind": "armL",
+   "rest": -153
+  },
+  "fist": {
+   "required": [
+    {
+     "id": "pose_fist",
+     "tex": "pose_fist",
+     "z": 15.8,
+     "parent": "poseFist",
+     "grid": [
+      7,
+      6
+     ],
+     "box": [
+      67.2,
+      112.2,
+      47.4,
+      42.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseFist": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    86.23,
+    120.29
+   ],
+   "kind": "armL",
+   "rest": 134
+  },
+  "raise": {
+   "required": [
+    {
+     "id": "pose_raise",
+     "tex": "pose_raise",
+     "z": 15.8,
+     "parent": "poseRaise",
+     "grid": [
+      7,
+      12
+     ],
+     "box": [
+      55.2,
+      -8.8,
+      48.4,
+      100.6
+     ]
+    }
+   ],
+   "pivots": {
+    "poseRaise": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    64.71,
+    2.74
+   ],
+   "kind": "armL",
+   "rest": 164
+  },
+  "thumbs": {
+   "required": [
+    {
+     "id": "pose_thumbs",
+     "tex": "pose_thumbs",
+     "z": 15.8,
+     "parent": "poseThumbs",
+     "grid": [
+      6,
+      7
+     ],
+     "box": [
+      77.2,
+      117.6,
+      38.6,
+      49.6
+     ]
+    }
+   ],
+   "pivots": {
+    "poseThumbs": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    94.93,
+    122.74
+   ],
+   "kind": "armL",
+   "rest": 148
+  },
+  "shush": {
+   "required": [
+    {
+     "id": "pose_shush",
+     "tex": "pose_shush",
+     "z": 15.8,
+     "parent": "poseShush",
+     "grid": [
+      6,
+      8
+     ],
+     "box": [
+      91.8,
+      104.0,
+      38.6,
+      57.2
+     ]
+    }
+   ],
+   "pivots": {
+    "poseShush": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    124.99,
+    111.65
+   ],
+   "kind": "armL",
+   "rest": -141
+  },
+  "wipe": {
+   "required": [
+    {
+     "id": "pose_wipe",
+     "tex": "pose_wipe",
+     "z": 15.8,
+     "parent": "poseWipe",
+     "grid": [
+      8,
+      12
+     ],
+     "box": [
+      64.2,
+      55.8,
+      57.2,
+      82.8
+     ]
+    }
+   ],
+   "pivots": {
+    "poseWipe": [
+     104.2,
+     137.4
+    ]
+   },
+   "wrist": [
+    115.0,
+    61.24
+   ],
+   "kind": "armL",
+   "rest": -172
+  },
+  "back": {
+   "required": [
+    {
+     "id": "back_body",
+     "tex": "back_body",
+     "z": 21.2,
+     "parent": "backFlip",
+     "grid": [
+      2,
+      2
+     ],
+     "box": [
+      38.33,
+      -0.4,
+      180.53,
+      256.4
+     ]
+    },
+    {
+     "id": "back_hair",
+     "tex": "back_hair",
+     "z": 21.21,
+     "parent": "backHair",
+     "grid": [
+      16,
+      20
+     ],
+     "box": [
+      38.93,
+      -0.2,
+      179.74,
+      197.81
+     ]
+    },
+    {
+     "id": "back_top",
+     "tex": "back_top",
+     "z": 21.22,
+     "parent": "backFlip",
+     "grid": [
+      2,
+      2
+     ],
+     "box": [
+      41.9,
+      8.54,
+      172.39,
+      93.74
+     ]
+    }
+   ],
+   "pivots": {
+    "backFlip": [
+     128,
+     256
+    ]
+   },
+   "rects": {
+    "hair": [
+     38.93,
+     105.85,
+     218.66,
+     197.61
+    ]
+   }
+  },
+  "lie": {
+   "required": [
+    {
+     "id": "lie_body",
+     "tex": "lie_body",
+     "z": 21,
+     "parent": "lieLegs",
+     "grid": [
+      44,
+      28
+     ],
+     "box": [
+      23.49,
+      75.73,
+      209.03,
+      180.27
+     ]
+    }
+   ],
+   "overlays": [
+    {
+     "id": "lie_shut",
+     "tex": "lie_shut",
+     "z": 21.110000000000003,
+     "parent": "lieLegs",
+     "grid": [
+      8,
+      6
+     ],
+     "box": [
+      133.31,
+      152.84,
+      62.94,
+      26.88
+     ],
+     "use": "shut"
+    },
+    {
+     "id": "lie_smile",
+     "tex": "lie_smile",
+     "z": 21.12,
+     "parent": "lieLegs",
+     "grid": [
+      8,
+      6
+     ],
+     "box": [
+      159.36,
+      175.56,
+      14.59,
+      10.21
+     ],
+     "use": "smile"
+    },
+    {
+     "id": "lie_talk",
+     "tex": "lie_talk",
+     "z": 21.12,
+     "parent": "lieLegs",
+     "grid": [
+      8,
+      6
+     ],
+     "box": [
+      162.07,
+      176.39,
+      11.67,
+      9.59
+     ],
+     "use": "talk"
+    }
+   ],
+   "pivots": {
+    "lie": [
+     111.33,
+     256.0
+    ],
+    "lieChin": [
+     169.59,
+     187.55
+    ]
+   },
+   "rects": {
+    "head": [
+     101.9,
+     76.08,
+     222.68,
+     204.43
+    ],
+    "back": [
+     79.55,
+     183.59,
+     141.5,
+     256.0
+    ],
+    "legs": [
+     18.49,
+     119.91,
+     79.55,
+     204.32
+    ]
+   },
+   "legAxis": {
+    "knee": [
+     45.88,
+     193.06
+    ],
+    "shoe": [
+     50.77,
+     132.84
+    ],
+    "far": -22.92,
+    "gap": -10.42
+   },
+   "anchors": {
+    "gaze": [
+     165.42,
+     168.79
+    ],
+    "tear": [
+     149.83,
+     179.42
+    ],
+    "z": [
+     214.35,
+     84.42
+    ],
+    "bubble": [
+     155.65,
+     80.25
+    ],
+    "glints": [
+     [
+      93.56,
+      96.92
+     ],
+     [
+      226.85,
+      109.43
+     ]
+    ],
+    "hearts": [
+     101.9,
+     222.68,
+     88.59
+    ],
+    "hit": [
+     128.0,
+     165.87,
+     100.51,
+     90.13
+    ],
+    "halfW": 106.51
+   },
+   "fx": {
+    "from": [
+     128.2,
+     92.4
+    ],
+    "to": [
+     165.42,
+     168.79
+    ],
+    "s": 1.042
+   },
+   "face": {
+    "box": [
+     129.24,
+     145.02,
+     72.38,
+     47.54
+    ],
+    "place": {
+     "eyeL": [
+      0.90045,
+      -0.04036,
+      0.04036,
+      0.90063,
+      9.99,
+      28.41
+     ],
+     "eyeR": [
+      0.7851,
+      -0.03519,
+      0.03843,
+      0.85758,
+      42.36,
+      27.81
+     ],
+     "mouth": [
+      0.88246,
+      -0.03955,
+      0.04214,
+      0.9402,
+      11.97,
+      24.65
+     ]
+    },
+    "parts": [
+     {
+      "id": "lie_blank",
+      "tex": "lie_blank",
+      "z": 21.002,
+      "parent": "lieLegs",
+      "grid": [
+       12,
+       8
+      ],
+      "box": [
+       134.51,
+       149.76,
+       59.81,
+       40.42
+      ],
+      "use": "face"
+     },
+     {
+      "id": "lie_fringe",
+      "tex": "lie_fringe",
+      "z": 21.006,
+      "parent": "lieLegs",
+      "grid": [
+       12,
+       8
+      ],
+      "box": [
+       129.11,
+       144.96,
+       72.61,
+       47.62
+      ],
+      "use": "face"
+     }
+    ],
+    "z": 21.004
+   }
+  },
+  "kneel": {
+   "required": [
+    {
+     "id": "kneel_body",
+     "tex": "kneel_body",
+     "z": 21.3,
+     "parent": "kneel",
+     "grid": [
+      12,
+      16
+     ],
+     "box": [
+      27.81,
+      23.04,
+      201.2,
+      232.96
+     ]
+    }
+   ],
+   "overlays": [
+    {
+     "id": "kneel_shut",
+     "tex": "kneel_shut",
+     "z": 21.310000000000002,
+     "parent": "kneel",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      97.16,
+      102.64,
+      62.51,
+      23.72
+     ],
+     "use": "shut"
+    },
+    {
+     "id": "kneel_smile",
+     "tex": "kneel_smile",
+     "z": 21.32,
+     "parent": "kneel",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      121.08,
+      124.95,
+      15.07,
+      9.04
+     ],
+     "use": "smile"
+    },
+    {
+     "id": "kneel_talk",
+     "tex": "kneel_talk",
+     "z": 21.32,
+     "parent": "kneel",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      122.48,
+      124.75,
+      12.26,
+      9.25
+     ],
+     "use": "talk"
+    }
+   ],
+   "pivots": {
+    "kneel": [
+     128,
+     256
+    ]
+   },
+   "headDrop": 24.14,
+   "head": [
+    55.55,
+    23.24,
+    202.28,
+    142.44
+   ],
+   "face": {
+    "box": [
+     88.72,
+     93.33,
+     78.47,
+     48.75
+    ],
+    "place": {
+     "eyeL": [
+      0.98561,
+      0.01794,
+      -0.01805,
+      0.99201,
+      14.6,
+      10.74
+     ],
+     "eyeR": [
+      0.98342,
+      0.0179,
+      -0.01829,
+      1.00522,
+      17.55,
+      9.99
+     ],
+     "mouth": [
+      0.99573,
+      0.01812,
+      -0.01817,
+      0.99819,
+      13.91,
+      10.41
+     ]
+    },
+    "parts": [
+     {
+      "id": "kneel_blank",
+      "tex": "kneel_blank",
+      "z": 21.302,
+      "parent": "kneelHead",
+      "grid": [
+       4,
+       4
+      ],
+      "box": [
+       97.01,
+       102.43,
+       62.4,
+       32.19
+      ],
+      "use": "face"
+     },
+     {
+      "id": "kneel_fringe",
+      "tex": "kneel_fringe",
+      "z": 21.306,
+      "parent": "kneelHead",
+      "grid": [
+       4,
+       4
+      ],
+      "box": [
+       88.61,
+       93.23,
+       78.6,
+       48.99
+      ],
+      "use": "face"
+     }
+    ],
+    "z": 21.304
+   }
+  },
+  "roll": {
+   "required": [
+    {
+     "id": "roll_ball",
+     "tex": "roll_ball",
+     "z": 30,
+     "parent": "rollBall",
+     "grid": [
+      2,
+      2
+     ],
+     "box": [
+      48.6,
+      79.09,
+      155.16,
+      177.24
+     ]
+    }
+   ],
+   "pivots": {
+    "rollBall": [
+     128.0,
+     173.47
+    ]
+   },
+   "around": 522.12,
+   "support": [
+    82.53,
+    82.83,
+    82.77,
+    82.33,
+    82.59,
+    82.62,
+    82.9,
+    83.13,
+    82.89,
+    82.21,
+    82.42,
+    82.08,
+    81.25,
+    81.39,
+    81.15,
+    80.46,
+    79.29,
+    77.65,
+    75.43,
+    74.86,
+    73.83,
+    74.49,
+    76.55,
+    78.04,
+    78.97,
+    82.19,
+    86.46,
+    90.13,
+    93.14,
+    95.55,
+    97.28,
+    98.34,
+    98.78,
+    98.59,
+    97.77,
+    96.39,
+    94.38,
+    92.06,
+    89.16,
+    85.84,
+    83.41,
+    82.81,
+    81.87,
+    81.6,
+    81.04,
+    80.11,
+    80.54,
+    80.61,
+    80.24,
+    79.45,
+    78.11,
+    78.96,
+    79.32,
+    79.17,
+    79.4,
+    80.52,
+    81.04,
+    81.04,
+    80.52,
+    79.49,
+    79.58,
+    79.47,
+    79.02,
+    80.05,
+    80.74,
+    81.0,
+    81.29,
+    82.12,
+    82.5,
+    82.46,
+    82.01,
+    82.39
+   ]
+  },
+  "sit": {
+   "required": [
+    {
+     "id": "sit_skirt",
+     "tex": "sit_skirt",
+     "z": 3.1,
+     "parent": "sitBase",
+     "grid": [
+      10,
+      6
+     ],
+     "box": [
+      60.2,
+      175.8,
+      147.8,
+      81.0
+     ]
+    },
+    {
+     "id": "sit_top",
+     "tex": "sit_top",
+     "z": 6.5,
+     "parent": "sitTop",
+     "grid": [
+      8,
+      8
+     ],
+     "box": [
+      93.6,
+      109.0,
+      69.2,
+      81.4
+     ]
+    }
+   ],
+   "pivots": {
+    "sitBase": [
+     128,
+     256
+    ],
+    "sitTop": [
+     128,
+     150.4
+    ]
+   },
+   "headDrop": 27.81,
+   "hides": []
+  },
+  "kneelLow": {
+   "required": [
+    {
+     "id": "kneel_low",
+     "tex": "kneel_low",
+     "z": 3.05,
+     "parent": "kneelLow",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      27.81,
+      23.04,
+      201.2,
+      232.96
+     ]
+    }
+   ],
+   "pivots": {
+    "kneelLow": [
+     128,
+     256
+    ]
+   },
+   "cut": 172.24
+  }
+ }
+}

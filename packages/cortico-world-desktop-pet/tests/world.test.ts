@@ -366,6 +366,18 @@ describe('with a pet page', () => {
     }
   });
 
+  it('dresses as the built-in Grok-chan, and as her exported pack, with her words (no spout)', async () => {
+    for (const figure of ['grok-chan', 'coopanion-grok-chan']) {
+      const { world } = await mounted((c) => { c.skin.figure = figure; c.skin.scheme = 'original'; });
+      const page = await FakePage.open(origin(world));
+      cleanup.push(() => page.close());
+      expect(page.init.skin).toMatchObject({ figure: 'grok-chan', scheme: 'original' });
+      await tool(world, 'pet_act').handler({ actions: ['看书', '喷水', '摇尾巴'] }, ctx);
+      expect((await page.next((m) => m.t === 'act')).actions).toEqual(['read']);
+      expect(world.envPromptVars()['pet.body']).toContain('蝙蝠翅膀');
+    }
+  });
+
   it('merges repeated pokes into one touch event', async () => {
     const { world, host } = await mounted();
     const page = await FakePage.open(origin(world));

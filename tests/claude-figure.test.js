@@ -1521,7 +1521,7 @@ describe('Claude-chan: a head gesture beside the arms\' one, kneeling, and faces
   });
 });
 
-/* ---------- kneeling with her arms posed (the three girls share these: tests/helpers/kneel-arms.js) ---------- */
+/* ---------- kneeling with her arms posed (the four girls share these: tests/helpers/kneel-arms.js) ---------- */
 describeKneelArms('Claude-chan', {
   dir: DIR, M: KneelMotion, GESTURES,
   make: async (missing = []) => {
@@ -1536,8 +1536,8 @@ describeKneelArms('Claude-chan', {
   },
 });
 
-/* ---------- live faces on the kneeling and lying drawings (the three girls share these: tests/helpers/floor-face.js) ---------- */
+/* ---------- live faces on the kneeling and lying drawings (the four girls share these: tests/helpers/floor-face.js) ---------- */
 describeFloorFace('Claude-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTURES });
 
-/* ---------- arm drawings cut in for each other, never half seen at once (the three girls share these: tests/helpers/arm-cut.js) ---------- */
+/* ---------- arm drawings cut in for each other, never half seen at once (the four girls share these: tests/helpers/arm-cut.js) ---------- */
 describeArmCut('Claude-chan', { dir: DIR, M: KneelMotion, GESTURES });

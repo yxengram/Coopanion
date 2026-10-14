@@ -24,6 +24,7 @@ describe('pet_set', () => {
     expect(planSettings({ figure: 'claude-chan', scheme: 'claude' }, cfg(), packs).errors).toHaveLength(1);
     expect(planSettings({ figure: 'gpt-chan', scheme: 'chatgpt' }, cfg(), packs).errors).toHaveLength(1);
     expect(planSettings({ figure: 'gemini-chan', scheme: 'gemini' }, cfg(), packs).errors).toHaveLength(1);
+    expect(planSettings({ figure: 'grok-chan', scheme: 'grok' }, cfg(), packs).errors).toHaveLength(1);
   });
 
   it('switches to Claude-chan in her one scheme', () => {
@@ -42,6 +43,12 @@ describe('pet_set', () => {
     const { changes, errors } = planSettings({ figure: 'gemini-chan' }, cfg(), packs);
     expect(errors).toEqual([]);
     expect(changes.map((c) => c.patch)).toEqual([{ skin: { figure: 'gemini-chan', scheme: 'original' } }]);
+  });
+
+  it('switches to Grok-chan in her one scheme', () => {
+    const { changes, errors } = planSettings({ figure: 'grok-chan' }, cfg(), packs);
+    expect(errors).toEqual([]);
+    expect(changes.map((c) => c.patch)).toEqual([{ skin: { figure: 'grok-chan', scheme: 'original' } }]);
   });
 
   it('dresses Coo through its skin\'s own fields', () => {

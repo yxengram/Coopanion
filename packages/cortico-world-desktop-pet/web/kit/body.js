@@ -2,15 +2,15 @@
  * The pet kit: a body that stands on the floor of the stage, walks, runs, jumps, sits, sleeps,
  * is picked up and thrown, makes faces and short gestures, with particles (hearts, tears, z's,
  * dust, notes) and a shadow. A figure pack builds its body on it (`createBody`) and only draws:
- * Coo (web/coo/figure.js), the whale (web/whale/figure.js) and the three front-facing girls
- * (web/claude-chan, web/gpt-chan, web/gemini-chan) all do. A pack may also ignore the kit and answer
+ * Coo (web/coo/figure.js), the whale (web/whale/figure.js) and the four front-facing girls
+ * (web/claude-chan, web/gpt-chan, web/gemini-chan, web/grok-chan) all do. A pack may also ignore the kit and answer
  * the body contract (web/figure-frame.js) on its own.
  *
  * With `opts.plus` the body does more: it lies down on its front and kneels, and knows the faces and
  * motions in PLUS_EXPRESSIONS / PLUS_MOTIONS (a song, a spout, a roll, a cup of tea…; faces made of the eyes of
  * one and the mouth of another, PLUS_MIXES) with their particles (glints, rings of song, a bulb, chips of stone,
  * spray, and the marks of MARK_FX_KEYS: steam, a broken heart, confetti, a rain cloud, 「……」). Coo, the whale and the
- * three girls ask for it; without it the body is the kit as any other pack knows it.
+ * four girls ask for it; without it the body is the kit as any other pack knows it.
  * Two faces in one group are one asked-for face, the first one's eyes and the second one's mouth (`eyes+mouth`).
  *
  * Coordinates: the figure is drawn in logo units, facing right, ground at y=256, inside a 256 square.
@@ -325,7 +325,7 @@ export const APPENDAGE_MOVES = { wag: ['tail', 2.4], earflick: ['ears', 1.1], ea
 /** (plus) Gestures of the head alone: they play in their own channel (`pet.head`, the frame's `head`), alongside any other gesture. */
 export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt', ...Object.keys(HEAD_MORE)]);
 /**
- * (plus) Gestures of the arms: a figure that draws arms kneeling (`figure.kneelArms`: the three girls and the whale, with
+ * (plus) Gestures of the arms: a figure that draws arms kneeling (`figure.kneelArms`: the four girls and the whale, with
  * their poses.kneelLow) keeps kneeling through them; any other motion still ends a kneel.
  */
 export const ARM_GESTURES = ['wave', 'shiver', 'heart', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch',
@@ -479,7 +479,7 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  *   `[left, right]`, one per eye of `anchors.tears`) down
  *   the cheek following the head, then fall; crying lets one go every TEAR_FX.every s, the eyes taking turns. A figure
  *   without it (Coo) gets the kit's own big drops, popping up out of the eye.
- * - `kneelArms: true`: the figure draws arm gestures kneeling (the three girls and the whale, with poses.kneelLow), so
+ * - `kneelArms: true`: the figure draws arm gestures kneeling (the four girls and the whale, with poses.kneelLow), so
  *   ARM_GESTURES do not end a kneel; the World groups them with kneeling when the pack's `kneel` word has `keepsArms`.
  */
 export function createPet(els, opts) {

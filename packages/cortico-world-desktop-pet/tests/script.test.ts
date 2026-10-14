@@ -97,7 +97,7 @@ describe('vocabTable', () => {
     // (a tail's, ears' or wings' only for a figure that has words for them: Coo has none)
     const shown: Record<Channel, RegExp> = { head: /头/, arm: /手/, face: /表情/, body: /身|手,要站着/, stance: /身|手,要站着/, tail: /尾巴/, ears: /耳朵/, wings: /翅膀/ };
     const parts = (vocab: readonly VocabWord[]) => (['tail', 'ears', 'wings'] as Channel[]).filter((c) => vocab.some((w) => CHANNELS[w.id]?.length === 1 && CHANNELS[w.id][0] === c));
-    for (const id of ['coo', 'whale', 'gpt-chan', 'gemini-chan']) {
+    for (const id of ['coo', 'whale', 'gpt-chan', 'gemini-chan', 'grok-chan']) {
       const vocab = figurePacks([]).packs.find((p) => p.id === id)!.manifest.vocab, t = vocabTable(vocab), has = parts(vocab);
       for (const v of vocab.filter((w) => w.kind === 'motion')) {
         const said = `${groupOf(v.id, t)} ${row(v.id, t).split(':')[0]}`;
@@ -165,7 +165,7 @@ describe('vocabulary', () => {
     };
     for (const p of figurePacks([]).packs) {
       // (握拳 is the girls' fist of their own, 加油, now; Coo and the whale, with no fist drawn, keep it for 认真)
-      const girl = ['claude-chan', 'gpt-chan', 'gemini-chan'].includes(p.id);
+      const girl = ['claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].includes(p.id);
       for (const [name, id] of Object.entries({ ...MEANT, 握拳: girl ? 'fist' : 'determined' })) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(id);
       // (拍手 is the clap drawn for the girls and the whale; Coo, with no hands, still has no word for it)
       expect(vocabId('拍手', p.manifest.vocab), p.id).toBe(p.id === 'coo' ? null : 'clap');
@@ -192,7 +192,7 @@ describe('words at once', () => {
 
   it('a tail, ears and wings are parts of their own: their words go with the head\'s, the arms\' and a face, and with each other\'s, not two of one part', () => {
     const pack = (id: string) => figurePacks([]).packs.find((p) => p.id === id)!.manifest.vocab;
-    const gemini = pack('gemini-chan'), gpt = pack('gpt-chan'), whale = pack('whale');
+    const gemini = pack('gemini-chan'), gpt = pack('gpt-chan'), grok = pack('grok-chan'), whale = pack('whale');
     expect(actionsIn(['摇尾巴+竖耳朵+点头+招手+开心'], gemini)).toEqual({ actions: ['wave+wag+earsup+nod+happy'], dropped: [], notes: [] });
     expect(actionsIn(['扇翅膀+摇尾巴+坐下'], gpt).actions).toEqual(['sit+wingbeat+wag']);
     expect(actionsIn(['竖耳朵+耳朵耷拉'], gemini)).toEqual({ actions: ['earsup', 'earsdown'], dropped: [], notes: ['竖耳朵 和 耳朵耷拉 不能同时做,改成先后做。'] });
@@ -202,11 +202,16 @@ describe('words at once', () => {
     // only a figure with the part knows its words
     expect(actionsIn(['摇尾巴', '扇翅膀'], VOCAB).dropped).toEqual(['摇尾巴', '扇翅膀']);
     expect(actionsIn(['竖耳朵'], gpt).dropped).toEqual(['竖耳朵']);
+    // Grok-chan's little bat wings are her one part: a wingbeat goes with the rest, a tail's or ears' word is not hers
+    expect(actionsIn(['扇翅膀+点头+招手+开心'], grok)).toEqual({ actions: ['wave+wingbeat+nod+happy'], dropped: [], notes: [] });
+    expect(actionsIn(['摇尾巴', '竖耳朵', '抖耳朵'], grok).dropped).toEqual(['摇尾巴', '竖耳朵', '抖耳朵']);
     // the prompt lists them under the parts the figure has, and a whole-body word says it takes them too
     const t = vocabTable(gemini);
     expect(t).toContain('尾巴、耳朵(各算一个部位):\n- wag 摇尾巴/甩尾巴/摆尾巴:');
     expect(t).toMatch(/- sleep [^:]*\(也占手、头、表情、尾巴、耳朵\):/);
     expect(vocabTable(gpt)).toContain('尾巴、翅膀(各算一个部位):\n- wag ');
+    expect(vocabTable(grok)).toContain('翅膀(单独算一个部位):\n- wingbeat ');
+    expect(vocabTable(grok)).toMatch(/- sleep [^:]*\(也占手、头、表情、翅膀\):/);
     expect(vocabTable(whale)).toContain('尾巴(单独算一个部位):\n- wag ');
     expect(vocabTable(whale)).toMatch(/- sleep [^:]*\(也占手、头、表情、尾巴\):/);
     expect(vocabTable(VOCAB)).not.toMatch(/尾巴|耳朵|翅膀/);
@@ -564,11 +569,13 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
     expect(row('kneel', pack)).toContain(note);
     expect(lastingNote({ ...pack[2], keepsArms: true }, pack.filter((v) => v.id !== 'nod'))).toMatch(/;换表情、只占「手」的手势和唱歌都不影响/);
     // (the girls have all six; Coo has no 低头 or 眨眨眼, so hers names the four she has; of a tail, ears and wings, only
-    // the parts a figure has: Claude-chan none, Gemini-chan a tail and ears, GPT-chan a tail and wings, the whale a tail)
+    // the parts a figure has: Claude-chan none, Gemini-chan a tail and ears, GPT-chan a tail and wings, Grok-chan wings,
+    // the whale a tail)
     const of = (id: string) => figurePacks([]).packs.find((p) => p.id === id)!.manifest.vocab;
     expect(lastingNote(kneel, GIRL)).toBe(lastingNote(kneel).replace('尾巴、耳朵、翅膀的动作、', ''));
     expect(lastingNote(kneel, of('gemini-chan'))).toContain('眨眨眼、尾巴、耳朵的动作、只占「手」');
     expect(lastingNote(kneel, of('gpt-chan'))).toContain('眨眨眼、尾巴、翅膀的动作、只占「手」');
+    expect(lastingNote(kneel, of('grok-chan'))).toContain('眨眨眼、翅膀的动作、只占「手」');
     expect(lastingNote(of('whale').find((v) => v.id === 'kneel')!, of('whale'))).toContain('眨眨眼、尾巴的动作、只占「手」');
     expect(lastingNote(cooKneel, VOCAB)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头不影响');
   });

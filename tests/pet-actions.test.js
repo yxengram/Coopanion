@@ -11,6 +11,7 @@ import { CHANNELS, parseActions } from '../packages/cortico-world-desktop-pet/sr
 import { FACE_ARMS as CLAUDE_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { FACE_ARMS as GPT_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { FACE_ARMS as GEMINI_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
+import { FACE_ARMS as GROK_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/grok-chan/motion.js';
 
 const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
 const vocabOf = (pack) => JSON.parse(readFileSync(new URL(`web/${pack}/figure.json`, PKG), 'utf8')).vocab;
@@ -90,8 +91,8 @@ const MIX_OWN_TONES = { comfort: 'comfort', fuming: 'fume', heartbroken: 'heartb
 /** The arm words that are a figure's face poses as gestures of their own (托腮, 加油, 记笔记, 对手指). */
 const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
 /** The arm words drawn anew for the girls and the whale (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗); Coo has none of them. */
-/** The three girls' faces that pose her arms (FACE_ARMS), by figure. */
-const GIRL_FACE_ARMS = { 'claude-chan': CLAUDE_FACE_ARMS, 'gpt-chan': GPT_FACE_ARMS, 'gemini-chan': GEMINI_FACE_ARMS };
+/** The four girls' faces that pose her arms (FACE_ARMS), by figure. */
+const GIRL_FACE_ARMS = { 'claude-chan': CLAUDE_FACE_ARMS, 'gpt-chan': GPT_FACE_ARMS, 'gemini-chan': GEMINI_FACE_ARMS, 'grok-chan': GROK_FACE_ARMS };
 const NEW_ARM_WORDS = ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
 /** The head's and the body's own moves: 低头, 眨眨眼 (the head's channel); 凑近, 后仰, 晃来晃去, 跺脚 (standing or seated still). */
 const MORE_WORDS = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
@@ -302,10 +303,13 @@ describe('the words the model can use', () => {
     expect(pet.pet.head).toBe(null);
   });
 
-  it('Claude-chan, GPT-chan and Gemini-chan know the same words but spout (they have no blowhole), and each the moves of the parts she has', () => {
-    // GPT-chan a tail and wings, Gemini-chan a tail and ears, Claude-chan none of them
-    const has = { 'claude-chan': [], 'gpt-chan': [...PART_WORDS.tail, ...PART_WORDS.wings], 'gemini-chan': [...PART_WORDS.tail, ...PART_WORDS.ears] };
-    for (const pack of ['claude-chan', 'gpt-chan', 'gemini-chan']) {
+  it('Claude-chan, GPT-chan, Gemini-chan and Grok-chan know the same words but spout (they have no blowhole), and each the moves of the parts she has', () => {
+    // GPT-chan a tail and wings, Gemini-chan a tail and ears, Grok-chan the little bat wings on her bows, Claude-chan none of them
+    const has = {
+      'claude-chan': [], 'gpt-chan': [...PART_WORDS.tail, ...PART_WORDS.wings], 'gemini-chan': [...PART_WORDS.tail, ...PART_WORDS.ears],
+      'grok-chan': [...PART_WORDS.wings],
+    };
+    for (const pack of ['claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']) {
       const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
       expect(words('expression'), pack).toEqual([...KIT_EXPRESSIONS, ...PLUS_EXPRESSIONS].sort());
       expect(words('motion'), pack).toEqual([...KIT_MOTIONS, ...PLUS_MOTIONS].filter((w) => w !== 'spout' && (!ALL_PART_WORDS.includes(w) || has[pack].includes(w))).sort());
@@ -1768,7 +1772,7 @@ describe('what the page holds a pack to', () => {
     sfx.play('song', 'move');
     expect(made.voices).toBeGreaterThan(before);
     // the pages pass plus for exactly the built-in packs that are ours (the World's own list of them)
-    expect(OWN_PACKS).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
+    expect(OWN_PACKS).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']);
     expect(OWN_PACKS).toEqual(figurePacks([]).packs.map((p) => p.id));
   });
 
@@ -2735,9 +2739,9 @@ describe('faces made of parts of others (plus)', () => {
     expect(reader.pet._fc.gap).toEqual(FACES.happy.f(0).gap);
   });
 
-  it('all five figures know them, by the same names, right after the other expressions', () => {
+  it('all six figures know them, by the same names, right after the other expressions', () => {
     const ids = Object.keys(PLUS_MIXES);
-    const vocabs = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan'].map((p) => [p, vocabOf(p)]);
+    const vocabs = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].map((p) => [p, vocabOf(p)]);
     const names = (v) => ids.map((id) => v.find((w) => w.id === id)?.names);
     for (const [p, v] of vocabs) {
       const at = v.findIndex((w) => w.id === ids[0]);
@@ -2754,9 +2758,11 @@ describe('faces made of parts of others (plus)', () => {
       const all = v.flatMap((w) => [w.id, ...Object.values(w.names).flat()]);
       expect(all.length - new Set(all).size, p).toBe(0);
     }
-    // the whale and the girls say the same of them (Coo has no mouth to describe)
+    // the whale and the girls say the same of them (Coo has no mouth to describe); Grok-chan's ω mouth shows her fang
     const about = (v) => ids.map((id) => v.find((w) => w.id === id).about);
-    for (const [p, v] of vocabs.slice(2)) expect(about(v), p).toEqual(about(vocabs[1][1]));
+    const fang = (a) => ({ zh: a.zh.replace('猫咪 ω 嘴', '露出小虎牙的 ω 嘴') });
+    for (const [p, v] of vocabs.slice(2)) expect(about(v), p).toEqual(about(vocabs[1][1]).map(p === 'grok-chan' ? fang : (a) => a));
+    expect(about(vocabOf('grok-chan')).filter((a, i) => a.zh !== about(vocabs[1][1])[i].zh).length).toBe(1);
   });
 });
 
@@ -3046,10 +3052,10 @@ describe('two faces of one group shown as one (plus)', () => {
     expect(n).toBe(650);
   });
 
-  it("the built-in figures' pairs: the World sends each as its manifest says, and the kit shows those eyes and that mouth (the three girls the same)", () => {
+  it("the built-in figures' pairs: the World sends each as its manifest says, and the kit shows those eyes and that mouth (the four girls the same)", () => {
     const maps = {};
     const mixes = new Set(Object.values(PLUS_MIXES).map((d) => `${d.eyes}+${d.mouth}`));
-    for (const p of ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']) {
+    for (const p of ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']) {
       const m = readManifest(fileURLToPath(new URL(`web/${p}/`, PKG)), true);
       expect(typeof m, p).toBe('object');
       maps[p] = m.pairs;
@@ -3081,6 +3087,7 @@ describe('two faces of one group shown as one (plus)', () => {
     }
     expect(maps['gpt-chan']).toEqual(maps['claude-chan']);
     expect(maps['gemini-chan']).toEqual(maps['claude-chan']);
+    expect(maps['grok-chan']).toEqual(maps['claude-chan']);
     // the whitelists as judged: Coo the fewest, the girls the most
     expect(Object.keys(maps.coo).length).toBe(24);
     expect(Object.keys(maps.whale).length).toBe(98);

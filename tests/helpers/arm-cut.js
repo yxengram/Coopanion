@@ -1,5 +1,5 @@
 /**
- * The three girls' arm drawings cut in for each other in a frame (the same code in each motion.js: armShown): the arms
+ * The four girls' arm drawings cut in for each other in a frame (the same code in each motion.js: armShown): the arms
  * still move on their shares (armA, over ARM_FADE), but each drawing shows whole or not at all, so one arm is never
  * drawn twice at once, half seen (a double exposure), standing, seated (the seated arms and book too) or in the
  * kneeling hybrid. `describeArmCut` runs the same tests on each.

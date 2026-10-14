@@ -61,6 +61,15 @@ describe('console colours follow the pet', () => {
     expect(theme(dir).selectedId).toBe('coo-fig-gemini-chan-original');
   });
 
+  it('gives Grok-chan her own scheme too, her exported pack included', () => {
+    expect(WHALE_SCHEMES.filter((s) => s.id.startsWith('coo-fig-grok-chan-')).map((s) => [s.id, s.name])).toEqual([['coo-fig-grok-chan-original', 'Grok 娘 · 原版']]);
+    const dir = mkdtempSync(join(tmpdir(), 'cc-theme-'));
+    followPetLook(dir, { figure: 'grok-chan', scheme: 'original' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-fig-grok-chan-original');
+    followPetLook(dir, { figure: 'coopanion-grok-chan', scheme: 'original' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-fig-grok-chan-original');
+  });
+
   it('leaves a scheme picked on the appearance page, and keeps the person\'s own schemes', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cc-theme-'));
     const mine = { id: 'mine', name: '我的', note: '', palettes: { light: {}, dark: {} } };

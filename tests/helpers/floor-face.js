@@ -1,6 +1,6 @@
 /**
- * Live faces on the floor drawings of the three girls (Claude-chan, GPT-chan, Gemini-chan: one design, the same code in
- * each face.js / motion.js / figure.js): kneeling or lying, the standing face (every face, pair, blink, gaze and talking
+ * Live faces on the floor drawings of the four girls (Claude-chan, GPT-chan, Gemini-chan, Grok-chan: one design, the
+ * same code in each face.js / motion.js / figure.js): kneeling or lying, the standing face (every face, pair, blink, gaze and talking
  * mouth) is painted a second time into the drawing's own live texture `<pid>Fx`, each feature through its own matrix
  * (model poses.<pid>.face.place), between a blank face cut from a generated edit (`<pid>_blank`) and the drawing's hair
  * over the face (`<pid>_fringe`). `describeFloorFace` runs the same tests on each (face-paint.js has the frozen-fixture

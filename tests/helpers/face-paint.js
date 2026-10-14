@@ -4,7 +4,8 @@
  * commit 298977d, before the live faces on the floor drawings, so painting with no `place` is checked to be the same
  * (tests/helpers/floor-face.js; the fixtures: scratch/combo3/live/tools/painter_fixture.mjs). Gemini-chan's was re-written
  * with that commit's face.js and the model.json of her re-cut eyes and mouths (`--art=gemini-chan`): the code is pinned,
- * her art is the current one.
+ * her art is the current one. Grok-chan came after the floor faces, so hers was written from her first face.js and
+ * model.json (scratch/grok/tools/fixtures.mjs).
  */
 import { createHash } from 'node:crypto';
 import { FACES, PLUS_FACES } from '../../packages/cortico-world-desktop-pet/web/kit/body.js';

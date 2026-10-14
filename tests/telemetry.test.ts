@@ -66,7 +66,7 @@ describe('crash fields', () => {
 describe('the figure in the day record', () => {
   const builtins = new Set(figurePacks([]).packs.map((p) => p.id));
   it('reports a built-in figure (an alias as its built-in) by id with its scheme', () => {
-    expect([...builtins]).toEqual(expect.arrayContaining(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']));
+    expect([...builtins]).toEqual(expect.arrayContaining(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']));
     expect(reportedLook(figureOf('whale'), 'deepseek', builtins)).toEqual({ figure: 'whale', scheme: 'deepseek' });
     expect(reportedLook(figureOf('coopanion-whale'), 'deepseek', builtins)).toEqual({ figure: 'whale', scheme: 'deepseek' });
     expect(reportedLook(null, null, builtins)).toEqual({ figure: null, scheme: null });

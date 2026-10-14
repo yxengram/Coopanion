@@ -17,10 +17,11 @@
 > - **跪坐时也能做手上的动作**（大肥鱼和三位娘）：跪坐图的下半身（`poses.kneelLow`，只从跪坐图裁剪，没有生成新图）上面换回会动的上半身，做手势或摆手臂的表情时一帧切进去，手放下 0.25 s 后一帧切回跪坐图；形象声明 `kneelArms`，词表的 `kneel` 带 `keepsArms`，所以 `跪坐+招手` 能同组（§二.5、§二.7、§二.8）。
 > - **表情的手臂姿势单独成词**（只在 plus 下，没有新画）：三位娘思考、期待、倾听、害羞时摆的手臂图本来只能靠表情摆出来，现在各成一个手势词：`muse` 琢磨/摸下巴/托腮/托下巴（手指抵着下巴，`chin` 图）、`fist` 加油/握拳/打气/握拳加油（举起小拳头，`fist` 图；握拳这个名字从认真挪过来，Coo 和大肥鱼仍是认真）、`jot` 记笔记/记下来/做笔记/记一下（`write` 图）、`twiddle` 对手指/戳手指/扭捏（指尖在胸前对在一起，`shy` 图）。大肥鱼只有托腮的画，所以只加 `muse`（托腮/撑下巴/托下巴/琢磨）；Coo 一个都不加。四个都是 kit 的 `ARM_GESTURES`（跪坐时走混合体、不结束跪坐），自带的脸：只有 `jot` 有，是看书（倾听的脸会带出声波）；`muse`、`fist`、`twiddle` 没有，配当时的表情（`fist`、`twiddle` 原先自带期待、害羞，可这两张手臂图本来就是期待、害羞的，单做时和那两个表情一模一样，所以去掉）；托腮的声音用上游就有的 look；加油、记笔记、对手指原先借 pop、page、shy，现在各有自己的声音 `fist`、`jot`、`twiddle`（见下面「新手势和新表情的音效」）。
 > - **头部和身体的六个动作**（只在 plus 下，没有新画，只用现有骨架）：`droop` 低头/垂头/低下头（第 5 个头部手势：头低下去、眼睛往下看，停约 1.2 s 再抬起）、`blink` 眨眨眼/眨巴眼/眨巴眨巴（第 6 个头部手势：连着快快地眨三下眼，kit 给三次 `frame.blink`，任何形象都看得见；平时自己偶尔也会连眨两下，所以要三下才看得出是故意的）、`closer` 凑近/凑过来/凑近点（上身连头整个变大一点，像凑到你跟前）、`leanback` 后仰/往后仰/向后仰（上身往后、变小一点、下巴抬起）、`sway` 晃来晃去/左右摇晃/摇头晃脑/晃悠（整个身子绕脚左右晃三下；「摇摆」仍是跳舞）、`stamp` 跺脚/跺跺脚/直跺脚（kit 抬起前面那只脚、使劲落下两次，落地声、扬尘、整组一震；坐着、趴着会先站起来）。大肥鱼和三位娘都加，Coo 不加（kit 在 Coo 身上也做得出，但 Coo 不再扩词）。低头、眨眨眼走头部通道，跪坐保持；凑近、后仰、晃来晃去是「手,要站着或坐着不动」那组（和鞠躬、探头一样，结束跪坐、变回普通坐着），跺脚和屈膝礼一样站起来做（手 + 站位 + 身）。都没有自带的脸。声音：凑近用探头那声（包里本来就有）、晃来晃去用跳舞的曲子、跺脚用落地声（都是上游有的），眨眨眼和低头不出声；导出包不多出声音文件。看图后没收的：回头/转头（正面的三位娘转头只像往旁边看一眼，大肥鱼是转向你，和张望、害羞嘟嘴的眼神分不开；「转头」仍不是词）；连连点头、使劲摇头在桌面大小下和点头、摇头分不出，收成点头、摇头的别名（连连点头/猛点头/使劲点头、使劲摇头/拼命摇头/猛摇头，五个形象都有）。
-> - **尾巴、耳朵、翅膀的五个动作**（只在 plus 下，没有新画）：`wag` 摇尾巴/甩尾巴/摆尾巴（大肥鱼、GPT 娘、Gemini 娘）、`wingbeat` 扇翅膀/拍翅膀/扑扇翅膀（GPT 娘）、`earflick` 抖耳朵/耳朵抖抖/动动耳朵、`earsup` 竖耳朵/竖起耳朵/耳朵竖起来、`earsdown` 耳朵耷拉/耷拉耳朵/耳朵趴下（Gemini 娘）。尾巴、耳朵、翅膀各算一个部位（`CHANNELS` 的 `tail`、`ears`、`wings`；kit 的 `APPENDAGE_MOVES`，帧里的 `appendages`），和表情、头、手的动作、彼此之间都能同组，同一部位的两个词拆成先后；不带表情、不换模式，走着照走、跪着照跪（§一.11）。
+> - **尾巴、耳朵、翅膀的五个动作**（只在 plus 下，没有新画）：`wag` 摇尾巴/甩尾巴/摆尾巴（大肥鱼、GPT 娘、Gemini 娘）、`wingbeat` 扇翅膀/拍翅膀/扑扇翅膀（GPT 娘、Grok 娘）、`earflick` 抖耳朵/耳朵抖抖/动动耳朵、`earsup` 竖耳朵/竖起耳朵/耳朵竖起来、`earsdown` 耳朵耷拉/耷拉耳朵/耳朵趴下（Gemini 娘）。尾巴、耳朵、翅膀各算一个部位（`CHANNELS` 的 `tail`、`ears`、`wings`；kit 的 `APPENDAGE_MOVES`，帧里的 `appendages`），和表情、头、手的动作、彼此之间都能同组，同一部位的两个词拆成先后；不带表情、不换模式，走着照走、跪着照跪（§一.11）。
 > - **六个带特效的组合脸**（只在 plus 下，没有新画，特效是代码画的）：`fuming` 气炸/气炸了/火冒三丈（生气的眼和嘴，头两边冒白烟）、`heartbroken` 心碎/心碎了/伤心欲绝（难过的眼、大哭的嘴，头旁边一颗心裂成两半掉下去）、`celebrate` 撒花/庆祝/恭喜（开心的眼和嘴，头顶撒出一把彩色纸屑）、`gloomy` 郁闷/闷闷不乐/乌云罩顶（嫌弃的眼、难过的嘴和身子，不要黑线，头旁边一朵下雨的小乌云）、`speechless` 无言以对/说不出话/哑口无言（平静的眼、尴尬的嘴，挂汗，一个点一个点地冒出「……」）、`starry` 眼冒金星/被砸晕/撞晕了（慌张的 > < 眼和嘴，不要汗，头顶晕的小星星）。前五个特效由 kit 自己画在粒子层里（`MARK_FX_KEYS`），五个形象（Coo 也是）都不用改；小星星是晕的 `orbit`，各形象本来就画。尴尬多一个名字「汗颜」（§一.9）。
 > - **七个新画的手势**（只在 plus 下，有新画：三位娘和大肥鱼各 8 张手臂图）：`clap` 拍手/鼓掌/拍拍手/啪啪啪（两张画：合掌 `clap`、分开 `clapo`）、`shrug` 摊手/耸肩/没办法/摊摊手（两手在腰边摊开、掌心朝上）、`headhold` 抱头/抱着头/抱住头/捂脑袋（两只手压在头上）、`raise` 举手/举起手/我来/我知道（整条手臂竖直举过头顶）、`thumbs` 点赞/竖大拇指/真棒/厉害/给你点赞（胸前竖起大拇指）、`shush` 嘘/小声点/保密/别出声（食指贴在嘴唇上）、`wipe` 擦汗/抹汗/好险（手腕背面抹过额头）。前三个两只手一起画，后四个是一只手（三位娘用画面左边那只 armL，Claude 娘另一只手照旧抱书；大肥鱼用近侧手臂）。都是 kit 的 `ARM_GESTURES`（跪坐时走混合体、不结束跪坐），`CHANNELS` 只占手，能和表情、头部动作同组（如【开心+拍手】【跪坐+嘘】【抱头+摇头】），两个手势同组改成先后。自带的脸：拍手、举手、点赞开心，摊手 sighing，抱头苦恼，嘘是眨眼的眼睛配平静时闭着的小嘴（`wink+neutral`，眨眼本身张开笑着的嘴露在手指后面像偷笑），擦汗温柔（都不是 `FACE_ARMS` 里会摆手臂的表情，手势做完留下的脸不会再带出别的手臂图；举手不用跃跃欲试，因为它的身体是认真，会叉腰）。声音原先借现成的（拍手 tick、摊手 hmm、抱头 surprised、举手 pop、点赞 ding、嘘 soft、擦汗 sigh），现在各有自己的（见下一条）；拍手仍是每次两手合上响一声（kit 的 `CLAP.at`，四声）。拍手的两张画由 `clapShut(k)` 一帧切换（`ARM_TWIN`），先分开、合上四次（每次 0.2 s，相隔 0.4 s）、最后分开放下，从不两张同时露出来；嘘、擦汗、抱头的画挂在脖子上（三位娘 `NECK_POSES`，大肥鱼 `NECK_RAISES` / `NECK_HANDS`），点头、摇头时手留在脸上、头上。「拍手」原来是评测里 bot 写了却没有的词，现在三位娘和大肥鱼都认得（Coo 仍没有）。手臂图出自 OpenAI 官方 API 的 `gpt-image-2.5-sunburst` 不带蒙版的编辑（三位娘另做一张分割图来裁），由 `scratch/<fig>/build_arms.py` → `merge_model.py` 和大肥鱼的 `scratch/art/arm_build.py` + `recolor.py`（八套配色）生成。
 > - **新手势和新表情的音效**（只在 plus 下）：v0.5.0 以来加的词原先借不太合适的现成音色（拍手 tick、嘘 soft、擦汗 sigh、点赞 ding、举手 pop、摊手 hmm、抱头 surprised、加油 pop、记笔记 page、对手指 shy、扇翅膀 whoosh、气炸 angry、心碎 sad、撒花 sparkle、郁闷 sad、无言以对 wry、眼冒金星 surprised、安慰 soft），摇尾巴、抖耳朵没有声音。现在 `web/sound.js` 给它们各合成了一个短而轻的音色，做法和已有音色一样，音量也差不多（峰值 −18 到 −28 dBFS），声音跟着画面的节拍：拍手 `clap` 每次两手合上一声干脆的「啪」（带两下极短的回响和一点低音，`CLAP.at` 四声，和合掌那张画同一帧）；嘘 `shush` 手指到嘴边时一声轻轻的「嘘——」；擦汗 `wipe` 手腕抹过额头时一下轻擦声，接着呼出一口「呼」；点赞 `thumbs` 拇指一声轻响再往上跳五度的「叮咚」；举手 `raise` 一下上扬的风声加两声「我、我」小叮；摊手 `shrug` 一高一低、第二声微微发颤的「诶……诶～」；抱头 `headhold` 往下沉、发抖的「哦……」再两下闷闷的抽痛；加油 `fist` 一下挥拳风声、一记闷响和上扬的「冲！」；记笔记 `jot` 两小串、每串三下铅笔沙沙声；对手指 `twiddle` 四下一高一低的极轻小点；摇尾巴 `wag` 左右八下轻甩声，最后渐弱；抖耳朵 `earflick` 四下极短的轻颤（每抖一下一声）；扇翅膀 `wingbeat` 每次往下扇一声低低的「呼」（每秒 2.6 下，和 `WINGBEAT.rate` 一致）；气炸 `fume` 一声低低的嘟囔，上面三下「嘶」的冒烟声（和白烟一样 0.32 s 一团）；心碎 `heartbreak` 心弹出来一声小「叮」，0.6 s 裂开时一声脆响，两半掉下去时一个往下沉的难过的音；撒花 `confetti` 拉炮一声「啪」接一串亮晶晶的小音；郁闷 `gloom` 一个闷闷往下沉的「嗯……」和几滴雨声；无言以对 `dots` 「……」每冒出一个点响一下（0.25、0.55、0.85 s）；眼冒金星 `starry` 一圈打着颤的小星星声；安慰 `comfort` 三个往下走、最后落稳的柔和音（「没事、没事」）。跺脚仍用落地声 `land`（上游就有），竖耳朵、耳朵耷拉、低头、眨眨眼仍不出声，温柔的 `soft` 没改。新音色都标成 plus（`PLUS_TONES`），别的形象包听不到；导出包把用得到的渲染成 WAV 带上（大肥鱼 33 个、Claude 娘 34 个、GPT 娘和 Gemini 娘各 36 个），在上游 v0.1.17 里照样响。另外修了合成器的一个小毛病：每个音的增益在开始之前是默认的 1，开始那一帧可能「咔」地一下满幅，现在开始之前就是静音。
+> - **第六个形象 Grok 娘**（`grok-chan`）：上面这些她都有（跪坐混合体、跪坐和趴着的实时脸、画好的睁眼眨眼、小泪滴、手臂图一帧切换、头部和身体的动作、七个新画的手势、表情对 118 对、音效），词表是 Claude 娘的 119 个加 `wingbeat` 扇翅膀，共 120 个；扇的是蝴蝶结后面的两只小蝙蝠翅膀（站、坐是活的翅膀，跪坐换混合体，趴着扇趴姿图上画的翅膀）。
 >
 > 实测：
 > - 组合扩展改动的行为，在真实 kit 上用 `/tmp/combo/` 下的脚本重新测过：
@@ -35,7 +36,7 @@
 >     - 「a group of words through the page and the frame」
 >     - 「a body without plus keeps upstream's faces and words」
 >     - 「faces made of parts of others」
->   - `tests/{claude,gpt,gemini}-figure.test.js`、`tests/whale-pose.test.js`
+>   - `tests/{claude,gpt,gemini,grok}-figure.test.js`、`tests/whale-pose.test.js`
 >   - `PKG/tests/script.test.ts`、`PKG/tests/world.test.ts`
 >
 > 路径约定：
@@ -75,9 +76,10 @@
 | Claude 娘 | 119 | 58（28 + 30 个组合脸） | 61（少 `spout`，多 `muse`、`fist`、`jot`、`twiddle` 和上面六个、七个） |
 | GPT 娘 | 121 | 58（28 + 30 个组合脸） | 63（Claude 娘的 61 个，加 `wag`、`wingbeat`） |
 | Gemini 娘 | 123 | 58（28 + 30 个组合脸） | 65（Claude 娘的 61 个，加 `wag`、`earflick`、`earsup`、`earsdown`） |
+| Grok 娘 | 120 | 58（28 + 30 个组合脸） | 62（Claude 娘的 61 个，加 `wingbeat`） |
 
 - 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面，后来的六个带特效的组合脸排在 `meh` 后面，安慰 `comfort` 排在 `brave` 后面；之后又加了 `tilt` 歪头，排在 `sigh` 后面；表情手臂姿势的几个手势词（`muse` 等）排在 `idea` 后面，七个新画的手势（`clap` 到 `wipe`）紧跟在它们后面、`hips` 前面；`droop`、`blink` 排在 `tilt` 后面，`closer`、`leanback`、`sway`、`stamp` 排在 `peek` 后面。
-- 一个名字在一个形象里只能指一个词（`readVocab` 校验，`vocabId` 查）。五个形象同一个词的名字相同（只有 `song` 不同：三位娘是「哼小曲」，Coo 和大肥鱼是「鲸歌」；`muse` 三位娘以「琢磨」开头、大肥鱼以「托腮」开头），包括上面那些近义名字；只有「握拳」在三位娘那里是 `fist`，在 Coo 和大肥鱼那里是 `determined`。
+- 一个名字在一个形象里只能指一个词（`readVocab` 校验，`vocabId` 查）。六个形象同一个词的名字相同（只有 `song` 不同：四位娘是「哼小曲」，Coo 和大肥鱼是「鲸歌」；`muse` 四位娘以「琢磨」开头、大肥鱼以「托腮」开头），包括上面那些近义名字；只有「握拳」在四位娘那里是 `fist`，在 Coo 和大肥鱼那里是 `determined`。
 - `spout` 只在 `coo/figure.json:1591` 和 `whale/figure.json:1684` 里。
 - 带 `lasting: true` 的只有 4 个词：`sit`、`sleep`、`kneel`、`lie`。
 - `seconds` 的取值（见 `coo/figure.json` 的 vocab，`claude-chan` 相同）：
@@ -105,12 +107,12 @@
     - `头`：只占头；
     - `手`：占手，不占身和站位；
     - `手,要站着或坐着不动(不和身的动作同组)`：占手和站位；
-    - `身`：其余，也包括包自带的动作。还占手、头或表情的，名字后面写「(也占…)」：kneel（Coo）、lie、flap、curtsy 也占手，roll 也占手、头，sleep 也占手、头、表情，dizzy 也占表情，包自带的动作也占手、头。大肥鱼和三位娘的 kneel 带 `keepsArms`，只占身和站位，不写「也占手」。
+    - `身`：其余，也包括包自带的动作。还占手、头或表情的，名字后面写「(也占…)」：kneel（Coo）、lie、flap、curtsy 也占手，roll 也占手、头，sleep 也占手、头、表情，dizzy 也占表情，包自带的动作也占手、头。大肥鱼和四位娘的 kneel 带 `keepsArms`，只占身和站位，不写「也占手」。
   - `petrify` 的说明后面加上「，不和别的同时做」。
 - lasting 词后面由 `lastingNote`（`script.ts:229-233`）写明什么时候结束：
   - sit、lie、sleep：「一直保持：做手势、换表情不影响，换别的姿势或走、跑、跳这类全身动作才结束」；
   - kneel：「保持到下一个手或全身动作，然后变回普通坐着；换表情、点头、摇头、叹气、歪头不影响」（Coo 没有低头、眨眨眼，所以不写；词表全有时是「…歪头、低头、眨眨眼不影响」）；
-  - 带 `keepsArms` 的 kneel（大肥鱼和三位娘）：「保持到下一个全身动作，然后变回普通坐着；换表情、点头、摇头、叹气、歪头、低头、眨眨眼、只占「手」的手势和唱歌都不影响(她跪着做)；「手,要站着或坐着不动」那组别的动作会让她变回普通坐着」。`lastingNote` 现在收整个词和词表（`lastingNote(v, vocab)`），`pet_act` 回执按 id 查到词再调；点头、摇头、叹气、歪头、低头、眨眨眼只写词表里有的（第三方包有跪坐、没有歪头时不提歪头；Coo 只有前四个，大肥鱼和三位娘六个都有）。
+  - 带 `keepsArms` 的 kneel（大肥鱼和四位娘）：「保持到下一个全身动作，然后变回普通坐着；换表情、点头、摇头、叹气、歪头、低头、眨眨眼、只占「手」的手势和唱歌都不影响(她跪着做)；「手,要站着或坐着不动」那组别的动作会让她变回普通坐着」。`lastingNote` 现在收整个词和词表（`lastingNote(v, vocab)`），`pet_act` 回执按 id 查到词再调；点头、摇头、叹气、歪头、低头、眨眨眼只写词表里有的（第三方包有跪坐、没有歪头时不提歪头；Coo 只有前四个，大肥鱼和四位娘六个都有）。
 - 同时做的写法写在两处〔测试〕`world.test.ts`「tells the bot how to write words at once」：
   - **`ENV_PROMPT.md` 的「说话」一节**：
     - 先说对方看不到神情，每个气泡开头放一张脸：先找对心情那组，再挑最贴切的（组合脸、表情对更准），别总用那几个；说话间用点头、摇头、叹气、歪头接话；
@@ -228,7 +230,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
                                      ▼  每帧：动作自带的脸补位、被盖住的表情暂停（1173-1187）
                                         → faceName() 选脸 → render
                figure.draw(petG, face, frame{mode, gesture{kind,k}, head{kind,k}（仅 plus）, talk, sit, lie, kneel, away…})
-                 （body.js:339, 1379）各形象自己画：Coo 环形 / 大肥鱼 / 三位娘的 armPlan、hideFront、kneelHead、partsOf
+                 （body.js:339, 1379）各形象自己画：Coo 环形 / 大肥鱼 / 四位娘的 armPlan、hideFront、kneelHead、partsOf
 
 旁路（不查词表、不排队）：pet_walk_to → body.walk；dialog 选项卡片 motion → stepTalkMotion
 → body.walk / body.do('hop')；thinking / listening → body.set；cue / talk → body.cue / body.talk；
@@ -280,7 +282,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
   2. plus：song 只在站着或坐着、没在听时能做（`558`）。
   3. 跪坐（plus，`561-562`）：
      - `kneel` 和头部手势（nod、shake、sigh）保持跪坐。
-     - 形象声明了 `kneelArms` 时，手势（`ARM_GESTURES`，`251`）也保持跪坐。大肥鱼和三位娘有 `poses.kneelLow` 时声明它（getter：这套配色的文件都在才是 true，缺了就和以前一样结束跪坐）；kit 只改了注释，非 plus 的帧不变。
+     - 形象声明了 `kneelArms` 时，手势（`ARM_GESTURES`，`251`）也保持跪坐。大肥鱼和四位娘有 `poses.kneelLow` 时声明它（getter：这套配色的文件都在才是 true，缺了就和以前一样结束跪坐）；kit 只改了注释，非 plus 的帧不变。
      - 其他动作结束跪坐，回到普通坐姿。表情不是动作，不经过这里。
   4. **表情槽**（`566`）：
      - plus 身体上，主动要的、还在显示的表情保留，`petrify` 和 `sleep` 两种情况除外。
@@ -354,14 +356,14 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 
 - **第一道过滤在 World 端的词表**：
   - 当前形象词表里没有的词或组成员会被丢弃（`script.ts:121-130`）。pet_say 和 pet_act 会在回执里写明，dialog 写一条 warn 日志（见 §3）。
-  - 三位娘的词表里没有 `spout`，代码里也不画。
+  - 四位娘的词表里没有 `spout`，代码里也不画。
 - **画不画由形象决定**：
   - 列在 `figure.gestures` 里的手势由形象自己画，kit 不再加倾斜和前倾。头部手势见 `body.js:1107-1118`，手势见 `:1121-1125`。
   - 大肥鱼的列表：`whale/figure.js:1446`。
-  - 三位娘的 `GESTURES`：`cc/figure.js:26`，不含 `spout`。
+  - 四位娘的 `GESTURES`：`cc/figure.js:26`，不含 `spout`。
   - Coo 一个都不自己画，全靠 kit 的倾斜和挤压，再加上 `away:'hide'`、`roll:'spin'`（`coo/coo.js:423-437`）。
 - **缺图时的兜底**〔代码〕：
-  - 三位娘：先用 `POSE_ALT` 替代，再退到 `ARM_FALLBACK` 角度。没有 lie 图就坐着，没有 roll 图就整体旋转（`'spin'`），没有 back 图就转头（`cc/motion.js:247, 261-267`，`cc/figure.js:215-221, 257`）。
+  - 四位娘：先用 `POSE_ALT` 替代，再退到 `ARM_FALLBACK` 角度。没有 lie 图就坐着，没有 roll 图就整体旋转（`'spin'`），没有 back 图就转头（`cc/motion.js:247, 261-267`，`cc/figure.js:215-221, 257`）。
   - 大肥鱼：没有 roll 图就小跳（`whale/figure.js:1088`），没有 lie 图就坐着（`:404`）。
   - 组合脸的某个部位没有对应的贴图时，按那张脸单独出现时的兜底画。例如没有 smug、angry、sad、shy 眼睛图的旧版大肥鱼（导出包里的旧 `model.json`）用画的睁眼。
   - 现有内置形象的姿态图都齐全，这些兜底只在贴图加载失败时才会触发。
@@ -394,7 +396,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 | dreamy | 憧憬 / 向往 | excited | gentle | 身体取 gentle，望向右上 | sparkle |
 | eager | 跃跃欲试 / 看我的 / 包在我身上 | determined | happy | 闪 1 下光 | pop |
 | innocent | 无辜 / 不是我 | pleading | pout | – | shy |
-| huff | 气鼓鼓 / 气呼呼 | angry | pout | 身体取 pout（三位娘抱臂），腮红 .6 | angry |
+| huff | 气鼓鼓 / 气呼呼 | angry | pout | 身体取 pout（四位娘抱臂），腮红 .6 | angry |
 | frantic | 抓狂 / 崩溃 | flustered | angry | 身体、符号取 angry | angry |
 | ragecry | 气哭 / 气哭了 | cry | angry | 眉、符号取 angry | sad |
 | sulk | 瘪嘴 / 委屈巴巴 | sad | pout | – | sad |
@@ -417,7 +419,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **温柔不再当默认的收尾脸**（v0.6.1 之后）：分出安慰后，DeepSeek 150 条回复里「温柔」还有 84 次，59 条回复的最后一张脸是它，多半是劝人去睡、歇会儿的那句，13 次是「温柔+奉茶」。`gentle` 的说明收窄成对方好起来、道谢时的欣慰（看起来不变），排到「喜欢、害羞」那组最后（`moved` 后面）；`serve` 的说明写明奉茶自带温柔的笑（kit 的 `holdFace('gentle')`），不用再加温柔。五个形象的 `figure.json` 一样改。
 
 - **kit 自己画的特效**（`MARK_FX_KEYS`：`fume`、`heartbreak`、`confetti`、`cloud`、`dots`，后六个组合脸用；都在 `MARK_KEYS` 和 `ADD_KEYS` 里，所以也跟着「眼」那张脸进表情对，作嘴时不带）：
-  - 画在 kit 自己的粒子层（`fxG`）里，和爱心、闪光、灯泡一样，五个形象（Coo 也是）都不用改代码，导出包在上游里也照样有（包自带 kit）。颜色固定、带深色描边，任何配色、任何桌面上都看得见。
+  - 画在 kit 自己的粒子层（`fxG`）里，和爱心、闪光、灯泡一样，六个形象（Coo 也是）都不用改代码，导出包在上游里也照样有（包自带 kit）。颜色固定、带深色描边，任何配色、任何桌面上都看得见。
   - 白烟、碎心、纸屑是粒子：脸一出来就发第一批，之后按自己的时钟（`pet.markAt`，按 `exprN` 认是不是新的一张脸）：白烟每 0.32 s 头两边各一团（`glints` 点往头顶挪三成，往外、往上飘、变大、变淡）；碎心每 2.2 s 一颗（在灯泡的位置：先弹出来，裂开，两半往两边倒下去、往下掉，淡出）；纸屑一出来先撒 18 片（从头顶往上、往两边抛，空气阻力减速，然后飘落，翻转着闪），之后每 0.45 s 再补 3 片。
   - 乌云和「……」跟着头每帧画：都在灯泡的位置（`anchors.bulb`，没有就是气泡点往前 62、往下 28，避开说话的气泡），0.3 s 淡入；乌云上下轻轻浮、下面四道雨；三个点每 2.4 s 一轮，0.25 s 后一个一个出来。
   - 坐着、跪坐时跟着 `headLow` 下沉，趴着时用趴姿的 `anchors.lie`（`bubble`、`glints`），背过身、转身时跟着翻面。
@@ -437,7 +439,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
   - 这类名字只在两个地方用：§一.7 的叠加，以及渲染脚本里直接调用的 `setExpr`。
   - 它们不是词：`doWord` 拒绝，World 也不提供。
   - 两个表情写进同一组时，World 会拆成先后两个（§二.6），除非这一对在形象的白名单里（下面「表情对」）。
-- 〔测试〕`pet-actions.test.js`「faces made of parts of others」；三位娘的 figure 测试和 `whale-pose.test.js` 都检查了每张组合脸用的是自己的哪张眼睛图、哪张嘴图。〔实测〕看过 `/tmp/combo/faces/final-*.png` 和 `vrend/sheet-<形象>.png`。
+- 〔测试〕`pet-actions.test.js`「faces made of parts of others」；四位娘的 figure 测试和 `whale-pose.test.js` 都检查了每张组合脸用的是自己的哪张眼睛图、哪张嘴图。〔实测〕看过 `/tmp/combo/faces/final-*.png` 和 `vrend/sheet-<形象>.png`。
 
 #### 表情对：同一组里的两个表情合成一张脸
 
@@ -457,14 +459,14 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **组合脸（30 个）**：内置形象的名单里，组合脸只做别名的目标；组合脸 + 基本表情、组合脸 + 组合脸照旧拆开。`readPairs` 也接受组合脸做成员（World 分不出组合脸和第三方包自己的表情）；kit 能合成它们（作眼时带上它的眉、记号和 `add`，作嘴时给它的嘴）。
 - **音色和闪光**：音色取眼那张脸的（包自带的词取它的 `sound`），没有就取嘴那张脸的（组合成的脸不添新音色）；闪光、弹跳按眼那张脸（happy 2、smug 1、组合脸按它的 `glint`，其他 0；surprised 往下压）；默认 3.2 s，两个里有 sleepy 时 4.4 s；爱心只在单独的 love 时发。
 - **和主动要的表情完全一样**：经 `setExpr('眼+嘴')` 设置（`exprAsked`），动作保留它（`keepsFace` 认得两个部分都是表情的组合名），`holdFace` 延长它，被盖住时暂停，`BODY_OWN` 手势叠加成 `眼+嘴+手势自带的脸`（唱歌、叹气换成手势的嘴），被 sleep、拎起、neutral、新表情清掉。
-- **形象怎么画**：和组合脸一样走 `fc.parts`。三位娘按 `parts.eyes/mouth/brows/body` 查自己的图；大肥鱼也一样，smug、angry、sad、shy 用自己画好的眼睛（`whale/figure.js` 的 `drawnEye`，同三位娘：睁眼和 smug 的半闭眼换成贴图；眨眼开头和结尾压扁贴图，闭上四成以上一帧切成画的眼睛合到同样程度，所以闭眼那几帧是眼皮和睫毛线，不是一条压扁的彩色细缝（三位娘也一样，见下面 Claude 娘一节）；shy 回头看你那一下仍是画的睁眼），其余的睁眼加眉的倾斜；Coo 没有嘴，环的缺口取嘴那张脸的，吐舌画得出，ω 画不出，所以很多对在 Coo 上看起来就是眼那张脸。
+- **形象怎么画**：和组合脸一样走 `fc.parts`。四位娘按 `parts.eyes/mouth/brows/body` 查自己的图；大肥鱼也一样，smug、angry、sad、shy 用自己画好的眼睛（`whale/figure.js` 的 `drawnEye`，同四位娘：睁眼和 smug 的半闭眼换成贴图；眨眼开头和结尾压扁贴图，闭上四成以上一帧切成画的眼睛合到同样程度，所以闭眼那几帧是眼皮和睫毛线，不是一条压扁的彩色细缝（四位娘也一样，见下面 Claude 娘一节）；shy 回头看你那一下仍是画的睁眼），其余的睁眼加眉的倾斜；Coo 没有嘴，环的缺口取嘴那张脸的，吐舌画得出，ω 画不出，所以很多对在 Coo 上看起来就是眼那张脸。
 - **候选**：可配对的基本表情 26 个（kit 的 18 个和 plus 的 8 个，去掉 neutral、petrify 和组合脸），C(26,2) = 325 个无序对，两种眼嘴方向共 650 个候选；其中 21 对正好是已有的组合脸（可做别名）。候选表在 `scratch/combo2/pairs/`（不进仓库），看渲染图挑选后由 `scratch/combo2/tools/apply-pairs.mjs` 写进各 `figure.json`。
 - **怎么挑的**〔实测〕：
   - 5 个形象各把 650 个候选和 27 个基本表情都渲染一遍（当时用示例页的开发开关 `?pairs=ab|ba` + `ctl.doGroup`，0.9 s 时截脸部；开关已删，现在 `ctl.doGroup([眼, 嘴])` 直接就是那张脸），每个形象拼成 22 张 6×5 的对照图，外加一张基本表情参照图；同一对的两个方向挨着放。
   - 一对只有在合成的脸**同时读得出两个词**、又和两张单独的脸都看得出不同时才收，并选定一个方向（谁给眼、谁给嘴）；正好是已有组合脸的那个方向直接收成别名。正负情绪相反的对（如 开心+难过）也看了，多数不收，少数读得通的收了（如 难过眼+开心嘴「含泪笑」）。
-  - 三位娘是同一套设计，在 Claude 娘上挑，再拿 GPT 娘、Gemini 娘的图逐对核对：只去掉了 担心+惊讶（GPT 娘那一格看不出担心的眼睛），所以三位娘的表相同；大肥鱼、Coo 各自单独挑。
-  - 结果：三位娘 118 对，大肥鱼 98 对，Coo 24 对；Coo 没有嘴，收下的多是吐舌（舌头画得出来）和别名。小的表都是大的表的子集（大肥鱼多一对 担心+惊讶）。
-  - 别名 21 对里收了 20 对（三位娘；大肥鱼 19、Coo 13），没收 嫌弃+尴尬（呵呵）。
+  - 三位娘是同一套设计，在 Claude 娘上挑，再拿 GPT 娘、Gemini 娘的图逐对核对：只去掉了 担心+惊讶（GPT 娘那一格看不出担心的眼睛），所以三位娘的表相同；大肥鱼、Coo 各自单独挑。后来加入的 Grok 娘是同一套设计，用同一张表（`apply-pairs.mjs` 的 `FIGS` 里加上她）。
+  - 结果：四位娘 118 对，大肥鱼 98 对，Coo 24 对；Coo 没有嘴，收下的多是吐舌（舌头画得出来）和别名。小的表都是大的表的子集（大肥鱼多一对 担心+惊讶）。
+  - 别名 21 对里收了 20 对（四位娘；大肥鱼 19、Coo 13），没收 嫌弃+尴尬（呵呵）。
   - 大肥鱼重挑〔实测〕：她最初的 81 对是在 smug、angry、sad、shy 还没有自己画的眼睛时挑的。画上之后（v0.4.0），把三位娘收了而她没收的 38 对、加上她独有的 担心+惊讶，按三位娘的方向在她身上重新渲染（脸部 2 倍、0.9 s、不眨眼，deepseek、claude、chatgpt 三种配色），每格旁边放眼那张脸和嘴那张脸作对照，用同样的标准逐对看。收了 17 对：难过眼配开心嘴（含泪笑）、温柔嘴（含泪微笑）、惊讶嘴；害羞眼+温柔嘴；生气眼+得意嘴、+温柔嘴；困眼+难过嘴；思考眼+难过嘴、+得意嘴、+担心嘴、+温柔嘴；嫌弃眼+得意嘴、+温柔嘴；偷笑眼+慌张嘴（憋笑）；害怕眼+温柔嘴；别名 狐疑（得意+疑惑）、强颜欢笑（担心+温柔）；担心+惊讶 留着。没收 21 对，原因几乎都在她的嘴：得意、偷笑、温柔的嘴是同一条小弧线，害羞、担心、慌张、害怕、嫌弃的嘴是同一条波浪线，所以只有嘴那张脸的意思在这条线上还读得出来时才收（如 害羞+得意 和 害羞+温柔 一模一样，看不出得意，不收；生气的眼睛配小弧线读得出阴笑，收）；另有几对和一张单独的脸分不开（尴尬的闭眼和偷笑的一样，尴尬+温柔/偷笑/得意 就是偷笑；哭唧唧只是大哭的嘴小一点；惊讶+大哭 就是惊讶）。记录在 `scratch/combo2/judged.json` 的 `whaleRejudge`（每对一句理由），图在 `scratch/combo4/`。
   - 方向是全局的：99 个合成对每对只选了一个方向，三份名单选的方向一致。音色、闪光都用默认（跟眼那张脸）。
   - 记录：`scratch/combo2/judged.json`（每个形象的名单和每对的叫法）、`scratch/combo2/pairs/verdicts.json`（`apply-pairs.mjs` 的输入）。
@@ -472,7 +474,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **出厂验证**〔实测〕：用 World 自己的 `parseScript`，按每个形象的词表和 `pairs` 解析 `【A+B】`（一半按键的顺序写，一半反过来），检查得到的组是 `眼+嘴`（按名单的方向）或别名词，再把组在示例页上 `ctl.doGroup`。5 个形象共 476 格（大肥鱼重挑后重跑了她的 98 格），脸名和 `parts` 全部和名单一致，控制台 0 个错误（`scratch/combo2/tools/ship-plan.ts` → `shipshots.cjs`，图在 `scratch/combo2/verify/shipped-<形象>.png`；大肥鱼重跑的 98 格在 `scratch/combo4/verify/shipped-whale.png`，`combo2` 里的那张还是重挑前的 81 格）。
 - **测试用的参数**：World 侧 `parseScript`/`parseActions`/`vocabTable` 的 `pairs` 参数（默认空），World 运行时传当前形象的名单。
 - **没有 `doAll` 的身体、非 plus 身体**：非 plus 身体没有 `doGroup`，不变。World 只为声明了 `pairs` 的形象合并（5 个内置形象都声明了；导出给上游的包不带 `pairs`），没声明的照旧拆开。声明了合成对、身体却不会合成时（没有 `doAll`），`figure-frame.js` 逐个做，后一个表情胜出，不会出错；页面的 `acts.js` 队列按成员计时，不受影响。
-- 〔测试〕`pet-actions.test.js`「two faces of one group shown as one」（26 个基本表情两两、两个方向共 650 种都按「第一个的眼、第二个的嘴」合成；内置名单的每一对经 World 的 `parseActions` 两种写法都发成名单的方向，kit 显示的眼和嘴与名单一致）；三位娘 figure 测试和 `whale-pose.test.js` 用自己的图画名单里的每一对（大肥鱼的 smug、angry、sad、shy 用自己画好的眼睛，shy 回头看你时用画的睁眼：`whale-pose.test.js`「takes smug's, angry's, sad's and shy's own drawn eyes…」；眨眼闭到四成以上是画的眼皮和睫毛线，站、坐、转头、跪坐、趴下都是：「blinks smug's, angry's, sad's and shy's drawn eyes shut…」「kneeling and lying, a drawn eye blinks shut…」；三位娘各自的 figure 测试「blinks a drawn open eye shut with the painted lid…」两条）；`PKG/tests/script.test.ts`「two expressions of one group as one face」、`packs.test.ts`、`world.test.ts`。
+- 〔测试〕`pet-actions.test.js`「two faces of one group shown as one」（26 个基本表情两两、两个方向共 650 种都按「第一个的眼、第二个的嘴」合成；内置名单的每一对经 World 的 `parseActions` 两种写法都发成名单的方向，kit 显示的眼和嘴与名单一致）；四位娘 figure 测试和 `whale-pose.test.js` 用自己的图画名单里的每一对（大肥鱼的 smug、angry、sad、shy 用自己画好的眼睛，shy 回头看你时用画的睁眼：`whale-pose.test.js`「takes smug's, angry's, sad's and shy's own drawn eyes…」；眨眼闭到四成以上是画的眼皮和睫毛线，站、坐、转头、跪坐、趴下都是：「blinks smug's, angry's, sad's and shy's drawn eyes shut…」「kneeling and lying, a drawn eye blinks shut…」；四位娘各自的 figure 测试「blinks a drawn open eye shut with the painted lid…」两条）；`PKG/tests/script.test.ts`「two expressions of one group as one face」、`packs.test.ts`、`world.test.ts`。
 
 ### 10. 头部通道（plus）
 
@@ -487,42 +489,43 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
   - 有头部手势时：
     - 躺着不做小动作（`976`）；
     - `layout.moving` 为真（`1572-1573`）。
-- **形象侧**：每个形象都有一组同样的辅助函数，在 claude `cc/motion.js:160-200`，gpt、gemini 的 motion.js 里同名，大肥鱼在 `whale/figure.js:218-258`。
+- **形象侧**：每个形象都有一组同样的辅助函数，在 claude `cc/motion.js:160-200`，gpt、gemini、grok 的 motion.js 里同名，大肥鱼在 `whale/figure.js:218-258`。
   - `gesturesOf(o)` 把帧分成头部手势和手势。帧里没有 `head` 时（上游的 kit），从 `gesture` 里取 nod、shake、sigh，和 v0.2.6 一样。
   - `headMoves(h)` 用 v0.2.6 的公式，只是 k 换成头部自己的；`tilt` 是歪头的 0..1（同 kit 的 `tiltOf`）。
-  - 歪头站着、坐着时：头（脖子的平面内转动，大肥鱼同样）歪到 `TILT_DEG`（三位娘 14°，大肥鱼 12°），方向是脸本来就歪的那边（`HEAD_TILT`，比如疑惑往 −x），不歪的脸往 +x；歪头期间取代脸自己的歪，所以「温柔+歪头」「疑惑+歪头」歪得一样多；方向在歪头开始时定下，中途换脸不会翻过去；脸微微抬一点（`angleY` −0.12）。托腮时幅度减小。
+  - 歪头站着、坐着时：头（脖子的平面内转动，大肥鱼同样）歪到 `TILT_DEG`（四位娘 14°，大肥鱼 12°），方向是脸本来就歪的那边（`HEAD_TILT`，比如疑惑往 −x），不歪的脸往 +x；歪头期间取代脸自己的歪，所以「温柔+歪头」「疑惑+歪头」歪得一样多；方向在歪头开始时定下，中途换脸不会翻过去；脸微微抬一点（`angleY` −0.12）。托腮时幅度减小。
   - 趴着时，头也跟着叹气、歪头动（`lieHead`，歪头绕下巴转 `LIE_TILT` 10°）。
-  - 低头（`down`，0..1，同 `tilt` 的形状）：三位娘站着、坐着时脸往下（`angleY` +`DROOP.pitch` 0.9）、眼睛往下看（`look[1]` 到 4）、头在脖子上沉 3.5；大肥鱼脖子往前弯 `DROOP.neck` 9°、脸往下 0.7、眼睛往下看；跪着按点头的方式往下沉住（`KNEEL_HEAD.down` 1.6 倍点头），趴着绕下巴往前转 `LIE_MORE.down` 9°。被别的头部手势截断时同样过 `tiltEased`（站着也过，因为 `angleY` 不经弹簧）。
-- **身体的三个动作（形象侧）**：`closer`、`leanback`、`sway` 列在三位娘和大肥鱼的 `gestures` 里，由她们自己画（kit 只给 Coo 整组前倾 10°、后仰 9°、左右晃 7°）：凑近时上半身（`waist`，连头）放大到 1.1 倍，三位娘再前倾 7°（`pitchFromLean`），大肥鱼腰和脖子各往前 2°、3°；后仰时上半身缩到 0.86（大肥鱼 0.96）、下巴抬起（`angleY` −1 / −0.35），三位娘后仰 12°（`pitchFromLean` 的上限），大肥鱼腰往后 9°、脖子往后 9°；晃来晃去时整个身体绕脚转 ±3°，脖子再 ±4°。趴着时这三个都只是头绕下巴的转动（`LIE_MORE`），和趴着的点头、低头是同一种动法，只差方向和快慢：凑近往低头那边转 6°（头再平移 2 个骨架单位，看上去就是轻一点的低头）、后仰往反方向转 5°、晃来晃去来回转 ±6° 三下。数值在各自的 `BODY_LEAN`。
+  - 低头（`down`，0..1，同 `tilt` 的形状）：四位娘站着、坐着时脸往下（`angleY` +`DROOP.pitch` 0.9）、眼睛往下看（`look[1]` 到 4）、头在脖子上沉 3.5；大肥鱼脖子往前弯 `DROOP.neck` 9°、脸往下 0.7、眼睛往下看；跪着按点头的方式往下沉住（`KNEEL_HEAD.down` 1.6 倍点头），趴着绕下巴往前转 `LIE_MORE.down` 9°。被别的头部手势截断时同样过 `tiltEased`（站着也过，因为 `angleY` 不经弹簧）。
+- **身体的三个动作（形象侧）**：`closer`、`leanback`、`sway` 列在四位娘和大肥鱼的 `gestures` 里，由她们自己画（kit 只给 Coo 整组前倾 10°、后仰 9°、左右晃 7°）：凑近时上半身（`waist`，连头）放大到 1.1 倍，四位娘再前倾 7°（`pitchFromLean`），大肥鱼腰和脖子各往前 2°、3°；后仰时上半身缩到 0.86（大肥鱼 0.96）、下巴抬起（`angleY` −1 / −0.35），四位娘后仰 12°（`pitchFromLean` 的上限），大肥鱼腰往后 9°、脖子往后 9°；晃来晃去时整个身体绕脚转 ±3°，脖子再 ±4°。趴着时这三个都只是头绕下巴的转动（`LIE_MORE`），和趴着的点头、低头是同一种动法，只差方向和快慢：凑近往低头那边转 6°（头再平移 2 个骨架单位，看上去就是轻一点的低头）、后仰往反方向转 5°、晃来晃去来回转 ±6° 三下。数值在各自的 `BODY_LEAN`。
   - 〔实测，默认大小 S 0.42，每 1/30 s 一帧〕头部的位移（头部纹理块的平均位移，CSS px）：点头峰值约 1–1.3（大肥鱼 3–4），歪头 3.5–7，低头 2.2–3.5（大肥鱼 5–8），凑近 1.8–3.1、头框放大到 1.08–1.1（大肥鱼 6），晃来晃去 5–7（大肥鱼 7–9）；三位娘的后仰原来只有约 1.1–1.8、头框缩到 0.93–0.96、头框中心动约 1，和不动看不出差别，加大到现在的数后约 2.3–3.2、头框缩到 0.85–0.88、中心动 4–5.6（大肥鱼的后仰本来就有 9）。
-- **跺脚（kit 侧）**：`stamp` 1.3 s，先 `setMode('idle')`（坐着、趴着就站起来）；前面那只脚（朝向那边）按 `stampLift` 抬起 22 个单位、在 `STAMP.at`（k=0.42、0.82）时落地，每次落地出 `land` 声、扬尘、整组一震（`sqv`），整组微微侧倾 3°。三位娘的鞋和大肥鱼的腿都按 `frame.legs` 画，所以形象不用另写代码。
+- **跺脚（kit 侧）**：`stamp` 1.3 s，先 `setMode('idle')`（坐着、趴着就站起来）；前面那只脚（朝向那边）按 `stampLift` 抬起 22 个单位、在 `STAMP.at`（k=0.42、0.82）时落地，每次落地出 `land` 声、扬尘、整组一震（`sqv`），整组微微侧倾 3°。四位娘的鞋和大肥鱼的腿都按 `frame.legs` 画，所以形象不用另写代码。
 - **跪坐的头（`kneelHead`）**：
   - 是挂在 `kneel` 下面的网格变形。用的是四个 `model.json` 里已有的 `poses.kneel.head` 框，没动美术管线。
-  - 位置：`cc/motion.js:524-526, 979`，gpt `:561-563, 1042`，gemini `:610-612, 1113`，大肥鱼 `whale/figure.js:525-527, 1271`。
+  - 位置：`cc/motion.js:524-526, 979`，gpt `:561-563, 1042`，gemini `:610-612, 1113`，grok `:807-809, 1417`，大肥鱼 `whale/figure.js:525-527, 1271`。
   - 动法：
     - 点头：头往下沉，头顶往下巴方向压扁；
     - 摇头：头横向滑动；
     - 叹气：吸气时头抬起，呼气时头往下沉；
     - 歪头：绕框下沿中点（下巴）转，满幅 9°。
   - 框的两侧和下沿不动，头发不会被撕开。
-  - 跪着、趴着的歪头不经过站姿那根头部弹簧（`sp.head`），所以先过 `tiltEased`：歪过去、回正都照原样跟着，但歪着停住时又来一个头部手势（点头、摇头、叹气或再一次歪头）把它截断，头按 `TILT_BACK` 匀速回正（每秒 6 个满幅，满幅约 0.17 s；歪头自己回正最快是每秒 5 个满幅，所以照常回正时不受影响），不会一帧弹回原位（之前跪着、趴着时头顶一帧跳 14～16 个单位）。〔测试〕三位娘 figure 测试和 `whale-pose.test.js`「a head gesture cutting a held tilt short…」
+  - 跪着、趴着的歪头不经过站姿那根头部弹簧（`sp.head`），所以先过 `tiltEased`：歪过去、回正都照原样跟着，但歪着停住时又来一个头部手势（点头、摇头、叹气或再一次歪头）把它截断，头按 `TILT_BACK` 匀速回正（每秒 6 个满幅，满幅约 0.17 s；歪头自己回正最快是每秒 5 个满幅，所以照常回正时不受影响），不会一帧弹回原位（之前跪着、趴着时头顶一帧跳 14～16 个单位）。〔测试〕四位娘 figure 测试和 `whale-pose.test.js`「a head gesture cutting a held tilt short…」
   - 幅度在 `KNEEL_HEAD`（shake 5、nod 2、squash .06、exh 2.5、inh 1.5、tilt 9、down 1.6）。
 - **Coo**：没有代码改动，kit 的前倾和侧倾本来就带着头部通道（歪头也是 kit 的侧倾）。
-- **看不见的情况**：背过身（`away`）时，三位娘和大肥鱼看不见点头，摇头只让后面的头发晃一晃。
-- 〔测试〕三位娘各 5 个、`whale-pose.test.js` 5 个、`pet-actions.test.js` 2 个；〔实测〕渲染 `/tmp/combo/partb/r1-<形象>.png`、`k-*.png`。
+- **看不见的情况**：背过身（`away`）时，四位娘和大肥鱼看不见点头，摇头只让后面的头发晃一晃。
+- 〔测试〕四位娘各 5 个、`whale-pose.test.js` 5 个、`pet-actions.test.js` 2 个；〔实测〕渲染 `/tmp/combo/partb/r1-<形象>.png`、`k-*.png`。
 
 ---
 
 ### 11. 尾巴、耳朵、翅膀的通道（plus）
 
 - **kit 侧**：`APPENDAGE_MOVES`（`wag` 尾巴 2.4 s，`earflick` 耳朵 1.1 s，`earsup`、`earsdown` 耳朵 2 s，`wingbeat` 翅膀 2 s）各放进 `pet.app.<部位>`，帧里多一个 `appendages: { tail, ears, wings }`（各是 `{ kind, k }` 或 `null`），只有 plus 帧有（〔测试〕非 plus 帧没有这个键）。和 `pet.head`、`pet.pulse` 互不顶替；同一部位来新词就换掉旧的。不带表情、不调 `setMode`（走着照走），跪坐时不结束跪坐（`keepKneel`）；组里排在头部手势那一档（`groupRank` 2）。播放期间算「在动」（`isMoving`），趴着时也不插小动作。kit 自己不画任何一个：Coo 和 Claude 娘的词表里没有它们。摇尾巴、抖耳朵、扇翅膀各有自己的声音（`wag` 左右几下轻甩声、`earflick` 四下轻颤、`wingbeat` 每次往下扇一声「呼」），竖耳朵、耳朵耷拉不出声；导出包按词表带上对应的 WAV。
-- **World 侧**：`CHANNELS` 里 `wag: ['tail']`、`earflick` / `earsup` / `earsdown: ['ears']`、`wingbeat: ['wings']`；`sleep` 和 `petrify` 也占这三个部位。`rankOf` 把它们排在头部那一档。提示词按形象有词的部位列一组，标签是「尾巴(单独算一个部位)」「尾巴、耳朵(各算一个部位)」「尾巴、翅膀(各算一个部位)」；身的动作「也占…」只写形象有的部位（Gemini 娘的睡觉写「也占手、头、表情、尾巴、耳朵」）。跪坐的说明在头部手势后面加「尾巴、耳朵的动作」这类，只写形象有的部位。
+- **World 侧**：`CHANNELS` 里 `wag: ['tail']`、`earflick` / `earsup` / `earsdown: ['ears']`、`wingbeat: ['wings']`；`sleep` 和 `petrify` 也占这三个部位。`rankOf` 把它们排在头部那一档。提示词按形象有词的部位列一组，标签是「尾巴(单独算一个部位)」「尾巴、耳朵(各算一个部位)」「尾巴、翅膀(各算一个部位)」「翅膀(单独算一个部位)」（Grok 娘）；身的动作「也占…」只写形象有的部位（Gemini 娘的睡觉写「也占手、头、表情、尾巴、耳朵」）。跪坐的说明在头部手势后面加「尾巴、耳朵的动作」这类，只写形象有的部位。
 - **形象侧**：词盖过心情给那个部位的动作，份量 `appHold`（最后七分之一交回心情）再按 `APP_EASE` 逐帧缓过去，相位用自己的时钟，所以开始、结束都不跳。
-  - 摇尾巴：GPT 娘尾尖摆 24°（期待时 10.5°）、每秒 12 弧度，尾尖翘起一点；Gemini 娘尾尖摆 36°（期待时 16° 再加尾尖抖动）、每秒 13 弧度；大肥鱼左右 26°（期待时 13°）、每秒 12 弧度，趴着地上的尾巴 15°，背影图的尾鳍 13°。三位娘坐着、跪坐时尾巴是坐姿、跪坐图上画好的，不动（词的说明里写了）；Gemini 娘趴着时，趴姿图上竖在身后的尾巴按 `LIE_DRAWN.tail`（从尾根到尾尖的一条折线和宽度）在一个网格变形 `lieParts` 上绕尾根摆 12°，离折线远的地方（翘起的鞋、发髻）不动；GPT 娘趴着时尾巴压在腿下面，不动。大肥鱼跪坐时尾鳍是跪坐图上的，不动。
+  - 摇尾巴：GPT 娘尾尖摆 24°（期待时 10.5°）、每秒 12 弧度，尾尖翘起一点；Gemini 娘尾尖摆 36°（期待时 16° 再加尾尖抖动）、每秒 13 弧度；大肥鱼左右 26°（期待时 13°）、每秒 12 弧度，趴着地上的尾巴 15°，背影图的尾鳍 13°。四位娘坐着、跪坐时尾巴是坐姿、跪坐图上画好的，不动（词的说明里写了）；Gemini 娘趴着时，趴姿图上竖在身后的尾巴按 `LIE_DRAWN.tail`（从尾根到尾尖的一条折线和宽度）在一个网格变形 `lieParts` 上绕尾根摆 12°，离折线远的地方（翘起的鞋、发髻）不动；GPT 娘趴着时尾巴压在腿下面，不动。大肥鱼跪坐时尾鳍是跪坐图上的，不动。
   - 扇翅膀（GPT 娘）：两只翅膀一起抬高 4° 再上下各扇 13°、每秒 2.6 下，扇到上面时最宽；坐着照扇；跪坐时跪坐图的翅膀画死了，所以扇翅膀期间换成跪坐混合体（同手势，一帧切），跪坐保持；趴着时趴姿图上的翅膀按 `LIE_DRAWN.wing` 扇 8°（翼尖贴着翘起的小腿，`keep` 框里的小腿不动）。
   - 耳朵（Gemini 娘）：竖耳朵是心情的「竖起」拉满、再往里转 6°、高度再乘 1.1；耳朵耷拉是往两边压平（`flat` 1、`droop` 0.7）、高度再乘 0.93；抖耳朵是两只耳朵各往外甩 16° 四下（右耳晚三分之一下，`earFlickOf`）。坐着照做；跪坐时同扇翅膀换成混合体；趴着时趴姿图上的两只耳朵按 `LIE_DRAWN.earL/earR` 绕耳根转（耷拉往外 16°、竖起往里 7°，抖耳朵同站姿）。
+  - 扇翅膀（Grok 娘）：发饰上的两只小蝙蝠翅膀一起上下扇，每边 14°（绕抬起 6° 处）、每秒 2.6 下（和 GPT 娘一样，扇翅膀的音效按这个节拍在每次下扑时响），下扑时张开到 1.1 倍宽（`WINGBEAT`、`WING.wide`）；坐着、站着都是活的翅膀，跪坐时换成混合体（跪坐图上的翅膀不会动），趴着时趴姿图上的两只翅膀按 `LIE_DRAWN.wingL` / `wingR` 扇 ±6°（绕抬起 2°，`LIE_PARTS`），蝴蝶结（`keep` 框）不动。
   - `LIE_DRAWN` 是在 `lie_body.png` 上量的，带着量的时候那张图的 `box`；图的框变了（重画、别的包）就不建 `lieParts`，那几个部位在趴姿时不动。
-- 〔测试〕`pet-actions.test.js`「the moves of a tail, ears or wings」；`script.test.ts`「a tail, ears and wings are parts of their own」；`gpt-figure.test.js`、`gemini-figure.test.js`、`whale-pose.test.js` 各自的摇尾巴、扇翅膀、耳朵测试；`*-pack-export.test.js`。
+- 〔测试〕`pet-actions.test.js`「the moves of a tail, ears or wings」；`script.test.ts`「a tail, ears and wings are parts of their own」；`gpt-figure.test.js`、`gemini-figure.test.js`、`grok-figure.test.js`、`whale-pose.test.js` 各自的摇尾巴、扇翅膀、耳朵测试；`*-pack-export.test.js`。
 - 〔渲染〕`scratch/combo6/C/`：站姿逐帧（`g1/`、`m1/`、`w1/`）、坐、跪、趴（`f-gpt/`、`f-gem/`、`l-gem/`、`l-gpt/`）。看过后都收了：扇翅膀和扑腾（连人一起蹦）分得开；竖耳朵、耳朵耷拉和期待、难过的耳朵分得开（配着平常的脸时只动耳朵）。
 
 ## 二、可同时使用性
@@ -541,7 +544,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 | 头部手势槽 | `pet.head` | nod、shake、sigh | `k ≥ 1`；新的头部手势 |
 | 手势槽 | `pet.pulse`，同一时间只有一个（`684-689`） | 其余手势 | `k ≥ 1`；新手势直接覆盖；换模式会切掉 roll、song、away 和躺着时的小动作（`515-535`）；石化结束 song |
 | 模式 / 姿态槽 | `pet.mode`（`506-539`） | 动作词、`walkTo`、`decide`、鼠标、落地 | 下一次 `setMode`；或各模式自己的计时器（`902-1064`） |
-| 跪坐标志 | `pet.kneel` | `kneel` | 手或全身动作（`561-562`）；任何非 sit 模式（`525`）。表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴耳朵翅膀的动作不结束它；声明了 `kneelArms` 的形象（大肥鱼和三位娘），`ARM_GESTURES` 里的手势也不结束它 |
+| 跪坐标志 | `pet.kneel` | `kneel` | 手或全身动作（`561-562`）；任何非 sit 模式（`525`）。表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴耳朵翅膀的动作不结束它；声明了 `kneelArms` 的形象（大肥鱼和四位娘），`ARM_GESTURES` 里的手势也不结束它 |
 
 **主动要的表情怎么结束**：
 - 到期。被盖住时暂停，见下面的总规则 4。
@@ -584,7 +587,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 4. **被盖住的表情暂停**：
    - 被拎、甩出或放下的空中、晕、起身、倾听、睡着时，主动要的表情暂停倒计时（`1183-1186`）。
    - 盖住不超过 5 s，之后完整显示；连续超过 5 s 就丢掉。
-5. **跪坐保持到手或全身动作**，表情、头部手势和尾巴、耳朵、翅膀的动作不结束它；大肥鱼和三位娘只占「手」的手势也不结束它。
+5. **跪坐保持到手或全身动作**，表情、头部手势和尾巴、耳朵、翅膀的动作不结束它；大肥鱼和四位娘只占「手」的手势也不结束它。
 6. **一组词同一帧做**：World 先按部位把一组拆好（§二.6），页面把整组交给 `doAll`，kit 在同一帧里做完（`doGroup`）。组里的表情至少持续到同组手势自带的脸结束（唱歌 4.1 s、看书 4.4 s、喝茶 3.7 s、跳舞 3.4 s）。
 
 ### 2. 词的分类与部位（共 103 个，数据来自 Coo 的 `figure.json`；部位见 `script.ts:84-104` 的 `CHANNELS`）
@@ -592,10 +595,10 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 | 类 | 部位（`CHANNELS`） | 词 |
 |---|---|---|
 | **E 表情（58）** | 表情 | neutral 平静、happy 开心、wink 眨眼、love 喜欢、shy 害羞、surprised 惊讶、angry 生气、sad 难过、sleepy 犯困、thinking 思考、smug 得意、pout 嘟嘴、worried 担心、determined 认真、flustered 慌张、scared 害怕、excited 期待、cry 大哭、confused 疑惑、disgusted 嫌弃、nervous 紧张、gentle 温柔、awkward 尴尬、moved 感动、coax 撒娇、tongue 吐舌、giggle 偷笑；30 个组合脸（§一.9）；**petrify 石化**占全部部位，不和别的同时做 |
-| **H 头部手势（4）** | 头 | nod 点头、shake 摇头、sigh 叹气、tilt 歪头；Coo 没有的：droop 低头、blink 眨眨眼（大肥鱼、三位娘） |
-| **P 尾巴、耳朵、翅膀（0）** | 尾巴 / 耳朵 / 翅膀，各算一个部位（提示词里按形象有的部位列成一组，如「尾巴、耳朵(各算一个部位)」；sleep、petrify 也占它们） | Coo 没有的：wag 摇尾巴（大肥鱼、GPT 娘、Gemini 娘）、wingbeat 扇翅膀（GPT 娘）、earflick 抖耳朵、earsup 竖耳朵、earsdown 耳朵耷拉（Gemini 娘） |
-| **G 手势（18）**：不改模式 | 手 | wave 招手、shiver 发抖、heart 比心、serve 奉茶、salute 敬礼、vsign 比耶、point 指、cover 捂嘴笑、cross 抱臂、stretch 伸懒腰、pray 拜托、scratch 挠头、idea 有了、hug 抱抱、hips 叉腰、spout 喷水（仅 Coo/大肥鱼）、sip 喝茶、read 看书；Coo 没有的：muse 托腮/琢磨（大肥鱼、三位娘）、fist 加油、jot 记笔记、twiddle 对手指（三位娘）；clap 拍手、shrug 摊手、headhold 抱头、raise 举手、thumbs 点赞、shush 嘘、wipe 擦汗（大肥鱼、三位娘） |
-| **GB 要她停下来做的手势（7）** | 手 + 站位（提示词里归在「手,要站着或坐着不动」一组） | song 唱歌、spin 转圈、bow 鞠躬、flinch 后缩、peek 探头、away 背过身、cheer 欢呼（详见表下）；Coo 没有的：closer 凑近、leanback 后仰、sway 晃来晃去（大肥鱼、三位娘） |
+| **H 头部手势（4）** | 头 | nod 点头、shake 摇头、sigh 叹气、tilt 歪头；Coo 没有的：droop 低头、blink 眨眨眼（大肥鱼、四位娘） |
+| **P 尾巴、耳朵、翅膀（0）** | 尾巴 / 耳朵 / 翅膀，各算一个部位（提示词里按形象有的部位列成一组，如「尾巴、耳朵(各算一个部位)」；sleep、petrify 也占它们） | Coo 没有的：wag 摇尾巴（大肥鱼、GPT 娘、Gemini 娘）、wingbeat 扇翅膀（GPT 娘、Grok 娘）、earflick 抖耳朵、earsup 竖耳朵、earsdown 耳朵耷拉（Gemini 娘） |
+| **G 手势（18）**：不改模式 | 手 | wave 招手、shiver 发抖、heart 比心、serve 奉茶、salute 敬礼、vsign 比耶、point 指、cover 捂嘴笑、cross 抱臂、stretch 伸懒腰、pray 拜托、scratch 挠头、idea 有了、hug 抱抱、hips 叉腰、spout 喷水（仅 Coo/大肥鱼）、sip 喝茶、read 看书；Coo 没有的：muse 托腮/琢磨（大肥鱼、四位娘）、fist 加油、jot 记笔记、twiddle 对手指（四位娘）；clap 拍手、shrug 摊手、headhold 抱头、raise 举手、thumbs 点赞、shush 嘘、wipe 擦汗（大肥鱼、四位娘） |
+| **GB 要她停下来做的手势（7）** | 手 + 站位（提示词里归在「手,要站着或坐着不动」一组） | song 唱歌、spin 转圈、bow 鞠躬、flinch 后缩、peek 探头、away 背过身、cheer 欢呼（详见表下）；Coo 没有的：closer 凑近、leanback 后仰、sway 晃来晃去（大肥鱼、四位娘） |
 | **turn 转身** | 站位（提示词里写「身」） | 只翻身，不调 `pulse()`（`body.js:576`） |
 | **L 持续姿态（4）** | sit：身；kneel、lie：身 + 手（带 `keepsArms` 的 kneel：身 + 站位）；sleep：表情 + 头 + 手 + 身（还有尾巴、耳朵、翅膀） | sit 坐下、kneel 跪坐、lie 趴下、sleep 睡觉 |
 | **M 模式动作（11）** | 身 + 站位；dizzy 另占表情；flap 另占手；roll 另占手和头；curtsy 是手 + 站位 + 身 | stand 站起、walk 走走、run 跑、look 张望、dizzy 晕、dance 跳舞；**busy 类**：jump 跳、hop 小跳、flap 扑腾、roll 翻滚；curtsy 屈膝礼（回到 idle，并起自己的手势）；跺脚 stamp 同 curtsy（Coo 没有） |
@@ -606,12 +609,12 @@ GB 类在 kit 里的行为：
 - cheer：站着时进入 crouch/air。
 - song：只在站着或坐着、没在听时能做。
 
-包自带的表情占「表情」；包自带的动作占除表情以外的全部部位（`channelsOf`，`script.ts`）。`kneel` 带 `keepsArms`（包的 `figure.json` 里每个词可写，只对 lasting 的 kneel 起作用）时，`channelsOf` 返回 `['body', 'stance']`：手空出来；静态的 `CHANNELS.kneel` 不变（Coo 和第三方包）。站位留着，所以 GB 类的欢呼、鞠躬、后缩、探头、背过身、转圈和转身仍和跪坐拆开，它们在 kit 里也会结束跪坐。唱歌例外：它在 `ARM_GESTURES` 里，kit 跪着也唱（大肥鱼仍画跪坐图，三位娘画混合体），所以分组时 `clashes` 让带 `keepsArms` 的 kneel 和 song 同组（`KNEEL_SINGS`），`跪坐+唱歌` 发成 `kneel+song`。
+包自带的表情占「表情」；包自带的动作占除表情以外的全部部位（`channelsOf`，`script.ts`）。`kneel` 带 `keepsArms`（包的 `figure.json` 里每个词可写，只对 lasting 的 kneel 起作用）时，`channelsOf` 返回 `['body', 'stance']`：手空出来；静态的 `CHANNELS.kneel` 不变（Coo 和第三方包）。站位留着，所以 GB 类的欢呼、鞠躬、后缩、探头、背过身、转圈和转身仍和跪坐拆开，它们在 kit 里也会结束跪坐。唱歌例外：它在 `ARM_GESTURES` 里，kit 跪着也唱（大肥鱼仍画跪坐图，四位娘画混合体），所以分组时 `clashes` 让带 `keepsArms` 的 kneel 和 song 同组（`KNEEL_SINGS`），`跪坐+唱歌` 发成 `kneel+song`。
 
 **部位表反映的是 kit 实际会拒绝或改变的东西**：
 - 唱歌要她站着或坐着不动，所以和走、跳舞、张望、跳、小跳冲突（站位）。
 - 屈膝礼、跺脚会让她站起来（身）。
-- 跪坐、趴下、睡觉时看不见手势（手）；而且手势会结束跪坐。大肥鱼和三位娘例外：跪着画得出手势，手势也不结束跪坐（`keepsArms`）。
+- 跪坐、趴下、睡觉时看不见手势（手）；而且手势会结束跪坐。大肥鱼和四位娘例外：跪着画得出手势，手势也不结束跪坐（`keepsArms`）。
 - 晕和睡觉时显示不了别的表情（表情）。
 
 〔测试〕`pet-actions.test.js`「agrees with the World on what part of her each word takes」逐个核对 kit 的行为和这张表一致。
@@ -636,8 +639,8 @@ GB 类在 kit 里的行为：
 - sigh → sighing（头）
 - sip → sipping
 - read → reading
-- jot → reading（三位娘倾听的手臂图；倾听的脸会带出声波，所以用看书的脸；主动要的表情在时让路）
-- clap/raise/thumbs → happy；shrug → sighing；headhold → pained；shush → wink+neutral（眨眼的眼睛、平静的闭嘴，不像偷笑）；wipe → gentle（大肥鱼和三位娘的七个新手势）
+- jot → reading（四位娘倾听的手臂图；倾听的脸会带出声波，所以用看书的脸；主动要的表情在时让路）
+- clap/raise/thumbs → happy；shrug → sighing；headhold → pained；shush → wink+neutral（眨眼的眼睛、平静的闭嘴，不像偷笑）；wipe → gentle（大肥鱼和四位娘的七个新手势）
 - hips → determined；cross → pout。不再是特例：和其他动作一样，主动要的表情在时它们让路。
 
 其中 singing、sighing、reading、sipping、stretching、saluting、pointing、peeking、bowing、pleading 是 `BODY_OWN`（`body.js:258`）：这些脸本身带着手势的身体语言，叠加规则见 §一.7 和 §二.4。
@@ -649,7 +652,7 @@ GB 类在 kit 里的行为：
 | 情况 | 结果 | 依据 |
 |---|---|---|
 | 新表情 → 旧表情 | **替换**；连放同一个表情会重新计时 | 〔实测〕`body.js:732` |
-| 同一组里两个表情（`开心+难过`） | 这一对在形象的白名单（`pairs`）里：合成一张脸，回执说明谁给眼、谁给嘴；不在：World 拆成先后两个，回执里说明。白名单按形象不同（三位娘 118 对、大肥鱼 98、Coo 24）。别的「一个表情的眼 + 另一个的嘴」，用组合脸 | 〔测试〕`script.test.ts` |
+| 同一组里两个表情（`开心+难过`） | 这一对在形象的白名单（`pairs`）里：合成一张脸，回执说明谁给眼、谁给嘴；不在：World 拆成先后两个，回执里说明。白名单按形象不同（四位娘 118 对、大肥鱼 98、Coo 24）。别的「一个表情的眼 + 另一个的嘴」，用组合脸 | 〔测试〕`script.test.ts` |
 | 正在石化时再要 petrify | **忽略** | 〔实测〕`:725` |
 | neutral | 0.1 s 后清空表情，并清掉动作自带的脸（之后不再冒出来） | 〔测试〕`:731, 749` |
 | 主动要的表情 vs 思考中 | 表情胜，thinking 被压住 | 〔实测〕`:819-826` |
@@ -683,7 +686,7 @@ GB 类在 kit 里的行为：
 
 **`BODY_OWN` 手势的组合脸**
 - 眼、眉、符号用主动要的表情的。
-- 身体语言用手势的：三位娘唱歌时的祈祷手、抬下巴、节拍，大肥鱼的鳍。
+- 身体语言用手势的：四位娘唱歌时的祈祷手、抬下巴、节拍，大肥鱼的鳍。
 - song 和 sigh 连嘴也用手势的。
 - 例：
   - `angry` 后唱歌 → `angry+singing+singing`；
@@ -725,7 +728,7 @@ GB 类在 kit 里的行为：
 | **G** | **共存**；song 不停 | 替换 | 见表下 G 行 | 见表下 G 行 | 见表下 G 行 | 替换 |
 | **GB** | 共存 | 替换 | 替换；turn 例外：只翻身，正在播的手势继续（`:576`） | 共存；away → lie 例外：背身结束，正面趴下（`:523`） | 共存；但 away 会结束，见表下 | 替换 |
 | **sit / lie / sleep** | **共存**（躺着时由 `lieHead` 画） | **共存**（姿态不变，睡着也照做；song 在 lie/sleep 下被拒绝） | 共存（保持坐姿）；lie → away 只出 pout，不转身（见 §7） | 替换 | 姿态结束（stand 进入 wake） | 姿态结束 |
-| **kneel** | **跪坐保持**，头在跪坐画上动（`kneelHead`） | Coo：跪坐结束，变成普通坐姿后做手势；大肥鱼和三位娘：**跪坐保持**，换成跪坐下半身（`kneelLow`）上的实时上半身画手势 | 跪坐结束，变成普通坐姿后做 | 替换（kneel → kneel 保持） | 结束 | 结束 |
+| **kneel** | **跪坐保持**，头在跪坐画上动（`kneelHead`） | Coo：跪坐结束，变成普通坐姿后做手势；大肥鱼和四位娘：**跪坐保持**，换成跪坐下半身（`kneelLow`）上的实时上半身画手势 | 跪坐结束，变成普通坐姿后做 | 替换（kneel → kneel 保持） | 结束 | 结束 |
 | **walk/run/dance/look/dizzy** | 共存 | **共存**（song 被拒绝） | 被打断：回到 idle；cheer 则进入小跳（crouch/air，`:612`） | 替换 | 替换 | 替换 |
 | **jump/hop/flap/roll、站着的 cheer**（busy） | 队列里的词等 busy 结束；单独调用被拒绝；同一组里的词同一帧接受 | 同左 | 同左 | 同左 | 同左 | 同左 |
 | **curtsy** | 共存 | 替换 | 替换；turn 例外，屈膝礼继续 | 共存 | 共存 | 替换 |
@@ -744,7 +747,7 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 - H 行、H 列，以及 kneel 遇到头部手势的那一格，是组合扩展加的，由测试和 `/tmp/combo/edge/` 复测：
   - 〔测试〕`pet-actions.test.js`「a nod, a shake or a sigh plays in the head…」「kneeling lasts through faces and head gestures…」；
   - 〔实测〕`kneel → nod → wave`：点头时仍跪坐，招手时变普通坐姿（那时还没有形象声明 `kneelArms`）。
-- kneel 遇到 G 那一格的大肥鱼和三位娘部分，是「跪坐时也能做手上的动作」加的：〔测试〕`pet-actions.test.js`（`kneelArms` 时 `doGroup(['kneel','wave'])` 保持跪坐、`kneel+cheer` 结束），`tests/{claude,gpt,gemini}-figure.test.js`（共用 `tests/helpers/kneel-arms.js`）、`tests/whale-pose.test.js`。
+- kneel 遇到 G 那一格的大肥鱼和四位娘部分，是「跪坐时也能做手上的动作」加的：〔测试〕`pet-actions.test.js`（`kneelArms` 时 `doGroup(['kneel','wave'])` 保持跪坐、`kneel+cheer` 结束），`tests/{claude,gpt,gemini,grok}-figure.test.js`（共用 `tests/helpers/kneel-arms.js`）、`tests/whale-pose.test.js`。
 - kit 层面能共存，不代表形象画得出来，见 §8。
 
 ### 6. 经 LLM 下指令时，实际能「同时」出现的组合
@@ -755,7 +758,7 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
   - 在 `【】`、`<>`、`pet_act` 的每一项、dialog 的 `actions` 里，用 `+` 或全角 `＋` 连起来。`+` 两边可以有空格。
   - `【】` 里的逗号、顿号、空白仍然表示先后。
 - **部位**：一组里表情、头、手、身（含站位）各最多一个，所以一组最多 5 个成员（白名单里的表情对算一个表情，最多 6 个），body-host 的 8 个上限碰不到。
-- **能成组的例子**：`【坐下+开心+招手】`、`<点头+眨眼>`、`【点头+招手】`、`【摇头+抱臂】`、`【坐下+点头+比心】`、`【跪坐+点头+开心】`、`【唱歌+坏笑】`、`【坐下+唱歌】`、`【走走+开心】`、`【小跳+招手+开心】`、`【张望+疑惑】`；大肥鱼和三位娘还有 `【跪坐+招手】`（`招手+跪坐` 也一样，身在前发成 `kneel+wave`）和 `【跪坐+唱歌】`。
+- **能成组的例子**：`【坐下+开心+招手】`、`<点头+眨眼>`、`【点头+招手】`、`【摇头+抱臂】`、`【坐下+点头+比心】`、`【跪坐+点头+开心】`、`【唱歌+坏笑】`、`【坐下+唱歌】`、`【走走+开心】`、`【小跳+招手+开心】`、`【张望+疑惑】`；大肥鱼和四位娘还有 `【跪坐+招手】`（`招手+跪坐` 也一样，身在前发成 `kneel+wave`）和 `【跪坐+唱歌】`。
 - **拆组**：同一部位的、或一起做不出来的，从冲突的那个成员起拆成下一组，按先后做。
   - 回执的 `[执行参数]` 行会写，例如「招手 和 比心 不能同时做，改成先后做。」。
   - 会被拆开的例子：
@@ -795,7 +798,7 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
   - `jump → happy`：happy 在 jump 放出后 1.2 s 出现。她在约 1.12 s 时已经进入 land，所以 happy 在落地后约 0.2–0.4 s 出现。
   - 想让它们重叠，就写成一组。
 - **sit / lie / sleep + 后面的表情或手势**：例如 `【坐下, 开心, 招手】`。
-- **kneel + 后面的表情、点头、摇头、叹气**：跪坐保持（v0.2.6 遇点头就结束）。Coo 的手势仍然结束跪坐，变成普通坐姿；大肥鱼和三位娘的手势（只占手的）跪着做，跪坐保持。
+- **kneel + 后面的表情、点头、摇头、叹气**：跪坐保持（v0.2.6 遇点头就结束）。Coo 的手势仍然结束跪坐，变成普通坐姿；大肥鱼和四位娘的手势（只占手的）跪着做，跪坐保持。
 - **从坐着站起，紧接着的下一个词落在 wake 期间**：stand 的 seconds 是 1.2（5 个 figure.json 都是），但从坐姿站起要经过 1.8 s 的 wake（`body.js:984-994`）。于是：
   - G 手势和起身重叠，但手势自带的脸被 waking 盖住；
   - 主动要的表情在 wake 期间暂停，起身后完整显示；
@@ -824,13 +827,13 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 | **dizzy 晕** | 不算 busy；手势、头部手势叠加；GB、M、L、`pet_walk_to` 会提前结束它；主动要的表情被盖住、暂停，晕完完整显示（§3） | 〔实测〕`1035-1042` |
 | **roll 翻滚** | 见表下 | 〔实测〕`541, 520, 635, 1458, 1520`；`v2/sp2.mjs` |
 | **away 背过身** | 见表下 | 〔实测〕`523, 570, 629` |
-| **lie 趴下** | 每 4–8 s 自己做一个小动作（kick/chin/thump），新手势或正在播的头部手势会顶掉或推迟它（`976`）；song 被拒绝；表情照常画在趴姿图的头上（站姿的眼睛、嘴图按趴着的头转正、缩放后贴上，组合脸、眨眼、视线、说话口型都在）；头部手势和叹气由 `lieHead` 画；三位娘和大肥鱼趴着时手臂看不见 | 〔实测〕`973-977, 558`；〔代码〕`cc/motion.js:952, 986` |
-| **kneel 跪坐** | 保持到下一个手或全身动作。表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴耳朵翅膀的动作都不结束它，头部手势由 `kneelHead` 画；一组 `kneel+nod+happy` 30 s 后仍是跪坐。大肥鱼和三位娘声明 `kneelArms`：只占手的手势和唱歌也不结束它。手放着不动时画跪坐图（跪坐图上画实时的脸，同站姿）；手臂摆出姿势时（手势、托腮这类表情的手臂，三位娘的倾听除外），一帧换成**跪坐混合体**：跪坐图裁出的下半身（`poses.kneelLow`：裙摆、腿、尾巴，去掉手臂和裙边以外的头发）上面是会动的上半身、头和实时的脸，头正好落在跪坐图的头上（下沉 `headDrop`），气泡位置不动；手放下 0.25 s（`KNEEL_ARMS_HOLD`）后一帧换回跪坐图。跪坐中起身也是混合体 → 跪坐图 → 站，不经过坐姿图 | 〔实测〕`edge/t1.mjs`；〔测试〕`561-562`、`tests/helpers/kneel-arms.js`、`whale-pose.test.js` |
+| **lie 趴下** | 每 4–8 s 自己做一个小动作（kick/chin/thump），新手势或正在播的头部手势会顶掉或推迟它（`976`）；song 被拒绝；表情照常画在趴姿图的头上（站姿的眼睛、嘴图按趴着的头转正、缩放后贴上，组合脸、眨眼、视线、说话口型都在）；头部手势和叹气由 `lieHead` 画；四位娘和大肥鱼趴着时手臂看不见 | 〔实测〕`973-977, 558`；〔代码〕`cc/motion.js:952, 986` |
+| **kneel 跪坐** | 保持到下一个手或全身动作。表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴耳朵翅膀的动作都不结束它，头部手势由 `kneelHead` 画；一组 `kneel+nod+happy` 30 s 后仍是跪坐。大肥鱼和四位娘声明 `kneelArms`：只占手的手势和唱歌也不结束它。手放着不动时画跪坐图（跪坐图上画实时的脸，同站姿）；手臂摆出姿势时（手势、托腮这类表情的手臂，四位娘的倾听除外），一帧换成**跪坐混合体**：跪坐图裁出的下半身（`poses.kneelLow`：裙摆、腿、尾巴，去掉手臂和裙边以外的头发）上面是会动的上半身、头和实时的脸，头正好落在跪坐图的头上（下沉 `headDrop`），气泡位置不动；手放下 0.25 s（`KNEEL_ARMS_HOLD`）后一帧换回跪坐图。跪坐中起身也是混合体 → 跪坐图 → 站，不经过坐姿图 | 〔实测〕`edge/t1.mjs`；〔测试〕`561-562`、`tests/helpers/kneel-arms.js`、`whale-pose.test.js` |
 | **sit 坐下** | 表情、手势、头部手势、GB 都能叠加，仍保持坐姿；空闲逻辑不会让主动要的坐姿超时；站起来时主动要的表情在 wake 期间暂停 | 〔实测〕`580, 957` |
 | **sleep 睡觉** | 见表下 | 〔实测〕`582, 710, 566` |
 | **dance 跳舞** | 3.2 s；手势、头部手势叠加；主动要的表情盖过跳舞自带的 happy，跳舞继续；GB、L、M 打断；petrify 让它停下 | 〔实测〕`588, 727` |
 | **walk/run 走 / 跑** | 见表下 | 〔实测〕`509-514, 788-797, 1633`；〔测试〕`tests/pet-actions.test.js`、`world.test.ts` |
-| **talk 说话** | 口型叠在任何表情、手势、姿态上；组合脸说话时眼睛不变、嘴换成说话的嘴；石化时不动；趴着、跪坐时也一样（大肥鱼和三位娘的脸画在趴姿图、跪坐图上） | 〔实测〕kit 部分、`edge/t3.mjs`；〔代码〕形象部分 |
+| **talk 说话** | 口型叠在任何表情、手势、姿态上；组合脸说话时眼睛不变、嘴换成说话的嘴；石化时不动；趴着、跪坐时也一样（大肥鱼和四位娘的脸画在趴姿图、跪坐图上） | 〔实测〕kit 部分、`edge/t3.mjs`；〔代码〕形象部分 |
 | **listening 倾听** | 盖住表情，主动要的表情暂停，超过 5 s 丢掉；结束 song，并拒绝新的 song；停下走路；阻止空闲时的 decide；招手不受影响 | 〔实测〕 |
 | **petrify 石化** | 替换表情；任何动作都解除；不会被保留、叠加或当部位用；在组里不和别的词同时做；结束 song；裂纹和碎石每次只出一次 | 〔测试〕`725-728, 1290` |
 | **戳 / 摸** | 见表下 | 〔实测〕`1483-1522` |
@@ -862,8 +865,8 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 - 在 idle/sit/sleep 下保持（坐着转身后再睡，背仍然朝外）；遇 jump/hop/look/dizzy/walk/run/dance/lie 结束。在坐、跪、躺的状态下，stand 要经过 wake，也会结束 away。
 - 只出 pout、不转身的条件：`pet.prone && lieSet()` 且不在 wake（`629`），并且形象有 lie 图。
   - 也就是正在趴着，或者从趴着进入睡觉（趴着睡，`582`）。〔实测〕`lie>sleep>away` 得到 g=-、expr=pout。
-  - 形象没有 lie 图时（`poses.lie` 为 false，三位娘 `figure.js:257/259`；kit `lieSet`，`455`），lie 其实是坐着，away 照常转身。
-- 背过身时，三位娘和大肥鱼看不见点头。
+  - 形象没有 lie 图时（`poses.lie` 为 false，四位娘 `figure.js:257/259`；kit `lieSet`，`455`），lie 其实是坐着，away 照常转身。
+- 背过身时，四位娘和大肥鱼看不见点头。
 
 **sleep 睡觉**
 - 手势照做，但脸始终是 sleep。
@@ -894,14 +897,14 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 **共同的**
 - **头部通道**：四个画 rig 的形象都用 `gesturesOf`、`headMoves` 读头部手势，有自己的 k（§一.10）。所以招手时点头、唱歌时点头、坐着比心时点头都画得出来。
 - **组合脸**：
-  - 三位娘和大肥鱼用 `partsOf(fc, name)`（`cc/motion.js:160-163`，`whale/figure.js:218-221`）按部位查表：
+  - 四位娘和大肥鱼用 `partsOf(fc, name)`（`cc/motion.js:160-163`，`whale/figure.js:218-221`）按部位查表：
     - 眼睛贴片、`HALF_LID`、`WINKS` 用 eyes；
     - 嘴用 mouth；
     - 眉 `BROW` 用 brows；
     - 身体表（`MOOD`、`FACE_ARMS`、`HEAD_PITCH`、饰物、鳍、尾巴、呆毛、踢脚）用 body。
   - 「石化不说话」这类判断仍看整个脸名。
   - 帧里没有 `parts` 时（上游 kit），每个部位都按脸名查。
-- **眼泪（plus）**：kit 自己的泪滴（`emit: 'tear' / 'tears'`）宽 22.5 个 logo 单位，按 Coo 的大圆眼定的，放在三位娘和大肥鱼脸上比一只眼睛还宽，像一团蓝色盖在脸上。现在形象可以声明 `tearDrop: { w, run }`（logo 单位）：泪滴约四分之一只眼宽（三位娘 `tearDropOf` 取眼球宽的 0.24，约 4.4–5 单位；大肥鱼同样算出约 4.4），从 `anchors.tears` 两只眼下轮流冒出（趴着时从趴姿的 `tear`），先 0.25 s 慢慢鼓起来，再 0.6 s 顺着脸颊滑下 `run`（到画出来的泪痕结束的脸轮廓 `tearEnd`；`run` 也可以两只眼各给一个，大肥鱼远侧那只脸轮廓高，滑得短），这时跟着头走（坐、跪、趴、被拎都一样），然后才落下（重力按 S 缩放）。大哭每 0.45 s 一滴（原来 0.22 s），难过、感动、心碎照它们自己的间隔。屏幕上宽至少 2 px（`TEAR_FX.minPx`），所以把宠物调到最小（S≈0.21）时还看得见；默认大小（S=0.42）下约 2.1 px，2 倍大小约 4 px。不随视线左右偏，也不往上弹。Coo 不声明，照旧用 kit 的大泪滴。导出给上游 v0.1.17 的包带着自己的 `kit/body.js`，所以装在上游也是小泪滴。〔测试〕`tests/pet-actions.test.js`、`tests/<id>-figure.test.js`、`tests/whale-pose.test.js`
+- **眼泪（plus）**：kit 自己的泪滴（`emit: 'tear' / 'tears'`）宽 22.5 个 logo 单位，按 Coo 的大圆眼定的，放在四位娘和大肥鱼脸上比一只眼睛还宽，像一团蓝色盖在脸上。现在形象可以声明 `tearDrop: { w, run }`（logo 单位）：泪滴约四分之一只眼宽（四位娘 `tearDropOf` 取眼球宽的 0.24，约 4.4–5 单位；大肥鱼同样算出约 4.4），从 `anchors.tears` 两只眼下轮流冒出（趴着时从趴姿的 `tear`），先 0.25 s 慢慢鼓起来，再 0.6 s 顺着脸颊滑下 `run`（到画出来的泪痕结束的脸轮廓 `tearEnd`；`run` 也可以两只眼各给一个，大肥鱼远侧那只脸轮廓高，滑得短），这时跟着头走（坐、跪、趴、被拎都一样），然后才落下（重力按 S 缩放）。大哭每 0.45 s 一滴（原来 0.22 s），难过、感动、心碎照它们自己的间隔。屏幕上宽至少 2 px（`TEAR_FX.minPx`），所以把宠物调到最小（S≈0.21）时还看得见；默认大小（S=0.42）下约 2.1 px，2 倍大小约 4 px。不随视线左右偏，也不往上弹。Coo 不声明，照旧用 kit 的大泪滴。导出给上游 v0.1.17 的包带着自己的 `kit/body.js`，所以装在上游也是小泪滴。〔测试〕`tests/pet-actions.test.js`、`tests/<id>-figure.test.js`、`tests/whale-pose.test.js`
 
 **Coo**
 
@@ -932,8 +935,8 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 
 **Claude 娘**
 
-- 手臂由 `armPlan`（`cc/motion.js:275-295`）决定。手臂类手势（`ARM_ONE`/`ARM_BOTH`，`:230-235`）在播放期间以及结束后 0.4 s 内，都会压住表情带来的手臂姿势（`FACE_ARMS`，`:237-240`）。`FACE_ARMS` 的四张图也各有自己的手势词：`muse`→`chin`、`fist`→`fist`（单手，另一只手抱书）、`jot`→`write`、`twiddle`→`shy`（双手）。七个新画的手势：`raise`、`thumbs`、`shush`、`wipe` 在 `ARM_ONE`（单手，另一只手抱书），`clap`、`shrug`、`headhold` 在 `ARM_BOTH`；拍手的第二张画 `clapo`（两手分开）在 `ARM_TWIN`，`armPoseOf(g, k)` 按 kit 的 `clapShut(k)` 选合掌或分开，换画时新的一张直接接过旧的那张的透明度（一帧切换，不交叉淡入）。缺图时的替身（`POSE_ALT`）：点赞→加油、举手→招手、嘘→捂嘴笑、擦汗→挠头、分开→合掌→拜托。GPT 娘、Gemini 娘一样（另一只手垂着）。跪坐时不摆倾听的笔记本（`KNEEL_FACE_SKIP` 按表情算），`jot` 手势照样切进混合体。头部手势不进 `armPlan`，不压手臂。
-- 换手臂图不交叉淡入（两只同一边的手半透明叠着像重影）：手臂按各自的份额（`armA`，`ARM_FADE` 0.15 s）照旧移动、升起到位，但每张手臂图要么整张显示要么不显示——计划里的每张图份额都到 `ARM_CUT`（0.5，移动的正中）时，一帧换下正在显示的图（`armShown`；显示中的图份额已经没了就马上换）。坐着时坐姿的手臂和书跟着同一帧换（`sitOwnK` 不再淡）。跪坐混合体照旧一帧切进来，那一帧手势的手就已经在了，再升起到位。GPT 娘、Gemini 娘一样。〔测试〕`tests/helpers/arm-cut.js`
+- 手臂由 `armPlan`（`cc/motion.js:275-295`）决定。手臂类手势（`ARM_ONE`/`ARM_BOTH`，`:230-235`）在播放期间以及结束后 0.4 s 内，都会压住表情带来的手臂姿势（`FACE_ARMS`，`:237-240`）。`FACE_ARMS` 的四张图也各有自己的手势词：`muse`→`chin`、`fist`→`fist`（单手，另一只手抱书）、`jot`→`write`、`twiddle`→`shy`（双手）。七个新画的手势：`raise`、`thumbs`、`shush`、`wipe` 在 `ARM_ONE`（单手，另一只手抱书），`clap`、`shrug`、`headhold` 在 `ARM_BOTH`；拍手的第二张画 `clapo`（两手分开）在 `ARM_TWIN`，`armPoseOf(g, k)` 按 kit 的 `clapShut(k)` 选合掌或分开，换画时新的一张直接接过旧的那张的透明度（一帧切换，不交叉淡入）。缺图时的替身（`POSE_ALT`）：点赞→加油、举手→招手、嘘→捂嘴笑、擦汗→挠头、分开→合掌→拜托。GPT 娘、Gemini 娘、Grok 娘一样（另一只手垂着）。跪坐时不摆倾听的笔记本（`KNEEL_FACE_SKIP` 按表情算），`jot` 手势照样切进混合体。头部手势不进 `armPlan`，不压手臂。
+- 换手臂图不交叉淡入（两只同一边的手半透明叠着像重影）：手臂按各自的份额（`armA`，`ARM_FADE` 0.15 s）照旧移动、升起到位，但每张手臂图要么整张显示要么不显示——计划里的每张图份额都到 `ARM_CUT`（0.5，移动的正中）时，一帧换下正在显示的图（`armShown`；显示中的图份额已经没了就马上换）。坐着时坐姿的手臂和书跟着同一帧换（`sitOwnK` 不再淡）。跪坐混合体照旧一帧切进来，那一帧手势的手就已经在了，再升起到位。GPT 娘、Gemini 娘、Grok 娘一样。〔测试〕`tests/helpers/arm-cut.js`
 - 表情要摆手臂，需要两个条件：处在平静模式（idle/look/sit/sleep/wake），并且表情持续超过 0.3 s。组合脸按 body 部位摆手臂，比如 huff 抱臂；唱歌叠加时是祈祷手。
 - **抱书**：
   - 空闲时抱着书；
@@ -941,15 +944,15 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
   - 双手手势或表情姿势时，书不见；
   - 跪坐时把书放到一边（`armPlan` 的 `kneel` 是 kit 的跪坐标志）：空闲时双手放下，单手手势的另一只手垂下（`hangR`，不是 `bookside`），所以跪坐混合体里不出现书。
 - 被拎或晕时双臂下垂，任何姿势都不显示（`:278`）。
-- **画好的睁眼眨眼**（三位娘相同，`face.js` 的 `planEye`）：表情自己的睁眼贴图（angry、sad/worried、shy、smug、determined/敬礼、surprised/scared 和 `fc.wide`）和半闭眼贴图（`halflid`：犯困、惬意、温柔、看书、喝茶、嫌弃、叹气）在眨眼开头和结尾压扁（`sy = 1 - .9·shut`）；眨眼或 kit 换脸时闭眼超过 `DRAWN_SHUT`（0.4）一帧切成画的睁眼，眼皮按同样程度落下，闭眼那几帧是眼皮和睫毛线，不再是一条深色细缝（同大肥鱼）。cry 的眼睛本来就是闭着画的，照旧压扁；开心、睡觉、眨眼那只闭着的眼、爱心、>< 和晕的眼睛不变。站、坐、转头和跪坐、趴下的实时脸都走这一处。〔测试〕三位娘 figure 测试「blinks a drawn open eye shut with the painted lid and its lash line past DRAWN_SHUT…」「…standing, seated, turned, kneeling and lying…」（`tests/helpers/floor-face.js`）
+- **画好的睁眼眨眼**（四位娘相同，`face.js` 的 `planEye`）：表情自己的睁眼贴图（angry、sad/worried、shy、smug、determined/敬礼、surprised/scared 和 `fc.wide`）和半闭眼贴图（`halflid`：犯困、惬意、温柔、看书、喝茶、嫌弃、叹气）在眨眼开头和结尾压扁（`sy = 1 - .9·shut`）；眨眼或 kit 换脸时闭眼超过 `DRAWN_SHUT`（0.4）一帧切成画的睁眼，眼皮按同样程度落下，闭眼那几帧是眼皮和睫毛线，不再是一条深色细缝（同大肥鱼）。cry 的眼睛本来就是闭着画的，照旧压扁；开心、睡觉、眨眼那只闭着的眼、爱心、>< 和晕的眼睛不变。站、坐、转头和跪坐、趴下的实时脸都走这一处。〔测试〕四位娘 figure 测试「blinks a drawn open eye shut with the painted lid and its lash line past DRAWN_SHUT…」「…standing, seated, turned, kneeling and lying…」（`tests/helpers/floor-face.js`）
 
-**GPT 娘、Gemini 娘**
+**GPT 娘、Gemini 娘、Grok 娘**
 
-- 规则与 Claude 娘相同（`armPlan` 在 gpt 的 `:272`、gemini 的 `:274`），但没有书：空闲时双臂下垂，单手手势时另一只手是 `hangR`；`POSE_ALT` 用笔记本代替书。
+- 规则与 Claude 娘相同（`armPlan` 在 gpt 的 `:272`、gemini 的 `:274`、grok 的 `:435`），但没有书：空闲时双臂下垂，单手手势时另一只手是 `hangR`；`POSE_ALT` 用笔记本代替书。
 
-**三位娘的共同点**
+**四位娘的共同点**
 
-- 在 `hideFront` 时（`cc/motion.js`、gpt、gemini 的 `step` 末尾），整个站立身体和所有手臂图都跳过，脸也不重绘。
+- 在 `hideFront` 时（`cc/motion.js`、gpt、gemini、grok 的 `step` 末尾），整个站立身体和所有手臂图都跳过，脸也不重绘。
   - 触发条件：趴下、跪坐（跪坐图不透明时）、翻滚成球（翻滚进度 0.165–0.835）和背面。跪坐混合体时不隐藏。
   - 这时手臂手势在 kit 里照常运行，但**看不见**。
   - 脸不重绘站姿的那张，改画在跪坐图、趴姿图上：`poses.<kneel|lie>.face`（空白脸 + 头发前景两张图，中间是实时脸贴图 `<id>Fx`）。`face.js` 的 `paint(..., place)` 把每只眼睛（连同腮红、眼泪）和嘴各按自己的矩阵贴到那个头上，鼻子用图上自己的；`motion.js` 的 `liveFace` 把三张挂在 `kneelHead` / 趴姿的 `lieLegs` 上（趴着时网格 12×8，见 `FLOOR_GRID`），`step` 返回 `floorFace`，`figure.js` 照它画。实时脸的透明度跟跪坐图、趴姿图一样：跪坐混合体一帧换回跪坐图时，混合体头上站姿的脸和跪坐图上的脸是同一张，不会跳；起身时跪坐图还在，脸也还在。shut、smile、talk 三张贴片留着，只在缺空白脸、头发前景图时用。〔测试〕`tests/helpers/floor-face.js`
@@ -958,17 +961,17 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
   - 跪坐时手臂摆出姿势（`armPlan` 计划了 `book`、`bookside`、垂下的手以外的手臂图，或用垂下的手代替缺的图）就切进去；在混合体里，手臂图还在淡出时、手放下后再 0.25 s（`KNEEL_ARMS_HOLD`）都保持，连着做的手势之间不切回跪坐图。只是还在淡出的手臂图不会让她切进混合体（坐着做完手势或摆过手的表情马上跪坐，仍是坐姿图一帧换跪坐图）。倾听（`KNEEL_FACE_SKIP`）跪着不摆写字的手。
   - Claude 娘：只有混合体里（或跪坐却没有跪坐图时）书才放到一边，单手手势另一只手垂下；往下跪、在跪坐图下面和起身时照旧拿着书。跪坐图完全挡住她时，放着的手（书 ↔ 垂下）直接换好不淡入淡出，所以混合体一切进来就是计划好的手，起身时手里已经拿着书。
   - 切换都是一帧（`bodyStep`、`BODY_CUT`）：跪坐图在不透明的混合体上溶掉，或反过来。
-  - `kneel_low`（z 3.05，在站姿裙子之上、上身之下）挂在自己的地面变形器 `kneelLow` 上，跟着身体转和挤压（`st.kneelLow` 抄 `st.body`），腰的接缝不会裂开；混合体时藏起站姿裙子、鞋和 `poses.kneelLow.hides`（GPT 娘、Gemini 娘的尾巴，画在 kneel_low 里）。
+  - `kneel_low`（z 3.05，在站姿裙子之上、上身之下）挂在自己的地面变形器 `kneelLow` 上，跟着身体转和挤压（`st.kneelLow` 抄 `st.body`），腰的接缝不会裂开；混合体时藏起站姿裙子、鞋和 `poses.kneelLow.hides`（GPT 娘、Gemini 娘的尾巴，画在 kneel_low 里；Grok 娘的没有：双马尾和翅膀照旧是活的）。
   - 混合体里头直接下沉整个 `headDrop`（从站姿直接 `跪坐+招手` 时不再慢慢往下飘），kit 的点（气泡等）跟着。
-  - 三位娘 `figure.js` 的 `kneelArms` getter：有 `poses.kneelLow` 并且贴图在才是 true。
+  - 四位娘 `figure.js` 的 `kneelArms` getter：有 `poses.kneelLow` 并且贴图在才是 true。
 - 汗滴、怒气、问号这类特效照样画（`cc/figure.js:201-212`）。
 - 背面只在站着时出现；坐着时改成转头（`cc/motion.js:707-710`）。
 - 说话会覆盖表情的嘴（ω、吐舌、叹气、唱歌），组合脸也一样，眼睛不变；surprised 保留自己张开的嘴（`cc/face.js:90-116`）。
 - 石化时冻结在最后一帧，期间的手势和说话都看不见（`cc/figure.js:174-181`）。
-- 没有 `spout`：词表和 `GESTURES` 里都没有，`figure.js`、`face.js`、`motion.js`、`fx.js` 里也没有相关代码。kit 读 spout 锚点时有兜底（`A.spout ?? …`，`l.spout || …`），所以不需要占位。〔测试〕`tests/{claude,gpt,gemini}-figure.test.js`
+- 没有 `spout`：词表和 `GESTURES` 里都没有，`figure.js`、`face.js`、`motion.js`、`fx.js` 里也没有相关代码。kit 读 spout 锚点时有兜底（`A.spout ?? …`，`l.spout || …`），所以不需要占位。〔测试〕`tests/{claude,gpt,gemini,grok}-figure.test.js`
 
 **导出到上游的包**
-- 大肥鱼和三位娘的导出包自带 kit 和形象代码，所以在上游 v0.1.17 里也有组合脸、头部通道和这套表情规则。
+- 大肥鱼和四位娘的导出包自带 kit 和形象代码，所以在上游 v0.1.17 里也有组合脸、头部通道和这套表情规则。
 - 上游的 World 没有组，词一个一个到；`a+b` 在那里是不认识的词，会被丢掉并报告。
 - 〔实测〕用上游的验证脚本把整张词表逐个跑过：
   - 大肥鱼 95 个词，三位娘各 94 个（加歪头之前）；
@@ -1002,7 +1005,7 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 | 点头、摇头、叹气和手势不能同时：新手势顶掉旧手势 | 头部通道（§一.10） |
 | 跪坐遇到点头就结束 | 跪坐保持到手或全身动作，头在跪坐图上动 |
 | 跪坐、趴下的脸只有笑、闭眼、说话三张贴片（原「仍然存在」第 4 条） | 实时脸：站姿的眼睛、嘴图贴到跪坐图、趴姿图的头上（`face.js` / `paintFace` 的 `place`、`<id>_blank` / `<id>_fringe`），组合脸、眨眼、视线、说话口型都在（§二.8） |
-| 没有形象声明 `kneelArms`（原「仍然存在」第 7 条） | 大肥鱼和三位娘跪着画得出手势（跪坐混合体），声明 `kneelArms`；词表的 `kneel` 带 `keepsArms`，World 把 `跪坐+招手` 排进同一组，回执和词表写明手势不结束跪坐 |
+| 没有形象声明 `kneelArms`（原「仍然存在」第 7 条） | 大肥鱼和四位娘跪着画得出手势（跪坐混合体），声明 `kneelArms`；词表的 `kneel` 带 `keepsArms`，World 把 `跪坐+招手` 排进同一组，回执和词表写明手势不结束跪坐 |
 | 没有办法让几个词同时做 | `a+b` 组，按部位拆分，回执说明 |
 | 表情打断张望，`张望+疑惑` 做不出来 | plus 下表情不再打断 look |
 | 唱歌时要的表情会去掉祈祷手、节拍和唱歌的嘴 | `BODY_OWN` 叠加成组合脸 |
@@ -1025,11 +1028,11 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
    - 这时工具返回「30 秒内没有走到」，她其实还在走（`world.ts:57, 1363-1366`）〔代码〕。
 3. ~~**组里的表情只持续自己的 3.2 s**~~：已修复，组里的表情至少持续到同组手势自带的脸结束（§6）。
 4. ~~**画不出实时的脸**~~：已修复，见上表。跪坐图、趴姿图上的脸不带站姿 rig 单独会动的眉（`brows`）和大肥鱼的眼皮褶，用图上自己的眉；带眉的表情图（angry、sad 等）照样画出眉。
-5. **背过身时看不见点头**：三位娘和大肥鱼都是这样，摇头只让后面的头发晃一晃。
+5. **背过身时看不见点头**：四位娘和大肥鱼都是这样，摇头只让后面的头发晃一晃。
 6. **名字带 `+` 的词不能做组的成员**：单独用可以。
-7. ~~**没有形象声明 `kneelArms`**~~：已修复，见上表（大肥鱼和三位娘；Coo 跪坐就是坐，做手势仍变回普通坐着）。欢呼、后缩、探头这些「要站着或坐着不动」的手势仍结束跪坐（唱歌除外，跪着也唱）。
-8. **两个表情同组只限白名单里的对**：三位娘 118 对、大肥鱼 98 对、Coo 24 对（§一.9「表情对」），别的两个表情仍拆成先后；方向是全局的，某个形象想要另一个方向就只能不收。
-9. **组合脸在 Coo 上不如在三位娘上明显**：Coo 没有嘴。（大肥鱼原先缺 smug、angry、sad、shy 的眼睛图，已补上；她的白名单是补图之前挑的，没有重挑。）
+7. ~~**没有形象声明 `kneelArms`**~~：已修复，见上表（大肥鱼和四位娘；Coo 跪坐就是坐，做手势仍变回普通坐着）。欢呼、后缩、探头这些「要站着或坐着不动」的手势仍结束跪坐（唱歌除外，跪着也唱）。
+8. **两个表情同组只限白名单里的对**：四位娘 118 对、大肥鱼 98 对、Coo 24 对（§一.9「表情对」），别的两个表情仍拆成先后；方向是全局的，某个形象想要另一个方向就只能不收。
+9. **组合脸在 Coo 上不如在四位娘上明显**：Coo 没有嘴。（大肥鱼原先缺 smug、angry、sad、shy 的眼睛图，已补上；她的白名单是补图之前挑的，没有重挑。）
 10. **没有 `doAll` 的身体一组词逐个做**：第三方包、非 plus 身体都是这样。被拒的成员（比如跳起来时的表情）每帧重试，最多 2 s（`figure-frame.js:40, 88, 95-98`）；非 plus 身体上，后面的动作仍会按上游规则清掉表情。
 
 ---
@@ -1344,7 +1347,7 @@ E 表情 27，H 头部手势 3，G 其余手势 25，L 姿态 4，M 模式动作
 
 仍然存在：「温柔」用得最多（改前 97 次，改后 119 次）；点头、摇头、叹气少了。bot 写错的词多是没有的动作（歪头、拍手、揉眼），或现有词的近义说法（兴奋、好奇、微笑）。
 
-之后：歪头成了词（`tilt`），对得上的近义说法收成了现有词的名字（见开头）。几轮评测里被略过的词：好奇 ×6、歪头 ×5、兴奋 ×4、挥手 ×3、拍手 ×2，打哈欠、揉眼、打盹、微笑、心疼、站起来、转头、偷偷抬眼、移开视线、眼睛亮、握拳、摆手、轻轻点头、抖抖、被戳、盖被子各 1 次；现在只剩转头（说的是转身回来或转向你，转身是整个人转过去）、被戳、盖被子还会被略过；拍手后来成了新画的手势 `clap`（三位娘和大肥鱼），只有 Coo 还会略过。
+之后：歪头成了词（`tilt`），对得上的近义说法收成了现有词的名字（见开头）。几轮评测里被略过的词：好奇 ×6、歪头 ×5、兴奋 ×4、挥手 ×3、拍手 ×2，打哈欠、揉眼、打盹、微笑、心疼、站起来、转头、偷偷抬眼、移开视线、眼睛亮、握拳、摆手、轻轻点头、抖抖、被戳、盖被子各 1 次；现在只剩转头（说的是转身回来或转向你，转身是整个人转过去）、被戳、盖被子还会被略过；拍手后来成了新画的手势 `clap`（四位娘和大肥鱼），只有 Coo 还会略过。
 
 ### 第二轮：歪头、别名和提示词（同样的评测，每边 150 条回复）
 

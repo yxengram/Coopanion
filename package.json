@@ -23,6 +23,7 @@
     "export:claude": "node packages/cortico-world-desktop-pet/scripts/export-claude-pack.mjs",
     "export:gpt": "node packages/cortico-world-desktop-pet/scripts/export-gpt-pack.mjs",
     "export:gemini": "node packages/cortico-world-desktop-pet/scripts/export-gemini-pack.mjs",
+    "export:grok": "node packages/cortico-world-desktop-pet/scripts/export-grok-pack.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "typecheck:web": "tsc -p tsconfig.web.json",

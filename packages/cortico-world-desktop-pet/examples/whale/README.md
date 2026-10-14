@@ -67,14 +67,14 @@ kit 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎时�
 
 **词表**（`vocab`）：这个身体在场时 bot 能用的全部表情和动作，没列的词 bot 用不了。每个词写清 `names`（bot 可以用哪些名字写它）、
 `about`（在这个身体上是什么样子，原样进 bot 的提示词），`seconds`（连着做时等多久再做下一个）。
-用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 30 个组合表情），一共 103 个；大肥鱼在这些之外多一个托腮（`muse`）和六个头部、身体的动作（低头 `droop`、眨眨眼 `blink`、凑近 `closer`、后仰 `leanback`、晃来晃去 `sway`、跺脚 `stamp`），还有摇尾巴（`wag`）和七个新画的手势（拍手 `clap`、摊手 `shrug`、抱头 `headhold`、举手 `raise`、点赞 `thumbs`、嘘 `shush`、擦汗 `wipe`），一共 118 个；三个娘（Claude 娘、GPT 娘、Gemini 娘）也列了扩展词、这六个动作和七个手势，没有喷水（`spout`），但有托腮和加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），Claude 娘一共 119 个；GPT 娘再多摇尾巴、扇翅膀（`wingbeat`），121 个；Gemini 娘再多摇尾巴、抖耳朵（`earflick`）、竖耳朵（`earsup`）、耳朵耷拉（`earsdown`），123 个。
+用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 30 个组合表情），一共 103 个；大肥鱼在这些之外多一个托腮（`muse`）和六个头部、身体的动作（低头 `droop`、眨眨眼 `blink`、凑近 `closer`、后仰 `leanback`、晃来晃去 `sway`、跺脚 `stamp`），还有摇尾巴（`wag`）和七个新画的手势（拍手 `clap`、摊手 `shrug`、抱头 `headhold`、举手 `raise`、点赞 `thumbs`、嘘 `shush`、擦汗 `wipe`），一共 118 个；四个娘（Claude 娘、GPT 娘、Gemini 娘、Grok 娘）也列了扩展词、这六个动作和七个手势，没有喷水（`spout`），但有托腮和加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），Claude 娘一共 119 个；GPT 娘再多摇尾巴、扇翅膀（`wingbeat`），121 个；Gemini 娘再多摇尾巴、抖耳朵（`earflick`）、竖耳朵（`earsup`）、耳朵耷拉（`earsdown`），123 个；Grok 娘再多扇翅膀，120 个。
 
 **表情对**（`pairs`，可省）：bot 在同一组里写两个表情（`【开心+惊讶】`）时，默认拆成先后两个。想让它们合成一张脸，就在 `pairs` 里列出这一对：
 `"happy+surprised": "surprised+happy"` 是合成，值里给眼的那个在前、给嘴的在后（键里先后无所谓）；`"happy+smug": "smirk"` 是别名，显示成词表里另一个表情。
 World 只合并列出的对，合成对一律按值的方向发给身体（眼在前，不管 bot 先写哪个），回执告诉 bot 谁给了眼、谁给了嘴。
 带 `plus` 的 kit 身体（`doGroup`）把一组里收到的前两个表情合成「第一个的眼 + 第二个的嘴」，所以 `pairs` 写的方向就是显示出来的样子，不用另配表；
 别的身体只列别名对，或者自己的 `doAll` 也照这个顺序合成——不会合成的身体收到合成对时后一个表情胜出。校验规则见包的 README。
-内置形象各列了自己看过渲染图挑出来的对（三个娘 118 对、大肥鱼 98、Coo 24）；导出的包不带 `pairs`（上游的 World 不合并）。
+内置形象各列了自己看过渲染图挑出来的对（四个娘 118 对、大肥鱼 98、Coo 24）；导出的包不带 `pairs`（上游的 World 不合并）。
 
 **入口**：`figure.json` 的 `entry` 和 `export` 指向一个工厂，按 `factory(base, { model, scheme, kit, loadImage, asset, host })` 调用，
 在沙箱里返回一个身体。契约在 `web/figure-frame.js` 开头。最省事的写法是交给 kit：
@@ -107,7 +107,7 @@ export async function createMyBody(base, opts) {
 
 ## kit 的扩展（`plus`）
 
-Coo、大肥鱼和三个娘（Claude 娘、GPT 娘、Gemini 娘）用的 kit 比原版多一些词、表情和姿势，只在打开 `plus` 时才有：`createPet(els, { …, plus: true })`、
+Coo、大肥鱼和四个娘（Claude 娘、GPT 娘、Gemini 娘、Grok 娘）用的 kit 比原版多一些词、表情和姿势，只在打开 `plus` 时才有：`createPet(els, { …, plus: true })`、
 `createBody(host, { figure, plus: true })`。不开时 kit 和原版的 kit 行为完全一样（只认 `KIT_EXPRESSIONS`、`KIT_MOTIONS` 和包自己的 `words`，
 表情用原版的 `FACES`），所以照上面写的形象包在这里照常能用。打开后：
 
@@ -126,17 +126,17 @@ Coo、大肥鱼和三个娘（Claude 娘、GPT 娘、Gemini 娘）用的 kit 比
   组里的前两个表情（`neutral`、`petrify` 除外）合成一张主动要的脸，脸名 `眼+嘴`：第一个的眼（连同眉、身体语言和符号），第二个的嘴；再往后的表情先做，被它盖住。
   音色、星光、弹跳跟眼那张脸（眼那张没有音色时用嘴那张的），任一个是 sleepy 时持续 4.4 秒，否则 3.2 秒。
   组里的表情至少持续到同组手势自带的脸结束（唱歌、看书、喝茶、跳舞），手势末尾不会换回它自己的脸。
-- figure 可以声明的能力：`poses`（`lie`、`back`，随帧报告）、`anchors` 里的 `lie`、`glints`（开心、得意时星光冒出的几处，没给就在气泡位置两侧）、`spout`、`kneelRaise`、`tears`、`kneelArms`（跪坐时也画得出手势，`ARM_GESTURES` 里的手势就不结束跪坐；大肥鱼和三位娘有 `poses.kneelLow` 时声明，World 那边靠包里 `kneel` 词的 `keepsArms` 把它们和跪坐分到同一组），
+- figure 可以声明的能力：`poses`（`lie`、`back`，随帧报告）、`anchors` 里的 `lie`、`glints`（开心、得意时星光冒出的几处，没给就在气泡位置两侧）、`spout`、`kneelRaise`、`tears`、`kneelArms`（跪坐时也画得出手势，`ARM_GESTURES` 里的手势就不结束跪坐；大肥鱼和四位娘有 `poses.kneelLow` 时声明，World 那边靠包里 `kneel` 词的 `keepsArms` 把它们和跪坐分到同一组），
   以及在 `gestures` 里列出自己画的扩展手势；Coo 专用的几项由 `cooFigure()` 声明。每一项的说明在 `web/kit/body.js` 里 `createPet` 的注释。
 - `talk(ch)` 可以带上正在说的字，口型由字的编码决定；不带时每说一下换下一个口型。
 - 带 `plus` 的身体做不了的词（不认识的，或此刻做不了的，比如倾听时唱歌）`do(word)` 会立刻报 `done`，页面的动作队列不用干等；不带 `plus` 的身体和上游一样，等满这个词的 `seconds`。
-- 声音一律按 `play(名字, 类别)` 要，扩展的音色在 `web/sound.js`，只有内置的五个形象（`web/sound.js` 的 `OWN_PACKS`）听得到（别的包要这些名字和在上游一样没有声音，得自带音频文件）；唱歌被打断时要 `stop:song`，不认识它的页面忽略就是。
+- 声音一律按 `play(名字, 类别)` 要，扩展的音色在 `web/sound.js`，只有内置的六个形象（`web/sound.js` 的 `OWN_PACKS`）听得到（别的包要这些名字和在上游一样没有声音，得自带音频文件）；唱歌被打断时要 `stop:song`，不认识它的页面忽略就是。
 
 大肥鱼的入口 `createWhaleBody` 不用 `opts.kit`，而是由 `figure.js` 自己 import 旁边的 `../kit/body.js`，并传 `plus: true`。
 在应用里它和 `opts.kit` 是同一个模块；导出成形象包时把 `whale/figure.js` 和 `kit/body.js`、`kit/rig.js` 放在一起，包就带着自己的 kit，
 在原版的桌宠里也是同样的词和姿势。`figure.js` 不联网（形象包的沙箱也不让）：`model.json` 由调用方读好传进 `opts.model`，
 没给就直接报错；贴图都经 `opts.loadImage` 载入。`kit/rig.js` 比原版多一个 `st.stone`（0 到 1，整张褪成灰白的石头色，石化用）。
-展示页（`serve.mjs`）同样用 `plus: true`，按 `figure.json` 的词表给每个词一个按钮；加 `?figure=coo` 换成 Coo、`?figure=claude-chan` 换成 Claude 娘（`web/claude-chan/`）、`?figure=gpt-chan` 换成 GPT 娘（`web/gpt-chan/`）、`?figure=gemini-chan` 换成 Gemini 娘（`web/gemini-chan/`），`?scheme=<id>` 选配色。
+展示页（`serve.mjs`）同样用 `plus: true`，按 `figure.json` 的词表给每个词一个按钮；加 `?figure=coo` 换成 Coo、`?figure=claude-chan` 换成 Claude 娘（`web/claude-chan/`）、`?figure=gpt-chan` 换成 GPT 娘（`web/gpt-chan/`）、`?figure=gemini-chan` 换成 Gemini 娘（`web/gemini-chan/`）、`?figure=grok-chan` 换成 Grok 娘（`web/grok-chan/`），`?scheme=<id>` 选配色。
 
 下面是这些扩展在大肥鱼（和 Coo）身上的样子。
 
@@ -214,7 +214,7 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 
 - `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 118 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色、每个姿势、五官、缩略图），缺一个就报错。
-- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 33 个；Claude 娘的包没有 spout 和摇尾巴的 wag、多加油、记笔记、对手指的 fist、jot、twiddle，是 34 个；GPT 娘再多 wag 和扇翅膀的 wingbeat，Gemini 娘再多 wag 和抖耳朵的 earflick，各 36 个），用 `node_modules` 里的 Electron
+- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 33 个；Claude 娘的包没有 spout 和摇尾巴的 wag、多加油、记笔记、对手指的 fist、jot、twiddle，是 34 个；GPT 娘再多 wag 和扇翅膀的 wingbeat，Gemini 娘再多 wag 和抖耳朵的 earflick，各 36 个；Grok 娘再多扇翅膀的 wingbeat，35 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），
   去掉结尾的静音，存成 44.1 kHz 16 位单声道 WAV。文件按峰值 -1 dBFS 存，`volume` 把它调回原来的响度：页面播放时同样经过总音量和压缩器，听起来和内置音色一样。
   渲染出来是静音或超过满幅都会报错。
@@ -231,7 +231,9 @@ GPT 娘也一样：`pnpm run export:gpt [输出目录]`（`scripts/export-gpt-pa
 贴图同样只限非商业使用；`coopanion-gpt-chan` 是内置 GPT 娘的别名，`tests/gpt-pack-export.test.js` 做同样的检查。
 Gemini 娘同理：`pnpm run export:gemini [输出目录]`（`scripts/export-gemini-pack.mjs`）写出 `coopanion-gemini-chan/`，名字「Gemini 娘」，
 贴图只限非商业使用；`coopanion-gemini-chan` 是内置 Gemini 娘的别名，`tests/gemini-pack-export.test.js` 做同样的检查。
-四个脚本只是各自的描述（id、名字、许可、README），导出的活都在 `scripts/export-pack.mjs` 里。
+Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pack.mjs`）写出 `coopanion-grok-chan/`，名字「Grok 娘」，
+贴图只限非商业使用；`coopanion-grok-chan` 是内置 Grok 娘的别名，`tests/grok-pack-export.test.js` 做同样的检查。
+五个脚本只是各自的描述（id、名字、许可、README），导出的活都在 `scripts/export-pack.mjs` 里。
 
 ## 贴图来源
 

@@ -14,14 +14,15 @@ const word = { id: 'beep', kind: 'motion', names: { zh: ['哔'] }, about: { zh: 
 const base = { manifest: 2, api: 2, id: 'robot', name: { zh: '机器人' }, about: { zh: '一个机器人' }, entry: 'figure.js', export: 'createBody', axes: [], presets: [], vocab: [word] };
 
 describe('figure packs', () => {
-  it('reads the built-in Coo, whale, Claude-chan, GPT-chan and Gemini-chan', () => {
+  it('reads the built-in Coo, whale, Claude-chan, GPT-chan, Gemini-chan and Grok-chan', () => {
     const { packs, problems } = figurePacks([]);
     expect(problems).toEqual([]);
-    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
+    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']);
     expect(packs.every((p) => p.builtin)).toBe(true);
     expect(packs.find((p) => p.id === 'claude-chan')).toMatchObject({ base: '/web/claude-chan/', manifest: { export: 'createClaudeBody', model: 'model.json' } });
     expect(packs.find((p) => p.id === 'gpt-chan')).toMatchObject({ base: '/web/gpt-chan/', manifest: { export: 'createGptBody', model: 'model.json' } });
     expect(packs.find((p) => p.id === 'gemini-chan')).toMatchObject({ base: '/web/gemini-chan/', manifest: { export: 'createGeminiBody', model: 'model.json' } });
+    expect(packs.find((p) => p.id === 'grok-chan')).toMatchObject({ base: '/web/grok-chan/', manifest: { export: 'createGrokBody', model: 'model.json' } });
   });
 
   it('Claude-chan has one scheme, original, with settings-window colours, credited to the character\'s designer, and no alias', () => {
@@ -65,6 +66,20 @@ describe('figure packs', () => {
     expect(unaliasSkin(skin)).toBe(skin);
   });
 
+  it('Grok-chan has one scheme, original, with settings-window colours, credited to the character\'s designer', () => {
+    const { packs } = figurePacks([]);
+    const m = packs.find((p) => p.id === 'grok-chan')!.manifest;
+    expect(m.name).toEqual({ zh: 'Grok 娘', en: 'Grok-chan' });
+    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']]]);
+    expect(m.presets).toHaveLength(1);
+    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original' }, accent: '#A3304A' });
+    expect(Object.keys(m.presets[0]!.console!)).toEqual(['light', 'dark']);
+    expect(m.credits).toEqual([{ role: '角色设定', name: 'ZipZipPipe（Bilibili）' }]);
+    expect(packFor(packs, 'grok-chan')).toMatchObject({ id: 'grok-chan', builtin: true });
+    const skin = { figure: 'grok-chan', scheme: 'original' };
+    expect(unaliasSkin(skin)).toBe(skin);
+  });
+
   it('refuses a pack whose files lie outside it', () => {
     expect(readManifest(pack({ ...base, entry: '../../web/pet-app.js' }))).toMatch(/entry/);
     expect(readManifest(pack({ ...base, model: 'C:/secrets.json' }))).toMatch(/model/);
@@ -73,13 +88,13 @@ describe('figure packs', () => {
 
   it('a built-in id is not taken over by an installed pack, Coo\'s included', () => {
     const root = mkdtempSync(join(tmpdir(), 'packs-'));
-    for (const id of ['whale', 'coo', 'claude-chan', 'gpt-chan', 'gemini-chan']) {
+    for (const id of ['whale', 'coo', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']) {
       mkdirSync(join(root, id));
       writeFileSync(join(root, id, 'figure.json'), JSON.stringify({ ...base, id }));
     }
     const { packs, problems } = figurePacks([root]);
-    expect(packs.filter((p) => ['whale', 'coo', 'claude-chan', 'gpt-chan', 'gemini-chan'].includes(p.id)).map((p) => p.builtin)).toEqual([true, true, true, true, true]);
-    expect(problems).toHaveLength(5);
+    expect(packs.filter((p) => ['whale', 'coo', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].includes(p.id)).map((p) => p.builtin)).toEqual([true, true, true, true, true, true]);
+    expect(problems).toHaveLength(6);
   });
 
   it('takes our whale exported as a pack for the built-in whale: not listed, and a skin naming it shows the built-in', () => {
@@ -88,7 +103,7 @@ describe('figure packs', () => {
     writeFileSync(join(root, 'export', 'figure.json'), JSON.stringify({ ...base, id: 'coopanion-whale' }));
     const { packs, problems } = figurePacks([root]);
     expect(problems).toEqual([]);
-    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
+    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']);
     expect(packFor(packs, 'coopanion-whale')).toMatchObject({ id: 'whale', builtin: true });
     expect(unaliasSkin({ figure: 'coopanion-whale', scheme: 'claude' })).toEqual({ figure: 'whale', scheme: 'claude' });
     const skin = { figure: 'robot', scheme: '' };
@@ -103,9 +118,10 @@ describe('figure packs', () => {
     }
     const { packs, problems } = figurePacks([root]);
     expect(problems).toEqual([]);
-    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
+    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']);
     expect(PACK_ALIASES).toEqual({
       'coopanion-whale': 'whale', 'coopanion-claude-chan': 'claude-chan', 'coopanion-gpt-chan': 'gpt-chan', 'coopanion-gemini-chan': 'gemini-chan',
+      'coopanion-grok-chan': 'grok-chan',
     });
     expect(figureOf('coopanion-claude-chan')).toBe('claude-chan');
     expect(packFor(packs, 'coopanion-claude-chan')).toMatchObject({ id: 'claude-chan', builtin: true, base: '/web/claude-chan/' });
@@ -115,13 +131,13 @@ describe('figure packs', () => {
 
   it('takes our GPT-chan exported as a pack for the built-in one, next to the other exports', () => {
     const root = mkdtempSync(join(tmpdir(), 'packs-'));
-    for (const id of ['coopanion-gpt-chan', 'coopanion-claude-chan', 'coopanion-whale', 'coopanion-gemini-chan']) {
+    for (const id of ['coopanion-gpt-chan', 'coopanion-claude-chan', 'coopanion-whale', 'coopanion-gemini-chan', 'coopanion-grok-chan']) {
       mkdirSync(join(root, id));
       writeFileSync(join(root, id, 'figure.json'), JSON.stringify({ ...base, id }));
     }
     const { packs, problems } = figurePacks([root]);
     expect(problems).toEqual([]);
-    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan']);
+    expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']);
     expect(figureOf('coopanion-gpt-chan')).toBe('gpt-chan');
     expect(packFor(packs, 'coopanion-gpt-chan')).toMatchObject({ id: 'gpt-chan', builtin: true, base: '/web/gpt-chan/' });
     expect(unaliasSkin({ figure: 'coopanion-gpt-chan', scheme: 'original' })).toEqual({ figure: 'gpt-chan', scheme: 'original' });
@@ -129,11 +145,14 @@ describe('figure packs', () => {
     expect(figureOf('coopanion-gemini-chan')).toBe('gemini-chan');
     expect(packFor(packs, 'coopanion-gemini-chan')).toMatchObject({ id: 'gemini-chan', builtin: true, base: '/web/gemini-chan/' });
     expect(unaliasSkin({ figure: 'coopanion-gemini-chan', scheme: 'original' })).toEqual({ figure: 'gemini-chan', scheme: 'original' });
+    expect(figureOf('coopanion-grok-chan')).toBe('grok-chan');
+    expect(packFor(packs, 'coopanion-grok-chan')).toMatchObject({ id: 'grok-chan', builtin: true, base: '/web/grok-chan/' });
+    expect(unaliasSkin({ figure: 'coopanion-grok-chan', scheme: 'original' })).toEqual({ figure: 'grok-chan', scheme: 'original' });
   });
 
-  it('Coo knows 103 words (73 and 30 faces made of parts), the whale those, her chin on her hand, six moves of the head and body, seven arm words drawn anew and a wag of her tail (118), Claude-chan, GPT-chan and Gemini-chan all but spout and the wag and three more arm poses (119), GPT-chan her tail\'s and wings\' (121), Gemini-chan her tail\'s and ears\' (123), sit, sleep, lie and kneel lasting', () => {
+  it('Coo knows 103 words (73 and 30 faces made of parts), the whale those, her chin on her hand, six moves of the head and body, seven arm words drawn anew and a wag of her tail (118), Claude-chan, GPT-chan, Gemini-chan and Grok-chan all but spout and the wag and three more arm poses (119), GPT-chan her tail\'s and wings\' (121), Gemini-chan her tail\'s and ears\' (123), Grok-chan her little wings\' (120), sit, sleep, lie and kneel lasting', () => {
     const { packs } = figurePacks([]);
-    let [coo, whale, claude, gpt, gemini] = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab);
+    let [coo, whale, claude, gpt, gemini, grok] = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab);
     // (the faces' arm poses as words of their own: drawn by the whale (her chin) and the girls (all four), not by Coo;
     // the moves of the head and body (低头, 眨眨眼, 凑近, 后仰, 晃来晃去, 跺脚): the whale and the girls, not Coo)
     const POSES = ['muse', 'fist', 'jot', 'twiddle'];
@@ -143,17 +162,17 @@ describe('figure packs', () => {
     // (the moves of a tail, ears or wings: each figure those of the parts she has)
     const PARTS = ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat'];
     const parts = (v: typeof coo) => v!.filter((w) => PARTS.includes(w.id)).map((w) => w.id);
-    expect([coo, whale, claude, gpt, gemini].map(parts)).toEqual([[], ['wag'], [], ['wag', 'wingbeat'], ['wag', 'earflick', 'earsup', 'earsdown']]);
-    [coo, whale, claude, gpt, gemini] = [coo, whale, claude, gpt, gemini].map((v) => v!.filter((w) => !PARTS.includes(w.id)));
+    expect([coo, whale, claude, gpt, gemini, grok].map(parts)).toEqual([[], ['wag'], [], ['wag', 'wingbeat'], ['wag', 'earflick', 'earsup', 'earsdown'], ['wingbeat']]);
+    [coo, whale, claude, gpt, gemini, grok] = [coo, whale, claude, gpt, gemini, grok].map((v) => v!.filter((w) => !PARTS.includes(w.id)));
     expect(coo!.map((w) => w.id)).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'muse' && !MORE.includes(id) && !NEW_ARMS.includes(id)));
-    for (const v of [whale, claude, gpt, gemini]) expect(v!.filter((w) => NEW_ARMS.includes(w.id)).map((w) => w.id)).toEqual(NEW_ARMS);
+    for (const v of [whale, claude, gpt, gemini, grok]) expect(v!.filter((w) => NEW_ARMS.includes(w.id)).map((w) => w.id)).toEqual(NEW_ARMS);
     expect(whale!.filter((w) => MORE.includes(w.id)).map((w) => w.id).sort()).toEqual([...MORE].sort());
     expect(claude!.filter((w) => MORE.includes(w.id)).map((w) => w.id).sort()).toEqual([...MORE].sort());
     expect(coo).toHaveLength(103);
     expect(whale).toHaveLength(117);
     expect(claude).toHaveLength(119);
-    expect([gpt, gemini].map((v) => v!.length)).toEqual([119, 119]);
-    expect(['whale', 'claude-chan', 'gpt-chan', 'gemini-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab.length)).toEqual([118, 119, 121, 123]);
+    expect([gpt, gemini, grok].map((v) => v!.length)).toEqual([119, 119, 119]);
+    expect(['whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab.length)).toEqual([118, 119, 121, 123, 120]);
     expect(coo!.filter((w) => w.kind === 'expression')).toHaveLength(58);
     expect(claude!.map((w) => w.id).filter((id) => !POSES.includes(id))).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'spout' && !POSES.includes(id)));
     expect(claude!.filter((w) => POSES.includes(w.id)).map((w) => w.id)).toEqual(POSES);
@@ -171,9 +190,15 @@ describe('figure packs', () => {
     expect(gemini!.map((w) => w.names)).toEqual(claude!.map((w) => w.names));
     expect(JSON.stringify(gemini)).not.toMatch(/鲸|鳍|围裙|喷水|龙|翅膀|翼/);
     expect(gemini!.filter((w) => /书/.test(w.about.zh!)).map((w) => w.id)).toEqual(['read']);
-    for (const v of [coo!, whale!, claude!, gpt!, gemini!]) expect(v.filter((w) => w.lasting).map((w) => w.id).sort()).toEqual(['kneel', 'lie', 'sit', 'sleep']);
-    // the whale and the three girls draw arm gestures kneeling (keepsArms); Coo does not
-    for (const v of [whale!, claude!, gpt!, gemini!]) expect(v.filter((w) => w.keepsArms).map((w) => w.id)).toEqual(['kneel']);
+    // Grok-chan's the same words, said of her (little bat wings on her bows and twin-tails; no ears, tail or fins to
+    // move; a book only to read, standing or lying)
+    expect(grok!.map((w) => [w.id, w.seconds, w.lasting])).toEqual(claude!.map((w) => [w.id, w.seconds, w.lasting]));
+    expect(grok!.map((w) => w.names)).toEqual(claude!.map((w) => w.names));
+    expect(JSON.stringify(grok)).not.toMatch(/鲸|鳍|围裙|喷水|龙|猫|喵|耳|尾巴/);
+    expect(grok!.filter((w) => /书/.test(w.about.zh!)).map((w) => w.id)).toEqual(['lie', 'read']);
+    for (const v of [coo!, whale!, claude!, gpt!, gemini!, grok!]) expect(v.filter((w) => w.lasting).map((w) => w.id).sort()).toEqual(['kneel', 'lie', 'sit', 'sleep']);
+    // the whale and the four girls draw arm gestures kneeling (keepsArms); Coo does not
+    for (const v of [whale!, claude!, gpt!, gemini!, grok!]) expect(v.filter((w) => w.keepsArms).map((w) => w.id)).toEqual(['kneel']);
     expect(coo!.some((w) => w.keepsArms)).toBe(false);
     expect(coo!.find((w) => w.id === 'petrify')!.seconds).toBe(3.2);
   });
@@ -217,12 +242,13 @@ describe('pairs of expressions shown as one face', () => {
   const faces = [face('neutral', '平静'), face('happy', '开心'), face('surprised', '惊讶'), face('smug', '得意'), face('smirk', '坏笑'), face('petrify', '石化')];
   const read = (pairs: unknown) => readManifest(pack({ ...base, vocab: [word, ...faces], pairs }));
 
-  it('the built-ins read with their judged pairs (the three girls the same, the whale fewer, Coo the fewest)', () => {
+  it('the built-ins read with their judged pairs (the four girls the same, the whale fewer, Coo the fewest)', () => {
     const by = Object.fromEntries(figurePacks([]).packs.map((p) => [p.id, p.manifest.pairs]));
     const n = (id: string) => Object.keys(by[id]).length;
-    expect([n('coo'), n('whale'), n('claude-chan'), n('gpt-chan'), n('gemini-chan')]).toEqual([24, 98, 118, 118, 118]);
+    expect([n('coo'), n('whale'), n('claude-chan'), n('gpt-chan'), n('gemini-chan'), n('grok-chan')]).toEqual([24, 98, 118, 118, 118, 118]);
     expect(by['gpt-chan']).toEqual(by['claude-chan']);
     expect(by['gemini-chan']).toEqual(by['claude-chan']);
+    expect(by['grok-chan']).toEqual(by['claude-chan']);
     expect(by['claude-chan']['happy~surprised']).toEqual({ eyes: 'surprised', mouth: 'happy' });
     expect(by.coo['happy~smug']).toEqual({ as: 'smirk' });
     // each smaller list is part of the larger one

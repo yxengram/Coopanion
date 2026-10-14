@@ -1,7 +1,9 @@
 /**
  * A kneel at rest, frame by frame, for the frozen fixtures tests/fixtures/kneel-rest-<figure>.json: they were written
  * with this driver from each girl's motion.js and model.json as they were before the kneeling hybrid (commit 0fa2d0e),
- * so a kneel with her arms at rest is checked to draw exactly as it did (tests/helpers/kneel-arms.js).
+ * so a kneel with her arms at rest is checked to draw exactly as it did (tests/helpers/kneel-arms.js). Grok-chan came
+ * after the hybrid, so hers was written from her first motion.js on her model without its floor faces and the arm
+ * drawings the others' fixtures predate, as kneel-arms.js reads it (scratch/grok/tools/fixtures.mjs).
  */
 import { FACES, PLUS_FACES } from '../../packages/cortico-world-desktop-pet/web/kit/body.js';
 

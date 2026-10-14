@@ -1,6 +1,6 @@
 /**
- * The kneeling hybrid of the three girls (Claude-chan, GPT-chan, Gemini-chan: one design, the same code in each
- * motion.js): kneeling, a gesture or a face that poses her arms shows her live upper body over poses.kneelLow (the
+ * The kneeling hybrid of the four girls (Claude-chan, GPT-chan, Gemini-chan, Grok-chan: one design, the same code in
+ * each motion.js): kneeling, a gesture or a face that poses her arms shows her live upper body over poses.kneelLow (the
  * kneeling drawing's lower body), cut in for the kneeling drawing in a frame, and back once her arms are at rest.
  * `describeKneelArms` runs the same tests on each; kneel-rest.js has the frozen-fixture driver (tests/fixtures/kneel-rest-*.json).
  */

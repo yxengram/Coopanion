@@ -14,6 +14,7 @@ import { gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf,
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/claude-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
+import { describeArmCut } from './helpers/arm-cut.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
 import { createClaudeFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/claude-chan/figure.js';
@@ -1537,3 +1538,6 @@ describeKneelArms('Claude-chan', {
 
 /* ---------- live faces on the kneeling and lying drawings (the three girls share these: tests/helpers/floor-face.js) ---------- */
 describeFloorFace('Claude-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTURES });
+
+/* ---------- arm drawings cut in for each other, never half seen at once (the three girls share these: tests/helpers/arm-cut.js) ---------- */
+describeArmCut('Claude-chan', { dir: DIR, M: KneelMotion, GESTURES });

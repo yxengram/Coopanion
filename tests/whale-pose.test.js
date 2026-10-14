@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, RAISE_HIGH, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN, WAG, appendagesOf, ARM_TWIN } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, RAISE_HIGH, lyingMouth, sipLift, rollTurn, ballMix, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN, WAG, appendagesOf, ARM_TWIN, SWAP_AT, handsIn } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 import { CLAP, createPet, TEAR_FX, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -871,6 +871,81 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     const run = (s, each = () => {}) => { for (let i = 0; i < s * 60; i++) { pet.step(1 / 60); pet.render(); each(rigSeen.st, frame); } };
     return { pet, run, tree: rigSeen.tree, frame: () => frame, fx: () => fxG.innerHTML, fig, done: () => { globalThis.document = doc; } };
   }
+  it('cuts her drawn arms in for the fist arms in a frame (SWAP_AT), never both half seen: at an angle, on an envelope, on a clock', () => {
+    // the wave and the stretch at the fist arm's own angle, the two pointing the same way
+    expect(waveHandover(1, SWAP_AT.wave - .01, 0, true).swap).toBe(0);
+    expect(waveHandover(1, SWAP_AT.wave, 0, true).swap).toBe(1);
+    // a cheer (and a long raise) a little short of where the fist arm is going, and its drawn arm still follows the fist arm there
+    const rest = model.poses.cheer.arms.near.rest, to = CHEER_TO.near;
+    expect(cheerHandover(1, to - SWAP_AT.cheer - .01, to, rest).swap).toBe(0);
+    const c = cheerHandover(1, to - SWAP_AT.cheer, to, rest);
+    expect(c).toMatchObject({ swap: 1, lift: 0 });
+    expect(c.dir).toBe(to - SWAP_AT.cheer);
+    // heart-way drawings early in their envelope coming in, late going (the drawing rises the rest of the way in after)
+    expect(handsIn(SWAP_AT.hands.in - .01, .1)).toBe(0);
+    expect(handsIn(SWAP_AT.hands.in, .1)).toBe(1);
+    expect(handsIn(SWAP_AT.hands.out, .9)).toBe(1);
+    expect(handsIn(SWAP_AT.hands.out - .01, .9)).toBe(0);
+    expect(handsIn(0, .1)).toBe(0);
+  });
+  it('shows each arm one drawing, whole, through every arm gesture and her chin on her hand, standing, seated and kneeling', async () => {
+    // every drawing of each arm (N near, F far): the fist arms, and each drawn arm by the arms it replaces
+    const groups = [['fistN', 'N', ['arm_near']], ['fistF', 'F', ['arm_far', 'arm_far_end_front']]];
+    for (const [id, P] of Object.entries(model.poses)) {
+      if (['lie', 'back', 'roll', 'kneel', 'kneelLow'].includes(id)) continue;
+      if (P.arms) { for (const [slot, a] of Object.entries(P.arms)) groups.push([`${id}.${slot}`, slot === 'near' ? 'N' : 'F', a.required.map(p => p.id)]); continue; }
+      groups.push([id, id === 'chin' || FAR_RAISES.includes(id) ? 'F' : id === 'wave' || NEAR_RAISES[id] ? 'N' : 'NF', P.required.map(p => p.id)]);
+    }
+    const WORDS = ['wave', 'cheer', 'heart', ...Object.keys(PROP_GESTURES), ...Object.keys(BOTH_HANDS), ...Object.keys(NEAR_RAISES), 'muse'];
+    const bad = [], seen = new Set();
+    const check = (st, tag) => {
+      const on = { N: [], F: [] };
+      for (const [g, side, ids] of groups) {
+        const a = Math.max(0, ...ids.map(i => st.alpha[i] ?? 0));
+        if (a > 1e-6 && a < 1 - 1e-6) bad.push(`${tag} ${g} part way ${a.toFixed(2)}`);
+        if (a > .02) for (const x of side) { on[x].push(g); seen.add(g); }
+      }
+      for (const x of ['N', 'F']) if (on[x].length !== 1) bad.push(`${tag} ${x}: ${on[x].join('+') || 'none'}`);
+    };
+    for (const scene of ['stand', 'sit', 'kneel']) {
+      for (const w of [...new Set(WORDS)]) {
+        const { pet, run, done } = await whaleOnKit();
+        try {
+          run(.5);
+          if (scene !== 'stand') { pet.doWord(scene); run(3); }
+          if (w === 'muse') pet.setExpr('thinking', 3); else pet.doWord(w);
+          let i = 0;
+          run(4, st => check(st, `${scene} ${w} @${i++}`));
+        } finally { done(); }
+      }
+    }
+    // back to back, the second asked part way through the first's hand-over, and in the middle of it
+    for (const [a, b, gap] of [['wave', 'hug', .3], ['heart', 'point', .05], ['cheer', 'cross', .4], ['salute', 'stretch', .1]]) {
+      const { pet, run, done } = await whaleOnKit();
+      try {
+        run(.5); pet.doWord(a); run(gap); pet.doWord(b);
+        let i = 0;
+        run(3, st => check(st, `${a}→${b} @${i++}`));
+      } finally { done(); }
+    }
+    // her chin on her hand (thinking), then a gesture that takes the far arm from it, standing and seated
+    for (const scene of ['stand', 'sit']) {
+      for (const w of ['heart', 'point', 'cheer', 'hug']) {
+        const { pet, run, done } = await whaleOnKit();
+        try {
+          run(.5);
+          if (scene === 'sit') { pet.doWord('sit'); run(3); }
+          pet.setExpr('thinking', 30);
+          let i = 0;
+          run(1.5, st => check(st, `${scene} thinking @${i++}`));
+          pet.doWord(w);
+          run(3, st => check(st, `${scene} thinking ${w} @${i++}`));
+        } finally { done(); }
+      }
+    }
+    expect(bad.slice(0, 10)).toEqual([]);
+    for (const g of ['wave', 'cheer.near', 'cheer.far', 'heart', 'hug', 'clap', 'clapo', 'stretch', 'salute', 'raise', 'point', 'chin']) expect(seen.has(g), g).toBe(true);
+  });
   it('cries small drops (tearDrop): about a quarter of an eye across, from under each eye standing and kneeling, from the lying head lying', async () => {
     const { pet, run, fx, fig, done } = await whaleOnKit();
     try {

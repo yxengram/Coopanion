@@ -326,8 +326,22 @@ export const CALM_MODES = ['idle', 'look', 'sit', 'sleep', 'wake'];
 export const BOOK_MODES = [...CALM_MODES, 'walk'];
 /** The plain arms' spring (stiffness, damping) and limit. */
 export const ARM_SPRING = { k: 60, c: 9, lim: 170 };
-/** The arms' crossfade between drawings (seconds), and how far a drawing rises into place as it comes. */
+/**
+ * How long the arms take to go from one drawing to the next (seconds: the shares that move them, armA), and how far a
+ * drawing rises into place as it comes.
+ */
 export const ARM_FADE = .15, ARM_RISE = 6;
+/**
+ * Which drawings her arms show (`{ L, R }`, as armPlan's): never two of one arm half seen at once (a double exposure),
+ * so the drawings planned replace those shown in one frame, once each has ARM_CUT of its share (armA): halfway through
+ * the arms' move, where the two meet. A drawing shown whose share has run out meanwhile gives way at once.
+ */
+export const ARM_CUT = .5;
+export function armShown(shown, plan, armA) {
+  if (shown && shown.L === plan.L && shown.R === plan.R) return shown;
+  const ready = [plan.L, plan.R].every(k => (armA[k] || 0) >= ARM_CUT);
+  return !shown || ready || ![shown.L, shown.R].every(k => armA[k] > 0) ? { L: plan.L, R: plan.R } : shown;
+}
 /** How long her back drawing takes to go when it may no longer show (s). */
 export const BACK_FADE = .15;
 /**
@@ -772,6 +786,7 @@ export function createMotion(model, R) {
   let lieB = { on: false, a: 0 };  // the lying drawing's cut (lieStep)
   let perk = 0, swish = 0, droop = 0, browLift = 0, browInner = 0, browSide = 0, backA = 0, backOn = 1, awayA = 0, faceArmT = 0, sinceArmG = 9, lastFaceArm = null, lastArmG = null;
   let armA = { hangL: 1, hangR: 1 };
+  let shown = { L: 'hangL', R: 'hangR' };  // the arm drawings showing (armShown)
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean;
   const posable = (caps, id) => !!ARM[id] && caps.pose(id);
 
@@ -872,6 +887,9 @@ export function createMotion(model, R) {
       if (armA[k] <= 0 && !want.has(k)) delete armA[k];
     }
     const up = k => smooth(0, 1, armA[k] || 0);
+    // (the shares move her arms; each drawing shows whole or not at all, cut in at the move's middle: armShown)
+    shown = armShown(shown, plan, armA);
+    const on = k => (shown.L === k || shown.R === k ? 1 : 0);
     const chinA = up('chin');
 
     /* the body she shows: standing, seated, kneeling, or kneeling with her arms posed (see bodyStep) */
@@ -987,8 +1005,8 @@ export function createMotion(model, R) {
     const fbWave = plan.fallback === 'wave' ? wave * 13 * Math.sin(t * 15) : 0;
     st.armL = { a: baseL + fbWave + shiver * 1.4 * Math.sin(t * 47) + flap * 9 * Math.sin(t * 24) + (fc.shake && face === 'nervous' ? Math.sin(t * 47) : 0) };
     st.armR = { a: baseR - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1) };
-    for (const id of HANG.hangL) st.alpha[id] = up('hangL');
-    for (const id of HANG.hangR) st.alpha[id] = up('hangR');
+    for (const id of HANG.hangL) st.alpha[id] = on('hangL');
+    for (const id of HANG.hangR) st.alpha[id] = on('hangR');
 
     /* the arm drawings: each rises a little into place as it fades in, then moves its own way */
     let steam = 0, steamAt = null;
@@ -1044,7 +1062,7 @@ export function createMotion(model, R) {
       }
       st[A.rot] = s;
       if (lift) st[A.lift] = { fn: lift };
-      for (const p of A.parts) st.alpha[p.id] = caps.tex(p.tex) ? k : 0;
+      for (const p of A.parts) st.alpha[p.id] = caps.tex(p.tex) ? on(id) : 0;
     }
 
     /* deformer states */
@@ -1180,7 +1198,7 @@ export function createMotion(model, R) {
     // an opaque drawing over her (lying, her back, the ball, kneeling) hides the standing and the seated body alike
     const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
     if (LOW) kneeledLow(st, caps, hideFront ? 0 : bodyA.kneelArms);
-    if (SIT) seated(st, o, fc, face, mode, dt, caps, hideFront ? 0 : bodyA.sit, plan);
+    if (SIT) seated(st, o, fc, face, mode, dt, caps, hideFront ? 0 : bodyA.sit, shown);
     if (LIE?.face && liveOn(LIE) && poseA > 0 && !floorFace) floorFace = 'lie';
     return { st, hideFront, look, turn, steam, steamAt, puffK, poseShown: poseA, plan, floorFace };
   }
@@ -1207,8 +1225,9 @@ export function createMotion(model, R) {
    * standing arm drawing, and give way to a gesture's or a face's arms (the standing torso and capelet show again under
    * those).
    */
-  function seated(st, o, fc, face, mode, dt, caps, bodyK, plan) {
-    sitOwnK = approach(sitOwnK, sitOwnArms(plan) ? 1 : 0, dt, ARM_FADE);
+  function seated(st, o, fc, face, mode, dt, caps, bodyK, arms) {
+    // (cut with the arm drawings that take their place: armShown)
+    sitOwnK = sitOwnArms(arms) ? 1 : 0;
     const { sitA, topA } = sitMix(bodyK, sitOwnK);
     const shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, partsOf(fc, o.face).mouth, mode);
     st.sitBase = {};
@@ -1261,12 +1280,15 @@ export function createMotion(model, R) {
     sitOwnK = 1; raiseNow = 0; dropNow = null; lieB = { on: false, a: 0 }; armsT = 9; kneelArmsK = 0; underKneel = false;
     bodyB = { from: 'stand', to: 'stand', x: 1 }; prevSit = 0;
     armA = { hangL: 1, hangR: 1 };
+    shown = { L: 'hangL', R: 'hangR' };
   }
 
   return {
     step, reset, groupTilt,
     /** The arm drawings' alphas now (for tests and tools). */
     get arms() { return { ...armA }; },
+    /** The arm drawings showing now, `{ L, R }` (armShown; for tests and tools). */
+    get shown() { return { ...shown }; },
     get lieK() { return lieK; },
     /** (kneel) The kneeling hybrid's share now (0..1; for tests and tools). */
     get kneelArmsK() { return kneelArmsK; },

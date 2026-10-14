@@ -31,6 +31,20 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
   const newParts = NEW_POSES.flatMap(k => model.poses[k]?.required.map(p => p.id) ?? []);
   const fixture = JSON.parse(readFileSync(new URL(`../fixtures/kneel-rest-${dir.pathname.split('/').filter(Boolean).pop()}.json`, import.meta.url), 'utf8'));
   const R0 = M.buildRig(model);
+  /**
+   * The fixture as her arms draw now: they crossfaded then, and now each arm drawing cuts in whole at the middle of the
+   * arms' move (motion.armShown), so an arm drawing's alpha part way is 1 from halfway on, else 0 (the arms move as before).
+   */
+  const ARM_IDS = new Set([...Object.values(R0.HANG).flat(), ...Object.values(R0.ARM).flatMap(A => A.parts.map(p => p.id))]);
+  const cutArms = (frames, ids) => {
+    const out = [];
+    for (const [n, r] of frames) {
+      const [h, raise, a] = r.split('|'), al = a.split(',').map((v, i) => (ARM_IDS.has(ids[i]) && +v > 0 && +v < 1 ? (+v >= M.ARM_CUT ? '1.000' : '0.000') : v));
+      const rec = `${h}|${raise}|${al.join(',')}`, last = out[out.length - 1];
+      if (last && last[1] === rec) last[0] += n; else out.push([n, rec]);
+    }
+    return out;
+  };
 
   /** Her motion on the kit (plus), as the figure runs it: the last frame's output, the frame, and the figure's points. */
   function onKit({ without = [] } = {}) {
@@ -98,13 +112,13 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
       const got = restRecord(M, bare);
       expect(got.lows.every(a => a === 0)).toBe(true);
       expect(got.ids).toEqual(fixture.ids);
-      expect(got.frames).toEqual(fixture.frames);
+      expect(got.frames).toEqual(cutArms(fixture.frames, fixture.ids));
     });
 
     it('kneels at rest as before with the live face on, but for the drawn patches, which the live face replaces', () => {
       const got = restRecord(M, model), old = fixture.ids;
       const unrun = frames => frames.flatMap(([n, r]) => Array(n).fill(r)).map(r => { const [h, raise, a] = r.split('|'); return { h, raise, a: a.split(',') }; });
-      const A = unrun(got.frames), B = unrun(fixture.frames);
+      const A = unrun(got.frames), B = unrun(cutArms(fixture.frames, fixture.ids));
       expect(A).toHaveLength(B.length);
       const ix = id => got.ids.indexOf(id);
       expect(old.every(id => got.ids.includes(id))).toBe(true);

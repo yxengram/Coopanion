@@ -37,13 +37,23 @@ const SVGNS = 'http://www.w3.org/2000/svg';
  */
 /**
  * The open-hand wave's handover: `openHand` is the wave's strength when the drawn arm may show (the scheme has it,
- * she is not lying); `swap` (0..1) moves from the fist arm to the drawn one as the arm's own rotation `armBase` passes
- * 70..95°, on the way up and back down, so the two point about the same way when they trade.
+ * she is not lying); `swap` (0 or 1) cuts from the fist arm to the drawn one as the arm's own rotation `armBase` passes
+ * SWAP_AT.wave, on the way up and back down, so the two point about the same way when they trade (never both half seen:
+ * a double exposure).
  */
 export const ARM_LIMIT = 135;
+/**
+ * Where her arm drawings cut in for the fist arms and back, in a frame (two arms of one side half seen at once read as a
+ * double exposure): `wave` and `stretch` at the fist arm's angle (°), the drawing following it there; `cheer` that far
+ * short of the cheer's own angle (cheerHandover); `hands` on a gesture's envelope coming in and going (handsIn: the
+ * heart's way, the drawing rising a little into place after); `salute` on its clock; `chin` on the chin's share.
+ */
+export const SWAP_AT = { wave: 82.5, stretch: 82.5, cheer: 14.5, hands: { in: .175, out: .475 }, salute: { in: .045, out: .905 }, chin: .15 };
+/** A heart-way drawing's share (0 or 1) at envelope `on` (0..1) of a gesture at `gk`: cut in early, out late. */
+export const handsIn = (on, gk) => (on > 0 && on >= (gk < .5 ? SWAP_AT.hands.in : SWAP_AT.hands.out) ? 1 : 0);
 export function waveHandover(wave, armBase, lieK, ok) {
   const openHand = ok && lieK < 1e-3 ? wave : 0;
-  return { openHand, swap: openHand > 0 ? smooth(70, 95, armBase) : 0 };
+  return { openHand, swap: openHand > 0 && armBase >= SWAP_AT.wave ? 1 : 0 };
 }
 /** The plain arms' spring (stiffness, damping), exported so tests run the same motion. */
 export const ARM_SPRING = { k: 60, c: 9 };
@@ -54,17 +64,17 @@ export const CHEER_TO = { near: 80, far: 60 };
 export const CHEER_ENV = [.12, .6];
 /**
  * A drawn cheer arm's handover, the wave's way: with the drawing shown (`on` > 0) the fist arm goes up toward `to`°
- * (sign of `rest`) and `swap` (0..1) moves to the drawing as the fist arm's own rotation `ang` passes 40..25° short of
- * it, on the way up and back down; `dir` is where the drawn arm points, the fist arm's angle until the swap is done,
+ * (sign of `rest`) and `swap` (0 or 1) cuts to the drawing as the fist arm's own rotation `ang` passes SWAP_AT.cheer
+ * short of it, on the way up and back down; `dir` is where the drawn arm points, the fist arm's angle until the swap is done,
  * then on up to its own angle `rest` over the fist arm's last stretch (`lift`), so they always point the same way
  * while they trade.
  */
 export function cheerHandover(on, ang, to, rest) {
   if (!(on > 0)) return { swap: 0, lift: 0, dir: ang };
-  // high up (the drawn arm is longer than the fist one, and turned lower it would hang beside her legs), and almost a cut:
-  // the arm sweeps about 10° a frame there, so a wider crossfade shows a half-seen second arm for a few frames
+  // high up (the drawn arm is longer than the fist one, and turned lower it would hang beside her legs), and a cut: the
+  // arm sweeps about 10° a frame there, so a crossfade shows a half-seen second arm
   const m = Math.sign(rest) * ang, lift = smooth(to - 10, to - 3, m);
-  return { swap: smooth(to - 16, to - 13, m), lift, dir: lerp(ang, rest, lift) };
+  return { swap: m >= to - SWAP_AT.cheer ? 1 : 0, lift, dir: lerp(ang, rest, lift) };
 }
 
 /** Gestures that pose the far arm themselves: she takes her chin off her hand for them. */
@@ -1335,7 +1345,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // each drawn arm below takes its share of the plain arms away (their alphas multiply)
     st.alpha.arm_near = st.alpha.arm_far = st.alpha.arm_far_end_front = 1;
     if (WAVE) {
-      // the fist arm hands over to the drawn one in a couple of frames, the two pointing the same way at that moment;
+      // the fist arm hands over to the drawn one in a frame (SWAP_AT.wave), the two pointing the same way at that moment;
       // the drawn arm keeps the fist arm's rotation (less its own angle), so it goes on rising into place, then the hand waves
       const { swap } = waveHandover(wave, armBase, lieK, waveOK()), [qx, qy] = WAVE.wrist, [sx0, sy0] = WAVE.pivots.armWave;
       const ux = qx - sx0, uy = qy - sy0, ul = Math.hypot(ux, uy);
@@ -1368,8 +1378,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     }
     if (HEART) {
       // the hands come up from a little lower into place, then bob gently with the beat
-      // (letting go, the drawing hands back over a shorter stretch, so the two pairs of arms barely show at once)
-      const swap = gk < .5 ? smooth(.05, .3, heartOn) : smooth(.4, .55, heartOn), up = smooth(.1, .5, heartOn), b = .025 * Math.sin(t * 8) * up;
+      // (the drawing cuts in for the fist arms early in the envelope and back late: handsIn)
+      const swap = handsIn(heartOn, gk), up = smooth(.1, .5, heartOn), b = .025 * Math.sin(t * 8) * up;
       st.armHeart = { ty: 7 * (1 - up), sx: 1 + b, sy: 1 + b };
       st.alpha.arm_near *= 1 - swap; st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap; farFree *= 1 - swap;
       for (const p of HEART.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
@@ -1382,7 +1392,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       const g0 = TWIN_OF[pg] || pg, twin = ARM_TWIN[g0] && PROPS[ARM_TWIN[g0]] && propOK(ARM_TWIN[g0]);
       const id = Object.keys(pose.pivots)[0], on = g0 === propG && (!TWIN_OF[pg] || twin) ? holdOn * (!twin || (pg !== g0) !== kit.clapShut(gk) ? 1 : 0) : 0;
       // (the stretch's drawing is overhead: it takes over by the fist arms' angle as they go up and comes back the same way)
-      const swap = pg === 'stretch' ? (on > 0 ? smooth(70, 95, armBase) : 0) : gk < .5 ? smooth(.05, .3, on) : smooth(.4, .55, on);
+      const swap = pg === 'stretch' ? (on > 0 && armBase >= SWAP_AT.stretch ? 1 : 0) : handsIn(on, gk);
       const up = smooth(.1, .5, on), lift = pg === propG ? 11 * sip : 0;
       // (pleading, the pressed hands bob twice a second; held out for a hug, the arms sway a little wider)
       const bob = pg === 'pray' ? 1.5 * Math.abs(Math.sin(t * 6)) : 0, sway = pg === 'hug' ? .02 * Math.sin(t * 2.2) : pg === 'serve' ? .05 * smooth(.2, .45, gk) * on : 0;
@@ -1400,10 +1410,10 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       // (a salute snaps up into place, overshoots a touch and holds dead still, then comes down as quickly)
       const snap = rg === 'salute' && on > 0;
       const { swap, lift, dir } = snap
-        ? { swap: gk < .5 ? smooth(.02, .07, gk) : 1 - smooth(.88, .93, gk), lift: 1,
+        ? { swap: (gk < .5 ? gk >= SWAP_AT.salute.in : gk < SWAP_AT.salute.out) ? 1 : 0, lift: 1,
           dir: pose.rest - 25 * (1 - smooth(.03, .12, gk)) + 6 * Math.sin(Math.PI * clamp((gk - .12) / .08, 0, 1)) - 20 * smooth(.86, .93, gk) }
         : BENT_RAISES.includes(rg)
-          ? { swap: gk < .5 ? smooth(.05, .3, on) : smooth(.4, .55, on), lift: smooth(.1, .5, on), dir: pose.rest + 12 * (1 - smooth(.1, .5, on)) }
+          ? { swap: handsIn(on, gk), lift: smooth(.1, .5, on), dir: pose.rest + 12 * (1 - smooth(.1, .5, on)) }
           : cheerHandover(on, FAR_RAISES.includes(rg) ? armFBase : armBase, RAISE_HIGH[rg] ?? RAISE_TO, pose.rest);
       const wig = rg === 'scratch' ? 3 * Math.sin(t * 16) : rg === 'idea' ? -4 * Math.sin(Math.PI * smooth(.2, .45, gk))
         : rg === 'vsign' ? -3 * Math.sin(Math.PI * smooth(.2, .4, gk)) : rg === 'point' ? 3 * Math.sin(Math.PI * smooth(.3, .45, gk))
@@ -1415,8 +1425,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       else st.alpha.arm_near *= 1 - swap;
     }
     if (CHIN) {
-      // the forearm swings up from its elbow to the chin, taking over from the far arm on the way
-      const k = smooth(0, 1, chinK), swap = smooth(.15, .55, chinK);
+      // the forearm swings up from its elbow to the chin, cutting in for the far arm on the way (SWAP_AT.chin)
+      const k = smooth(0, 1, chinK), swap = chinK >= SWAP_AT.chin ? 1 : 0;
       st.armChin = { a: -60 * (1 - k) + .8 * Math.sin(t * 1.3) * k };
       st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap;
       for (const p of CHIN.required) st.alpha[p.id] = tex[p.tex] ? swap * farFree : 0;

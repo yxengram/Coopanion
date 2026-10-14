@@ -13,6 +13,7 @@ import { appendagesOf, earFlickOf, LIE_DRAWN, EAR_WORDS, gesturesOf, HEAD_PITCH,
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gemini-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
+import { describeArmCut } from './helpers/arm-cut.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
 import { createGeminiFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/figure.js';
@@ -1799,3 +1800,6 @@ describeKneelArms('Gemini-chan', {
 
 /* ---------- live faces on the kneeling and lying drawings (the three girls share these: tests/helpers/floor-face.js) ---------- */
 describeFloorFace('Gemini-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTURES });
+
+/* ---------- arm drawings cut in for each other, never half seen at once (the three girls share these: tests/helpers/arm-cut.js) ---------- */
+describeArmCut('Gemini-chan', { dir: DIR, M: KneelMotion, GESTURES });

@@ -14,6 +14,7 @@ import { appendagesOf, drawnTurn, LIE_DRAWN, WINGBEAT, gesturesOf, HEAD_PITCH, h
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gpt-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
+import { describeArmCut } from './helpers/arm-cut.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/gpt-chan/face.js';
 import { createGptFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/gpt-chan/figure.js';
@@ -1751,3 +1752,6 @@ describeKneelArms('GPT-chan', {
 
 /* ---------- live faces on the kneeling and lying drawings (the three girls share these: tests/helpers/floor-face.js) ---------- */
 describeFloorFace('GPT-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTURES });
+
+/* ---------- arm drawings cut in for each other, never half seen at once (the three girls share these: tests/helpers/arm-cut.js) ---------- */
+describeArmCut('GPT-chan', { dir: DIR, M: KneelMotion, GESTURES });

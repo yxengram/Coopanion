@@ -143,7 +143,7 @@ describe('pickGroup', () => {
   const k = (q: QuestionId, id: string) => keyOf(qs, q, id);
 
   it('keeps still where the keep option wins or the winner is under its floor', () => {
-    const p = pickGroup(qs, ans([['face', '不换表情', .6], ['head', k('head', 'nod'), .3], ['arm', k('arm', 'wave'), .8]]), { vocab, pairs });
+    const p = pickGroup(qs, ans([['face', '不换表情', .6], ['head', k('head', 'nod'), .25], ['arm', k('arm', 'wave'), .8]]), { vocab, pairs });
     expect(p.ids).toEqual(['wave']);
     expect(p.chosen).toMatchObject({ face: null, head: null, arm: k('arm', 'wave') });
     expect(p.why.head).toContain('不够');
@@ -157,9 +157,9 @@ describe('pickGroup', () => {
     expect(pickGroup(qs, a, { vocab, pairs, params: {} })).toEqual(pickGroup(qs, a, { vocab, pairs }));
     expect(pickGroup(qs, a, { vocab, pairs, params: { budget: 3 } }).ids.sort()).toEqual(['happy', 'nod', 'sit', 'wave']);
     expect(pickGroup(qs, a, { vocab, pairs, params: { budget: 0 } }).ids).toEqual(['happy']);
-    const low = ans([['head', k('head', 'nod'), .3]]);
+    const low = ans([['head', k('head', 'nod'), .25]]);
     expect(pickGroup(qs, low, { vocab, pairs }).ids).toEqual([]);
-    expect(pickGroup(qs, low, { vocab, pairs, params: { floor: { face: .3, head: .25, arm: .45, body: .55, tail: .5, ears: .5, wings: .5 } } }).ids).toEqual(['nod']);
+    expect(pickGroup(qs, low, { vocab, pairs, params: { floor: { face: .2, head: .2, arm: .3, body: .55, tail: .5, ears: .5, wings: .5 } } }).ids).toEqual(['nod']);
     // no repeat rule with a window of 0
     const recent = [{ arm: k('arm', 'wave') }, { arm: k('arm', 'wave') }];
     const rep = ans([['arm', k('arm', 'wave'), .8, [k('arm', 'clap'), .6]]]);

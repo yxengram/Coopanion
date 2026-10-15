@@ -306,7 +306,7 @@ export function parseUsage(body: unknown): DecisionUsage {
 /* ---------------- from answers to a group ---------------- */
 
 /** The least probability a question's winner needs to move that part of her. */
-export const FLOOR: Record<QuestionId, number> = { face: .30, head: .45, arm: .45, body: .55, tail: .50, ears: .50, wings: .50 };
+export const FLOOR: Record<QuestionId, number> = { face: .20, head: .30, arm: .30, body: .55, tail: .50, ears: .50, wings: .50 };
 /** Postures that need more: she stays in them. */
 const FLOOR_WORD: Record<string, number> = { sleep: .70, lie: .70 };
 

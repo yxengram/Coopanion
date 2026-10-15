@@ -22,10 +22,21 @@ import {
 export const DECIDER_DEFAULT_MODEL = 'perplexity/pplx-decider-v1.1-27b';
 export const DECIDER_URL = 'https://openrouter.ai/api/alpha/decisions';
 /**
- * Where the decision models are listed (待确认: the path is not documented; a failed listing leaves the console with
- * the default and a text box).
+ * Where OpenRouter lists its decision models: the public model list narrowed to those whose output is decisions
+ * (no key needed, and none is sent). Each entry has `id`, `name`, `pricing.prompt` (USD per input token, a string),
+ * `context_length` and `architecture.output_modalities` (`['decisions']`).
  */
-export const DECIDER_MODELS_URL = 'https://openrouter.ai/api/alpha/decisions/models';
+export const DECIDER_MODELS_URL = 'https://openrouter.ai/api/v1/models?output_modalities=decisions';
+/**
+ * The least context a decision model needs to take one of our requests. Measured: Claude-chan's four questions
+ * (59 faces, 39 arm options…) came to 4.6k input tokens on pplx-decider-v1.1-27b, and the girls with a tail, ears or
+ * wings ask five or six questions; 8k leaves room for those, a longer state and a third-party pack's bigger list.
+ */
+export const DECIDER_MIN_CONTEXT = 8192;
+/** The listing the console offers when OpenRouter cannot be reached (ids only: no price or context is made up). */
+export const DECIDER_FALLBACK_MODELS: readonly string[] = [
+  DECIDER_DEFAULT_MODEL, '~perplexity/pplx-decider-latest', 'typesafe/jev-1.14', 'inception/mercury-decide:free', 'liquid/d1',
+];
 /** How long the pet page holds a bubble for its words before it starts typing anyway (`say` with `acts: 'pending'`). */
 export const DECIDER_HOLD_MS = 900;
 /** Consecutive failures that open the breaker, and how long it stays open. */
@@ -298,20 +309,35 @@ export function parseUsage(body: unknown): DecisionUsage {
 export const FLOOR: Record<QuestionId, number> = { face: .30, head: .45, arm: .45, body: .55, tail: .50, ears: .50, wings: .50 };
 /** Postures that need more: she stays in them. */
 const FLOOR_WORD: Record<string, number> = { sleep: .70, lie: .70 };
-/** A face's second choice joins it as a pair (when the figure composes the two) above this, and above PAIR_RATIO of the winner. */
-const PAIR_MIN = .20, PAIR_RATIO = .5;
-/** A repeated winner gives way to the second when it is within this ratio. */
-const REPEAT_RATIO = .6;
-/** Parts besides the face that move at once. */
-const BUDGET = 2;
-/** How many earlier decisions count as "just done" for the repeat rule. */
-const REPEAT_WINDOW = 2;
+
+/**
+ * The knobs of `pickGroup` (scratch/decider/tune/tune.ts runs it over a grid of them): the floor per question and per
+ * lasting posture; a repeated winner (the same word in this question in each of the last `repeatWindow` decisions)
+ * gives way to the second when that is a word, above its floor and at least `repeatRatio` of the winner
+ * (`repeatWindow` 0: never); at most `budget` parts besides the face; a face's second choice joins it as a pair (when
+ * the figure composes the two) above `pairMin` and `pairRatio` of the winner, unless `pairs` is off.
+ */
+export interface PickParams {
+  floor: Record<QuestionId, number>;
+  floorWord: Record<string, number>;
+  budget: number;
+  repeatWindow: number;
+  repeatRatio: number;
+  pairs: boolean;
+  pairMin: number;
+  pairRatio: number;
+}
+export const PICK_DEFAULTS: Readonly<PickParams> = {
+  floor: FLOOR, floorWord: FLOOR_WORD, budget: 2, repeatWindow: 2, repeatRatio: .6, pairs: true, pairMin: .20, pairRatio: .5,
+};
 
 export interface PickContext {
   vocab: readonly VocabWord[];
   pairs?: Pairs;
   /** The option keys each question chose in the last decisions, most recent first. */
   recent?: ReadonlyArray<Partial<Record<QuestionId, string | null>>>;
+  /** Other knobs than the shipped ones (tuning). */
+  params?: Partial<PickParams>;
 }
 
 export interface Pick {
@@ -334,6 +360,7 @@ function ranked(q: Question, a: Answer | undefined): Ranked[] {
 }
 
 export function pickGroup(questions: readonly Question[], answers: Readonly<Record<string, Answer>>, ctx: PickContext): Pick {
+  const P: PickParams = { ...PICK_DEFAULTS, ...ctx.params };
   const byId = new Map(ctx.vocab.map((v) => [v.id, v]));
   const why: Pick['why'] = {};
   const chosen: Pick['chosen'] = {};
@@ -346,10 +373,10 @@ export function pickGroup(questions: readonly Question[], answers: Readonly<Reco
     chosen[q.id] = null;
     if (!win) { why[q.id] = '没有回答'; continue; }
     if (idOf(win.key) === null) { why[q.id] = `${win.key}(${win.p.toFixed(2)})`; continue; }
-    const floorOf = (key: string) => Math.max(FLOOR[q.id], FLOOR_WORD[idOf(key) ?? ''] ?? 0);
+    const floorOf = (key: string) => Math.max(P.floor[q.id], P.floorWord[idOf(key) ?? ''] ?? 0);
     // the same word in this question in the last decisions: the second, when it is a word nearly as likely
-    const repeated = (ctx.recent ?? []).slice(0, REPEAT_WINDOW).filter((d) => d[q.id] === win!.key).length >= REPEAT_WINDOW;
-    if (repeated && second && idOf(second.key) !== null && second.p >= REPEAT_RATIO * win.p && second.p >= floorOf(second.key)) {
+    const repeated = P.repeatWindow > 0 && (ctx.recent ?? []).slice(0, P.repeatWindow).filter((d) => d[q.id] === win!.key).length >= P.repeatWindow;
+    if (repeated && second && idOf(second.key) !== null && second.p >= P.repeatRatio * win.p && second.p >= floorOf(second.key)) {
       why[q.id] = `${win.key} 刚做过两次,换成 ${second.key}`;
       [win, second] = [second, r[0]];
     }
@@ -358,21 +385,21 @@ export function pickGroup(questions: readonly Question[], answers: Readonly<Reco
     if (!v) continue;
     const cand: Cand = { q, key: win.key, v, p: win.p };
     // two faces this figure shows as one
-    if (q.id === 'face' && second) {
+    if (P.pairs && q.id === 'face' && second) {
       const v2 = byId.get(idOf(second.key) ?? '');
-      if (v2 && v2.kind === 'expression' && second.p >= PAIR_MIN && second.p >= PAIR_RATIO * win.p && Object.hasOwn(ctx.pairs ?? {}, pairKey(v.id, v2.id))) cand.pair = v2;
+      if (v2 && v2.kind === 'expression' && second.p >= P.pairMin && second.p >= P.pairRatio * win.p && Object.hasOwn(ctx.pairs ?? {}, pairKey(v.id, v2.id))) cand.pair = v2;
     }
     cands.push(cand);
     why[q.id] ??= `${win.key}(${win.p.toFixed(2)})`;
   }
-  // most likely first: at most BUDGET parts besides the face, and none that clashes with one kept
+  // most likely first: at most P.budget parts besides the face, and none that clashes with one kept
   cands.sort((a, b) => b.p - a.p);
   const kept: Cand[] = [];
   let parts = 0;
   for (const c of cands) {
     const clash = kept.find((k) => clashes(k.v, c.v));
     if (clash) { why[c.q.id] = `${c.key} 和 ${clash.key} 不能同时做,没做`; continue; }
-    if (c.q.id !== 'face' && parts >= BUDGET) { why[c.q.id] = `${c.key} 超出一次最多动 ${BUDGET} 个部位,没做`; continue; }
+    if (c.q.id !== 'face' && parts >= P.budget) { why[c.q.id] = `${c.key} 超出一次最多动 ${P.budget} 个部位,没做`; continue; }
     if (c.q.id !== 'face') parts++;
     kept.push(c);
     chosen[c.q.id] = c.key;
@@ -426,6 +453,8 @@ export class DeciderClient {
   last: { at: number; ms: number; ok: boolean; reason?: string } | null = null;
   calls = 0;
   cost = 0;
+  /** The most input tokens one request took this run (the console hides models with less context). */
+  maxInput = 0;
 
   constructor(private readonly o: DeciderClientOptions) {}
 
@@ -476,6 +505,7 @@ export class DeciderClient {
       if (!answers || !Object.keys(answers).length) return fail('bad');
       const usage = parseUsage(json);
       if (usage.cost !== null) this.cost += usage.cost;
+      this.maxInput = Math.max(this.maxInput, usage.inputTokens);
       if (this.fails >= BREAKER_FAILS || this.warned) this.o.log?.()?.info('决策模型恢复了');
       this.fails = 0;
       this.warned = false;
@@ -512,23 +542,65 @@ export class DeciderClient {
   }
 }
 
+/** A decision model as the console's picker shows it. */
+export interface DeciderModel {
+  id: string;
+  name?: string;
+  /** USD per million input tokens (0: free), or null when not known. */
+  promptPerM: number | null;
+  /** Context length in tokens, or null when not known. */
+  context: number | null;
+}
+
+/** USD per token as OpenRouter writes it (`"0.00000002"`), per million tokens; null for anything else (negative: "varies"). */
+function perMillion(x: unknown): number | null {
+  const n = typeof x === 'number' ? x : typeof x === 'string' && x.trim() !== '' ? Number(x) : NaN;
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 1e6 * 1e6) / 1e6;
+}
+
 /**
- * The decision models OpenRouter lists (待确认: path and shape); an empty list when the listing fails. Ids are read
- * from `data[].id` or `models[].id`, or a plain array of strings.
+ * The decision models of an OpenRouter model listing (`{ data: [...] }`): only those whose output modalities include
+ * decisions (when the listing says; the query may be ignored), without the ones whose context cannot take a request
+ * (`minContext`), cheapest first then by id. Null when the body is not a listing.
  */
-export async function listDeciders(key: string, fetchImpl: typeof fetch = fetch, url = DECIDER_MODELS_URL, timeoutMs = 5000): Promise<string[]> {
+export function parseDeciderModels(body: unknown, minContext = DECIDER_MIN_CONTEXT): DeciderModel[] | null {
+  const list = (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(list)) return null;
+  const out: DeciderModel[] = [];
+  const seen = new Set<string>();
+  for (const m of list) {
+    const r = (m ?? {}) as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id.trim() : '';
+    if (!id || seen.has(id)) continue;
+    const mods = (r.architecture as { output_modalities?: unknown } | undefined)?.output_modalities;
+    if (Array.isArray(mods) && !mods.includes('decisions')) continue;
+    // a listing says 0 for a context it does not know (seen on respan/*): unknown, not too small
+    const len = num(r.context_length);
+    const context = len !== null && len > 0 ? len : null;
+    if (context !== null && context < minContext) continue;
+    seen.add(id);
+    out.push({
+      id, ...(typeof r.name === 'string' && r.name.trim() ? { name: r.name.trim() } : {}),
+      promptPerM: perMillion((r.pricing as { prompt?: unknown } | undefined)?.prompt), context,
+    });
+  }
+  return out.sort((a, b) => (a.promptPerM ?? Infinity) - (b.promptPerM ?? Infinity) || a.id.localeCompare(b.id)).slice(0, 200);
+}
+
+/**
+ * Fetches OpenRouter's decision models (no key: the listing is public, and the key is never sent to it); null when
+ * the listing fails or cannot be read.
+ */
+export async function listDeciders(fetchImpl: typeof fetch = fetch, url = DECIDER_MODELS_URL, timeoutMs = 5000, minContext = DECIDER_MIN_CONTEXT): Promise<DeciderModel[] | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetchImpl(url, { headers: key ? { Authorization: `Bearer ${key}` } : {}, signal: ctrl.signal });
-    if (!res.ok) return [];
-    const j = await res.json() as unknown;
-    const list = Array.isArray(j) ? j : ((j as { data?: unknown; models?: unknown }).data ?? (j as { models?: unknown }).models);
-    if (!Array.isArray(list)) return [];
-    return list.map((m) => (typeof m === 'string' ? m : typeof (m as { id?: unknown })?.id === 'string' ? (m as { id: string }).id : null))
-      .filter((x): x is string => !!x).slice(0, 100);
+    const res = await fetchImpl(url, { headers: { Accept: 'application/json', 'X-Title': 'Coopanion' }, signal: ctrl.signal });
+    if (!res.ok) return null;
+    return parseDeciderModels(await res.json() as unknown, minContext);
   } catch {
-    return [];
+    return null;
   } finally {
     clearTimeout(timer);
   }

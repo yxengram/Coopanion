@@ -59,7 +59,7 @@ describe('decider mode through Core', () => {
     });
     bot = await startBot({
       worlds: [def as never],
-      sections: { 'desktop-pet': { port: 0, window: { ...DESKTOP_PET_DEFAULTS.window, enabled: false }, asr: { ...DESKTOP_PET_DEFAULTS.asr, enabled: false, mic: { ...DESKTOP_PET_DEFAULTS.asr.mic, mode: 'always' } } } },
+      sections: { 'desktop-pet': { port: 0, decider: { ...DESKTOP_PET_DEFAULTS.decider, enabled: true }, window: { ...DESKTOP_PET_DEFAULTS.window, enabled: false }, asr: { ...DESKTOP_PET_DEFAULTS.asr, enabled: false, mic: { ...DESKTOP_PET_DEFAULTS.asr.mic, mode: 'always' } } } },
       model,
     });
     const world = bot.assembly.mounted.find((w) => w.id === 'desktop-pet') as unknown as DesktopPetWorld;

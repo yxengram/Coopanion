@@ -32,6 +32,8 @@ export interface DesktopPetAssembly {
   /** The decisions endpoint and fetch, for evals and tests (default OpenRouter, global fetch). */
   deciderUrl?: string;
   deciderFetch?: typeof fetch;
+  /** Where the decision models are listed (default OpenRouter's public list), for evals and tests. */
+  deciderModelsUrl?: string;
 }
 
 /** The definition, with what an embedding app lends the World. */
@@ -62,6 +64,7 @@ export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDe
         onDecision: (rec) => assembly.onDecision?.(rec),
         deciderUrl: assembly.deciderUrl,
         deciderFetch: assembly.deciderFetch,
+        deciderModelsUrl: assembly.deciderModelsUrl,
         envOverrideFile: () => envPromptOverridePath(ctx.botDir, DESKTOP_PET_ID),
       });
       assembly.onCreate?.(world);

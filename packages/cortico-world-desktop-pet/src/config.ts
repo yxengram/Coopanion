@@ -101,7 +101,8 @@ export interface DesktopPetConfigSection extends WorldSection {
   skin: PetSkin;
   /**
    * Decider mode (src/decider.ts): with an OpenRouter key lent by the app (`deciderKey`), the bot writes how it
-   * feels and a decision model picks the expressions and motions; without a key this does nothing.
+   * feels and a decision model picks the expressions and motions; without a key this does nothing. Off by default:
+   * the person turns it on (each decision sends what she says and feels to OpenRouter).
    */
   decider: {
     enabled: boolean;
@@ -153,7 +154,7 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
     figure: 'coo', scheme: 'deepseek', palette: 'mint', head: 'none', side: 'none', glasses: 'none', neck: 'none',
     colors: { head: { main: 'body', acc: 'eye' }, side: { main: 'eye', acc: 'eye' }, glasses: { main: 'body', acc: 'eye' }, neck: { main: 'eye', acc: 'eye' } },
   },
-  decider: { enabled: true, model: DECIDER_DEFAULT_MODEL, timeoutMs: 2500 },
+  decider: { enabled: false, model: DECIDER_DEFAULT_MODEL, timeoutMs: 2500 },
   touch: { enabled: true, wakeOn: 'poke' },
   asr: {
     enabled: true,
@@ -224,7 +225,7 @@ export const DESKTOP_PET_DECIDER_CONFIG_GROUP: ConfigGroup = {
     type: 'object',
     title: '表情决策',
     properties: {
-      [`${K}.decider.enabled`]: { type: 'boolean', title: '交给决策模型挑表情动作', description: '有 OpenRouter 密钥时,bot 只写一句心情,表情、动作和姿势由 OpenRouter 的决策模型照它挑,走动由 bot 自己按像素决定;没有密钥或关掉时照旧由 bot 自己写表情动作标记。切换后重建前缀。', 'x-hot': true },
+      [`${K}.decider.enabled`]: { type: 'boolean', title: '交给决策模型挑表情动作', description: '默认关。打开并且有 OpenRouter 密钥时,bot 只写一句心情,表情、动作和姿势由 OpenRouter 的决策模型照它挑,走动由 bot 自己按像素决定;没有密钥或关掉时照旧由 bot 自己写表情动作标记。切换后重建前缀。', 'x-hot': true },
       [`${K}.decider.model`]: { type: 'string', title: '决策模型', description: `OpenRouter 上的决策模型 id,默认 ${DECIDER_DEFAULT_MODEL}。`, 'x-hot': true },
       [`${K}.decider.timeoutMs`]: { type: 'integer', title: '最多等多久', minimum: 500, maximum: 10000, 'x-suffix': 'ms', description: '一次决策超过这个时间,这个气泡就只说话、不做表情动作。', 'x-hot': true },
     },

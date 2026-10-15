@@ -39,8 +39,8 @@ import { APPENDAGES, channelsOf, estimateSeconds, firstName, lastingNote, member
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import {
-  DECIDER_HOLD_MS, DECIDER_URL, DeciderClient, FEELING_MAX, listDeciders, POSTURE_NAMES, buildQuestions, buildRequest, buildState, failureText, pickGroup, stripMarkers, topAnswers,
-  type DecideFailure, type DecisionRecord, type Posture, type QuestionId,
+  DECIDER_FALLBACK_MODELS, DECIDER_HOLD_MS, DECIDER_MIN_CONTEXT, DECIDER_MODELS_URL, DECIDER_URL, DeciderClient, FEELING_MAX, listDeciders, POSTURE_NAMES, buildQuestions, buildRequest, buildState, failureText, pickGroup, stripMarkers, topAnswers,
+  type DecideFailure, type DeciderModel, type DecisionRecord, type Posture, type QuestionId,
 } from './decider.ts';
 import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack } from './packs.ts';
 import { dressTable, planSettings, type SettingChange } from './self.ts';
@@ -68,6 +68,8 @@ const POSE_REARM_MS = 5 * 60_000;
 const POSTURE_PENDING_MS = 4000;
 /** How long a kneel word sent waits for the page to sit down before the kneel is forgotten. */
 const KNEEL_WAIT_MS = 10_000;
+/** How long OpenRouter's listing of decision models is kept before it is fetched again. */
+const DECIDER_LIST_TTL_MS = 6 * 3600_000;
 /** The posture each posture word puts her in. */
 const POSTURE_OF_WORD: Readonly<Record<string, Posture>> = { sit: 'sit', kneel: 'kneel', lie: 'lie', sleep: 'sleep', stand: 'stand' };
 /** Which way the bot's prompt and tools go: words and markers (classic), or a feeling the decision model turns into words. */
@@ -208,8 +210,10 @@ export interface DesktopPetWorldOptions {
   onDecision?: (rec: DecisionRecord) => void;
   /** The decisions endpoint; tests and evals point it at a local stand-in. */
   deciderUrl?: string;
-  /** Fetch for the decisions endpoint; tests pass a fake. */
+  /** Fetch for the decisions endpoint and the listing of decision models; tests pass a fake. */
   deciderFetch?: typeof fetch;
+  /** Where the decision models are listed (default OpenRouter's public model list, DECIDER_MODELS_URL); no key is sent. */
+  deciderModelsUrl?: string;
   /** The decider client's clock (its breaker); tests pass a fake. */
   deciderNow?: () => number;
   /**
@@ -218,6 +222,9 @@ export interface DesktopPetWorldOptions {
    */
   envOverrideFile?: () => string | null;
 }
+
+/** One decision as the tools use it: the entries to send (and notes for the receipt), or why there are none. */
+type Decided = { ok: true; actions: string[]; notes: string[] } | { ok: false; reason: DecideFailure; why: string };
 
 /** How a walk ended: the page's report (`x` a share of the screen), no report in time, or the World or page gone. */
 type WalkEnd =
@@ -381,6 +388,18 @@ export class DesktopPetWorld implements World {
   private poseArmedAt: number | null = null;
   private poseToken = 0;
   private overrideWarned = false;
+  /** OpenRouter's listing of decision models, as last fetched (kept when a later fetch fails), and the fetch in flight. */
+  private deciderList: { at: number; models: DeciderModel[] } | null = null;
+  private deciderListing: Promise<DeciderModel[] | null> | null = null;
+  /**
+   * Decisions run one after another, in the order the bot asked for them: each sees the one before it in 最近做过,
+   * the repeat rule and her posture, and the page gets each bubble's words in order. `pet_say` and `pet_ask` do not
+   * wait for theirs; the chat page's records of bubbles and questions go through here too, so they stay in order.
+   */
+  private deciderQueue: Promise<void> = Promise.resolve();
+  /** Words picked for bubbles after their receipts went back, told once with the next position line. */
+  private unreported: Array<{ text: string; did: string }> = [];
+  private stopped = false;
 
   constructor(private readonly opts: DesktopPetWorldOptions) {
     this.cfg = opts.cfg;
@@ -498,6 +517,7 @@ export class DesktopPetWorld implements World {
   /* ---------- lifecycle ---------- */
 
   async start(host: WorldHost): Promise<void> {
+    this.stopped = false;
     this.host = host;
     this.log = host.log;
     await this.server.start();
@@ -528,7 +548,9 @@ export class DesktopPetWorld implements World {
   }
 
   async stop(): Promise<void> {
+    this.stopped = true;
     this.decider.abortAll();
+    this.unreported = [];
     this.poseArmedAt = null;
     if (this.quiet) clearTimeout(this.quiet.timer);
     this.quiet = null;
@@ -1449,7 +1471,8 @@ export class DesktopPetWorld implements World {
   /**
    * Decider mode's `pet_say`: the bubble goes to the page at once, held for its words (`acts: 'pending'`) while the
    * decision model picks them from the feeling; the words follow by id (`say-acts`, empty when the decision fails or
-   * times out). The receipt waits for the decision (at most the timeout) so it tells what the body did.
+   * times out). The receipt does not wait for the decision (the chat model goes on at once): it says the body follows
+   * the feeling, and what was picked is told once with the next position line (`[表情动作]`, see `withPosition`).
    */
   private async sayFeeling(args: Record<string, unknown>): Promise<ToolOutcome> {
     const raw = typeof args.text === 'string' ? args.text : '';
@@ -1459,7 +1482,9 @@ export class DesktopPetWorld implements World {
     if (!text) return { text: '[pet_say 没执行] text 是空的。不想说话就不调用。', failed: true };
     const id = nextId('s');
     const beats = [{ actions: [] as string[], text, anchors: [] }];
-    const deciding = feeling !== '' && this.decider.open === false && this.deciderKey() !== '';
+    // known now: no key, or the breaker open (a decision would fail at once; the bubble is not held for it)
+    const unable = !feeling ? null : this.deciderKey() === '' ? failureText('nokey') : this.decider.open ? failureText('breaker') : null;
+    const deciding = feeling !== '' && unable === null;
     if (!this.server.sendPet({ t: 'say', id, beats, ...(deciding ? { acts: 'pending', holdMs: DECIDER_HOLD_MS } : {}) })) return this.notConnected('pet_say');
     const now = Date.now();
     const selfSec = estimateSeconds(beats);
@@ -1467,25 +1492,45 @@ export class DesktopPetWorld implements World {
     this.busyUntil = Math.max(now, this.busyUntil) + selfSec * 1000;
     const replaced = this.ask ? `替换了还没回答的提问「${this.ask.question}」。` : '';
     if (this.ask) this.ask = null;
-    let did = '';
-    let actions: string[] = [];
-    if (!feeling) did = '这次没带 feeling,只说了话;下次带上 feeling,身体才会有表情。';
-    else {
-      const d = await this.decideFor({ tool: 'pet_say', feeling, text, forSay: true });
-      // also when the bubble was not held (the key came meanwhile): the page attaches them to it all the same
-      this.server.sendPet({ t: 'say-acts', id, actions: d.ok ? d.actions : [] });
-      if (!d.ok) did = `表情动作这次没挑出来(${d.why}),只说了话。`;
-      else {
-        actions = d.actions;
-        this.notePosture(actions);
-        did = actions.length ? `表情动作:${this.namesOf(actions)}。${this.heldNote(actions)}${d.notes.join('')}` : '这次表情动作没有变化。';
-      }
-    }
     void this.closeActivity();
-    void this.record({ kind: 'say', beats: [{ text, ...moodOf(actions, this.vocab()) }] }, text);
+    let did: string;
+    if (!feeling) did = '这次没带 feeling,只说了话;下次带上 feeling,身体才会有表情。';
+    else if (!deciding) did = `表情动作这次做不了(${unable}),只说了话。`;
+    else did = '表情动作照 feeling 自动做,不用再调 pet_feel。';
+    void this.inTurn(async () => {
+      let actions: string[] = [];
+      if (deciding) {
+        const d = await this.decideFor({ tool: 'pet_say', feeling, text, forSay: true });
+        if (this.stopped) return;
+        this.server.sendPet({ t: 'say-acts', id, actions: d.ok ? d.actions : [] });
+        if (d.ok) { actions = d.actions; this.notePosture(actions); }
+        this.noteUnreported(text, d.ok ? (actions.length ? this.namesOf(actions) : '没动') : `没做(${d.why})`);
+      }
+      await this.record({ kind: 'say', beats: [{ text, ...moodOf(actions, this.vocab()) }] }, text);
+    });
     const shown = this.chat.size ? '对话页开着,这段也显示在那里。' : '';
     const cut = stripped ? '这种模式下不用写标记,已当成普通文字去掉。' : '';
     return { text: `${waitSec > .5 ? `已排队,前面还有约 ${Math.round(waitSec)} 秒` : '已开始显示'},这段约 ${Math.round(selfSec)} 秒。${did}${shown}${replaced}${cut}` };
+  }
+
+  /** Runs `job` after the decisions and records before it (see `deciderQueue`); a job that throws is logged. */
+  private inTurn(job: () => Promise<void>): Promise<void> {
+    const run = this.deciderQueue.then(() => (this.stopped ? undefined : job())).catch((err: unknown) => {
+      this.log?.warn(`表情决策出错:${(err as Error)?.message ?? String(err)}`);
+    });
+    this.deciderQueue = run;
+    return run;
+  }
+
+  /** Resolves once every decision asked for so far has been made and sent (evals and tests wait on it). */
+  decisionsIdle(): Promise<void> {
+    return this.deciderQueue;
+  }
+
+  /** A bubble's picks, kept to be told once with the next position line (at most the last three). */
+  private noteUnreported(text: string, did: string): void {
+    this.unreported.push({ text: text.length > 10 ? `${text.slice(0, 10)}…` : text, did });
+    this.unreported.splice(0, Math.max(0, this.unreported.length - 3));
   }
 
   /** Decider mode's `pet_feel`: a feeling the decision model turns into words, done at once (`act`). */
@@ -1493,7 +1538,11 @@ export class DesktopPetWorld implements World {
     const feeling = typeof args.feeling === 'string' ? args.feeling.trim().slice(0, FEELING_MAX) : '';
     if (!feeling) return { text: '[pet_feel 没执行] feeling 是空的。', failed: true };
     if (!this.server.petConnected) return this.notConnected('pet_feel');
-    const d = await this.decideFor({ tool: 'pet_feel', feeling, forSay: false });
+    // after the bubbles' decisions asked for before it (their words come first, and this one sees them)
+    const box: { d?: Decided } = {};
+    await this.inTurn(async () => { box.d = await this.decideFor({ tool: 'pet_feel', feeling, forSay: false }); });
+    const d = box.d;
+    if (!d) return { text: '[pet_feel 没执行] World 已停止。', failed: true };
     if (!d.ok) return { text: d.reason === 'breaker' ? `表情决策暂时用不了(${d.why}),这次身体没做什么。` : `决策模型没回应(${d.why}),这次身体没做什么。` };
     if (!d.actions.length) return { text: '这次表情动作没有变化。' };
     if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) return this.notConnected('pet_feel');
@@ -1513,17 +1562,25 @@ export class DesktopPetWorld implements World {
     const replaced = this.ask ? `替换了还没回答的上一个提问「${this.ask.question}」。` : '';
     this.ask = { id, question, options };
     void this.closeActivity();
-    void this.record({ kind: 'ask', askId: id, question, options, own: allowOwn }, question);
+    const rec = () => this.record({ kind: 'ask', askId: id, question, options, own: allowOwn }, question);
+    // decider mode: after the bubbles recorded before it (their records wait for their decisions)
+    if (decider) void this.inTurn(async () => { await rec(); }); else void rec();
     const cut = raw.length > 3 ? '只显示了前 3 个选项。' : '';
     const shown = this.chat.size ? '对话页开着,问题也显示在那里,两边都能回答。' : '';
     let did = '';
     const feeling = decider && typeof args.feeling === 'string' ? args.feeling.trim().slice(0, FEELING_MAX) : '';
+    // like pet_say, the receipt does not wait for the decision; the words are done when they come (`act`)
     if (feeling) {
-      const d = await this.decideFor({ tool: 'pet_ask', feeling, text: question, forSay: true });
-      if (!d.ok) did = `表情动作这次没挑出来(${d.why})。`;
-      else if (d.actions.length && this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) {
-        this.notePosture(d.actions);
-        did = `表情动作:${this.namesOf(d.actions)}。${this.heldNote(d.actions)}`;
+      const unable = this.deciderKey() === '' ? failureText('nokey') : this.decider.open ? failureText('breaker') : null;
+      if (unable) did = `表情动作这次做不了(${unable})。`;
+      else {
+        did = '表情动作照 feeling 自动做。';
+        void this.inTurn(async () => {
+          const d = await this.decideFor({ tool: 'pet_ask', feeling, text: question, forSay: true });
+          if (this.stopped) return;
+          if (d.ok && d.actions.length && this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) this.notePosture(d.actions);
+          this.noteUnreported(question, d.ok ? (d.actions.length ? this.namesOf(d.actions) : '没动') : `没做(${d.why})`);
+        });
       }
     }
     return { text: `已问出。${replaced}${cut}${shown}${did}回答到了会以 [回答] 事件送达。` };
@@ -1814,8 +1871,21 @@ export class DesktopPetWorld implements World {
     return `[位置] 屏幕横向 ${x}/${w} 像素(${pct(x / w)}),面朝${p.facing === 1 ? '右' : '左'},${POSTURE_NAMES[this.posture()]};往左还能走约 ${left} 像素,往右约 ${right} 像素。`;
   }
 
-  private withPosition(out: string | ToolOutcome): string | ToolOutcome {
+  /**
+   * The position line with, once, what the bubbles since the last one did (`[表情动作] 「text…」:words`): their
+   * receipts went back before their decisions were made.
+   */
+  private positionWithPicks(): string | null {
     const line = this.positionLine();
+    if (!line) return null;
+    if (!this.unreported.length) return line;
+    const picks = this.unreported.map((u) => `「${u.text}」${u.did}`).join(';');
+    this.unreported = [];
+    return `${line}\n[表情动作] 刚才的气泡:${picks}。`;
+  }
+
+  private withPosition(out: string | ToolOutcome): string | ToolOutcome {
+    const line = this.positionWithPicks();
     if (!line) return out;
     if (typeof out === 'string') return `${out}\n${line}`;
     return typeof (out as { text?: unknown }).text === 'string' ? { ...out, text: `${(out as { text: string }).text}\n${line}` } : out;
@@ -1840,7 +1910,7 @@ export class DesktopPetWorld implements World {
         // the next one, once this batch is built
         setImmediate(() => this.armPose());
         if (this.mode !== 'decider' || !this.server.petConnected) return null;
-        return this.positionLine();
+        return this.positionWithPicks();
       },
     }, { trigger: 'piggyback' });
   }
@@ -1875,8 +1945,7 @@ export class DesktopPetWorld implements World {
    * One decision: the questions for the body on screen and her posture, the state, the call; the answers picked into
    * a group (`pickGroup`) and parsed as `pet_act` parses one. Failures come back with their reason; the mode stays.
    */
-  private async decideFor(o: { tool: DecisionRecord['tool']; feeling: string; text?: string; forSay: boolean }):
-    Promise<{ ok: true; actions: string[]; notes: string[] } | { ok: false; reason: DecideFailure; why: string }> {
+  private async decideFor(o: { tool: DecisionRecord['tool']; feeling: string; text?: string; forSay: boolean }): Promise<Decided> {
     const vocab = this.vocab();
     const pairs = this.pairs();
     const posture = this.posture();
@@ -1913,6 +1982,28 @@ export class DesktopPetWorld implements World {
     this.recentPicks.splice(RECENT_DECISIONS);
     this.opts.onDecision?.({ ...base, answers: top, why: pick.why, actions: parsed.actions, notes: parsed.notes, dropped: parsed.dropped, ok: true, usage: res.usage });
     return { ok: true, actions: parsed.actions, notes: parsed.notes.filter((n) => !n.includes('不能同时做')) };
+  }
+
+  /**
+   * The decision models for the console's picker: OpenRouter's public listing (no key sent), kept DECIDER_LIST_TTL_MS
+   * (`fresh` fetches again); when it cannot be fetched, the last listing (`cache`) or the ids we know (`fallback`,
+   * no price or context). Models whose context cannot take a request are left out: at least DECIDER_MIN_CONTEXT, and
+   * a quarter more than the largest request seen this run.
+   */
+  async deciderModels(fresh = false): Promise<{ models: DeciderModel[]; source: 'live' | 'cache' | 'fallback'; minContext: number }> {
+    const minContext = Math.max(DECIDER_MIN_CONTEXT, Math.ceil(this.decider.maxInput * 1.25));
+    const fit = (ms: DeciderModel[]) => ms.filter((m) => m.context === null || m.context >= minContext);
+    const now = Date.now();
+    if (!fresh && this.deciderList && now - this.deciderList.at < DECIDER_LIST_TTL_MS) return { models: fit(this.deciderList.models), source: 'live', minContext };
+    this.deciderListing ??= listDeciders(this.opts.deciderFetch, this.opts.deciderModelsUrl ?? DECIDER_MODELS_URL, 5000, 0)
+      .finally(() => { this.deciderListing = null; });
+    const got = await this.deciderListing;
+    if (got && got.length) {
+      this.deciderList = { at: Date.now(), models: got };
+      return { models: fit(got), source: 'live', minContext };
+    }
+    if (this.deciderList) return { models: fit(this.deciderList.models), source: 'cache', minContext };
+    return { models: DECIDER_FALLBACK_MODELS.map((id) => ({ id, promptPerM: null, context: null })), source: 'fallback', minContext };
   }
 
   /** The console's view of decider mode (no key in it: only whether there is one). */
@@ -2017,14 +2108,8 @@ export class DesktopPetWorld implements World {
         case 'openWindow': this.openWindow(); return this.petState();
         case 'closeWindow': await this.windowHost?.stop(); return this.petState();
         case 'installElectron': void this.store.electron.install(); return this.petState();
-        // the decision models OpenRouter lists, for the console's model box (the key stays here)
-        case 'deciders': {
-          // only with a key, and next to the decisions endpoint in use (a test's or eval's stand-in gets the listing too)
-          const key = this.deciderKey();
-          if (!key) return { models: [] };
-          const url = this.opts.deciderUrl ? `${this.opts.deciderUrl.replace(/\/+$/, '')}/models` : undefined;
-          return { models: await listDeciders(key, this.opts.deciderFetch, url) };
-        }
+        // the decision models OpenRouter lists, for the console's model picker (public: no key is sent)
+        case 'deciders': return this.deciderModels(args[0] === true);
         case 'guide': {
           if (!this.opts.controls?.guide) throw new Error('这个应用没有引导');
           this.opts.controls.guide();

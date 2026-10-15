@@ -54,6 +54,8 @@ async function mounted(opts: { key?: string; patch?: (c: DesktopPetConfigSection
   cfg.port = 0;
   cfg.window.enabled = false;
   cfg.asr.enabled = false;
+  // off by default (the person turns it on); these tests run it switched on
+  cfg.decider.enabled = true;
   // roomy for slow CI machines; the timeout test sets its own
   cfg.decider.timeoutMs = 2000;
   opts.patch?.(cfg);
@@ -67,6 +69,7 @@ async function mounted(opts: { key?: string; patch?: (c: DesktopPetConfigSection
     runtimesRoot: () => join(dir, 'runtimes'), modelsDir: () => join(dir, 'models'),
     deciderKey: () => key.value,
     deciderUrl: mock.url,
+    deciderModelsUrl: mock.modelsUrl,
     onDecision: (r) => records.push(r),
     onModeChange: (m) => modes.push(m),
     ...opts.extra,
@@ -120,6 +123,14 @@ describe('which mode', () => {
     const m = await mounted({ patch: (c) => { c.decider.enabled = false; } });
     expect(m.world.petMode).toBe('classic');
     expect(m.world.tools().map((t) => t.name)).toEqual(DESKTOP_PET_TOOL_DECLS.map((d) => d.name));
+  });
+
+  it('off by default: a key alone keeps classic', async () => {
+    expect(DESKTOP_PET_DEFAULTS.decider.enabled).toBe(false);
+    const m = await mounted({ patch: (c) => { c.decider = structuredClone(DESKTOP_PET_DEFAULTS.decider); } });
+    expect(m.world.petMode).toBe('classic');
+    expect(m.world.tools().map((t) => t.name)).toEqual(DESKTOP_PET_TOOL_DECLS.map((d) => d.name));
+    expect(m.world.console().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'offline', hint: expect.stringContaining('已关') });
   });
 
   it('with a key: the decider tools and prompt, no vocabulary', async () => {
@@ -177,9 +188,18 @@ describe('pet_say', () => {
     const members = (acts.actions as string[])[0].split('+');
     expect(members).toContain('nod');
     expect(members.length).toBeGreaterThanOrEqual(2);
-    expect(out).toContain('表情动作:');
-    expect(out).toContain('点头');
+    // the receipt went back before the decision: it names no word
+    expect(out).toContain('表情动作照 feeling 自动做');
+    expect(out).not.toContain('点头');
     expect(out).toMatch(/\n\[位置\] 屏幕横向 1190\/1920 像素\(62%\),面朝左,站着;往左还能走约 \d+ 像素,往右约 \d+ 像素。$/);
+    // what was done is told once, with the next position line (here the batch's)
+    await m.world.decisionsIdle();
+    const [line] = await m.host.deliverDeferred();
+    expect(line).toMatch(/^\[位置\] .*\n\[表情动作\] 刚才的气泡:「你好呀」[^;]*点头[^;]*。$/);
+    await expect.poll(() => m.host.deferred.length).toBe(1);
+    const [again] = await m.host.deliverDeferred();
+    expect(again).toMatch(/^\[位置\] /);
+    expect(again).not.toContain('[表情动作]');
     // the request: key in the header only, model, state with the feeling and the line, one question per part
     const req = m.mock.requests[0];
     expect(req.auth).toBe(`Bearer ${KEY}`);
@@ -201,7 +221,9 @@ describe('pet_say', () => {
     await expect.poll(() => m.host.events.length).toBe(1);
     m.mock.answer = () => ({ arm: ['招手', .8] });
     await tool(m.world, 'pet_say').handler({ text: '恭喜!', feeling: '替她开心' }, ctx);
+    // asked at once after the first: the decisions still go one after another, so the second sees the first
     await tool(m.world, 'pet_say').handler({ text: '请客吗', feeling: '起哄' }, ctx);
+    await m.world.decisionsIdle();
     expect(m.mock.requests[0].body.state).toMatch(/对方刚才说\(\d+ 秒前,打字\):今天升职了!/);
     expect(m.mock.requests[1].body.state).toMatch(/最近做过\(从近到远\):招手\(\d+ 秒前\)/);
   });
@@ -211,21 +233,30 @@ describe('pet_say', () => {
     const p = await page(m);
     m.cfg.decider.timeoutMs = 300;
     m.mock.delayMs = 1500;
+    const t0 = Date.now();
     const out = textOf(await tool(m.world, 'pet_say').handler({ text: '嗯', feeling: '平静' }, ctx));
+    // the receipt does not wait for the decision
+    expect(Date.now() - t0).toBeLessThan(250);
+    expect(m.mock.requests).toHaveLength(0);
     await p.next((x) => x.t === 'say');
     const acts = await p.next((x) => x.t === 'say-acts');
     expect(acts.actions).toEqual([]);
-    expect(out).toContain('表情动作这次没挑出来(决策模型超时),只说了话。');
+    await m.world.decisionsIdle();
     expect(m.records[0]).toMatchObject({ ok: false, failure: '决策模型超时' });
+    // the next receipt tells it
+    const next = textOf(await tool(m.world, 'pet_set').handler({}, ctx));
+    expect(next).toContain('[表情动作] 刚才的气泡:「嗯」没做(决策模型超时)。');
+    void out;
   });
 
   it('an error status: no words, the mode stays', async () => {
     const m = await mounted();
     const p = await page(m);
     m.mock.status = 500;
-    const out = textOf(await tool(m.world, 'pet_say').handler({ text: '嗯', feeling: '平静' }, ctx));
+    await tool(m.world, 'pet_say').handler({ text: '嗯', feeling: '平静' }, ctx);
     expect((await p.next((x) => x.t === 'say-acts')).actions).toEqual([]);
-    expect(out).toContain('决策模型返回错误(HTTP 500 mock failure)');
+    await m.world.decisionsIdle();
+    expect(m.records[0].failure).toBe('决策模型返回错误(HTTP 500 mock failure)');
     expect(m.world.petMode).toBe('decider');
   });
 
@@ -252,9 +283,55 @@ describe('pet_say', () => {
     const m = await mounted();
     const p = await page(m);
     m.mock.answer = () => ({});
-    const out = textOf(await tool(m.world, 'pet_say').handler({ text: '嗯', feeling: '没什么感觉' }, ctx));
+    await tool(m.world, 'pet_say').handler({ text: '嗯', feeling: '没什么感觉' }, ctx);
     expect((await p.next((x) => x.t === 'say-acts')).actions).toEqual([]);
-    expect(out).toContain('这次表情动作没有变化');
+    await m.world.decisionsIdle();
+    expect((await m.host.deliverDeferred())[0]).toContain('[表情动作] 刚才的气泡:「嗯」没动。');
+  });
+});
+
+describe('not waiting for decisions', () => {
+  it('bubbles and a question go on at once; decisions run in order and the chat records keep the order', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    m.cfg.decider.timeoutMs = 5000;
+    m.mock.delayMs = 400;
+    m.mock.answer = (r): Record<string, [string, number]> => (r.body.state.includes('第一句') ? { arm: ['招手', .8] } : { head: ['点头', .8] });
+    const t0 = Date.now();
+    await tool(m.world, 'pet_say').handler({ text: '第一句', feeling: '想打招呼' }, ctx);
+    await tool(m.world, 'pet_say').handler({ text: '第二句', feeling: '同意' }, ctx);
+    const ask = textOf(await tool(m.world, 'pet_ask').handler({ question: '第三句?', options: ['好'], feeling: '好奇' }, ctx));
+    expect(Date.now() - t0).toBeLessThan(300);
+    expect(ask).toContain('表情动作照 feeling 自动做');
+    // one decision at a time: the second is asked only after the first came back, and sees it
+    const first = await p.next((x) => x.t === 'say-acts');
+    expect(first.actions).toEqual(['wave']);
+    expect(m.mock.requests).toHaveLength(1);
+    const second = await p.next((x) => x.t === 'say-acts' && x.id !== first.id);
+    expect(second.actions).toEqual(['nod']);
+    expect(m.mock.requests[1].body.state).toMatch(/最近做过\(从近到远\):招手/);
+    await m.world.decisionsIdle();
+    expect(m.mock.requests).toHaveLength(3);
+    expect(m.records.map((r) => r.tool)).toEqual(['pet_say', 'pet_say', 'pet_ask']);
+    // the chat page: the two bubbles (with their moods) before the question
+    const kinds = m.host.stored.filter((e) => (e.meta as { kind?: string } | undefined)?.kind).map((e) => `${(e.meta as { kind: string }).kind}:${e.text}`);
+    expect(kinds).toEqual(['say:第一句', 'say:第二句', 'ask:第三句?']);
+    // and the next position line tells all three, once
+    const [line] = await m.host.deliverDeferred();
+    expect(line).toContain('[表情动作] 刚才的气泡:「第一句」招手;「第二句」点头;「第三句?」点头。');
+  });
+
+  it('a stop drops the decisions still waiting', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    void p;
+    m.cfg.decider.timeoutMs = 5000;
+    m.mock.delayMs = 300;
+    await tool(m.world, 'pet_say').handler({ text: '一', feeling: '嗯' }, ctx);
+    await tool(m.world, 'pet_say').handler({ text: '二', feeling: '嗯' }, ctx);
+    await m.world.stop();
+    await m.world.decisionsIdle();
+    expect(m.mock.requests.length).toBeLessThanOrEqual(1);
   });
 });
 
@@ -316,6 +393,7 @@ describe('posture between calls', () => {
     expect(out).toMatch(/\n\[位置\] [^\n]*,坐着;/);
     m.mock.answer = () => ({});
     await tool(m.world, 'pet_say').handler({ text: '好舒服', feeling: '放松' }, ctx);
+    await m.world.decisionsIdle();
     const req = m.mock.requests.at(-1)!.body;
     expect(req.state).toContain('她现在:坐着');
     expect(Object.keys(req.questions.body.criteria)).not.toContain('坐下');
@@ -409,13 +487,13 @@ describe('a decision slower than the hold', () => {
     m.mock.delayMs = 1300;
     m.mock.answer = () => ({ arm: ['招手', .8] });
     const t0 = Date.now();
-    const out = textOf(await tool(m.world, 'pet_say').handler({ text: '慢慢来', feeling: '想招手' }, ctx));
+    await tool(m.world, 'pet_say').handler({ text: '慢慢来', feeling: '想招手' }, ctx);
+    expect(Date.now() - t0).toBeLessThan(500);
     const say = await p.next((x) => x.t === 'say');
     expect(say).toMatchObject({ acts: 'pending', holdMs: 900 });
     const acts = await p.next((x) => x.t === 'say-acts');
     expect(acts).toMatchObject({ id: say.id, actions: ['wave'] });
     expect(Date.now() - t0).toBeGreaterThanOrEqual(1200);
-    expect(out).toContain('表情动作:招手。');
   });
 });
 
@@ -517,20 +595,41 @@ describe('breaker and the key', () => {
     outs.push(await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx));
     outs.push(await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx));
     outs.push(await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx));
-    expect(textOf(outs[0])).toContain('Bearer ***');
+    await m.world.decisionsIdle();
+    expect(m.records[0].failure).toContain('Bearer ***');
     const all = JSON.stringify({ outs, logs: m.logs, events: m.host.events, stored: m.host.stored, records: m.records, state: m.world.petState(), console: m.world.console().lamps, page: p.messages });
     expect(all).not.toContain(KEY);
     expect(all).not.toContain('SECRET');
   });
 
-  it('lists the decision models at the endpoint in use, and only with a key', async () => {
-    const m = await mounted();
-    const r = await m.world.console().invoke!('pet', 'deciders', []) as { models: string[] };
-    expect(r.models).toEqual(['perplexity/pplx-decider-v1.1-27b', 'mock/decider-2']);
-    expect(m.mock.listed).toEqual([`Bearer ${KEY}`]);
-    m.key.value = '';
-    expect(await m.world.console().invoke!('pet', 'deciders', [])).toEqual({ models: [] });
+  it('lists the decision models from the public listing: no key sent, cached, too small a context left out', async () => {
+    const m = await mounted({ key: '' });
+    type Listing = { models: Array<{ id: string; promptPerM: number | null; context: number | null }>; source: string; minContext: number };
+    const r = await m.world.console().invoke!('pet', 'deciders', []) as Listing;
+    expect(r.source).toBe('live');
+    // cheapest first; the 2k-context one and the chat model are not offered
+    expect(r.models).toEqual([
+      { id: 'mock/free-decider:free', name: 'Mock free', promptPerM: 0, context: 16384 },
+      { id: 'perplexity/pplx-decider-v1.1-27b', name: 'Perplexity: Decider 27B', promptPerM: 0.02, context: 32768 },
+    ]);
+    expect(r.minContext).toBe(8192);
+    expect(m.mock.listed).toEqual([{ url: '/api/v1/models?output_modalities=decisions', auth: undefined }]);
+    // kept: a second ask does not fetch again
+    await m.world.console().invoke!('pet', 'deciders', []);
     expect(m.mock.listed).toHaveLength(1);
+    // with a key lent, still no key on the listing
+    m.key.value = KEY;
+    await m.world.console().invoke!('pet', 'deciders', [true]);
+    expect(m.mock.listed.map((l) => l.auth)).toEqual([undefined, undefined]);
+    // the listing down: the last one, then (a fresh World) the ids we know
+    m.mock.listStatus = 503;
+    expect(await m.world.console().invoke!('pet', 'deciders', [true])).toMatchObject({ source: 'cache', models: r.models });
+    const n = await mounted({ key: '' });
+    n.mock.listStatus = 503;
+    const fb = await n.world.console().invoke!('pet', 'deciders', []) as Listing;
+    expect(fb.source).toBe('fallback');
+    expect(fb.models[0]).toEqual({ id: 'perplexity/pplx-decider-v1.1-27b', promptPerM: null, context: null });
+    expect(fb.models.map((x) => x.id)).toContain('liquid/d1');
   });
 
   it('a key removed mid-session: bubbles go on without words until the mode switches back', async () => {

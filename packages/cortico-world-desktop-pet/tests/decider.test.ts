@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
 import { parseActions, vocabId, type VocabWord } from '../src/script.ts';
 import {
-  buildQuestions, buildRequest, buildState, parseAnswers, parseUsage, pickGroup, questionOf, QUESTION_IDS, stripMarkers,
-  type Answer, type Question, type QuestionId,
+  buildQuestions, buildRequest, buildState, DECIDER_MIN_CONTEXT, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
+  QUESTION_IDS, stripMarkers, type Answer, type Question, type QuestionId,
 } from '../src/decider.ts';
 
 const packs = figurePacks([]).packs;
@@ -152,6 +152,21 @@ describe('pickGroup', () => {
     expect(pickGroup(qs, ans([['body', k('body', 'sit'), .65]]), { vocab, pairs }).ids).toEqual(['sit']);
   });
 
+  it('takes other knobs for tuning: the defaults are the shipped ones', () => {
+    const a = ans([['face', k('face', 'happy'), .9], ['head', k('head', 'nod'), .7], ['arm', k('arm', 'wave'), .8], ['body', k('body', 'sit'), .6]]);
+    expect(pickGroup(qs, a, { vocab, pairs, params: {} })).toEqual(pickGroup(qs, a, { vocab, pairs }));
+    expect(pickGroup(qs, a, { vocab, pairs, params: { budget: 3 } }).ids.sort()).toEqual(['happy', 'nod', 'sit', 'wave']);
+    expect(pickGroup(qs, a, { vocab, pairs, params: { budget: 0 } }).ids).toEqual(['happy']);
+    const low = ans([['head', k('head', 'nod'), .3]]);
+    expect(pickGroup(qs, low, { vocab, pairs }).ids).toEqual([]);
+    expect(pickGroup(qs, low, { vocab, pairs, params: { floor: { face: .3, head: .25, arm: .45, body: .55, tail: .5, ears: .5, wings: .5 } } }).ids).toEqual(['nod']);
+    // no repeat rule with a window of 0
+    const recent = [{ arm: k('arm', 'wave') }, { arm: k('arm', 'wave') }];
+    const rep = ans([['arm', k('arm', 'wave'), .8, [k('arm', 'clap'), .6]]]);
+    expect(pickGroup(qs, rep, { vocab, pairs, recent }).ids).toEqual(['clap']);
+    expect(pickGroup(qs, rep, { vocab, pairs, recent, params: { repeatWindow: 0 } }).ids).toEqual(['wave']);
+  });
+
   it('moves at most two parts besides the face', () => {
     const p = pickGroup(qs, ans([['face', k('face', 'happy'), .9], ['head', k('head', 'nod'), .7], ['arm', k('arm', 'wave'), .8], ['body', k('body', 'sit'), .6]]), { vocab, pairs });
     expect(p.ids.sort()).toEqual(['happy', 'nod', 'wave']);
@@ -231,6 +246,32 @@ describe('pickGroup', () => {
 
   it('knows every question id', () => {
     expect(QUESTION_IDS).toEqual(['face', 'head', 'arm', 'body', 'tail', 'ears', 'wings']);
+  });
+});
+
+describe('the listing of decision models (GET /api/v1/models?output_modalities=decisions)', () => {
+  it('keeps decision models with room for a request, priced per million input tokens, cheapest first', () => {
+    const got = parseDeciderModels({ data: [
+      { id: 'b/paid', name: ' Paid ', context_length: 32768, pricing: { prompt: '0.00000002' }, architecture: { output_modalities: ['decisions'] } },
+      { id: 'a/free:free', context_length: 16384, pricing: { prompt: '0' }, architecture: { output_modalities: ['decisions'] } },
+      { id: 'c/varies', context_length: 65536, pricing: { prompt: '-1' }, architecture: { output_modalities: ['decisions'] } },
+      { id: 'd/no-arch', pricing: { prompt: 0.0000001 } },
+      { id: 'e/tiny', context_length: 4096, pricing: { prompt: '0' }, architecture: { output_modalities: ['decisions'] } },
+      { id: 'f/chat', context_length: 128000, pricing: { prompt: '0.000001' }, architecture: { output_modalities: ['text'] } },
+      { id: 'g/zero', context_length: 0, pricing: { prompt: '0.00000002' }, architecture: { output_modalities: ['decisions'] } },
+      { id: 'b/paid', context_length: 1 }, { name: 'no id' }, null,
+    ] });
+    expect(got).toEqual([
+      { id: 'a/free:free', promptPerM: 0, context: 16384 },
+      { id: 'b/paid', name: 'Paid', promptPerM: 0.02, context: 32768 },
+      { id: 'g/zero', promptPerM: 0.02, context: null },
+      { id: 'd/no-arch', promptPerM: 0.1, context: null },
+      { id: 'c/varies', promptPerM: null, context: 65536 },
+    ]);
+    expect(DECIDER_MIN_CONTEXT).toBeGreaterThanOrEqual(6000);
+    expect(parseDeciderModels({ data: [{ id: 'e/tiny', context_length: 4096 }] }, 0)).toEqual([{ id: 'e/tiny', promptPerM: null, context: 4096 }]);
+    expect(parseDeciderModels({ models: [] })).toBeNull();
+    expect(parseDeciderModels(null)).toBeNull();
   });
 });
 

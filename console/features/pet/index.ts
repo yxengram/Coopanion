@@ -5,8 +5,10 @@
  * (features/dress). The hover buttons are picked from the pet menu's own actions, drawn with the
  * pet page's icons. The 「音效」 card below writes the World's sound group: the master switch
  * (the same one the pet menu flips), each kind of sound, and how long Coo snores in each sleep.
- * The 「表情决策」 card writes the decider group (decider mode, src/decider.ts in the World): the switch, the
- * decision model (suggestions from the World's `pet.deciders`) and the timeout; it shows whether an OpenRouter key
+ * The 「表情决策」 card writes the decider group (decider mode, src/decider.ts in the World; off by default): the switch,
+ * the decision model (picked from OpenRouter's public listing of decision models, which the World's `pet.deciders`
+ * fetches and caches, with price per million input tokens and context; the ids we know when it cannot be reached)
+ * and the timeout; it shows whether an OpenRouter key
  * is there (never the key) and the lamp's state, and a key typed in is saved as the `openrouter` endpoint's key
  * (`saveVendorKey`: the endpoint is created or updated, not made active).
  */
@@ -43,6 +45,9 @@ const KEYS = {
   deciderModel: `${K}.decider.model`,
   deciderTimeout: `${K}.decider.timeoutMs`,
 } as const;
+
+/** A decision model as the World's `pet.deciders` lists it (src/decider.ts DeciderModel). */
+interface DeciderModel { id: string; name?: string; promptPerM: number | null; context: number | null }
 
 /** What the World's `pet.state` says of decider mode (`deciderState`): no key, only whether there is one. */
 interface DeciderState {
@@ -105,19 +110,28 @@ const S = pick({
     saveFailed: (why: string) => `没保存上:${why}`,
     deciderTitle: '表情决策',
     deciderOn: '交给决策模型挑表情动作',
-    deciderHint: '开着并且有 OpenRouter 密钥时,Coo 说话只写一句心情,表情、动作和姿势由 OpenRouter 上的决策模型照这句话挑(很快、很便宜),走动由 Coo 自己按像素决定;省下整张词表,提示词更短。没有密钥或关掉时照旧由 Coo 自己写表情动作。',
+    deciderHint: '默认关。打开并且有 OpenRouter 密钥时,Coo 说话只写一句心情,表情、动作和姿势由 OpenRouter 上的决策模型照这句话挑(很快、很便宜),走动由 Coo 自己按像素决定;省下整张词表,提示词更短。没有密钥或关掉时照旧由 Coo 自己写表情动作。',
     deciderModel: '决策模型',
-    deciderModelHint: `OpenRouter 上的决策模型 id,默认 ${DEFAULT_DECIDER}(便宜)。`,
+    deciderModelHint: `OpenRouter 上的决策模型,默认 ${DEFAULT_DECIDER}(便宜)。可以从列表里挑(列出价格和上下文长度),也可以直接填 id。`,
+    modelLive: 'OpenRouter 现有的决策模型;上下文装不下一次请求的不列出。',
+    modelFallback: '连不上 OpenRouter,只列出已知的几个(价格未知)。',
+    modelInfo: (price: string, ctx: string) => `这个模型:${price}${ctx ? `,${ctx}` : ''}。`,
+    priceFree: '免费',
+    pricePerM: (usd: string) => `每百万输入 token $${usd}`,
+    ctxTokens: (k: string) => `上下文 ${k}`,
+    modelUnlisted: '这个模型不在 OpenRouter 的决策模型列表里(或上下文太短),确认 id 没写错。',
     deciderTimeout: '最多等多久',
     deciderTimeoutHint: '一次决策超过这个时间,这句话就只说话、不做表情动作。',
     deciderKey: 'OpenRouter 密钥',
-    deciderKeyHint: '存成「开始」页的 OpenRouter 端点的密钥,不会切换你现在用的聊天模型。开着时每句话都会把 Coo 说的话、它的心情、你最近说的一句话、它的姿势位置和时间发给 OpenRouter;不想发就关掉上面的开关。',
+    deciderKeyHint: '存成「开始」页的 OpenRouter 端点的密钥,不会切换你现在用的聊天模型,也不会替你打开上面的开关。开着时每句话都会把 Coo 说的话、它的心情、你最近说的一句话、它的姿势位置和时间发给 OpenRouter;不想发就关掉上面的开关。',
     deciderKeySave: '保存密钥',
     deciderKeySaved: '密钥已保存,几秒内生效',
     keyHave: '用的是你 OpenRouter 端点的密钥。',
     keyNone: '还没有 OpenRouter 密钥,填一个就能用。',
     modeDecider: '现在:表情动作由决策模型挑。',
     modeClassic: '现在:Coo 自己写表情动作。',
+    needSwitch: '要用决策模型,打开上面的开关。',
+    needKey: '开关开着,但还没有 OpenRouter 密钥:填一个就会用上。',
     lastOk: (ms: number, n: number, cost: number) => `上次决策 ${ms} ms;本次运行 ${n} 次${cost ? `,约 $${cost.toFixed(5)}` : ''}。`,
     lastBad: (why: string) => `上次没成:${why}。`,
     breaker: '连续出错,暂停一会儿再试。',
@@ -168,19 +182,28 @@ const S = pick({
     saveFailed: (why: string) => `Not saved: ${why}`,
     deciderTitle: 'Expression decisions',
     deciderOn: 'Let a decision model pick faces and motions',
-    deciderHint: 'On, with an OpenRouter key: Coo writes only a line on how it feels, and a decision model on OpenRouter (fast and cheap) picks the faces, motions and postures from it; Coo decides its walks in pixels itself. The word list leaves the prompt. Without a key, or off, Coo writes its faces and motions itself as before.',
+    deciderHint: 'Off by default. On, with an OpenRouter key: Coo writes only a line on how it feels, and a decision model on OpenRouter (fast and cheap) picks the faces, motions and postures from it; Coo decides its walks in pixels itself. The word list leaves the prompt. Without a key, or off, Coo writes its faces and motions itself as before.',
     deciderModel: 'Decision model',
-    deciderModelHint: `A decision model id on OpenRouter; default ${DEFAULT_DECIDER} (cheap).`,
+    deciderModelHint: `A decision model on OpenRouter; default ${DEFAULT_DECIDER} (cheap). Pick one from the list (with price and context length) or type an id.`,
+    modelLive: "OpenRouter's decision models now; those whose context cannot take a request are left out.",
+    modelFallback: 'OpenRouter cannot be reached: only the models we know are listed (prices unknown).',
+    modelInfo: (price: string, ctx: string) => `This model: ${price}${ctx ? `, ${ctx}` : ''}.`,
+    priceFree: 'free',
+    pricePerM: (usd: string) => `$${usd} per million input tokens`,
+    ctxTokens: (k: string) => `${k} context`,
+    modelUnlisted: "This model is not in OpenRouter's list of decision models (or its context is too short); check the id.",
     deciderTimeout: 'Wait at most',
     deciderTimeoutHint: 'A decision that takes longer leaves that line without a face or motion.',
     deciderKey: 'OpenRouter key',
-    deciderKeyHint: "Saved as the key of the Start page's OpenRouter endpoint; the chat model you use does not change. While on, each line sends OpenRouter what Coo says, its feeling, the last thing you said, its posture and place and the time; switch it off above to stop that.",
+    deciderKeyHint: "Saved as the key of the Start page's OpenRouter endpoint; the chat model you use does not change, and the switch above is not turned on for you. While on, each line sends OpenRouter what Coo says, its feeling, the last thing you said, its posture and place and the time; switch it off above to stop that.",
     deciderKeySave: 'Save key',
     deciderKeySaved: 'Key saved; it takes effect within seconds',
     keyHave: "Using your OpenRouter endpoint's key.",
     keyNone: 'No OpenRouter key yet: add one to use this.',
     modeDecider: 'Now: a decision model picks faces and motions.',
     modeClassic: 'Now: Coo writes its own faces and motions.',
+    needSwitch: 'Turn on the switch above to use a decision model.',
+    needKey: 'The switch is on but there is no OpenRouter key yet: add one and it is used.',
     lastOk: (ms: number, n: number, cost: number) => `Last decision ${ms} ms; ${n} this run${cost ? `, about $${cost.toFixed(5)}` : ''}.`,
     lastBad: (why: string) => `Last one failed: ${why}.`,
     breaker: 'Failing repeatedly; pausing a moment.',
@@ -315,6 +338,9 @@ async function mount(ctx: FeatureContext): Promise<void> {
   deciderList.id = 'pet-decider-models';
   deciderModel.setAttribute('list', deciderList.id);
   deciderList.append(Object.assign(document.createElement('option'), { value: DEFAULT_DECIDER }));
+  /** The listing as last fetched (the World caches it), by id. */
+  let deciderModels: Map<string, DeciderModel> | null = null;
+  const modelNote = ui.h('p', 'home-note', '');
   const deciderTimeout = ui.input({ type: 'number' });
   deciderTimeout.min = '500'; deciderTimeout.max = '10000'; deciderTimeout.step = '100';
   const timeoutBox = ui.h('div', 'companion-rangebox');
@@ -330,15 +356,18 @@ async function mount(ctx: FeatureContext): Promise<void> {
     row('', deciderOn.el, S.deciderHint),
     row(S.deciderModel, deciderModel, S.deciderModelHint),
     deciderList,
+    modelNote,
     row(S.deciderTimeout, timeoutBox, S.deciderTimeoutHint),
     row(S.deciderKey, keyBox, S.deciderKeyHint),
     deciderStatus,
     deciderMsg,
   );
   root.append(decider.el);
+  deciderModel.addEventListener('input', () => renderModelNote());
   deciderModel.addEventListener('change', () => {
     const v = deciderModel.value.trim() || DEFAULT_DECIDER;
     deciderModel.value = v;
+    renderModelNote();
     if (v !== deciderModel.dataset.saved) { deciderModel.dataset.saved = v; void save(KEYS.deciderModel, v, DECIDER_GROUP, deciderMsg); }
   });
   deciderModel.addEventListener('keydown', (e) => { if (e.key === 'Enter') deciderModel.blur(); });
@@ -363,17 +392,33 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const renderDecider = (d: DeciderState | undefined) => {
     if (!d) { deciderStatus.textContent = ''; return; }
     const parts = [d.keySet ? S.keyHave : S.keyNone, d.mode === 'decider' ? S.modeDecider : S.modeClassic];
+    if (d.mode !== 'decider') parts.push(d.enabled ? (d.keySet ? '' : S.needKey) : S.needSwitch);
     if (d.mode === 'decider') {
       if (d.open) parts.push(S.breaker);
       else if (d.last?.ok) parts.push(S.lastOk(d.last.ms, d.calls ?? 0, d.cost ?? 0));
       else if (d.last && !d.last.ok) parts.push(S.lastBad(d.last.reason ?? ''));
       if (d.overridden) parts.push(S.overridden);
     }
-    deciderStatus.textContent = parts.join(' ');
+    deciderStatus.textContent = parts.filter(Boolean).join(' ');
   };
-  // the models OpenRouter lists, once (the World asks with the key; none come back without one)
-  void post<{ models?: string[] }>(panelPath('deciders'), { args: [] }, opts).then((r) => {
-    for (const m of r?.models ?? []) if (m !== DEFAULT_DECIDER) deciderList.append(Object.assign(document.createElement('option'), { value: m }));
+  const priceText = (m: DeciderModel) => (m.promptPerM === null ? '' : m.promptPerM === 0 ? S.priceFree : S.pricePerM(String(+m.promptPerM.toPrecision(3))));
+  const ctxText = (m: DeciderModel) => (m.context === null ? '' : S.ctxTokens(m.context >= 1024 ? `${Math.round(m.context / 1024)}k` : String(m.context)));
+  /** Under the box: the chosen model's price and context, or that it is not listed; and where the list came from. */
+  let listNote = '';
+  const renderModelNote = () => {
+    const id = deciderModel.value.trim() || DEFAULT_DECIDER;
+    const m = deciderModels?.get(id);
+    const about = m ? (priceText(m) || ctxText(m) ? S.modelInfo(priceText(m) || '?', ctxText(m)) : '') : deciderModels && listNote === S.modelLive ? S.modelUnlisted : '';
+    modelNote.textContent = [about, listNote].filter(Boolean).join(' ');
+  };
+  // OpenRouter's decision models, once a mount (the World fetches the public listing, no key, and keeps it a while)
+  void post<{ models?: DeciderModel[]; source?: string }>(panelPath('deciders'), { args: [] }, opts).then((r) => {
+    const models = r?.models ?? [];
+    deciderModels = new Map(models.map((m) => [m.id, m]));
+    deciderList.replaceChildren(...(models.some((m) => m.id === DEFAULT_DECIDER) ? [] : [Object.assign(document.createElement('option'), { value: DEFAULT_DECIDER })]),
+      ...models.map((m) => Object.assign(document.createElement('option'), { value: m.id, label: [m.name ?? '', priceText(m), ctxText(m)].filter(Boolean).join(' · ') })));
+    listNote = r?.source === 'fallback' ? S.modelFallback : S.modelLive;
+    renderModelNote();
   }).catch(() => {});
 
   /* ---------- behaviour ---------- */
@@ -429,6 +474,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     if (typeof deciderValues[KEYS.deciderModel] === 'string' && document.activeElement !== deciderModel) {
       deciderModel.value = deciderValues[KEYS.deciderModel] as string;
       deciderModel.dataset.saved = deciderModel.value;
+      renderModelNote();
     }
     if (typeof deciderValues[KEYS.deciderTimeout] === 'number' && document.activeElement !== deciderTimeout) {
       deciderTimeout.value = String(deciderValues[KEYS.deciderTimeout]);

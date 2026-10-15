@@ -37,13 +37,13 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 ### 表情决策模式(decider)
 
 内嵌应用借给 World 一个 OpenRouter 密钥(`DesktopPetAssembly.deciderKey()`,每次用时现读,World 不保存、不写盘、不进日志、事件和回执),
-且 `decider.enabled` 开着(默认开)时,bot 不再看到词表和标记,表情动作交给 OpenRouter 的决策模型挑(`src/decider.ts`)。每次决策发给 OpenRouter 的 state 里有 bot 要说的话、它的 feeling、对方 10 分钟内最后说的一句话、姿势位置和时间;关掉 `decider.enabled` 就不再发。没借密钥、密钥为空或关掉时,一切同上(工具表和环境提示词逐字不变)。
+且 `decider.enabled` 开着(默认关,由用户在设置里打开)时,bot 不再看到词表和标记,表情动作交给 OpenRouter 的决策模型挑(`src/decider.ts`)。每次决策发给 OpenRouter 的 state 里有 bot 要说的话、它的 feeling、对方 10 分钟内最后说的一句话、姿势位置和时间;关掉 `decider.enabled` 就不再发。没借密钥、密钥为空或关掉时,一切同上(工具表和环境提示词逐字不变)。
 
 | 工具 | 作用 | 回执 |
 |---|---|---|
-| `pet_say(text, feeling)` | 一个气泡一句 `feeling`(此刻的心情、想法,怎么写都行);`text` 里习惯性写出的标记去掉、不执行:`【…】` 都去掉,`<…>` 里是词表里的词或只有汉字时去掉(`<小声>`),其他尖括号(`<div>`、`a < b`、`3<5`)照原文显示 | 等决策结束(最多 `decider.timeoutMs`,默认 2500 ms)才返回:约显示多久、做了哪些词(第一个中文名)、持续姿势说明;失败或超时写明原因,只说了话 |
-| `pet_ask(question, options, allowOwnAnswer, feeling?)` | 同上;给了 `feeling` 就按它决策,在提问时做(`act`) | 已问出 + 做了什么 |
-| `pet_feel(feeling)` | 替代 `pet_act`:不说话,只让身体流露心情;坐下、跪坐、趴下、睡觉也由它挑 | 做了什么 + 持续姿势说明;决策失败时不标 `failed` |
+| `pet_say(text, feeling)` | 一个气泡一句 `feeling`(此刻的心情、想法,怎么写都行);`text` 里习惯性写出的标记去掉、不执行:`【…】` 都去掉,`<…>` 里是词表里的词或只有汉字时去掉(`<小声>`),其他尖括号(`<div>`、`a < b`、`3<5`)照原文显示 | 立刻返回,不等决策:约显示多久、「表情动作照 feeling 自动做」(没有密钥或熔断中时写明这句只说话);决策按调用顺序一个接一个做(`decisionsIdle()` 等它们做完),词挑好后用 `say-acts` 补给气泡,做了哪些词(或失败原因)在下一条桌宠回执或下一批事件的 `[位置]` 行后面跟一行 `[表情动作] 刚才的气泡:「…」词` 说一次 |
+| `pet_ask(question, options, allowOwnAnswer, feeling?)` | 同上;给了 `feeling` 就按它决策,挑好就做(`act`) | 已问出;同样不等决策 |
+| `pet_feel(feeling)` | 替代 `pet_act`:这一轮不说话时只让身体流露心情;坐下、跪坐、趴下、睡觉也由它挑(说话时姿势写进 `pet_say` 的 feeling) | 等它这次决策(排在前面气泡的决策之后)做完才返回:做了什么 + 持续姿势说明;决策失败时不标 `failed` |
 | `pet_walk(direction, pixels, run)` | 替代 `pet_walk_to`:往 `left`/`right` 走多少像素,从页面最后报的位置算,先截到 `[0, 屏幕宽]`,页面再截到舞台边 | 走到才返回:走了多少像素、停在哪;比要求少 8 像素以上就说「走到屏幕边停下了」;`interruptible` |
 | `pet_set`、`pet_quiet` | 不变 | 不变 |
 
@@ -62,7 +62,7 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 
 失败:单次失败或超时只让这一句不做表情动作,不换模式;连续 3 次失败 60 秒内不再调用(熔断,日志只警告一次);密钥被删后 5 秒内切回旧模式。
 模式切换时调 `onModeChange(mode)`,应用据此重建前缀(Coopanion 调 `reloadSystemPrefix`);重建前模型调旧工具名仍照旧执行。
-控制台:「表情决策」灯、配置组 `world:desktop-pet:decider`(开关、模型、超时)、`pet.state` 里的 `decider`(只有有没有密钥,没有密钥本身)、`pet.deciders` 列出 OpenRouter 上的决策模型(路径待核实,失败时为空)。
+控制台:「表情决策」灯、配置组 `world:desktop-pet:decider`(开关、模型、超时)、`pet.state` 里的 `decider`(只有有没有密钥,没有密钥本身)、`pet.deciders` 列出 OpenRouter 上的决策模型(`GET https://openrouter.ai/api/v1/models?output_modalities=decisions`,公开、不带密钥;World 缓存 6 小时;返回 `{ models: [{ id, name?, promptPerM, context }], source: 'live' | 'cache' | 'fallback', minContext }`,上下文小于 `max(DECIDER_MIN_CONTEXT = 8192, 本次运行最大请求 × 1.25)` 的不列出;连不上时给上次的列表,再不行给 `DECIDER_FALLBACK_MODELS` 里已知的几个 id,价格和上下文为 null;`deciderModelsUrl` 可指到本地假端点)。
 决策用量以 `桌宠·表情决策` 记入 `reportUsage`;`onDecision(rec)` 给评测和测试每次决策的记录(不含密钥)。
 部署里改过环境提示词时(Cortico 只按 World id 存一份覆盖文件,两种模式都会读它),决策模式下记一条警告,控制台提示去「提示词」页还原。
 

@@ -97,12 +97,12 @@ export const DECIDER_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_say',
     tags: ['speak'],
-    description: '在桌宠头顶冒出一个对话气泡说话,一次一个气泡,一两句。feeling 写你这一刻的心情和想法,表情、动作会照它自动做出来。回执报告大约显示多久、做了什么表情动作和你现在的位置;窗口没连接时失败。',
+    description: '在桌宠头顶冒出一个对话气泡说话,一次一个气泡,一两句。feeling 写你这一刻的心情和想法(想坐下、趴下也写在这里),表情、动作和姿势会照它自动做出来,不用再调 pet_feel。立刻返回大约显示多久和你现在的位置,不等身体做完;做了什么之后在 [表情动作] 行里说。窗口没连接时失败。',
     parameters: {
       type: 'object',
       properties: {
         text: { type: 'string', description: '要说的话,一两句,纯文字,不写任何标记或括号里的动作。不想说话就不要调用。' },
-        feeling: { type: 'string', description: '这一刻你的心情、想法或情绪,一两句话,怎么写都行,例:「被夸了有点得意,嘴上还要装淡定」。对方看不到这句;不用写动作名。' },
+        feeling: { type: 'string', description: '这一刻你的心情、想法或情绪,一两句话,怎么写都行,例:「被夸了有点得意,嘴上还要装淡定」「心疼她,想在旁边坐下陪着」。对方看不到这句;不用写动作名。' },
       },
       required: ['text', 'feeling'],
     },
@@ -117,7 +117,7 @@ export const DECIDER_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
         question: { type: 'string', description: '问题,一句话。' },
         options: { type: 'array', items: { type: 'string' }, maxItems: 3, description: '1–3 个简短选项,每个不超过 40 字。' },
         allowOwnAnswer: { type: 'boolean', description: '是否提供自己写回答的输入格,默认 true。' },
-        feeling: { type: 'string', description: '可选:问的时候的心情或想法,表情动作会照它做出来。' },
+        feeling: { type: 'string', description: '可选:问的时候的心情或想法,表情动作会照它做出来(回执不等它)。' },
       },
       required: ['question', 'options'],
     },
@@ -140,7 +140,7 @@ export const DECIDER_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_feel',
     tags: ['act'],
-    description: '不说话,只让身体流露心情:写下此刻的心情或想法,表情、动作和姿势(坐下、跪坐、趴下、睡觉也算)会照它自动做出来。几乎立即返回做了什么;坐、趴、睡、跪这类姿势会保持下去,回执里说什么时候结束。',
+    description: '这一轮不说话时用:只让身体流露心情,写下此刻的心情或想法,表情、动作和姿势(坐下、跪坐、趴下、睡觉也算)会照它自动做出来。说话时把心情和姿势写进 pet_say 的 feeling,不要说完再调它。约一秒后返回做了什么;坐、趴、睡、跪这类姿势会保持下去,回执里说什么时候结束。',
     parameters: {
       type: 'object',
       properties: {

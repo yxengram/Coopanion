@@ -3,15 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>鲸鱼娘桌宠</title>
+<title>形象展示</title>
 <style>
-  :root { --bg: #eef2fa; --panel: #ffffff; --ink: #1d2340; --muted: #5d6685; --line: #d9deec; --accent: #3d6ee6; --floor: #dfe5f3; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #141826; --panel: #1d2234; --ink: #e8ecf8; --muted: #9aa3c0; --line: #2c3350; --accent: #7aa2ff; --floor: #1b2033; } }
-  :root[data-theme="dark"] { --bg: #141826; --panel: #1d2234; --ink: #e8ecf8; --muted: #9aa3c0; --line: #2c3350; --accent: #7aa2ff; --floor: #1b2033; }
+  :root { --bg: #eef2fa; --panel: #ffffff; --ink: #1d2340; --muted: #5d6685; --line: #d9deec; --accent: #3d6ee6; --floor: #dfe5f3; --soft: #f3f5fb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #141826; --panel: #1d2234; --ink: #e8ecf8; --muted: #9aa3c0; --line: #2c3350; --accent: #7aa2ff; --floor: #1b2033; --soft: #232941; } }
+  :root[data-theme="dark"] { --bg: #141826; --panel: #1d2234; --ink: #e8ecf8; --muted: #9aa3c0; --line: #2c3350; --accent: #7aa2ff; --floor: #1b2033; --soft: #232941; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
-  body { display: grid; grid-template-rows: 1fr auto; }
-  .stage { position: relative; overflow: hidden; touch-action: none; min-height: 320px; }
+  /* the stage keeps at least 600px of a 1150px-high window (the pet's size, S in bounds(), stays the same); the panel scrolls */
+  body { display: grid; grid-template-rows: minmax(320px, 1fr) auto; }
+  .stage { position: relative; overflow: hidden; touch-action: none; }
   .stage::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 36px; background: var(--floor); z-index: 0; }
   #stageSvg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; overflow: visible; }
   .shadow { fill: #1d2340; opacity: .18; }
@@ -22,14 +23,35 @@
   /* Coo (?figure=coo) */
   .ink { stroke: var(--ink); } .inkf { fill: var(--ink); } .blush { fill: #ff8fa8; } .angry { stroke: #e5484d; }
   .bubble { position: absolute; z-index: 3; max-width: 260px; padding: 8px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(20, 30, 70, .12); transform: translate(-50%, -100%); pointer-events: none; white-space: pre-wrap; }
-  .panel { background: var(--panel); border-top: 1px solid var(--line); padding: 10px 16px 14px; display: grid; gap: 8px; }
+  .played { position: absolute; z-index: 2; left: 16px; top: 12px; max-width: calc(100% - 32px); color: var(--muted); font-size: 13px; pointer-events: none; }
+  .played b { color: var(--ink); font-weight: 600; }
+  .panel { background: var(--panel); border-top: 1px solid var(--line); padding: 10px 16px 14px; display: grid; gap: 8px; align-content: start;
+    max-height: max(220px, calc(100vh - 600px)); overflow: auto; overscroll-behavior: contain; }
+  @media (min-width: 1280px) {
+    body { grid-template-rows: 100vh; grid-template-columns: minmax(0, 1fr) min(640px, 44vw); }
+    .panel { max-height: none; border-top: 0; border-left: 1px solid var(--line); }
+  }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .row > span { color: var(--muted); min-width: 3.5em; }
+  .row > span:first-child { color: var(--muted); min-width: 3.5em; }
+  .row[hidden] { display: none; }
   button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
   button:hover { border-color: var(--accent); color: var(--accent); }
   button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* a composite face (the kit's PLUS_MIXES: one face's eyes with another's mouth): a dashed outline */
+  button.mix { border-style: dashed; }
+  /* a motion that also takes a part outside its group (partOf's 也占…) */
+  button sup { color: var(--muted); font-size: 10px; margin-left: 2px; }
   input[type=range] { accent-color: var(--accent); }
+  input[type=text] { font: inherit; color: var(--ink); background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; min-width: 0; flex: 1 1 14em; }
   .status { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .total { color: var(--muted); font-size: 12px; }
+  details { border-top: 1px solid var(--line); padding-top: 6px; }
+  summary { cursor: pointer; font-weight: 600; padding: 2px 0 6px; }
+  summary small, .grp > span small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .grp { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin: 0 0 7px; }
+  .grp > span { color: var(--muted); flex: 0 0 100%; font-size: 12px; }
+  .grp button { padding: 3px 10px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 0 0 6px; }
 </style>
 </head>
 <body>
@@ -40,37 +62,53 @@
     <g id="fx"></g>
   </svg>
   <div class="bubble" id="bubble" hidden></div>
+  <div class="played" id="played"></div>
 </div>
 <div class="panel">
-  <div class="row" id="exprs"><span>表情</span></div>
-  <div class="row" id="motions"><span>动作</span></div>
-  <div class="row" id="schemes"><span>配色</span></div>
+  <div class="row" id="figures"><span>形象</span></div>
+  <div class="row" id="schemes" hidden><span>配色</span></div>
   <div class="row"><span>交互</span>
     <button id="talk">说话</button><button id="listen">倾听</button><button id="think">思考</button>
-    <button id="roam">自由活动：开</button>
+    <button id="roam">自由活动：开</button><button id="toss" title="kit 的 dragged 脸（被拎起），不是词表里的词">抛起来</button>
     <label>大小 <input id="scale" type="range" min="0.42" max="1.6" step="0.01" value="1.0"></label>
     <button id="theme">切换深浅</button>
     <span class="status" id="status">加载中…</span>
   </div>
+  <div class="row"><span>组合</span>
+    <input type="text" id="combo" placeholder="开心+招手+点头（中文名或 id，用 + 连）" autocomplete="off" spellcheck="false">
+    <button id="comboGo">一起做</button>
+  </div>
+  <div class="total" id="total"></div>
+  <details open id="exprs"><summary>表情</summary></details>
+  <details open id="motions"><summary>动作</summary></details>
+  <details open id="pairs"><summary>表情对</summary></details>
 </div>
 <script type="module">
-import { createPet } from '../../web/kit/body.js';
+import { createPet, PLUS_MIXES } from '../../web/kit/body.js';
 import { createSfx } from '../../web/sound.js';
 import { createWhaleFigure } from '../../web/whale/figure.js';
 import { COO_CSS, cooFigure, defaultSkin, skinCss } from '../../web/coo/coo.js';
 
 const $ = s => document.querySelector(s);
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 const stage = $('#stage'), bubble = $('#bubble');
 const sfx = createSfx({ storageKey: 'whale-demo.sound' });
 ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => sfx.unlock(), { capture: true }));
 let scale = +$('#scale').value;
 const q = new URLSearchParams(location.search);
-// ?figure=coo shows Coo instead, for comparing the same motions, ?figure=claude-chan Claude-chan, ?figure=gpt-chan
-// GPT-chan, ?figure=gemini-chan Gemini-chan, ?figure=grok-chan Grok-chan; each pack's figure.json lists its words
-const coo = q.get('figure') === 'coo', claude = q.get('figure') === 'claude-chan', gpt = q.get('figure') === 'gpt-chan';
-const gemini = q.get('figure') === 'gemini-chan', grok = q.get('figure') === 'grok-chan';
-const pack = coo ? '../../web/coo/' : claude ? '../../web/claude-chan/' : gpt ? '../../web/gpt-chan/' : gemini ? '../../web/gemini-chan/'
-  : grok ? '../../web/grok-chan/' : '../../web/whale/';
+// ?figure= picks the figure (default the whale), ?scheme= its colour scheme; each pack's figure.json lists its words
+const FIGURES = [['whale', '大肥鱼'], ['claude-chan', 'Claude 娘'], ['gpt-chan', 'GPT 娘'], ['gemini-chan', 'Gemini 娘'], ['grok-chan', 'Grok 娘'], ['coo', 'Coo']];
+const fig = FIGURES.some(([id]) => id === q.get('figure')) ? q.get('figure') : 'whale';
+const figLabel = FIGURES.find(([id]) => id === fig)[1];
+document.title = `${figLabel} · 表情动作`;
+for (const [id, label] of FIGURES) {
+  const b = el('button', { textContent: label, className: id === fig ? 'on' : '' });
+  // a scheme id belongs to one figure, so switching drops it
+  b.onclick = () => { if (id !== fig) location.search = id === 'whale' ? '' : `?figure=${id}`; };
+  $('#figures').append(b);
+}
+const coo = fig === 'coo', claude = fig === 'claude-chan', gpt = fig === 'gpt-chan', gemini = fig === 'gemini-chan', grok = fig === 'grok-chan';
+const pack = `../../web/${fig}/`;
 const load = async p => (await fetch(new URL(p, new URL(pack, location.href)))).json();
 const skin = coo ? defaultSkin() : null;
 if (coo) document.head.append(Object.assign(document.createElement('style'), { textContent: COO_CSS + skinCss(skin) }));
@@ -89,25 +127,221 @@ const ctl = createPet({ petG: $('#pet'), shadowEl: $('#shadow'), fxG: $('#fx') }
 new ResizeObserver(() => ctl.resize()).observe(stage);
 $('#scale').oninput = e => { scale = +e.target.value; ctl.resize(); };
 
-// a button for each word of her vocabulary (figure.json), by its first Chinese name
-const { vocab } = await load('figure.json');
-for (const w of vocab) {
-  const b = document.createElement('button'); b.textContent = w.names.zh?.[0] ?? w.id;
-  b.onclick = () => { ctl.holdRoam(5); ctl.doWord(w.id); };
-  $(w.kind === 'expression' ? '#exprs' : '#motions').append(b);
+/* ---------- the prompt's grouping, mirrored from src/script.ts (TypeScript, not loadable here): keep in sync ---------- */
+// script.ts MOODS: the expressions by mood, each base face before the composites near it; a pack's own goes to 其他
+const MOODS = [
+  ['开心(好消息)', ['happy', 'giggle', 'lol', 'laughcry', 'blissful', 'celebrate', 'excited', 'wow', 'dreamy', 'crave']],
+  ['调皮、得意(逗人、显摆)', ['wink', 'smug', 'smirk', 'tongue', 'sly', 'coax', 'innocent']],
+  ['喜欢、害羞(表白、礼物)', ['love', 'flutter', 'smitten', 'shy', 'bashful', 'moved', 'gentle']],
+  ['难过(坏消息、陪对方难过、安慰对方)', ['sad', 'comfort', 'sulk', 'cry', 'whimper', 'heartbroken', 'gloomy', 'brave', 'pained']],
+  ['生气、嫌弃(被惹、被吐槽)', ['angry', 'fuming', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'meh', 'speechless']],
+  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
+  ['其他', ['neutral', 'thinking', 'confused', 'doubt', 'determined', 'eager', 'sleepy']],
+];
+// script.ts APPENDAGES, APPENDAGE_NAMES, CHANNELS, KNEEL_WITH_ARMS, channelsOf, rankOf, PARTS, appendageLabel, partOf
+const APPENDAGES = ['tail', 'ears', 'wings'];
+const APPENDAGE_NAMES = { tail: '尾巴', ears: '耳朵', wings: '翅膀' };
+const ALL = ['face', 'head', 'arm', 'body', 'stance', ...APPENDAGES];
+const CHANNELS = {
+  nod: ['head'], shake: ['head'], sigh: ['head'], tilt: ['head'], droop: ['head'], blink: ['head'],
+  wag: ['tail'], earflick: ['ears'], earsup: ['ears'], earsdown: ['ears'], wingbeat: ['wings'],
+  wave: ['arm'], shiver: ['arm'], heart: ['arm'], serve: ['arm'], salute: ['arm'], vsign: ['arm'], point: ['arm'],
+  cover: ['arm'], cross: ['arm'], stretch: ['arm'], pray: ['arm'], scratch: ['arm'], idea: ['arm'], hug: ['arm'], hips: ['arm'],
+  spout: ['arm'], sip: ['arm'], read: ['arm'], muse: ['arm'], fist: ['arm'], jot: ['arm'], twiddle: ['arm'],
+  clap: ['arm'], shrug: ['arm'], headhold: ['arm'], raise: ['arm'], thumbs: ['arm'], shush: ['arm'], wipe: ['arm'],
+  song: ['arm', 'stance'], bow: ['arm', 'stance'], flinch: ['arm', 'stance'], peek: ['arm', 'stance'], away: ['arm', 'stance'],
+  spin: ['arm', 'stance'], cheer: ['arm', 'stance'], turn: ['stance'],
+  closer: ['arm', 'stance'], leanback: ['arm', 'stance'], sway: ['arm', 'stance'],
+  curtsy: ['arm', 'stance', 'body'], stamp: ['arm', 'stance', 'body'],
+  sit: ['body'],
+  kneel: ['body', 'arm'], lie: ['body', 'arm'],
+  sleep: ['face', 'head', 'arm', 'body', ...APPENDAGES],
+  dizzy: ['body', 'stance', 'face'],
+  stand: ['body', 'stance'], walk: ['body', 'stance'], run: ['body', 'stance'], look: ['body', 'stance'],
+  dance: ['body', 'stance'], jump: ['body', 'stance'], hop: ['body', 'stance'],
+  flap: ['body', 'stance', 'arm'], roll: ['body', 'stance', 'arm', 'head'],
+  petrify: ALL,
+};
+const KNEEL_WITH_ARMS = ['body', 'stance'];
+const KNEEL_SINGS = new Set(['song']);
+const channelsOf = v => (v.id === 'kneel' && v.keepsArms ? KNEEL_WITH_ARMS
+  : CHANNELS[v.id] ?? (v.kind === 'expression' ? ['face'] : ['head', 'arm', 'body', 'stance']));
+const clashes = (a, b) => {
+  const sings = (k, w) => k.id === 'kneel' && !!k.keepsArms && KNEEL_SINGS.has(w.id);
+  if (sings(a, b) || sings(b, a)) return false;
+  const cs = channelsOf(b);
+  return channelsOf(a).some(c => cs.includes(c));
+};
+const rankOf = cs => (cs.includes('body') || cs.includes('stance') ? 0 : cs.includes('arm') ? 1
+  : cs.includes('head') || cs.some(c => APPENDAGES.includes(c)) ? 2 : 3);
+const PARTS = ['头', '', '手', '手,要站着或坐着不动(不和走、跑、跳这类移动同组,坐下可以)', '身'];
+const appendageLabel = words => {
+  const names = APPENDAGES.filter(c => words.some(v => channelsOf(v)[0] === c)).map(c => APPENDAGE_NAMES[c]);
+  return names.length > 1 ? `${names.join('、')}(各算一个部位)` : `${names[0]}(单独算一个部位)`;
+};
+const partOf = (v, has = []) => {
+  const cs = channelsOf(v);
+  if (cs.length === 1 && cs[0] === 'head') return { part: 0, also: '' };
+  if (cs.length === 1 && APPENDAGES.includes(cs[0])) return { part: 1, also: '' };
+  if (cs.includes('arm') && !cs.includes('body')) return { part: cs.includes('stance') ? 3 : 2, also: '' };
+  const also = ['arm', 'head', 'face', ...has].filter(c => cs.includes(c)).map(c => ({ arm: '手', head: '头', face: '表情', ...APPENDAGE_NAMES })[c]);
+  return { part: 4, also: also.length ? also.join('、') : '' };
+};
+/* ---------- end of the mirror ---------- */
+
+const { vocab, pairs = {} } = await load('figure.json');
+const byId = new Map(vocab.map(v => [v.id, v]));
+const first = v => v.names.zh?.[0] ?? v.id;
+const nameOf = id => (byId.has(id) ? first(byId.get(id)) : id);
+// script.ts vocabId: the id or any name, as written or lowercased
+const lookup = new Map();
+for (const v of vocab) { lookup.set(v.id, v); for (const n of Object.values(v.names).flat()) lookup.set(n, v); }
+const wordOf = s => lookup.get(s.trim().toLowerCase()) ?? lookup.get(s.trim()) ?? null;
+
+// what was just played, over the stage
+const played = (what, ok, note = '') => {
+  const p = $('#played'); p.replaceChildren();
+  p.append(ok.every(x => !x) ? '她正忙，没做：' : '做了：', el('b', { textContent: what }));
+  const skipped = ok.some(x => !x) && !ok.every(x => !x);
+  if (skipped || note) p.append(`（${[skipped ? '有的没做上' : '', note].filter(Boolean).join('；')}）`);
+};
+// as the app plays an entry (web/pet-app.js playEntry): one word by doWord, a group (ids in the World's order: body and
+// stance first, then arms, head, face; a pair's eyes before its mouth) by doGroup
+const play = (ids, what, note) => {
+  ctl.holdRoam(6);
+  const ok = ids.length === 1 ? [ctl.doWord(ids[0])] : ctl.doGroup(ids);
+  played(what, ok, note);
+  return ok;
+};
+
+const tip = (v, extra = []) => [
+  `${v.id} · ${(v.names.zh ?? []).join(' / ')}`,
+  ...Object.entries(v.names).filter(([l]) => l !== 'zh').map(([l, ns]) => `${l}: ${ns.join(' / ')}`),
+  ...Object.entries(v.about).map(([l, a]) => (l === 'zh' ? a : `${l}: ${a}`)),
+  ...extra,
+].filter(Boolean).join('\n');
+const wordBtn = (v, extra, sup = '') => {
+  const b = el('button', { textContent: first(v), title: tip(v, extra) });
+  b.dataset.id = v.id;
+  if (sup) b.append(el('sup', { textContent: sup }));
+  b.onclick = () => play([v.id], first(v));
+  return b;
+};
+const group = (label, hint, buttons) => el('div', { className: 'grp' },
+  el('span', { title: hint }, label, el('small', { textContent: buttons.length })), ...buttons);
+const head = (sel, label, n) => $(sel).querySelector('summary').replaceChildren(label, el('small', { textContent: n }));
+
+// expressions by mood, ordered as the prompt lists them (vocabTable)
+const faces = vocab.filter(v => v.kind === 'expression');
+const mood = v => { const i = MOODS.findIndex(([, ids]) => ids.includes(v.id)); return i < 0 ? MOODS.length - 1 : i; };
+const rank = v => { const ids = MOODS[mood(v)][1]; const i = ids.indexOf(v.id); return i < 0 ? ids.length : i; };
+const ordered = faces.map((v, i) => ({ v, m: mood(v), r: rank(v), i })).sort((a, b) => a.m - b.m || a.r - b.r || a.i - b.i).map(x => x.v);
+const at = id => { const i = ordered.findIndex(v => v.id === id); return i < 0 ? ordered.length : i; };
+// the pairs: "a+b": "eyes+mouth" (a face the kit composes) or "<id>" (the word they are shown as)
+const pairList = Object.entries(pairs).map(([k, v]) => {
+  const ids = k.split('+').sort((x, y) => at(x) - at(y) || (x < y ? -1 : 1));
+  if (v.includes('+')) { const [eyes, mouth] = v.split('+'); return { k, ids, eyes, mouth }; }
+  return { k, ids, as: v };
+});
+const recipes = new Map();
+for (const p of pairList) if (p.as) recipes.set(p.as, [...(recipes.get(p.as) ?? []), p.ids.map(nameOf).join('+')]);
+const mixTip = id => { const m = PLUS_MIXES[id]; return m ? `合成脸：${nameOf(m.eyes)}的眼睛 + ${nameOf(m.mouth)}的嘴` : ''; };
+for (const [m, [label]] of MOODS.entries()) {
+  const vs = ordered.filter(v => mood(v) === m);
+  if (!vs.length) continue;
+  const btns = vs.map(v => {
+    const b = wordBtn(v, [mixTip(v.id), recipes.has(v.id) ? `同一组写 ${recipes.get(v.id).join('、')} 也是这张脸` : '', `约 ${v.seconds} 秒`]);
+    if (PLUS_MIXES[v.id]) b.classList.add('mix');
+    return b;
+  });
+  $('#exprs').append(group(label.replace(/\(.*\)$/, ''), label, btns));
 }
-{ const b = document.createElement('button'); b.textContent = '抛起来'; b.onclick = () => ctl.setExpr('dragged'); $('#exprs').append(b); }
+$('#exprs').append(el('p', { className: 'hint', textContent: '虚线框：合成脸（一张脸的眼睛配另一张的嘴）。鼠标停在按钮上看全部名字和说明。' }));
+head('#exprs', '表情，按心情分组', faces.length);
+
+// motions by the part of her they take
+const own = APPENDAGES.filter(c => vocab.some(v => v.kind === 'motion' && channelsOf(v).length === 1 && channelsOf(v)[0] === c));
+const motions = vocab.filter(v => v.kind === 'motion').map(v => ({ v, ...partOf(v, own) }));
+for (const [i, label] of PARTS.entries()) {
+  const ms = motions.filter(m => m.part === i);
+  if (!ms.length) continue;
+  const lbl = label || appendageLabel(ms.map(m => m.v));
+  const btns = ms.map(({ v, also }) => wordBtn(v, [also ? `也占${also}` : '', v.lasting ? '会一直保持（姿势）' : '', `约 ${v.seconds} 秒`], also ? `+${also}` : ''));
+  $('#motions').append(group(lbl.replace(/\(.*\)$/, ''), lbl, btns));
+}
+$('#motions').append(el('p', { className: 'hint', textContent: '角标：这个动作还占的部位（同组里不能再有占这些部位的词）。' }));
+head('#motions', '动作，按部位分组', motions.length);
+
+// the pairs, one line per first face (in the order the expressions are listed)
+const lines = new Map();
+for (const p of pairList.sort((a, b) => at(a.ids[0]) - at(b.ids[0]) || at(a.ids[1]) - at(b.ids[1]))) {
+  if (!lines.has(p.ids[0])) lines.set(p.ids[0], []);
+  lines.get(p.ids[0]).push(p);
+}
+for (const [a, ps] of lines) {
+  const btns = ps.map(p => {
+    // a composed face is labelled eyes first, as it plays; a pair shown as a word, =that word
+    const text = p.as ? `${p.ids.map(nameOf).join('+')}=${nameOf(p.as)}` : `${nameOf(p.eyes)}+${nameOf(p.mouth)}`;
+    const b = el('button', { textContent: text, title: p.as
+      ? `${p.k}：同一组里写这两个，显示的是「${nameOf(p.as)}」（${p.as}）`
+      : `${p.k}：${nameOf(p.eyes)}的眼睛 + ${nameOf(p.mouth)}的嘴（${p.eyes}+${p.mouth}）` });
+    b.dataset.pair = p.k;
+    if (p.as) b.classList.add('mix');
+    b.onclick = () => play(p.as ? [p.as] : [p.eyes, p.mouth], text);
+    return b;
+  });
+  $('#pairs').append(group(nameOf(a), a, btns));
+}
+if (!pairList.length) $('#pairs').append(el('p', { className: 'hint', textContent: '这个形象没有表情对。' }));
+else $('#pairs').append(el('p', { className: 'hint', textContent: '同一组里写这两个表情会合成一张脸（甲+乙：甲的眼睛配乙的嘴，先写哪个都行）；虚线框的「=名」是直接显示成那个表情。' }));
+head('#pairs', '表情对', pairList.length);
+$('#total').textContent = `${figLabel}：共 ${vocab.length} 个词（表情 ${faces.length}，动作 ${motions.length}），表情对 ${pairList.length}`;
+
+// 组合: words joined by +, as one group (the way the World orders a group; two faces of a listed pair eyes first, or the word they are shown as)
+function combo(text) {
+  const parts = text.split(/[+＋]/).map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  const bad = parts.filter(s => !wordOf(s));
+  if (bad.length) { $('#played').replaceChildren(`不认识：${bad.join('、')}`); return null; }
+  let ws = [...new Map(parts.map(s => wordOf(s)).map(v => [v.id, v])).values()];
+  const notes = [];
+  const fs = ws.filter(v => v.kind === 'expression');
+  if (fs.length >= 2) {
+    const p = pairs[`${fs[0].id}+${fs[1].id}`] ?? pairs[`${fs[1].id}+${fs[0].id}`];
+    if (p && !p.includes('+')) { ws = ws.filter(v => v !== fs[0] && v !== fs[1]); ws.push(byId.get(p)); notes.push(`两个表情显示为「${nameOf(p)}」`); }
+    else if (p) { const [e, m] = p.split('+'); ws = [...ws.filter(v => v.kind !== 'expression'), byId.get(e), byId.get(m), ...ws.filter(v => v.kind === 'expression' && v.id !== e && v.id !== m)]; }
+    else notes.push('这两个表情不在表情对里，App 里会先后做，这里 kit 照样合成');
+  }
+  for (const [i, a] of ws.entries()) for (const b of ws.slice(i + 1)) {
+    // (two faces of one group are one face: the pair handled above)
+    if (a.kind === 'expression' && b.kind === 'expression') continue;
+    if (clashes(a, b)) notes.push(`${first(a)}和${first(b)}占同一部位，App 里会分成先后两组`);
+  }
+  ws = ws.map((v, i) => ({ v, r: rankOf(channelsOf(v)), i })).sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.v);
+  return { ids: ws.map(v => v.id), ok: play(ws.map(v => v.id), ws.map(first).join('+'), notes.join('；')) };
+}
+$('#comboGo').onclick = () => combo($('#combo').value);
+$('#combo').onkeydown = e => { if (e.key === 'Enter') combo(e.target.value); };
+
+$('#toss').onclick = () => ctl.setExpr('dragged');
 const schemeBtns = (figure?.schemes || []).map(sc => {
-  const b = document.createElement('button'); b.textContent = sc.brand;
-  b.onclick = async () => { await figure.setScheme(sc.id, { fade: .45 }); schemeBtns.forEach((x, i) => x.classList.toggle('on', figure.schemes[i].id === sc.id)); ctl.pet.sqv += 1.4; ctl.setExpr('happy', 1.2); };
+  const b = el('button', { textContent: sc.brand });
+  b.onclick = async () => {
+    await figure.setScheme(sc.id, { fade: .45 });
+    schemeBtns.forEach((x, i) => x.classList.toggle('on', figure.schemes[i].id === sc.id));
+    const u = new URLSearchParams(location.search); u.set('scheme', sc.id); history.replaceState(null, '', `?${u}`);
+    ctl.pet.sqv += 1.4; ctl.setExpr('happy', 1.2);
+  };
   b.classList.toggle('on', sc.id === figure.scheme);
   $('#schemes').append(b);
   return b;
 });
+// (a figure with one scheme has nothing to choose)
+$('#schemes').hidden = schemeBtns.length < 2;
 
 // talking: a line of text into the bubble, one character at a time, the mouth moving with it
 let line = '', shown = 0, nextAt = 0;
-const LINES = [claude ? '你好呀，我是 Claude 娘～' : gpt ? '……我是 GPT 娘。' : gemini ? '你好喵，我是 Gemini 娘～' : grok ? '嘿嘿，我是 Grok 娘～' : '你好呀，我是鲸鱼女仆～', '今天也要好好休息哦。', '要我帮你查点什么吗？', '嘿嘿，被发现了。'];
+const LINES = [claude ? '你好呀，我是 Claude 娘～' : gpt ? '……我是 GPT 娘。' : gemini ? '你好喵，我是 Gemini 娘～' : grok ? '嘿嘿，我是 Grok 娘～' : coo ? '你好呀，我是 Coo～' : '你好呀，我是鲸鱼女仆～', '今天也要好好休息哦。', '要我帮你查点什么吗？', '嘿嘿，被发现了。'];
 $('#talk').onclick = () => { line = LINES[Math.floor(Math.random() * LINES.length)]; shown = 0; nextAt = 0; bubble.hidden = false; ctl.holdRoam(6); };
 const toggle = (id, fn) => { const b = $(id); b.onclick = () => { b.classList.toggle('on'); fn(b.classList.contains('on')); }; };
 toggle('#listen', on => { ctl.setListening(on); if (on) sfx.listenStart(); else sfx.listenEnd(); });
@@ -135,7 +369,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 $('#status').textContent = '';
-window.ctl = ctl; window.figure = figure;
+// (for scripts driving the page: combo('开心+招手') plays a typed group)
+window.ctl = ctl; window.figure = figure; window.combo = combo;
 requestAnimationFrame(frame);
 </script>
 </body>

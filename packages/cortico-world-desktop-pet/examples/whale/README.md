@@ -5,7 +5,8 @@
 B 站 DeepSeek 二创里的蓝发鲸鱼女仆，做成 Coo 的另一个身体。二头身（头顶到下巴 = 下巴到鞋底），和 Coo 一样侧身朝右站，转身时整组水平镜像。
 她是一个形象包（`web/whale/figure.json`），身体用 kit（`web/kit/body.js`）：走、跑、跳、坐、睡、被拎起、甩出去、全部表情、倾听、思考、说话口型都由 kit 触发，她只负责画。
 
-在本包目录运行 `node examples/whale/serve.mjs`，打开终端输出的地址（默认端口 4318）。
+在本包目录运行 `node examples/whale/serve.mjs`，打开终端输出的地址（默认端口 4318），就是全部形象的展示页（见下面「展示页」）；
+在 Claude Code 里也可以用仓库 `.claude/launch.json` 的 `figure-browser` 启动（端口 4318）。
 真实桌宠里在装扮页（`/dress`）最上面一行「形象」选「DeepSeek 大肥鱼」，配色在下面一行；选择存在配置的 `skin.figure` 和 `skin.scheme`。
 
 ## 配色
@@ -136,7 +137,7 @@ Coo、大肥鱼和四个娘（Claude 娘、GPT 娘、Gemini 娘、Grok 娘）用
 在应用里它和 `opts.kit` 是同一个模块；导出成形象包时把 `whale/figure.js` 和 `kit/body.js`、`kit/rig.js` 放在一起，包就带着自己的 kit，
 在原版的桌宠里也是同样的词和姿势。`figure.js` 不联网（形象包的沙箱也不让）：`model.json` 由调用方读好传进 `opts.model`，
 没给就直接报错；贴图都经 `opts.loadImage` 载入。`kit/rig.js` 比原版多一个 `st.stone`（0 到 1，整张褪成灰白的石头色，石化用）。
-展示页（`serve.mjs`）同样用 `plus: true`，按 `figure.json` 的词表给每个词一个按钮；加 `?figure=coo` 换成 Coo、`?figure=claude-chan` 换成 Claude 娘（`web/claude-chan/`）、`?figure=gpt-chan` 换成 GPT 娘（`web/gpt-chan/`）、`?figure=gemini-chan` 换成 Gemini 娘（`web/gemini-chan/`）、`?figure=grok-chan` 换成 Grok 娘（`web/grok-chan/`），`?scheme=<id>` 选配色。
+展示页（`serve.mjs`）同样用 `plus: true`，按 `figure.json` 的词表给每个词一个按钮。
 
 下面是这些扩展在大肥鱼（和 Coo）身上的样子。
 
@@ -269,3 +270,22 @@ Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pa
   把像素标成头发、呆毛、发饰蝴蝶结、眼睛、鳍、尾巴、衣服、皮肤和白色，每个区域只用对应的站姿部件学「deepseek 色 → 该配色色」
   的对应表（鳍按明暗排名对应）。趴姿看不到围裙正面，所以不用印小鲸鱼。踢脚变形的膝盖、鞋子和小腿边界是搜出来的：
   网格不折叠、头不动、鞋子摆得开。
+
+## 展示页
+
+`examples/whale/index.html`，浏览全部内置形象的全部表情和动作。舞台在上（宽屏时在左），面板在下（宽屏时在右），面板太长时自己滚动，舞台一直看得见。
+
+- 「形象」：大肥鱼、Claude 娘、GPT 娘、Gemini 娘、Grok 娘、Coo，点了带着 `?figure=<id>` 重新载入（大肥鱼不带参数）；页面标题跟着换。
+- 「配色」：只在有不止一套配色的形象上出现，切换后网址带上 `?scheme=<id>`，刷新还是这套；换形象时去掉。
+- 「交互」：说话、倾听、思考、自由活动、抛起来（kit 的被拎起的脸，不算词表里的词）、大小、切换深浅。
+- 「组合」：输入几个词用 `+` 连起来（中文名或 id，如 `开心+招手+点头`），回车或「一起做」当一组做（`ctl.doGroup`）。
+  组里的顺序和 World 发来的一样（身体、站姿在前，然后手、头，表情最后）；两个表情在 `pairs` 里时眼睛那个在前，或换成它对应的那个词；
+  App 里会被拆成先后几组的（占同一部位的词、不在 `pairs` 里的两个表情）照样一起交给 kit，舞台左上角写明。
+- 「表情」：按 bot 提示里的心情分组（`src/script.ts` 的 `MOODS`），虚线框是合成脸（kit 的 `PLUS_MIXES`，一张脸的眼睛配另一张的嘴）。
+- 「动作」：按部位分组（头 / 尾巴、耳朵、翅膀 / 手 / 手,要站着或坐着不动 / 身，`src/script.ts` 的 `CHANNELS`、`partOf`），角标是这个动作还占的部位。
+- 「表情对」：`figure.json` 的 `pairs`，按先列出的那个表情分行；`甲+乙` 是合成的脸（甲的眼睛、乙的嘴，点了按这个顺序 `doGroup`），
+  虚线框的 `甲+乙=名` 是直接显示成那个表情（点了做那个词）。
+
+每个按钮显示第一个中文名，鼠标停上去看 id、全部名字和说明（合成脸、`=甲+乙`、也占的部位、大约几秒）。每组和每栏标着个数，面板上方写着这个形象一共几个词。
+分组用的数据是 `src/script.ts` 的 TypeScript，页面读不了，所以在页面里抄了一份（`MOODS`、`CHANNELS`、`partOf` 等，注释指回原处），改那边时这里一起改。
+脚本驱动页面时可以用 `window.ctl`、`window.figure` 和 `window.combo('开心+招手')`。

@@ -13,7 +13,7 @@ import { functionCall, functionResult, message } from 'cortico/protocol/open-res
 import { RESERVED_FRAME_NAMES } from 'cortico/core/loop.ts';
 import { blobLine } from 'cortico/core/blobs.ts';
 import COO, { OFF_PEAK, VENDORS, VENDOR_ICONS, vendorEntry, vendorOf } from '../src/index.ts';
-import { connectVendor, type ConsoleCall } from '../src/connect.ts';
+import { connectVendor, saveVendorKey, type ConsoleCall } from '../src/connect.ts';
 
 const entry = (patch: Partial<LLMProviderEntry> = {}): LLMProviderEntry => ({
   kind: 'coo', baseUrl: 'https://api.deepseek.com', secret: 'KEY',
@@ -195,5 +195,17 @@ describe('connecting a service through the console routes', () => {
     const { call, calls } = fakeConsole([], false);
     expect(await connectVendor(call, qwen, 'bad')).toEqual({ ok: false, ms: null, why: '密钥无效' });
     expect(calls.some(([p]) => p.endsWith('/activate') || p === '/api/run/resume')).toBe(false);
+  });
+
+  it('saves a key for another use without activating anything (the pet\'s decider key)', async () => {
+    const or = VENDORS.find((v) => v.id === 'openrouter')!;
+    const fresh = fakeConsole(['deepseek'], true);
+    expect(await saveVendorKey(fresh.call, or, ' sk-or-1 ')).toEqual({ ok: true, why: null });
+    expect(fresh.calls).toEqual([['/api/providers', undefined], ['/api/providers', { name: 'openrouter', entry: vendorEntry(or), secretValue: 'sk-or-1' }]]);
+    const existing = fakeConsole(['openrouter'], true);
+    await saveVendorKey(existing.call, or, 'sk-or-2');
+    expect(existing.calls.map(([p]) => p)).toEqual(['/api/providers', '/api/providers/openrouter', '/api/providers/openrouter/save']);
+    expect(existing.calls[2]![1]).toMatchObject({ entry: { kind: 'coo', spec: { model: 'mine' } }, secretValue: 'sk-or-2' });
+    expect(await saveVendorKey(existing.call, or, '  ')).toEqual({ ok: false, why: '密钥是空的' });
   });
 });

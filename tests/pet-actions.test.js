@@ -5,7 +5,7 @@ import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, 
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS, TONES } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
-import { createActs, WALK_MAX } from '../packages/cortico-world-desktop-pet/web/acts.js';
+import { attachSayActs, createActs, sayHeld, SAY_HOLD_MS, WALK_MAX } from '../packages/cortico-world-desktop-pet/web/acts.js';
 import { figurePacks, readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { CHANNELS, parseActions } from '../packages/cortico-world-desktop-pet/src/script.ts';
 import { FACE_ARMS as CLAUDE_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
@@ -3251,5 +3251,55 @@ describe('the sounds of the words added since v0.5.0 (plus)', () => {
     const faded = made.gains.filter((g) => g.before !== undefined);
     expect(faded.length).toBeGreaterThan(ours.length);
     for (const g of faded) expect(g.before).toBeLessThanOrEqual(.0001);
+  });
+});
+
+describe('decider mode: words that follow their bubble (acts.js attachSayActs, sayHeld)', () => {
+  const bubble = (id, extra = {}) => ({ kind: 'say', id, beats: [{ actions: [], text: '你好', anchors: [] }], i: -1, pending: true, holdMs: 900, ...extra });
+
+  it('a bubble still queued gets the words as its first beat, done before typing', () => {
+    const b = bubble('s2');
+    const queue = [bubble('s1'), b];
+    expect(attachSayActs(queue, null, 's2', ['happy+wave'])).toBe('queued');
+    expect(b.beats[0].actions).toEqual(['happy+wave']);
+    expect(b.pending).toBe(false);
+    expect(queue[0].pending).toBe(true);
+  });
+
+  it('the current bubble still waiting gets them and starts', () => {
+    const b = bubble('s1');
+    expect(sayHeld(b, 10)).toBe(true);
+    expect(attachSayActs([], b, 's1', ['nod'])).toBe('waiting');
+    expect(b.beats[0].actions).toEqual(['nod']);
+    expect(sayHeld(b, 10.1)).toBe(false);
+  });
+
+  it('a bubble already typing leaves them to the caller to do at once', () => {
+    const b = bubble('s1', { i: 0, pending: false });
+    expect(attachSayActs([], b, 's1', ['nod'])).toBe('late');
+    expect(b.beats[0].actions).toEqual([]);
+  });
+
+  it('an id no longer there is dropped; empty words just end the wait', () => {
+    expect(attachSayActs([bubble('s9')], null, 's1', ['nod'])).toBe('missing');
+    const b = bubble('s1');
+    expect(attachSayActs([b], null, 's1', [])).toBe('queued');
+    expect(b.beats[0].actions).toEqual([]);
+    expect(b.pending).toBe(false);
+  });
+
+  it('waits at most holdMs from when its turn came, not from when it was queued', () => {
+    const b = bubble('s1', { holdMs: 500 });
+    expect(sayHeld(b, 100)).toBe(true);
+    expect(sayHeld(b, 100.49)).toBe(true);
+    expect(sayHeld(b, 100.5)).toBe(false);
+    expect(b.pending).toBe(false);
+    // words that come after it gave up are done at once
+    b.i = 0;
+    expect(attachSayActs([], b, 's1', ['nod'])).toBe('late');
+    // a bubble the World did not hold never waits
+    expect(sayHeld({ kind: 'say', id: 'x', beats: [], i: -1 }, 0)).toBe(false);
+    expect(sayHeld(bubble('s2', { holdMs: undefined }), 0)).toBe(true);
+    expect(SAY_HOLD_MS).toBe(900);
   });
 });

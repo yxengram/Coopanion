@@ -12,7 +12,7 @@
  * in this process once its model is downloaded.
  */
 import type { spawn } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type {
@@ -23,7 +23,7 @@ import { nowIso, shortTime } from 'cortico/core/util.ts';
 import type { Language } from 'cortico/core/language.ts';
 import type { DeepPartial } from 'cortico/world.ts';
 import {
-  DESKTOP_PET_ASR_CONFIG_GROUP, DESKTOP_PET_CONFIG_GROUP, DESKTOP_PET_ID, DESKTOP_PET_SOUND_CONFIG_GROUP, MAX_HOVER_BUTTONS, PET_ACTIONS, hoverButtonList,
+  DESKTOP_PET_ASR_CONFIG_GROUP, DESKTOP_PET_CONFIG_GROUP, DESKTOP_PET_DECIDER_CONFIG_GROUP, DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, DESKTOP_PET_SOUND_CONFIG_GROUP, MAX_HOVER_BUTTONS, PET_ACTIONS, hoverButtonList,
   type AsrEngine, type DesktopPetConfigSection, type MicMode, type PetSkin, type PetTheme, type RoamMode,
 } from './config.ts';
 import { PetServer, type PageMessage } from './server.ts';
@@ -35,9 +35,13 @@ import { Packer, Segmenter, rmsDb, type SegmentConfig, type SegmentSink, type Ut
 import { comboLabel, hotkeyBadge, hotkeyLabel, parseHotkey, splitTaps, watchHotkey, type KeyWatcher } from './asr/hotkey.ts';
 import { joinSpeech, looksHallucinated } from './asr/result.ts';
 import { toSimplified } from './asr/simplify.ts';
-import { estimateSeconds, lastingNote, membersOf, parseActions, parseScript, vocabTable, type Pairs, type VocabWord } from './script.ts';
+import { APPENDAGES, channelsOf, estimateSeconds, firstName, lastingNote, membersOf, parseActions, parseScript, vocabTable, type Pairs, type VocabWord } from './script.ts';
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
-import { DESKTOP_PET_TOOL_DECLS } from './tools.ts';
+import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from './tools.ts';
+import {
+  DECIDER_HOLD_MS, DECIDER_URL, DeciderClient, FEELING_MAX, listDeciders, POSTURE_NAMES, buildQuestions, buildRequest, buildState, failureText, pickGroup, stripMarkers, topAnswers,
+  type DecideFailure, type DecisionRecord, type Posture, type QuestionId,
+} from './decider.ts';
 import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack } from './packs.ts';
 import { dressTable, planSettings, type SettingChange } from './self.ts';
 
@@ -49,6 +53,25 @@ export const DESKTOP_PET_PANEL_DECLS: readonly WorldPanelDecl[] = [
 
 const WEB_DIR = fileURLToPath(new URL('../web/', import.meta.url));
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
+const ENV_PROMPT_DECIDER_FILE = fileURLToPath(new URL('./ENV_PROMPT_DECIDER.md', import.meta.url));
+/** How often decider mode looks again whether the app has an OpenRouter key (it reads a small file). */
+const KEY_POLL_MS = 5000;
+/** What the person said last is told to the decision model for this long. */
+const HEARD_MS = 10 * 60_000;
+/** Decisions remembered for the next ones (repeats, the state's 最近做过). */
+const RECENT_DECISIONS = 5;
+/** A walk that ends this many pixels short of what was asked was stopped at the screen's edge. */
+const CLAMP_SLACK_PX = 8;
+/** A position event armed this long without being rendered is armed again (one that never came back is replaced). */
+const POSE_REARM_MS = 5 * 60_000;
+/** How long a posture word sent is told as her posture before the page shows it (see `pendingPosture`). */
+const POSTURE_PENDING_MS = 4000;
+/** How long a kneel word sent waits for the page to sit down before the kneel is forgotten. */
+const KNEEL_WAIT_MS = 10_000;
+/** The posture each posture word puts her in. */
+const POSTURE_OF_WORD: Readonly<Record<string, Posture>> = { sit: 'sit', kneel: 'kneel', lie: 'lie', sleep: 'sleep', stand: 'stand' };
+/** Which way the bot's prompt and tools go: words and markers (classic), or a feeling the decision model turns into words. */
+export type PetMode = 'classic' | 'decider';
 
 /** Longest `pet_quiet`: a quiet that outlasts a day is a setting, which `pet_set` changes. */
 const QUIET_MAX_MIN = 24 * 60;
@@ -174,10 +197,35 @@ export interface DesktopPetWorldOptions {
   packRoots?: () => string[];
   /** Called after the bot changed settings itself (`pet_set`), so an app watching the config knows it was not the person. */
   onBotChange?: () => void;
+  /**
+   * The OpenRouter key decider mode uses, read at each use ('' when there is none); the World never keeps, writes or
+   * logs it. Without this lent, the World stays in classic mode.
+   */
+  deciderKey?: () => string;
+  /** Called when the mode changes (a key appears or goes, the setting flips), so the app rebuilds the prefix. */
+  onModeChange?: (mode: PetMode) => void;
+  /** Called after each decision, with what was asked and answered (never the key); evals and tests read it. */
+  onDecision?: (rec: DecisionRecord) => void;
+  /** The decisions endpoint; tests and evals point it at a local stand-in. */
+  deciderUrl?: string;
+  /** Fetch for the decisions endpoint; tests pass a fake. */
+  deciderFetch?: typeof fetch;
+  /** The decider client's clock (its breaker); tests pass a fake. */
+  deciderNow?: () => number;
+  /**
+   * The deployment's override of the environment prompt (Cortico reads `<deployment>/worlds/desktop-pet/ENV_PROMPT.md`
+   * whichever mode's template is declared): in decider mode its presence is warned of, since it is the classic text.
+   */
+  envOverrideFile?: () => string | null;
 }
 
+/** How a walk ended: the page's report (`x` a share of the screen), no report in time, or the World or page gone. */
+type WalkEnd =
+  | { t: 'arrived' | 'interrupted'; x: number | null; by?: unknown; stopping?: boolean }
+  | { t: 'timeout' | 'stopped' | 'gone' };
+
 interface PendingWalk {
-  resolve: (text: string) => void;
+  resolve: (end: WalkEnd) => void;
   timer: NodeJS.Timeout;
   /** The call's interrupt asked the page to stop the walk. */
   stopping?: boolean;
@@ -205,6 +253,17 @@ interface PendingConfirm {
   resolve: (result: ConfirmResult) => void;
   timer: NodeJS.Timeout;
 }
+
+/** The environment prompt's variables (decider mode's template has no `pet.vocab`). */
+const PROMPT_VARS = [
+  { name: 'pet.user', description: '对使用者的称呼' },
+  { name: 'pet.vocab', description: '当前形象的表情与动作词表(开头一句用这些词写的例子)', multiline: true },
+  { name: 'pet.voice', description: '语音输入开着还是关着' },
+  { name: 'pet.body', description: '当前形象的样子' },
+  { name: 'pet.dress', description: 'pet_set 能选的形象与打扮', multiline: true },
+  { name: 'pet.self', description: '「允许自己调整」开着还是关着' },
+  { name: 'pet.chat', description: '应用提供对话页时,对它的说明;没有时为空' },
+];
 
 /** Characters a step's line is shown for per second (typing, then reading), for its time limit. */
 const DIALOG_CPS = 4;
@@ -296,8 +355,47 @@ export class DesktopPetWorld implements World {
   private draft: string | null = null;
   private pausedShown: boolean | null = null;
 
+  /* decider mode (src/decider.ts) */
+  /** The mode the prompt and tools were last built for; changed only by `refreshMode`. */
+  private mode: PetMode = 'classic';
+  /** Whether the app had a key when last looked (every KEY_POLL_MS). */
+  private keyKnown = false;
+  private keyCheckedAt = 0;
+  private readonly decider: DeciderClient;
+  /** Where the page last said the body is: x and the screen width in px, facing, and its layout mode. */
+  private pose: { x: number; w: number; facing: 1 | -1; mode: string } | null = null;
+  /** The last posture word sent was a kneel and nothing that ends one followed (the page shows a kneel as `sit`). */
+  private kneeling = false;
+  /** When the last kneel word was sent: a kneel that has not shown on the page within KNEEL_WAIT_MS is let go. */
+  private kneelAt = 0;
+  /**
+   * A posture word just sent that the page has not shown yet (it does it on its next frame, or when its bubble's turn
+   * comes): `posture()` tells it until the page's mode changes from what it was (`from`) or POSTURE_PENDING_MS pass.
+   */
+  private pendingPosture: { posture: Posture; from: string | null; at: number } | null = null;
+  /** What the person said last (typed, spoken, answered), for the decision model. */
+  private lastHeard: { text: string; via: string; at: number } | null = null;
+  /** The last decisions, most recent first. */
+  private readonly recentPicks: Array<{ at: number; words: string[]; chosen: Partial<Record<QuestionId, string | null>> }> = [];
+  /** The one position event waiting to ride on the next batch: when it was armed, and its token (an older one renders nothing). */
+  private poseArmedAt: number | null = null;
+  private poseToken = 0;
+  private overrideWarned = false;
+
   constructor(private readonly opts: DesktopPetWorldOptions) {
     this.cfg = opts.cfg;
+    this.decider = new DeciderClient({
+      url: () => opts.deciderUrl ?? DECIDER_URL,
+      key: () => this.deciderKey(),
+      timeoutMs: () => this.deciderCfg().timeoutMs,
+      fetch: opts.deciderFetch,
+      now: opts.deciderNow,
+      log: () => this.log,
+    });
+    // tools() and envPromptVars() may be asked before start: the mode is known from the first call
+    this.keyKnown = this.deciderKey() !== '';
+    this.keyCheckedAt = Date.now();
+    this.mode = this.wantedMode();
     this.segmenter = new Segmenter(this.segmentConfig(), FRAME_MS);
     this.segmenter.setSink(this.sink);
     this.store = new RuntimeStore({ runtimesRoot: opts.runtimesRoot, modelsDir: opts.modelsDir, fetchImpl: opts.fetchImpl, funasrModel: opts.funasrModel });
@@ -422,9 +520,16 @@ export class DesktopPetWorld implements World {
     await this.syncHotkey();
     this.prefsKey = this.prefsSignature();
     this.prefsTimer = setInterval(() => this.syncPrefs(), PREFS_SYNC_MS);
+    if (this.mode === 'decider') {
+      host.log.info(`表情动作交给决策模型挑(${this.deciderCfg().model})`);
+      this.warnOverride();
+      this.armPose();
+    }
   }
 
   async stop(): Promise<void> {
+    this.decider.abortAll();
+    this.poseArmedAt = null;
     if (this.quiet) clearTimeout(this.quiet.timer);
     this.quiet = null;
     if (this.prefsTimer) clearInterval(this.prefsTimer);
@@ -441,7 +546,7 @@ export class DesktopPetWorld implements World {
     this.confirms.clear();
     for (const d of this.dialogs.values()) d({ unavailable: true });
     this.dialogs.clear();
-    for (const w of this.walks.values()) { clearTimeout(w.timer); w.resolve('World 已停止,没走到。'); }
+    for (const w of this.walks.values()) { clearTimeout(w.timer); w.resolve({ t: 'stopped' }); }
     this.walks.clear();
     for (const s of this.voiceSockets) s.close('stopped');
     this.voiceSockets.clear();
@@ -536,6 +641,7 @@ export class DesktopPetWorld implements World {
         if (!images.ok) { this.chat.send(socket, { t: 'rejected', id, reason: images.reason }); return; }
         if (!text && images.blobs.length === 0) return;
         if (!host) { this.chat.send(socket, { t: 'rejected', id, reason: '还没连上' }); return; }
+        if (text) this.lastHeard = { text, via: '打字', at: Date.now() };
         const e = await this.push('desktop-pet.message', 'desktop-pet.chat', `[打字] ${this.cfg.user}:${text}`, 'preempt',
           { meta: { via: 'chat', text }, ...(images.blobs.length ? { blobs: images.blobs } : {}) });
         this.chat.send(socket, e ? { t: 'sent', id, cursor: e.cursor } : { t: 'rejected', id, reason: '没能送出' });
@@ -638,6 +744,7 @@ export class DesktopPetWorld implements World {
 
   /** Config is a live object edited by the console; changes reach the pages within PREFS_SYNC_MS. */
   private syncPrefs(): void {
+    this.refreshMode();
     this.segmenter.configure(this.segmentConfig());
     if (this.cfg.asr.enabled && this.runningEngine && this.runningEngine !== this.engine()) void this.startVoiceBackend();
     // the system recognizer serves one language; a new one needs a new helper
@@ -735,19 +842,17 @@ export class DesktopPetWorld implements World {
         if (!w) return;
         this.walks.delete(String(msg.walkId));
         clearTimeout(w.timer);
-        const at = typeof msg.x === 'number' ? pct(msg.x) : '?';
-        w.resolve(msg.t === 'arrived'
-          ? `走到了屏幕横向 ${at} 处。`
-          : w.stopping ? `走到屏幕横向 ${at} 处停下了。`
-          : msg.by === 'drag' ? `没走到:走到 ${at} 处时被${this.cfg.user}拎起来了。`
-          : msg.by === 'busy' ? `没走:身体正忙(被拎着、在跳、在空中或在翻滚),没法起步,还在屏幕横向 ${at} 处。等它落地站稳再走。`
-          : msg.by === 'none' ? '没走:桌宠的身体还没准备好。'
-          : `没走到:走到 ${at} 处时换成了别的动作(${String(msg.by)})。`);
+        const x = typeof msg.x === 'number' && Number.isFinite(msg.x) ? msg.x : null;
+        // the receipt reads the spot it stopped at; the page's next pose report says the same
+        if (x !== null && this.pose) this.pose = { ...this.pose, x: x * this.pose.w };
+        w.resolve({ t: msg.t, x, by: msg.by, stopping: w.stopping });
         return;
       }
+      case 'pose': return this.onPose(msg);
       case 'answer': return this.onAnswer(msg, 'pet');
       case 'text': {
         const text = typeof msg.text === 'string' ? msg.text.trim().slice(0, 500) : '';
+        if (text) this.lastHeard = { text, via: '打字', at: Date.now() };
         if (text) void this.push('desktop-pet.message', `desktop-pet.text`, `[打字] ${this.cfg.user}:${text}`, 'preempt', { meta: { via: 'bubble', text } });
         return;
       }
@@ -855,7 +960,7 @@ export class DesktopPetWorld implements World {
   private onPageGone(): void {
     this.log?.info('桌宠页面断开');
     for (const [id, d] of this.dialogs) { d({ unavailable: true }); this.dialogs.delete(id); }
-    for (const [id, w] of this.walks) { clearTimeout(w.timer); w.resolve('没走到:桌宠窗口断开了。'); this.walks.delete(id); }
+    for (const [id, w] of this.walks) { clearTimeout(w.timer); w.resolve({ t: 'gone' }); this.walks.delete(id); }
     for (const [id, c] of this.confirms) { clearTimeout(c.timer); c.resolve('unavailable'); this.confirms.delete(id); }
     this.segmenter.flush();
     if (this.wasSpeaking) this.wasSpeaking = false;
@@ -877,6 +982,7 @@ export class DesktopPetWorld implements World {
     this.ask = null;
     if (from === 'chat') this.server.sendPet({ t: 'ask-close', id: ask.id });
     const body = index !== null ? `选了第 ${index + 1} 项「${ask.options[index]}」` : `自己写了:「${text}」`;
+    this.lastHeard = { text: `回答${q}:${body}`, via: '回答', at: Date.now() };
     void this.push('desktop-pet.answer', 'desktop-pet.answer', `[回答] ${this.cfg.user}回答${q}:${body}`, 'flush',
       { meta: { askId: ask.id, ...(index !== null ? { index } : { text }) } });
   }
@@ -1249,6 +1355,7 @@ export class DesktopPetWorld implements World {
       this.listenOpen = false;
       this.counts.delivered++;
       this.server.sendPet({ t: 'listen', phase: 'heard', text });
+      this.lastHeard = { text, via: '语音', at: Date.now() };
       void this.push('desktop-pet.speech', 'desktop-pet.voice', `[语音] ${this.cfg.user}:${text}`, 'flush', { meta: { text } });
       return;
     }
@@ -1280,6 +1387,7 @@ export class DesktopPetWorld implements World {
   /* ---------- tools ---------- */
 
   tools(): ToolDef[] {
+    if (this.mode === 'decider') return this.deciderTools();
     const handlers: Record<string, ToolDef['handler']> = {
       pet_say: (args) => this.say(args),
       pet_ask: (args) => this.askUser(args),
@@ -1289,6 +1397,23 @@ export class DesktopPetWorld implements World {
       pet_quiet: (args) => this.setQuiet(args),
     };
     return DESKTOP_PET_TOOL_DECLS.map((decl) => ({ ...decl, handler: handlers[decl.name], ...(decl.name === 'pet_walk_to' ? { interruptible: true } : {}) }));
+  }
+
+  /** Decider mode's tools (src/tools.ts DECIDER_TOOL_DECLS); every receipt ends with where she is (`[位置]`). */
+  private deciderTools(): ToolDef[] {
+    const handlers: Record<string, ToolDef['handler']> = {
+      pet_say: (args) => this.sayFeeling(args),
+      pet_ask: (args) => this.askUser(args, true),
+      pet_walk: (args, ctx) => this.walkBy(args, ctx),
+      pet_feel: (args) => this.feel(args),
+      pet_set: (args) => this.setSettings(args),
+      pet_quiet: (args) => this.setQuiet(args),
+    };
+    return DECIDER_TOOL_DECLS.map((decl) => ({
+      ...decl,
+      handler: async (args, ctx) => this.withPosition(await handlers[decl.name](args, ctx)),
+      ...(decl.name === 'pet_walk' ? { interruptible: true } : {}),
+    }));
   }
 
   private notConnected(tool: string): ToolOutcome {
@@ -1305,6 +1430,7 @@ export class DesktopPetWorld implements World {
     }
     const id = nextId('s');
     if (!this.server.sendPet({ t: 'say', id, beats })) return this.notConnected('pet_say');
+    this.notePosture(beats.flatMap((b) => [...b.actions, ...b.anchors.flatMap((a) => a.actions)]));
     void this.closeActivity();
     void this.record({ kind: 'say', beats: beats.map((b) => ({ text: b.text, ...moodOf(b.actions, this.vocab()) })) }, beats.map((b) => b.text).join(''));
     const now = Date.now();
@@ -1320,7 +1446,62 @@ export class DesktopPetWorld implements World {
     return { text: `${waitSec > .5 ? `已排队,前面还有约 ${Math.round(waitSec)} 秒` : '已开始显示'},这段约 ${Math.round(selfSec)} 秒。${shown}${replaced}${note}` };
   }
 
-  private async askUser(args: Record<string, unknown>): Promise<ToolOutcome> {
+  /**
+   * Decider mode's `pet_say`: the bubble goes to the page at once, held for its words (`acts: 'pending'`) while the
+   * decision model picks them from the feeling; the words follow by id (`say-acts`, empty when the decision fails or
+   * times out). The receipt waits for the decision (at most the timeout) so it tells what the body did.
+   */
+  private async sayFeeling(args: Record<string, unknown>): Promise<ToolOutcome> {
+    const raw = typeof args.text === 'string' ? args.text : '';
+    const feeling = typeof args.feeling === 'string' ? args.feeling.trim().slice(0, FEELING_MAX) : '';
+    // markers written out of habit are taken out, never done; other brackets (<div>, a < b) are the text
+    const { text, stripped } = stripMarkers(raw.trim(), this.vocab());
+    if (!text) return { text: '[pet_say 没执行] text 是空的。不想说话就不调用。', failed: true };
+    const id = nextId('s');
+    const beats = [{ actions: [] as string[], text, anchors: [] }];
+    const deciding = feeling !== '' && this.decider.open === false && this.deciderKey() !== '';
+    if (!this.server.sendPet({ t: 'say', id, beats, ...(deciding ? { acts: 'pending', holdMs: DECIDER_HOLD_MS } : {}) })) return this.notConnected('pet_say');
+    const now = Date.now();
+    const selfSec = estimateSeconds(beats);
+    const waitSec = Math.max(0, (this.busyUntil - now) / 1000);
+    this.busyUntil = Math.max(now, this.busyUntil) + selfSec * 1000;
+    const replaced = this.ask ? `替换了还没回答的提问「${this.ask.question}」。` : '';
+    if (this.ask) this.ask = null;
+    let did = '';
+    let actions: string[] = [];
+    if (!feeling) did = '这次没带 feeling,只说了话;下次带上 feeling,身体才会有表情。';
+    else {
+      const d = await this.decideFor({ tool: 'pet_say', feeling, text, forSay: true });
+      // also when the bubble was not held (the key came meanwhile): the page attaches them to it all the same
+      this.server.sendPet({ t: 'say-acts', id, actions: d.ok ? d.actions : [] });
+      if (!d.ok) did = `表情动作这次没挑出来(${d.why}),只说了话。`;
+      else {
+        actions = d.actions;
+        this.notePosture(actions);
+        did = actions.length ? `表情动作:${this.namesOf(actions)}。${this.heldNote(actions)}${d.notes.join('')}` : '这次表情动作没有变化。';
+      }
+    }
+    void this.closeActivity();
+    void this.record({ kind: 'say', beats: [{ text, ...moodOf(actions, this.vocab()) }] }, text);
+    const shown = this.chat.size ? '对话页开着,这段也显示在那里。' : '';
+    const cut = stripped ? '这种模式下不用写标记,已当成普通文字去掉。' : '';
+    return { text: `${waitSec > .5 ? `已排队,前面还有约 ${Math.round(waitSec)} 秒` : '已开始显示'},这段约 ${Math.round(selfSec)} 秒。${did}${shown}${replaced}${cut}` };
+  }
+
+  /** Decider mode's `pet_feel`: a feeling the decision model turns into words, done at once (`act`). */
+  private async feel(args: Record<string, unknown>): Promise<ToolOutcome> {
+    const feeling = typeof args.feeling === 'string' ? args.feeling.trim().slice(0, FEELING_MAX) : '';
+    if (!feeling) return { text: '[pet_feel 没执行] feeling 是空的。', failed: true };
+    if (!this.server.petConnected) return this.notConnected('pet_feel');
+    const d = await this.decideFor({ tool: 'pet_feel', feeling, forSay: false });
+    if (!d.ok) return { text: d.reason === 'breaker' ? `表情决策暂时用不了(${d.why}),这次身体没做什么。` : `决策模型没回应(${d.why}),这次身体没做什么。` };
+    if (!d.actions.length) return { text: '这次表情动作没有变化。' };
+    if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) return this.notConnected('pet_feel');
+    this.notePosture(d.actions);
+    return { text: `做了:${this.namesOf(d.actions)}。${this.heldNote(d.actions)}${d.notes.join('')}` };
+  }
+
+  private async askUser(args: Record<string, unknown>, decider = false): Promise<ToolOutcome> {
     const question = typeof args.question === 'string' ? args.question.trim() : '';
     const raw = Array.isArray(args.options) ? args.options : [];
     const options = raw.filter((o): o is string => typeof o === 'string' && o.trim() !== '').map((o) => o.trim().slice(0, 40)).slice(0, 3);
@@ -1335,7 +1516,55 @@ export class DesktopPetWorld implements World {
     void this.record({ kind: 'ask', askId: id, question, options, own: allowOwn }, question);
     const cut = raw.length > 3 ? '只显示了前 3 个选项。' : '';
     const shown = this.chat.size ? '对话页开着,问题也显示在那里,两边都能回答。' : '';
-    return { text: `已问出。${replaced}${cut}${shown}回答到了会以 [回答] 事件送达。` };
+    let did = '';
+    const feeling = decider && typeof args.feeling === 'string' ? args.feeling.trim().slice(0, FEELING_MAX) : '';
+    if (feeling) {
+      const d = await this.decideFor({ tool: 'pet_ask', feeling, text: question, forSay: true });
+      if (!d.ok) did = `表情动作这次没挑出来(${d.why})。`;
+      else if (d.actions.length && this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) {
+        this.notePosture(d.actions);
+        did = `表情动作:${this.namesOf(d.actions)}。${this.heldNote(d.actions)}`;
+      }
+    }
+    return { text: `已问出。${replaced}${cut}${shown}${did}回答到了会以 [回答] 事件送达。` };
+  }
+
+  /** Waits for the walk `walkId` the page was sent; an interrupt stops it where the pet stands. */
+  private awaitWalk(walkId: string, ctx?: ToolCallContext): Promise<WalkEnd> {
+    return new Promise<WalkEnd>((resolve) => {
+      const onAbort = (): void => {
+        if (!this.walks.has(walkId)) return;
+        walk.stopping = true;
+        this.server.sendPet({ t: 'walk-stop', id: walkId });
+      };
+      const done = (e: WalkEnd): void => {
+        ctx?.signal?.removeEventListener('abort', onAbort);
+        resolve(e);
+      };
+      const timer = setTimeout(() => {
+        this.walks.delete(walkId);
+        done({ t: 'timeout' });
+      }, WALK_TIMEOUT_MS);
+      const walk: PendingWalk = { resolve: done, timer };
+      this.walks.set(walkId, walk);
+      ctx?.signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  /** A walk's end as `pet_walk_to` (and an unfinished `pet_walk`) tells it. */
+  private walkText(e: WalkEnd): string {
+    if (e.t === 'timeout') return `${WALK_TIMEOUT_MS / 1000} 秒内没有走到。`;
+    if (e.t === 'stopped') return 'World 已停止,没走到。';
+    if (e.t === 'gone') return '没走到:桌宠窗口断开了。';
+    if (e.t !== 'arrived' && e.t !== 'interrupted') return '';
+    const at = e.x !== null ? pct(e.x) : '?';
+    return e.t === 'arrived'
+      ? `走到了屏幕横向 ${at} 处。`
+      : e.stopping ? `走到屏幕横向 ${at} 处停下了。`
+      : e.by === 'drag' ? `没走到:走到 ${at} 处时被${this.cfg.user}拎起来了。`
+      : e.by === 'busy' ? `没走:身体正忙(被拎着、在跳、在空中或在翻滚),没法起步,还在屏幕横向 ${at} 处。等它落地站稳再走。`
+      : e.by === 'none' ? '没走:桌宠的身体还没准备好。'
+      : `没走到:走到 ${at} 处时换成了别的动作(${String(e.by)})。`;
   }
 
   /** Interruptible: an interrupt stops the walk where the pet stands, and the receipt says where. */
@@ -1354,25 +1583,48 @@ export class DesktopPetWorld implements World {
     if (this.currentPack()?.manifest.can.walk === false) return { text: `[pet_walk_to 没执行] 现在的形象(${nameIn(this.currentPack()!.manifest.name)})不会走动。`, failed: true };
     const walkId = nextId('w');
     if (!this.server.sendPet({ t: 'walk', id: walkId, to: target, run })) return this.notConnected('pet_walk_to');
-    const text = await new Promise<string>((resolve) => {
-      const onAbort = (): void => {
-        if (!this.walks.has(walkId)) return;
-        walk.stopping = true;
-        this.server.sendPet({ t: 'walk-stop', id: walkId });
-      };
-      const done = (s: string): void => {
-        ctx?.signal?.removeEventListener('abort', onAbort);
-        resolve(s);
-      };
-      const timer = setTimeout(() => {
-        this.walks.delete(walkId);
-        done(`${WALK_TIMEOUT_MS / 1000} 秒内没有走到。`);
-      }, WALK_TIMEOUT_MS);
-      const walk: PendingWalk = { resolve: done, timer };
-      this.walks.set(walkId, walk);
-      ctx?.signal?.addEventListener('abort', onAbort, { once: true });
-    });
-    return { text };
+    this.kneeling = false;
+    this.pendingPosture = null;
+    return { text: this.walkText(await this.awaitWalk(walkId, ctx)) };
+  }
+
+  /**
+   * Decider mode's `pet_walk`: `pixels` left or right from where the page last said she stands, clamped to the screen
+   * here and to the stage on the page; a walk that ends short of what was asked stopped at the edge, and says so.
+   */
+  private async walkBy(args: Record<string, unknown>, ctx?: ToolCallContext): Promise<ToolOutcome> {
+    const dir = args.direction;
+    if (dir !== 'left' && dir !== 'right') return { text: `[pet_walk 没执行] direction 应为 left 或 right,收到 ${JSON.stringify(dir)}。`, failed: true };
+    const pixels = typeof args.pixels === 'number' && Number.isFinite(args.pixels) ? Math.round(args.pixels) : NaN;
+    if (!(pixels >= 1 && pixels <= 8000)) return { text: `[pet_walk 没执行] pixels 应为 1–8000 的整数,收到 ${JSON.stringify(args.pixels)}。`, failed: true };
+    const run = args.run === true;
+    if (this.currentPack()?.manifest.can.walk === false) return { text: `[pet_walk 没执行] 现在的形象(${nameIn(this.currentPack()!.manifest.name)})不会走动。`, failed: true };
+    const from = this.pose;
+    if (!from || !(from.w > 0)) {
+      if (!this.server.petConnected) return this.notConnected('pet_walk');
+      return { text: '[pet_walk 没执行] 还不知道桌宠在哪,稍后再试。', failed: true };
+    }
+    const sign = dir === 'left' ? -1 : 1;
+    const tx = Math.max(0, Math.min(from.w, from.x + sign * pixels));
+    const before = this.posture();
+    const walkId = nextId('w');
+    if (!this.server.sendPet({ t: 'walk', id: walkId, to: tx / from.w, run })) return this.notConnected('pet_walk');
+    this.kneeling = false;
+    this.pendingPosture = null;
+    const end = await this.awaitWalk(walkId, ctx);
+    if (end.t !== 'arrived' || end.x === null) return { text: this.walkText(end) };
+    const w = from.w;
+    const x = Math.round(end.x * w);
+    const moved = Math.round(Math.abs(x - from.x));
+    const side = dir === 'left' ? '左' : '右';
+    const verb = run ? '跑' : '走';
+    const up = before === 'sit' || before === 'kneel' || before === 'lie' || before === 'sleep' ? `先站起来,` : '';
+    const where = `${x}/${w}(${pct(x / w)})`;
+    return {
+      text: moved < pixels - CLAMP_SLACK_PX
+        ? `${up}本来要往${side}${verb} ${pixels} 像素,${side}边只剩约 ${moved} 像素,${verb}到屏幕边停下了,在 ${where}。`
+        : `${up}往${side}${verb}了 ${moved} 像素,到了 ${where}。`,
+    };
   }
 
   private async setSettings(args: Record<string, unknown>): Promise<ToolOutcome> {
@@ -1433,6 +1685,7 @@ export class DesktopPetWorld implements World {
     const { actions, dropped, notes } = parseActions(list, vocab, this.pairs());
     if (!actions.length) return { text: `[pet_act 没执行] 当前形象的词表里没有这些动作${dropped.length ? `(${dropped.join('、')})` : ''}。`, failed: true };
     if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions })) return this.notConnected('pet_act');
+    this.notePosture(actions);
     const lasting = membersOf(actions).filter((a) => vocab.find((v) => v.id === a)?.lasting);
     const params = `${dropped.length ? `当前形象的词表里没有这些,已略过:${dropped.join('、')}。` : ''}${notes.join('')}`;
     const note = params ? `\n[执行参数] ${params}` : '';
@@ -1440,12 +1693,245 @@ export class DesktopPetWorld implements World {
     return { text: `开始依次做:${actions.join(' → ')}。${held}${note}` };
   }
 
+
+  /* ---------- decider mode ---------- */
+
+  /** The app's OpenRouter key, read now; '' without one (or when reading it fails). */
+  private deciderKey(): string {
+    try { return this.opts.deciderKey?.() ?? ''; } catch { return ''; }
+  }
+
+  /** The decider settings, with the defaults for a config written before they existed. */
+  private deciderCfg(): DesktopPetConfigSection['decider'] {
+    return { ...DESKTOP_PET_DEFAULTS.decider, ...this.cfg.decider };
+  }
+
+  private wantedMode(): PetMode {
+    return this.deciderCfg().enabled && this.keyKnown ? 'decider' : 'classic';
+  }
+
+  /** The mode in force for tools and prompt (latched: it changes here only, and the app is told to rebuild the prefix). */
+  get petMode(): PetMode {
+    return this.mode;
+  }
+
+  /** Looks again at the setting (every sync) and the key (every KEY_POLL_MS); a change is latched and told to the app. */
+  private refreshMode(): void {
+    const now = Date.now();
+    if (now - this.keyCheckedAt >= KEY_POLL_MS) {
+      this.keyCheckedAt = now;
+      this.keyKnown = this.deciderKey() !== '';
+    }
+    const want = this.wantedMode();
+    if (want === this.mode) return;
+    this.mode = want;
+    this.log?.info(want === 'decider'
+      ? `表情动作改由决策模型挑(${this.deciderCfg().model}),重建前缀`
+      : `表情动作改回由 bot 自己写标记(${this.deciderCfg().enabled ? '没有 OpenRouter 密钥' : '表情决策已关'}),重建前缀`);
+    if (want === 'decider') { this.warnOverride(); this.armPose(); }
+    this.opts.onModeChange?.(want);
+  }
+
+  /** The deployment overrides the environment prompt: Cortico reads it in either mode. */
+  private overridden(): boolean {
+    try {
+      const f = this.opts.envOverrideFile?.();
+      return !!f && existsSync(f);
+    } catch { return false; }
+  }
+
+  private warnOverride(): void {
+    if (this.overrideWarned || !this.overridden()) return;
+    this.overrideWarned = true;
+    this.log?.warn('部署里改过桌宠的环境说明(旧模式的版本),表情决策模式下它仍会生效;想用新说明,在「提示词」页还原它');
+  }
+
+  /** The page's report of where the body is: `{ t: 'pose', x, w, facing, mode }`. */
+  private onPose(msg: PageMessage): void {
+    const x = Number(msg.x), w = Number(msg.w);
+    if (!Number.isFinite(x) || !Number.isFinite(w) || w <= 0) return;
+    const mode = typeof msg.mode === 'string' ? msg.mode : 'idle';
+    // a kneel ends when she gets up from it, or never showed (the page shows a kneel as sit)
+    if (mode !== 'sit' && (this.pose?.mode === 'sit' || Date.now() - this.kneelAt > KNEEL_WAIT_MS)) this.kneeling = false;
+    if (this.pendingPosture && mode !== this.pendingPosture.from) this.pendingPosture = null;
+    this.pose = { x: Math.max(0, Math.min(w, x)), w, facing: msg.facing === -1 ? -1 : 1, mode };
+    if (this.mode === 'decider') this.armPose();
+  }
+
+  /** What she is doing now: the page's layout mode, a kneel told apart from sitting by the last posture word sent. */
+  private posture(): Posture {
+    const pend = this.pendingPosture;
+    if (pend) {
+      if ((this.pose?.mode ?? null) === pend.from && Date.now() - pend.at < POSTURE_PENDING_MS) return pend.posture;
+      this.pendingPosture = null;
+    }
+    switch (this.pose?.mode) {
+      case 'sit': return this.kneeling ? 'kneel' : 'sit';
+      case 'lie': return 'lie';
+      case 'sleep': return 'sleep';
+      case 'wake': return 'wake';
+      case 'walk': return 'walk';
+      case 'run': return 'run';
+      case 'drag': case 'air': case 'crouch': return 'busy';
+      case 'dizzy': return 'dizzy';
+      default: return 'stand';
+    }
+  }
+
+  /**
+   * Follows a kneel through the words sent: a kneel starts one; a word that ends it (`lastingNote`: anything but a
+   * face, a head gesture, a tail's, ears' or wings' move, and with `keepsArms` an arm-only gesture or a song) ends it.
+   */
+  private notePosture(entries: readonly string[]): void {
+    const vocab = this.vocab();
+    const byId = new Map(vocab.map((v) => [v.id, v]));
+    const kneel = byId.get('kneel');
+    const before = this.posture();
+    let next: Posture | null = null;
+    for (const id of membersOf(entries)) {
+      const v = byId.get(id);
+      if (!v) continue;
+      if (Object.hasOwn(POSTURE_OF_WORD, id)) next = POSTURE_OF_WORD[id];
+      if (id === 'kneel') { this.kneeling = true; this.kneelAt = Date.now(); continue; }
+      if (!this.kneeling || v.kind === 'expression') continue;
+      const cs = channelsOf(v);
+      const keeps = (cs.length === 1 && (cs[0] === 'head' || APPENDAGES.includes(cs[0])))
+        || (!!kneel?.keepsArms && ((cs.length === 1 && cs[0] === 'arm') || id === 'song'));
+      if (!keeps) this.kneeling = false;
+    }
+    // told as her posture until the page shows it (the next call's [位置] and body question would say the old one)
+    if (next && next !== before) this.pendingPosture = { posture: next, from: this.pose?.mode ?? null, at: Date.now() };
+  }
+
+  /** `[位置] …`: where she is, which way she faces, her posture and how far she can walk each way; null before the page said. */
+  positionLine(): string | null {
+    const p = this.pose;
+    if (!p) return null;
+    const x = Math.round(p.x), w = Math.round(p.w);
+    // the stage's edge: the kit keeps half the figure's width plus 8 px in (approximated, the receipt of a walk tells exactly)
+    const margin = Math.round(.25 * 256 * .42 * this.cfg.window.scale + 8);
+    const left = Math.max(0, x - margin), right = Math.max(0, w - margin - x);
+    return `[位置] 屏幕横向 ${x}/${w} 像素(${pct(x / w)}),面朝${p.facing === 1 ? '右' : '左'},${POSTURE_NAMES[this.posture()]};往左还能走约 ${left} 像素,往右约 ${right} 像素。`;
+  }
+
+  private withPosition(out: string | ToolOutcome): string | ToolOutcome {
+    const line = this.positionLine();
+    if (!line) return out;
+    if (typeof out === 'string') return `${out}\n${line}`;
+    return typeof (out as { text?: unknown }).text === 'string' ? { ...out, text: `${(out as { text: string }).text}\n${line}` } : out;
+  }
+
+  /**
+   * Keeps one position event waiting to ride on the next batch (piggyback: it wakes nothing), rendered when the batch
+   * goes, so the bot sees where she is then; once rendered the next is armed. Decider mode only.
+   */
+  private armPose(): void {
+    const host = this.host;
+    if (!host || this.mode !== 'decider') return;
+    const now = Date.now();
+    if (this.poseArmedAt !== null && now - this.poseArmedAt < POSE_REARM_MS) return;
+    this.poseArmedAt = now;
+    const token = ++this.poseToken;
+    host.pushDeferred({
+      type: 'desktop-pet.pose', senderKey: 'desktop-pet.pose', tags: ['snapshot'],
+      render: () => {
+        if (token !== this.poseToken) return null;
+        this.poseArmedAt = null;
+        // the next one, once this batch is built
+        setImmediate(() => this.armPose());
+        if (this.mode !== 'decider' || !this.server.petConnected) return null;
+        return this.positionLine();
+      },
+    }, { trigger: 'piggyback' });
+  }
+
+  /** The words of entries by their first names, a group's joined by '+'. */
+  private namesOf(entries: readonly string[]): string {
+    const vocab = this.vocab();
+    return entries.map((e) => e.split('+').map((id) => { const v = vocab.find((w) => w.id === id); return v ? firstName(v) : id; }).join('+')).join(' → ');
+  }
+
+  /** How long the lasting words among entries hold (`lastingNote`). */
+  private heldNote(entries: readonly string[]): string {
+    const vocab = this.vocab();
+    return [...new Set(membersOf(entries))].map((id) => vocab.find((v) => v.id === id)).filter((v): v is VocabWord => !!v?.lasting)
+      .map((v) => `${firstName(v)} ${lastingNote(v, vocab)}。`).join('');
+  }
+
+  /** Where she stands as a phrase. */
+  private placeText(): string | undefined {
+    const p = this.pose;
+    if (!p) return undefined;
+    const f = p.x / p.w;
+    return f < .2 ? '屏幕最左边' : f < .4 ? '屏幕偏左' : f < .6 ? '屏幕中间' : f < .8 ? '屏幕偏右' : '屏幕最右边';
+  }
+
+  private timeText(now = new Date()): string {
+    const wd = new Intl.DateTimeFormat('zh-CN', { timeZone: this.opts.timezone, weekday: 'short' }).format(now);
+    return `${wd} ${shortTime(this.opts.timezone, now)}`;
+  }
+
+  /**
+   * One decision: the questions for the body on screen and her posture, the state, the call; the answers picked into
+   * a group (`pickGroup`) and parsed as `pet_act` parses one. Failures come back with their reason; the mode stays.
+   */
+  private async decideFor(o: { tool: DecisionRecord['tool']; feeling: string; text?: string; forSay: boolean }):
+    Promise<{ ok: true; actions: string[]; notes: string[] } | { ok: false; reason: DecideFailure; why: string }> {
+    const vocab = this.vocab();
+    const pairs = this.pairs();
+    const posture = this.posture();
+    const now = Date.now();
+    const questions = buildQuestions(vocab, { forSay: o.forSay, posture });
+    const heard = this.lastHeard && now - this.lastHeard.at < HEARD_MS
+      ? { who: this.cfg.user, text: this.lastHeard.text, via: this.lastHeard.via, agoMs: now - this.lastHeard.at } : null;
+    const state = buildState({
+      body: this.bodyText(this.currentPack()), feeling: o.feeling, text: o.text, heard, posture,
+      place: this.placeText(), facing: this.pose?.facing, time: this.timeText(),
+      recent: this.recentPicks.map((r) => ({ words: r.words, agoMs: now - r.at })),
+    });
+    const model = this.deciderCfg().model || DESKTOP_PET_DEFAULTS.decider.model;
+    const res = await this.decider.decide(buildRequest(model, state, questions));
+    const base = {
+      tool: o.tool, feeling: o.feeling, ...(o.text !== undefined ? { text: o.text } : {}), state, model,
+      questions: questions.map((q) => ({ id: q.id, options: q.options.length })), ms: res.ms,
+    };
+    if (!res.ok) {
+      const why = failureText(res.reason, res.detail);
+      this.log?.debug(`表情决策没成:${why}`);
+      this.opts.onDecision?.({ ...base, answers: null, why: {}, actions: [], notes: [], dropped: [], ok: false, failure: why });
+      return { ok: false, reason: res.reason, why };
+    }
+    this.host?.reportUsage({ promptTokens: res.usage.inputTokens, completionTokens: res.usage.outputTokens, cacheHitTokens: 0, cacheMissTokens: res.usage.inputTokens }, { model, label: '桌宠·表情决策' });
+    const pick = pickGroup(questions, res.answers, { vocab, pairs, recent: this.recentPicks.map((r) => r.chosen) });
+    const parsed = parseActions(pick.ids.length ? [pick.ids.join('+')] : [], vocab, pairs);
+    const split = parsed.notes.filter((n) => n.includes('不能同时做'));
+    if (split.length) this.log?.warn(`表情决策挑出的一组被拆开了:${split.join('')}`);
+    if (parsed.dropped.length) this.log?.warn(`表情决策挑出了词表没有的词:${parsed.dropped.join('、')}`);
+    const top = topAnswers(res.answers);
+    this.log?.debug(`表情决策 ${res.ms} ms:${Object.entries(top).map(([q, a]) => `${q}=${a.top.map(([k, p]) => `${k}${p}`).join('/')}`).join(' ')} → ${pick.ids.join('+') || '不动'}`);
+    this.recentPicks.unshift({ at: now, words: membersOf(parsed.actions).map((id) => { const v = vocab.find((w) => w.id === id); return v ? firstName(v) : id; }), chosen: pick.chosen });
+    this.recentPicks.splice(RECENT_DECISIONS);
+    this.opts.onDecision?.({ ...base, answers: top, why: pick.why, actions: parsed.actions, notes: parsed.notes, dropped: parsed.dropped, ok: true, usage: res.usage });
+    return { ok: true, actions: parsed.actions, notes: parsed.notes.filter((n) => !n.includes('不能同时做')) };
+  }
+
+  /** The console's view of decider mode (no key in it: only whether there is one). */
+  deciderState(): Record<string, unknown> {
+    const c = this.deciderCfg();
+    return {
+      mode: this.mode, enabled: c.enabled, model: c.model, timeoutMs: c.timeoutMs, keySet: this.keyKnown,
+      lent: !!this.opts.deciderKey, open: this.decider.open, last: this.decider.last, calls: this.decider.calls,
+      cost: Math.round(this.decider.cost * 1e6) / 1e6, overridden: this.mode === 'decider' && this.overridden(),
+    };
+  }
+
   /* ---------- prompt ---------- */
 
   envPromptVars(): Record<string, string> {
     return {
       'pet.user': this.cfg.user,
-      'pet.vocab': vocabTable(this.vocab(), 'zh', this.pairs()),
+      // decider mode shows no words; empty, so a deployment's override of the classic text renders without them
+      'pet.vocab': this.mode === 'decider' ? '' : vocabTable(this.vocab(), 'zh', this.pairs()),
       'pet.voice': this.cfg.asr.enabled ? '开着' : '关着',
       'pet.body': this.bodyText(this.currentPack()),
       'pet.dress': dressTable(this.packs()),
@@ -1472,6 +1958,7 @@ export class DesktopPetWorld implements World {
         state: !this.cfg.asr.enabled ? 'offline' : v?.phase === 'running' ? 'online' : v?.phase === 'starting' ? 'loading' : v?.phase === 'error' ? 'error' : 'offline',
         hint: v?.detail ?? v?.phase ?? '未启动',
       },
+      this.deciderLamp(),
     ];
     return {
       label: language === 'en' ? 'Desktop pet' : '桌宠',
@@ -1485,24 +1972,36 @@ export class DesktopPetWorld implements World {
         socket.onClose(() => this.voiceSockets.delete(socket));
       },
       links: this.server.port ? [{ label: '在浏览器里看桌宠', href: this.petUrl }, { label: '装扮', href: `${this.server.origin}/dress` }] : [],
-      config: [DESKTOP_PET_CONFIG_GROUP, DESKTOP_PET_SOUND_CONFIG_GROUP, DESKTOP_PET_ASR_CONFIG_GROUP],
-      promptDocs: [{
+      config: [DESKTOP_PET_CONFIG_GROUP, DESKTOP_PET_SOUND_CONFIG_GROUP, DESKTOP_PET_ASR_CONFIG_GROUP, DESKTOP_PET_DECIDER_CONFIG_GROUP],
+      // one template per mode, only the one in force declared (Cortico keeps one override file per World, read in either mode)
+      promptDocs: [this.mode === 'decider' ? {
+        key: `worlds.${DESKTOP_PET_ID}.envPromptDecider`,
+        title: '桌宠环境(表情决策)',
+        description: '描述桌宠的身体、工具与输入事件;表情动作交给决策模型时用这一份。',
+        path: ENV_PROMPT_DECIDER_FILE,
+        role: 'envPrompt',
+        vars: PROMPT_VARS.filter((v) => v.name !== 'pet.vocab'),
+      } : {
         key: `worlds.${DESKTOP_PET_ID}.envPrompt`,
         title: '桌宠环境',
         description: '描述桌宠的身体、工具与输入事件。',
         path: ENV_PROMPT_FILE,
         role: 'envPrompt',
-        vars: [
-          { name: 'pet.user', description: '对使用者的称呼' },
-          { name: 'pet.vocab', description: '当前形象的表情与动作词表(开头一句用这些词写的例子)', multiline: true },
-          { name: 'pet.voice', description: '语音输入开着还是关着' },
-          { name: 'pet.body', description: '当前形象的样子' },
-          { name: 'pet.dress', description: 'pet_set 能选的形象与打扮', multiline: true },
-          { name: 'pet.self', description: '「允许自己调整」开着还是关着' },
-          { name: 'pet.chat', description: '应用提供对话页时,对它的说明;没有时为空' },
-        ],
+        vars: PROMPT_VARS,
       }],
     };
+  }
+
+  private deciderLamp(): WorldLamp {
+    const c = this.deciderCfg();
+    if (this.mode === 'classic') {
+      return { label: '表情决策', state: 'offline', hint: !c.enabled ? '已关:bot 自己写表情动作标记' : '没有 OpenRouter 密钥:bot 自己写表情动作标记' };
+    }
+    const last = this.decider.last;
+    const used = this.decider.calls ? `;本次运行 ${this.decider.calls} 次${this.decider.cost ? `,约 $${this.decider.cost.toFixed(5)}` : ''}` : '';
+    if (this.decider.open) return { label: '表情决策', state: 'error', hint: `连续出错,暂停一会儿${last?.reason ? `:${last.reason}` : ''}` };
+    if (!last) return { label: '表情决策', state: 'loading', hint: `${c.model},还没用过` };
+    return { label: '表情决策', state: 'online', hint: last.ok ? `${c.model},上次 ${last.ms} ms${used}` : `上次没成:${last.reason ?? ''}${used}` };
   }
 
   private async invoke(panel: string, method: string, args: unknown[]): Promise<unknown> {
@@ -1518,6 +2017,14 @@ export class DesktopPetWorld implements World {
         case 'openWindow': this.openWindow(); return this.petState();
         case 'closeWindow': await this.windowHost?.stop(); return this.petState();
         case 'installElectron': void this.store.electron.install(); return this.petState();
+        // the decision models OpenRouter lists, for the console's model box (the key stays here)
+        case 'deciders': {
+          // only with a key, and next to the decisions endpoint in use (a test's or eval's stand-in gets the listing too)
+          const key = this.deciderKey();
+          if (!key) return { models: [] };
+          const url = this.opts.deciderUrl ? `${this.opts.deciderUrl.replace(/\/+$/, '')}/models` : undefined;
+          return { models: await listDeciders(key, this.opts.deciderFetch, url) };
+        }
         case 'guide': {
           if (!this.opts.controls?.guide) throw new Error('这个应用没有引导');
           this.opts.controls.guide();
@@ -1567,6 +2074,7 @@ export class DesktopPetWorld implements World {
       window: this.windowHost?.state() ?? null,
       electron: { ...this.store.electron.state(), supported: this.store.electron.supported },
       screen: this.screen,
+      decider: this.deciderState(),
     };
   }
 

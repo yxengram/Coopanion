@@ -3,6 +3,7 @@ import type { ConfigGroup } from 'cortico/core/config-schema.ts';
 import type { WorldSection } from 'cortico/world.ts';
 import type { SegmentConfig } from './asr/segmenter.ts';
 import { DEFAULT_HOTKEY } from './asr/hotkey.ts';
+import { DECIDER_DEFAULT_MODEL } from './decider.ts';
 
 export const DESKTOP_PET_ID = 'desktop-pet';
 
@@ -98,6 +99,17 @@ export interface DesktopPetConfigSection extends WorldSection {
   /** The bot may change its own looks and habits (src/self.ts), and asks before the rest. */
   selfAdjust: boolean;
   skin: PetSkin;
+  /**
+   * Decider mode (src/decider.ts): with an OpenRouter key lent by the app (`deciderKey`), the bot writes how it
+   * feels and a decision model picks the expressions and motions; without a key this does nothing.
+   */
+  decider: {
+    enabled: boolean;
+    /** The OpenRouter decision model. */
+    model: string;
+    /** How long one decision may take before the bubble goes on without it. */
+    timeoutMs: number;
+  };
   touch: {
     /** Clicks, petting and throws become events. */
     enabled: boolean;
@@ -141,6 +153,7 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
     figure: 'coo', scheme: 'deepseek', palette: 'mint', head: 'none', side: 'none', glasses: 'none', neck: 'none',
     colors: { head: { main: 'body', acc: 'eye' }, side: { main: 'eye', acc: 'eye' }, glasses: { main: 'body', acc: 'eye' }, neck: { main: 'eye', acc: 'eye' } },
   },
+  decider: { enabled: true, model: DECIDER_DEFAULT_MODEL, timeoutMs: 2500 },
   touch: { enabled: true, wakeOn: 'poke' },
   asr: {
     enabled: true,
@@ -200,6 +213,20 @@ export const DESKTOP_PET_SOUND_CONFIG_GROUP: ConfigGroup = {
       [`${K}.sounds.snoreSeconds`]: { type: 'integer', title: '呼噜打多久', minimum: 0, maximum: 3600, 'x-suffix': '秒', description: '每次睡着后打这么久呼噜就安静下来,Z 照样飘;0 = 一直打到醒。', 'x-hot': true },
       [`${K}.sounds.talk`]: { type: 'boolean', title: '说话', description: '气泡里逐字冒出的叽咕声、选项卡片弹出的声音。', 'x-hot': true },
       [`${K}.sounds.ui`]: { type: 'boolean', title: '按钮与提示', description: '点按钮、气泡弹出、选中、开始和结束听你说话。', 'x-hot': true },
+    },
+  },
+};
+
+export const DESKTOP_PET_DECIDER_CONFIG_GROUP: ConfigGroup = {
+  id: `world:${DESKTOP_PET_ID}:decider`,
+  owner: `world:${DESKTOP_PET_ID}`,
+  schema: {
+    type: 'object',
+    title: '表情决策',
+    properties: {
+      [`${K}.decider.enabled`]: { type: 'boolean', title: '交给决策模型挑表情动作', description: '有 OpenRouter 密钥时,bot 只写一句心情,表情、动作和姿势由 OpenRouter 的决策模型照它挑,走动由 bot 自己按像素决定;没有密钥或关掉时照旧由 bot 自己写表情动作标记。切换后重建前缀。', 'x-hot': true },
+      [`${K}.decider.model`]: { type: 'string', title: '决策模型', description: `OpenRouter 上的决策模型 id,默认 ${DECIDER_DEFAULT_MODEL}。`, 'x-hot': true },
+      [`${K}.decider.timeoutMs`]: { type: 'integer', title: '最多等多久', minimum: 500, maximum: 10000, 'x-suffix': 'ms', description: '一次决策超过这个时间,这个气泡就只说话、不做表情动作。', 'x-hot': true },
     },
   },
 };

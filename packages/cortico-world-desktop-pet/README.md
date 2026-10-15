@@ -34,6 +34,38 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 词表里没有的词,`pet_say` 和 `pet_act` 的回执会写明略过了哪些;`world.dialog` 的 `actions` 里没有的词记一条警告,也列在返回值的 `dropped` 里,同样可以写组。
 表情、动作怎样调用、哪些能同时出现,详见主仓库的 `docs/notes/expressions-and-actions.md`。
 
+### 表情决策模式(decider)
+
+内嵌应用借给 World 一个 OpenRouter 密钥(`DesktopPetAssembly.deciderKey()`,每次用时现读,World 不保存、不写盘、不进日志、事件和回执),
+且 `decider.enabled` 开着(默认开)时,bot 不再看到词表和标记,表情动作交给 OpenRouter 的决策模型挑(`src/decider.ts`)。每次决策发给 OpenRouter 的 state 里有 bot 要说的话、它的 feeling、对方 10 分钟内最后说的一句话、姿势位置和时间;关掉 `decider.enabled` 就不再发。没借密钥、密钥为空或关掉时,一切同上(工具表和环境提示词逐字不变)。
+
+| 工具 | 作用 | 回执 |
+|---|---|---|
+| `pet_say(text, feeling)` | 一个气泡一句 `feeling`(此刻的心情、想法,怎么写都行);`text` 里习惯性写出的标记去掉、不执行:`【…】` 都去掉,`<…>` 里是词表里的词或只有汉字时去掉(`<小声>`),其他尖括号(`<div>`、`a < b`、`3<5`)照原文显示 | 等决策结束(最多 `decider.timeoutMs`,默认 2500 ms)才返回:约显示多久、做了哪些词(第一个中文名)、持续姿势说明;失败或超时写明原因,只说了话 |
+| `pet_ask(question, options, allowOwnAnswer, feeling?)` | 同上;给了 `feeling` 就按它决策,在提问时做(`act`) | 已问出 + 做了什么 |
+| `pet_feel(feeling)` | 替代 `pet_act`:不说话,只让身体流露心情;坐下、跪坐、趴下、睡觉也由它挑 | 做了什么 + 持续姿势说明;决策失败时不标 `failed` |
+| `pet_walk(direction, pixels, run)` | 替代 `pet_walk_to`:往 `left`/`right` 走多少像素,从页面最后报的位置算,先截到 `[0, 屏幕宽]`,页面再截到舞台边 | 走到才返回:走了多少像素、停在哪;比要求少 8 像素以上就说「走到屏幕边停下了」;`interruptible` |
+| `pet_set`、`pet_quiet` | 不变 | 不变 |
+
+决策模式下每个桌宠工具的回执末尾、每批投递的事件里(一个恒挂着的 `piggyback` 延迟事件 `desktop-pet.pose`,投递时现渲染)都有一行
+`[位置] 屏幕横向 1190/1920 像素(62%),面朝左,站着;往左还能走约 1155 像素,往右约 695 像素。`。位置来自页面的 `pose` 消息
+(`{ t: 'pose', x, w, facing, mode }`:连上时、`mode` 变化、走完、窗口尺寸变化、朝向变化时发);跪坐在页面上也是 `sit`,World 按最后发出的姿势词区分。
+
+一次决策:`buildQuestions` 按部位各出一道选择题(`face`、`head`、`arm`、`body`,形象有词的才出 `tail`、`ears`、`wings`;
+分组用 `partOf`,和词表的部位分组同一来源,每个词恰好在一道题里,`walk`、`run` 不出题,气泡里不出 `sleep`,`body` 题去掉她现在的姿势,
+被拎着或在空中不出 `body` 题),每题第一个选项是「不动」类;选项名是词的第一个中文名(重名退用 `名字(id)`),说明是 `about`、心情组、别名和「会一直保持」。
+`buildState` 写心情、要说的话、对方 10 分钟内最后说的话、姿势与位置、最近 5 次做过的、时间(≤1500 字)。
+`pickGroup`:每题按概率取胜者,「不动」胜出或低于门槛(表情 0.30,头和手 0.45,身 0.55,趴下和睡觉 0.70,尾巴耳朵翅膀 0.50)就不动;
+同一题连着两次是同一个词而第二名够近就换第二名;除表情外最多动 2 个部位;表情第二名够高且在形象的 `pairs` 里就组成表情对;
+最后按概率从高到低用 `clashes` 去掉冲突的,所以拼出的一组 `parseActions` 不会再拆开。
+页面:`say` 带 `acts: 'pending'` 和 `holdMs`(900 ms)时,轮到这个气泡最多等这么久拿到词;词按气泡 id 用 `say-acts` 发来,排队中的气泡把它当第一拍的词,已在打字的立刻做(`web/acts.js` 的 `attachSayActs`、`sayHeld`)。
+
+失败:单次失败或超时只让这一句不做表情动作,不换模式;连续 3 次失败 60 秒内不再调用(熔断,日志只警告一次);密钥被删后 5 秒内切回旧模式。
+模式切换时调 `onModeChange(mode)`,应用据此重建前缀(Coopanion 调 `reloadSystemPrefix`);重建前模型调旧工具名仍照旧执行。
+控制台:「表情决策」灯、配置组 `world:desktop-pet:decider`(开关、模型、超时)、`pet.state` 里的 `decider`(只有有没有密钥,没有密钥本身)、`pet.deciders` 列出 OpenRouter 上的决策模型(路径待核实,失败时为空)。
+决策用量以 `桌宠·表情决策` 记入 `reportUsage`;`onDecision(rec)` 给评测和测试每次决策的记录(不含密钥)。
+部署里改过环境提示词时(Cortico 只按 World id 存一份覆盖文件,两种模式都会读它),决策模式下记一条警告,控制台提示去「提示词」页还原。
+
 ## 事件
 
 | `type` | 正文 | 投递 |
@@ -198,6 +230,10 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 文本框(可以是密钥框,带一个外链和一个「以后再说」)、进度条(调用方用 `update({ progress })` 推进,`close()` 收起)。
 `step` 在气泡顶上画步骤点,`closable` 画一个关闭钮;页面不在时结果是 `{ unavailable: true }`,页面回来后调用方重发即可。
 `controls.guide` 借出后,控制台的 `pet.guide` 面板方法会调它,应用借此重放引导。
+
+表情决策模式(见上文「表情决策模式」)要应用借出:`deciderKey()`(OpenRouter 密钥,每次现读,没有时返回空串)、`onModeChange(mode)`(换模式时重建前缀);
+评测和测试另有 `onDecision(rec)`、`deciderUrl`、`deciderFetch`(指向本地假端点)。Coopanion 的 `deciderKey` 依次读环境变量 `OPENROUTER_API_KEY`、
+基址是 OpenRouter 的端点(名字不限)`.env` 里该端点 `secret` 名下的值(`core/decider-key.ts`)。
 
 ### 对话页
 

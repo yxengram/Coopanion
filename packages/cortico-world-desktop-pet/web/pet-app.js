@@ -13,7 +13,7 @@ import { applyTheme, clamp, f, ICONS } from './ui.js';
 import { createSfx, OWN_PACKS } from './sound.js';
 import { COO_CSS, mini, normalizeSkin, skinCss } from './coo/coo.js';
 import { loadBody } from './body-host.js';
-import { createActs } from './acts.js';
+import { attachSayActs, createActs, sayHeld } from './acts.js';
 
 const $ = (s) => document.querySelector(s);
 const host = window.petHost || null;
@@ -59,7 +59,24 @@ addEventListener('resize', () => {
   body?.set({ bounds: bounds() });
   // the World reads walk targets and drop spots against the stage the pet is on now
   send({ t: 'hello', screen: { w: innerWidth, h: innerHeight } });
+  reportPose(true);
 });
+
+/**
+ * Where the body is, for the World (decider mode tells the bot on every call): x in px, the stage's width, facing and
+ * the layout's mode. Sent on connect, on each mode change, after a walk ends, on resize and when the facing changes
+ * (checked once a second); a report equal to the last is not sent again.
+ */
+let poseSent = '', poseCheckAt = 0;
+function reportPose(force = false) {
+  const l = at();
+  if (!l) return;
+  const msg = { t: 'pose', x: Math.round(l.x), w: innerWidth, facing: l.facing === -1 ? -1 : 1, mode: l.mode ?? 'idle' };
+  const key = JSON.stringify(msg);
+  if (!force && key === poseSent) return;
+  poseSent = key;
+  send(msg);
+}
 
 /* ---------- connection ---------- */
 let ws = null, backoff = 500, watching = false;
@@ -67,7 +84,7 @@ function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg))
 function connect() {
   ws = new WebSocket(`ws://${location.host}/socket?role=pet&host=${host ? 'window' : 'tab'}`);
   ws.binaryType = 'arraybuffer';
-  ws.onopen = () => { backoff = 500; send({ t: 'hello', screen: { w: innerWidth, h: innerHeight }, host: host ? 'window' : 'tab' }); };
+  ws.onopen = () => { backoff = 500; send({ t: 'hello', screen: { w: innerWidth, h: innerHeight }, host: host ? 'window' : 'tab' }); reportPose(true); };
   ws.onmessage = (e) => { try { onOrder(JSON.parse(e.data)); } catch (err) { console.error(err); } };
   ws.onclose = (e) => {
     ws = null;
@@ -194,7 +211,8 @@ function onOrder(m) {
     case 'init': restorePosition(m.startX); applyPrefs(m); break;
     case 'prefs': applyPrefs(m); break;
     case 'watching': watching = true; stopMic(); break;
-    case 'say': dropAsks(); queue.push({ kind: 'say', id: m.id, beats: m.beats, i: -1 }); holdRoam(20); break;
+    case 'say': dropAsks(); queue.push({ kind: 'say', id: m.id, beats: m.beats, i: -1, ...(m.acts === 'pending' ? { pending: true, holdMs: m.holdMs } : {}) }); holdRoam(20); break;
+    case 'say-acts': if (attachSayActs(queue, item, m.id, m.actions) === 'late') { acts.push(...(m.actions || [])); holdRoam(20); } break;
     case 'ask': dropAsks(); queue.push({ kind: 'ask', id: m.id, question: m.question, options: m.options || [], own: m.own !== false }); holdRoam(20); break;
     case 'confirm': dropAsks(); queue.push({ kind: 'ask', confirm: true, id: m.id, question: m.question, options: m.options, own: false }); holdRoam(20); break;
     case 'walk': walk(m); break;
@@ -223,11 +241,13 @@ function onBody(kind, d) {
     if (!d.walkId || !walkTargets.has(d.walkId)) return;
     walkTargets.delete(d.walkId);
     send({ t: kind, walkId: d.walkId, x: (typeof d.x === 'number' ? d.x : at()?.x ?? 0) / innerWidth, by: d.by });
+    reportPose();
   } else if (kind === 'touch') {
     send({ t: 'touch', ...d });
     if (d.kind === 'grab') closeMenu();
   } else if (kind === 'mode') {
     reportPosition();
+    reportPose();
   } else if (kind === 'done') {
     // a word that ends on its own (a walk across the screen) lets the next one start at once (in a group, once all have)
     acts.done(d.word, T);
@@ -310,6 +330,8 @@ function stepDialog(dt) {
   const it = item;
   if (!it) return;
   if (it.kind === 'say') {
+    // decider mode: the bubble waits a moment for the words picked for it (acts.js sayHeld)
+    if (it.i < 0 && sayHeld(it, T)) return;
     if (it.i < 0 || it.beatDone) {
       if (it.beatDone && T < it.holdUntil) return;
       it.i++;
@@ -1331,6 +1353,7 @@ function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
   try {
     T += dt;
+    if (T >= poseCheckAt) { poseCheckAt = T + 1; reportPose(); }
     stepActs();
     stepDialog(dt);
     stepTalkRead();

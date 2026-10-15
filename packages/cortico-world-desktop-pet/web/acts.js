@@ -46,3 +46,38 @@ export function createActs() {
     },
   };
 }
+
+/**
+ * Decider mode (src/decider.ts): a bubble is sent before its words are picked (`say` with `acts: 'pending'` and
+ * `holdMs`), and its words follow by id (`say-acts`). These two keep that apart from the page so it can be tested.
+ *
+ * `sayHeld(it, T)`: whether bubble `it`, about to start, still waits for its words: at most `holdMs` from the first
+ * time it was asked (the moment the bubble's turn came, not when it was queued), the body meanwhile in its thinking face.
+ *
+ * `attachSayActs(queue, current, id, actions)`: the words for bubble `id`. A bubble still queued, or the current one
+ * not yet started, gets them as its first beat's words (done before typing, as a script's leading marker is); the
+ * current one already typing gets nothing attached, and the caller does them at once (`'late'`); an id no longer
+ * there (said and gone) is dropped (`'missing'`). Either way the bubble no longer waits.
+ */
+export const SAY_HOLD_MS = 900;
+
+export function sayHeld(it, T) {
+  if (!it || !it.pending) return false;
+  if (it.waitUntil === undefined) it.waitUntil = T + (Number.isFinite(it.holdMs) ? it.holdMs : SAY_HOLD_MS) / 1000;
+  if (T < it.waitUntil) return true;
+  // gave up waiting: words that come later are done when they come
+  it.pending = false;
+  return false;
+}
+
+export function attachSayActs(queue, current, id, actions) {
+  const list = Array.isArray(actions) ? actions.filter((a) => typeof a === 'string' && a) : [];
+  const it = current && current.kind === 'say' && current.id === id ? current : queue.find((q) => q.kind === 'say' && q.id === id);
+  if (!it) return 'missing';
+  const started = it === current && it.i >= 0;
+  it.pending = false;
+  if (started) return 'late';
+  const first = it.beats[0];
+  if (first) first.actions = [...list, ...(first.actions || [])];
+  return it === current ? 'waiting' : 'queued';
+}

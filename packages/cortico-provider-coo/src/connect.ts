@@ -76,3 +76,26 @@ export async function connectVendor(call: ConsoleCall, vendor: Vendor, key: stri
   }
   return r;
 }
+
+/**
+ * Saves `key` for `vendor`'s endpoint without making it the active one: the endpoint is created the first time
+ * (with the service's default model), otherwise only its key is replaced. For a key another part of the app reads
+ * (the desktop pet's decider mode reads OpenRouter's): the chat model stays as it is. The key goes where the
+ * console keeps every endpoint's key (its `.env`), nowhere else.
+ */
+export async function saveVendorKey(call: ConsoleCall, vendor: Vendor, key: string): Promise<{ ok: boolean; why: string | null }> {
+  const secretValue = key.trim();
+  if (!secretValue) return { ok: false, why: '密钥是空的' };
+  try {
+    const list = await call<{ providers: Array<{ name: string }> }>('/api/providers');
+    if (list.providers.some((p) => p.name === vendor.id)) {
+      const d = await call<Detail>(`/api/providers/${encodeURIComponent(vendor.id)}`);
+      await call(`/api/providers/${encodeURIComponent(vendor.id)}/save`, { name: d.name, entry: d.entry, expectedRevision: d.revision, secretValue });
+    } else {
+      await call('/api/providers', { name: vendor.id, entry: vendorEntry(vendor), secretValue });
+    }
+    return { ok: true, why: null };
+  } catch (err) {
+    return { ok: false, why: errText(err) };
+  }
+}

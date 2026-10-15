@@ -10,7 +10,21 @@ export class FakeHost implements WorldHost {
   /** 只落库、不投递的事件。 */
   stored: EventEnvelope[] = [];
   private all: EventEnvelope[] = [];
-  pushDeferred(): void {}
+  /** Deferred items waiting for a batch, as pushed. */
+  deferred: Array<{ spec: Parameters<WorldHost['pushDeferred']>[0]; opts?: Parameters<WorldHost['pushDeferred']>[1] }> = [];
+  pushDeferred(spec: Parameters<WorldHost['pushDeferred']>[0], opts?: Parameters<WorldHost['pushDeferred']>[1]): void {
+    this.deferred.push({ spec, opts });
+  }
+  /** A batch goes: every waiting deferred item is rendered (as Core does at delivery) and taken; returns the texts. */
+  async deliverDeferred(): Promise<Array<string | null>> {
+    const items = this.deferred.splice(0);
+    const out: Array<string | null> = [];
+    for (const d of items) {
+      const r = await d.spec.render();
+      out.push(r === null ? null : typeof r === 'string' ? r : r.text);
+    }
+    return out;
+  }
   store = {
     get: (cursor: number) => this.all.find((e) => e.cursor === cursor),
     latestCursor: () => this.all.length,

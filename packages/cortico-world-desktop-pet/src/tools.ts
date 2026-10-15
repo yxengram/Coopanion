@@ -87,3 +87,66 @@ export const DESKTOP_PET_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
     },
   },
 ];
+
+/**
+ * Decider mode (src/decider.ts): the bot names no word. `pet_say` takes the text and a feeling, `pet_feel` replaces
+ * `pet_act`, `pet_walk` (direction and pixels) replaces `pet_walk_to`; `pet_ask` takes an optional feeling. `pet_set`
+ * and `pet_quiet` are the classic declarations.
+ */
+export const DECIDER_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
+  {
+    name: 'pet_say',
+    tags: ['speak'],
+    description: '在桌宠头顶冒出一个对话气泡说话,一次一个气泡,一两句。feeling 写你这一刻的心情和想法,表情、动作会照它自动做出来。回执报告大约显示多久、做了什么表情动作和你现在的位置;窗口没连接时失败。',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: '要说的话,一两句,纯文字,不写任何标记或括号里的动作。不想说话就不要调用。' },
+        feeling: { type: 'string', description: '这一刻你的心情、想法或情绪,一两句话,怎么写都行,例:「被夸了有点得意,嘴上还要装淡定」。对方看不到这句;不用写动作名。' },
+      },
+      required: ['text', 'feeling'],
+    },
+  },
+  {
+    name: 'pet_ask',
+    tags: ['speak'],
+    description: '冒出一个提问气泡,下面列出最多 3 个选项,默认再加一格让对方自己写。立即返回;对方的回答以 [回答] 事件送达,关掉不答也会送达。新的 pet_say 或 pet_ask 会替换还没回答的提问。',
+    parameters: {
+      type: 'object',
+      properties: {
+        question: { type: 'string', description: '问题,一句话。' },
+        options: { type: 'array', items: { type: 'string' }, maxItems: 3, description: '1–3 个简短选项,每个不超过 40 字。' },
+        allowOwnAnswer: { type: 'boolean', description: '是否提供自己写回答的输入格,默认 true。' },
+        feeling: { type: 'string', description: '可选:问的时候的心情或想法,表情动作会照它做出来。' },
+      },
+      required: ['question', 'options'],
+    },
+  },
+  {
+    name: 'pet_walk',
+    tags: ['act'],
+    description: '沿屏幕底边朝左或朝右走(或跑)一段,走到或被打断后返回,最多等 30 秒。到屏幕边会停下,回执里说。你现在在哪、离两边多远,见每批事件和桌宠工具回执里的 [位置] 行。',
+    parameters: {
+      type: 'object',
+      properties: {
+        direction: { type: 'string', enum: ['left', 'right'], description: 'left 往左,right 往右。' },
+        pixels: { type: 'integer', minimum: 1, maximum: 8000, description: '走多少像素(桌宠所在那块屏幕的像素,屏幕宽度见 [位置])。' },
+        run: { type: 'boolean', description: 'true 跑过去,默认走。' },
+      },
+      required: ['direction', 'pixels'],
+    },
+  },
+  ...DESKTOP_PET_TOOL_DECLS.filter((d) => d.name === 'pet_set' || d.name === 'pet_quiet'),
+  {
+    name: 'pet_feel',
+    tags: ['act'],
+    description: '不说话,只让身体流露心情:写下此刻的心情或想法,表情、动作和姿势(坐下、跪坐、趴下、睡觉也算)会照它自动做出来。几乎立即返回做了什么;坐、趴、睡、跪这类姿势会保持下去,回执里说什么时候结束。',
+    parameters: {
+      type: 'object',
+      properties: {
+        feeling: { type: 'string', description: '此刻的心情、想法或打算,一两句话,例:「聊累了,想在旁边坐着发会儿呆」。' },
+      },
+      required: ['feeling'],
+    },
+  },
+];

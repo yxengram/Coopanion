@@ -102,12 +102,12 @@ const STEP = pick({
   zh: {
     cua_screenshot: '截屏', cua_click: '点击', cua_move: '移动鼠标', cua_drag: '拖动', cua_scroll: '滚动', cua_type: '打字',
     cua_key: '按键', cua_windows: '查看窗口', cua_focus: '切换窗口', cua_wait: '等待',
-    pet_walk_to: '走动', pet_act: '做动作', pet_set: '调整自己', pet_quiet: '安静一会儿',
+    pet_walk_to: '走动', pet_walk: '走动', pet_act: '做动作', pet_feel: '流露心情', pet_set: '调整自己', pet_quiet: '安静一会儿',
   } as Record<string, string>,
   en: {
     cua_screenshot: 'Screenshot', cua_click: 'Click', cua_move: 'Move the mouse', cua_drag: 'Drag', cua_scroll: 'Scroll', cua_type: 'Type',
     cua_key: 'Press keys', cua_windows: 'List windows', cua_focus: 'Switch window', cua_wait: 'Wait',
-    pet_walk_to: 'Walk', pet_act: 'Move about', pet_set: 'Adjust itself', pet_quiet: 'Keep quiet',
+    pet_walk_to: 'Walk', pet_walk: 'Walk', pet_act: 'Move about', pet_feel: 'Show a feeling', pet_set: 'Adjust itself', pet_quiet: 'Keep quiet',
   } as Record<string, string>,
 });
 const stepLabel = (name: string): string => STEP[name] ?? name;

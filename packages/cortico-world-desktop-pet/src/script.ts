@@ -88,9 +88,9 @@ export const INLINE_TAG_MAX = 32;
  */
 export type Channel = 'face' | 'head' | 'arm' | 'body' | 'stance' | 'tail' | 'ears' | 'wings';
 /** The parts of her a figure may have beyond the kit's body. */
-const APPENDAGES: readonly Channel[] = ['tail', 'ears', 'wings'];
+export const APPENDAGES: readonly Channel[] = ['tail', 'ears', 'wings'];
 /** Their names in the prompt. */
-const APPENDAGE_NAMES: Partial<Record<Channel, string>> = { tail: '尾巴', ears: '耳朵', wings: '翅膀' };
+export const APPENDAGE_NAMES: Partial<Record<Channel, string>> = { tail: '尾巴', ears: '耳朵', wings: '翅膀' };
 const ALL: readonly Channel[] = ['face', 'head', 'arm', 'body', 'stance', ...APPENDAGES];
 /**
  * What part of her a kit word takes. It also encodes what the kit refuses or changes when words come together: a
@@ -174,7 +174,7 @@ interface Member { name: string; v: VocabWord; with?: Member; ids?: string[] }
 /** Whether `v` takes the face alone (a plain expression; not stone, not sleep or dizzy). */
 const faceOnly = (v: VocabWord) => { const cs = channelsOf(v); return cs.length === 1 && cs[0] === 'face'; };
 /** A word's first name in `language` (else Chinese, else its id). */
-const firstName = (v: VocabWord, language = 'zh') => (v.names[language] ?? v.names.zh ?? [])[0] ?? v.id;
+export const firstName = (v: VocabWord, language = 'zh') => (v.names[language] ?? v.names.zh ?? [])[0] ?? v.id;
 
 /**
  * The entries of one token (`a` or `a+b+…`): each run of members that can be done at once is one entry (ids joined by
@@ -350,6 +350,11 @@ const MOODS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['惊讶、紧张(意外、替对方担心)', ['surprised', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
   ['其他', ['neutral', 'thinking', 'confused', 'doubt', 'determined', 'eager', 'sleepy']],
 ];
+/** The mood group (`MOODS`) an expression is listed under, its label without the parenthesised hint; a pack's own expression is 其他. */
+export function moodLabel(id: string): string {
+  const m = MOODS.find(([, ids]) => ids.includes(id)) ?? MOODS[MOODS.length - 1];
+  return m[0].replace(/\(.*\)$/, '');
+}
 
 /**
  * The motions' parts as the prompt groups them (for words done at once): 头 the head alone, the figure's tail, ears or
@@ -363,7 +368,7 @@ function appendageLabel(words: readonly VocabWord[]): string {
   const names = APPENDAGES.filter((c) => words.some((v) => channelsOf(v)[0] === c)).map((c) => APPENDAGE_NAMES[c]);
   return names.length > 1 ? `${names.join('、')}(各算一个部位)` : `${names[0]}(单独算一个部位)`;
 }
-function partOf(v: VocabWord, has: readonly Channel[] = []): { part: number; also: string } {
+export function partOf(v: VocabWord, has: readonly Channel[] = []): { part: number; also: string } {
   const cs = channelsOf(v);
   if (cs.length === 1 && cs[0] === 'head') return { part: 0, also: '' };
   if (cs.length === 1 && APPENDAGES.includes(cs[0])) return { part: 1, also: '' };

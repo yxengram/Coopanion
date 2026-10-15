@@ -1,8 +1,10 @@
 import { join } from 'node:path';
 import { runtimesRoot, modelsRoot } from 'cortico/paths.ts';
+import { envPromptOverridePath } from 'cortico/core/prefix.ts';
 import type { WorldDefinition } from 'cortico/world.ts';
 import { DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, type DesktopPetConfigSection, type PetSkin } from './config.ts';
-import { DesktopPetWorld, modelsDirFor, type PetBotControls } from './world.ts';
+import { DesktopPetWorld, modelsDirFor, type PetBotControls, type PetMode } from './world.ts';
+import type { DecisionRecord } from './decider.ts';
 
 /** The console keeps the bot's avatar here, in the deployment directory. */
 const AVATAR_FILE = 'avatar.png';
@@ -18,6 +20,18 @@ export interface DesktopPetAssembly {
   packRoots?(): string[];
   /** Called after the bot changed its own settings (`pet_set`). */
   onBotChange?(): void;
+  /**
+   * The OpenRouter key for decider mode (src/decider.ts), read at each use, '' when there is none. Without it the
+   * World stays in classic mode (the bot writes expression and motion markers).
+   */
+  deciderKey?(): string;
+  /** Called when the mode changes, so the app rebuilds the system prefix (tools and environment prompt differ). */
+  onModeChange?(mode: PetMode): void;
+  /** Called after each decision (evals). */
+  onDecision?(rec: DecisionRecord): void;
+  /** The decisions endpoint and fetch, for evals and tests (default OpenRouter, global fetch). */
+  deciderUrl?: string;
+  deciderFetch?: typeof fetch;
 }
 
 /** The definition, with what an embedding app lends the World. */
@@ -43,6 +57,12 @@ export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDe
         controls: assembly.controls,
         packRoots: () => [join(ctx.dataDir, 'figures'), ...assembly.packRoots?.() ?? []],
         onBotChange: () => assembly.onBotChange?.(),
+        ...(assembly.deciderKey ? { deciderKey: () => assembly.deciderKey!() } : {}),
+        onModeChange: (mode) => assembly.onModeChange?.(mode),
+        onDecision: (rec) => assembly.onDecision?.(rec),
+        deciderUrl: assembly.deciderUrl,
+        deciderFetch: assembly.deciderFetch,
+        envOverrideFile: () => envPromptOverridePath(ctx.botDir, DESKTOP_PET_ID),
       });
       assembly.onCreate?.(world);
       return world;

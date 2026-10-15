@@ -58,6 +58,7 @@ import { followPetLook } from './console-theme.ts';
 import { askForKey, guideDone, markDone, runGuide, type GuideDeps } from './guide.ts';
 import { noticeDefinition, type NoticeWorld } from './notice.ts';
 import { CONSOLE_PORT, DEPLOYMENT, DISPLAY_NAME, SEED_DIR, seed } from './seed.ts';
+import { openRouterKey } from './decider-key.ts';
 import { crashFields, describeEndpoint, publicExtensionName, reportedLook, Telemetry, type Counter } from './telemetry.ts';
 
 /** The active endpoint's key is set in the process environment or the endpoint's `.env`. */
@@ -386,6 +387,8 @@ export async function main(): Promise<void> {
   let notice: NoticeWorld | null = null;
   /** The introduction is running: the settings it makes are not told as changes. */
   let guiding = false;
+  /** Rebuilds the system prefix once the bot has started (the pet's decider mode switched on or off). */
+  let reloadPrefix: (() => Promise<void>) | null = null;
   const guideRun = async (deps: GuideDeps) => {
     guiding = true;
     try { await runGuide(deps); } finally { guiding = false; }
@@ -407,6 +410,9 @@ export async function main(): Promise<void> {
       },
     },
     onCreate: (world) => { pet = world; },
+    // decider mode: the key of the person's OpenRouter endpoint, read at each use; a switch rebuilds the prefix
+    deciderKey: () => (config ? openRouterKey(config.providers, providersRoot()) : ''),
+    onModeChange: () => { void reloadPrefix?.(); },
     onBotChange: () => (notice as NoticeWorld | null)?.acceptCurrent(),
     onSkin: (skin) => followPetLook(join(deploymentRoot(), DEPLOYMENT), skin, (pet as DesktopPetWorld | null)?.packs() ?? []),
   });
@@ -498,6 +504,9 @@ export async function main(): Promise<void> {
   const keyMissing = !hasKey(loaded.config);
   if (keyMissing) bot.core.bus.setPaused(true);
   const { port } = await bot.start();
+  reloadPrefix = () => bot.core.loop.reloadSystemPrefix().catch((err: unknown) => {
+    bot.core.runlog.logger('process').emit('warn', '桌宠换模式后重建前缀失败', { event: 'pet-mode-reload', err });
+  });
   stats?.start();
   process.send?.({ type: 'companion:ready', port, dataDir: loaded.dataDir, keyMissing });
   const guideDeps: GuideDeps = {

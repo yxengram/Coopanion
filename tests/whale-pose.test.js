@@ -1874,6 +1874,7 @@ describe('live faces on the kneeling and lying drawings, as the whale draws them
     try {
       s.run(.5);
       s.pet.doGroup(['lie', 'smug', 'happy']); s.run(3);
+      s.pet.pet.blinkT = 99; s.pet.pet.blinkAge = 9; s.run(1 / 60);   // (no blink of her own on the frame checked)
       const f = s.last();
       expect(f.lie).toBe(1);
       expect(f.up).toContain('lieFx');

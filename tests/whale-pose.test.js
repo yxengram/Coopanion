@@ -1822,6 +1822,8 @@ describe('live faces on the kneeling and lying drawings, as the whale draws them
       expect(s.last().up).not.toContain('kneelFx');
       s.pet.doWord('kneel'); s.run(3);
       s.pet.doWord('sad'); s.run(.6);
+      // (no blink of her own on the frame checked: past DRAWN_SHUT a blinking eye is the painted one, not sad's sprite)
+      s.pet.pet.blinkT = 99; s.pet.pet.blinkAge = 9; s.run(1 / 60);
       const f = s.last();
       expect(f.kneel).toBe(1);
       for (const id of ['kneel_blank', 'kneel_live', 'kneel_fringe']) expect(f.alpha[id], id).toBe(1);

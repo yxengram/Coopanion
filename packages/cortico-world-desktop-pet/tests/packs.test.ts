@@ -251,7 +251,7 @@ describe('pairs of expressions shown as one face', () => {
   it('the built-ins read with their judged pairs (the four girls the same, the whale fewer, Coo the fewest)', () => {
     const by = Object.fromEntries(figurePacks([]).packs.map((p) => [p.id, p.manifest.pairs]));
     const n = (id: string) => Object.keys(by[id]).length;
-    expect([n('coo'), n('whale'), n('claude-chan'), n('gpt-chan'), n('gemini-chan'), n('grok-chan')]).toEqual([24, 98, 118, 118, 118, 118]);
+    expect([n('coo'), n('whale'), n('claude-chan'), n('gpt-chan'), n('gemini-chan'), n('grok-chan')]).toEqual([24, 106, 135, 135, 135, 135]);
     expect(by['gpt-chan']).toEqual(by['claude-chan']);
     expect(by['gemini-chan']).toEqual(by['claude-chan']);
     expect(by['grok-chan']).toEqual(by['claude-chan']);

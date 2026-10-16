@@ -3135,8 +3135,8 @@ describe('two faces of one group shown as one (plus)', () => {
     expect(maps['grok-chan']).toEqual(maps['claude-chan']);
     // the whitelists as judged: Coo the fewest, the girls the most
     expect(Object.keys(maps.coo).length).toBe(24);
-    expect(Object.keys(maps.whale).length).toBe(98);
-    expect(Object.keys(maps['claude-chan']).length).toBe(118);
+    expect(Object.keys(maps.whale).length).toBe(106);
+    expect(Object.keys(maps['claude-chan']).length).toBe(135);
   });
 });
 

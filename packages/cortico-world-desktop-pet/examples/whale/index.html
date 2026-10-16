@@ -130,12 +130,12 @@ $('#scale').oninput = e => { scale = +e.target.value; ctl.resize(); };
 /* ---------- the prompt's grouping, mirrored from src/script.ts (TypeScript, not loadable here): keep in sync ---------- */
 // script.ts MOODS: the expressions by mood, each base face before the composites near it; a pack's own goes to 其他
 const MOODS = [
-  ['开心(好消息)', ['happy', 'giggle', 'lol', 'laughcry', 'blissful', 'celebrate', 'excited', 'wow', 'dreamy', 'crave']],
+  ['开心(好消息)', ['happy', 'giggle', 'lol', 'laughcry', 'blissful', 'celebrate', 'excited', 'wow', 'dreamy', 'crave', 'drool']],
   ['调皮、得意(逗人、显摆)', ['wink', 'smug', 'smirk', 'tongue', 'sly', 'coax', 'innocent']],
   ['喜欢、害羞(表白、礼物)', ['love', 'flutter', 'smitten', 'shy', 'bashful', 'moved', 'gentle']],
   ['难过(坏消息、陪对方难过、安慰对方)', ['sad', 'comfort', 'sulk', 'cry', 'whimper', 'heartbroken', 'gloomy', 'brave', 'pained']],
-  ['生气、嫌弃(被惹、被吐槽)', ['angry', 'fuming', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'meh', 'speechless']],
-  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
+  ['生气、嫌弃(被惹、被吐槽)', ['angry', 'fuming', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'eyeroll', 'meh', 'deadpan', 'speechless']],
+  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'shocked', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
   ['其他', ['neutral', 'thinking', 'confused', 'doubt', 'determined', 'eager', 'sleepy']],
 ];
 // script.ts APPENDAGES, APPENDAGE_NAMES, CHANNELS, KNEEL_WITH_ARMS, channelsOf, rankOf, PARTS, appendageLabel, partOf

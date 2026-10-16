@@ -64,8 +64,10 @@ describe('exported whale pack', () => {
     expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
     // the 72 words of v0.2.6, the curious tilt (歪头), her chin on her hand (托腮), the head's and body's moves 低头, 眨眨眼,
     // 凑近, 后仰, 晃来晃去, 跺脚, her tail's 摇尾巴 and the faces made of parts (PLUS_MIXES), which the pack's own kit draws
-    // and the arm words drawn anew for her (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗)
-    expect(m.vocab.length).toBe(88 + Object.keys(PLUS_MIXES).length);
+    // and the arm words drawn anew for her (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗), and expr2's faces with her drawn eyes and
+    // drool mouth (翻白眼, 震惊, 死鱼眼, 流口水)
+    expect(m.vocab.length).toBe(92 + Object.keys(PLUS_MIXES).length);
+    for (const id of ['eyeroll', 'shocked', 'deadpan', 'drool']) expect(m.vocab.some((w) => w.id === id), id).toBe(true);
     // (each with a sound of its own the pack ships)
     expect(m.vocab.filter((w) => NEW_ARM_WORDS.includes(w.id)).map((w) => w.names.zh[0])).toEqual(['拍手', '摊手', '抱头', '举手', '点赞', '嘘', '擦汗']);
     for (const t of NEW_ARM_WORDS) { expect(upstreamTones, t).not.toContain(t); expect(Object.keys(m.sounds), t).toContain(t); }
@@ -164,6 +166,8 @@ describe('exported whale pack', () => {
       // the live faces on the kneeling and lying drawings: the blank face, and each dress's own hair over it
       for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`schemes/${sc.id}/tex/${n}.png`);
       expect(to).toContain(`schemes/${sc.id}/feat/eyeL_iris.png`);
+      // expr2's drawn eyes and drool mouth, recoloured for every dress
+      for (const n of ['eyeroll_eyeL', 'shocked_eyeR', 'deadpan_eyeL', 'drool_mouth']) expect(to).toContain(`schemes/${sc.id}/feat/${n}.png`);
     }
     for (const p of model.parts) expect(to).toContain(`tex/${p.tex}.png`);
     for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`tex/${n}.png`);

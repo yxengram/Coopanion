@@ -76,7 +76,7 @@ describe('vocabTable', () => {
 
   it('lists every word once, one line each with its id, names and look', () => {
     for (const v of VOCAB) expect(lines().filter((l) => l.startsWith(`- ${v.id} `)), v.id).toHaveLength(1);
-    expect(row('happy')).toMatch(/^- happy 开心\/高兴:/);
+    expect(row('happy')).toMatch(/^- happy 开心\/高兴\/眯眼笑:/);
     expect(row('petrify')).toContain('不和别的同时做');
     expect(row('happy')).not.toContain('不和别的同时做');
   });
@@ -132,6 +132,12 @@ describe('vocabTable', () => {
     expect(t.indexOf('- sad ')).toBeLessThan(t.indexOf('- comfort '));
     expect(t.indexOf('- comfort ')).toBeLessThan(t.indexOf('- sulk '));
     expect(t.indexOf('- sulk ')).toBeLessThan(t.indexOf('- angry '));
+    // expr2's faces beside their neighbours: 流口水 after 馋, 翻白眼 after 嫌弃, 死鱼眼 after 呵呵, 震惊 right after 惊讶
+    expect(['drool', 'eyeroll', 'deadpan', 'shocked'].map((id) => groupOf(id))).toEqual([
+      '开心(好消息)', '生气、嫌弃(被惹、被吐槽)', '生气、嫌弃(被惹、被吐槽)', '惊讶、紧张(意外、替对方担心)']);
+    for (const [a, b] of [['crave', 'drool'], ['disgusted', 'eyeroll'], ['eyeroll', 'meh'], ['meh', 'deadpan'], ['deadpan', 'speechless'], ['surprised', 'shocked'], ['shocked', 'blank']]) {
+      expect(t.indexOf(`- ${a} `), `${a} < ${b}`).toBeLessThan(t.indexOf(`- ${b} `));
+    }
     const own: VocabWord[] = [...VOCAB, { id: 'beep', kind: 'expression', names: { zh: ['哔哔脸'] }, about: { zh: '屏幕一闪' }, seconds: 1 }];
     expect(groupOf('beep', vocabTable(own))).toBe('其他');
   });

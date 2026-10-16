@@ -23,6 +23,7 @@
 > - **新手势和新表情的音效**（只在 plus 下）：v0.5.0 以来加的词原先借不太合适的现成音色（拍手 tick、嘘 soft、擦汗 sigh、点赞 ding、举手 pop、摊手 hmm、抱头 surprised、加油 pop、记笔记 page、对手指 shy、扇翅膀 whoosh、气炸 angry、心碎 sad、撒花 sparkle、郁闷 sad、无言以对 wry、眼冒金星 surprised、安慰 soft），摇尾巴、抖耳朵没有声音。现在 `web/sound.js` 给它们各合成了一个短而轻的音色，做法和已有音色一样，音量也差不多（峰值 −18 到 −28 dBFS），声音跟着画面的节拍：拍手 `clap` 每次两手合上一声干脆的「啪」（带两下极短的回响和一点低音，`CLAP.at` 四声，和合掌那张画同一帧）；嘘 `shush` 手指到嘴边时一声轻轻的「嘘——」；擦汗 `wipe` 手腕抹过额头时一下轻擦声，接着呼出一口「呼」；点赞 `thumbs` 拇指一声轻响再往上跳五度的「叮咚」；举手 `raise` 一下上扬的风声加两声「我、我」小叮；摊手 `shrug` 一高一低、第二声微微发颤的「诶……诶～」；抱头 `headhold` 往下沉、发抖的「哦……」再两下闷闷的抽痛；加油 `fist` 一下挥拳风声、一记闷响和上扬的「冲！」；记笔记 `jot` 两小串、每串三下铅笔沙沙声；对手指 `twiddle` 四下一高一低的极轻小点；摇尾巴 `wag` 左右八下轻甩声，最后渐弱；抖耳朵 `earflick` 四下极短的轻颤（每抖一下一声）；扇翅膀 `wingbeat` 每次往下扇一声低低的「呼」（每秒 2.6 下，和 `WINGBEAT.rate` 一致）；气炸 `fume` 一声低低的嘟囔，上面三下「嘶」的冒烟声（和白烟一样 0.32 s 一团）；心碎 `heartbreak` 心弹出来一声小「叮」，0.6 s 裂开时一声脆响，两半掉下去时一个往下沉的难过的音；撒花 `confetti` 拉炮一声「啪」接一串亮晶晶的小音；郁闷 `gloom` 一个闷闷往下沉的「嗯……」和几滴雨声；无言以对 `dots` 「……」每冒出一个点响一下（0.25、0.55、0.85 s）；眼冒金星 `starry` 一圈打着颤的小星星声；安慰 `comfort` 三个往下走、最后落稳的柔和音（「没事、没事」）。跺脚仍用落地声 `land`（上游就有），竖耳朵、耳朵耷拉、低头、眨眨眼仍不出声，温柔的 `soft` 没改。新音色都标成 plus（`PLUS_TONES`），别的形象包听不到；导出包把用得到的渲染成 WAV 带上（大肥鱼 33 个、Claude 娘 34 个、GPT 娘和 Gemini 娘各 36 个），在上游 v0.1.17 里照样响。另外修了合成器的一个小毛病：每个音的增益在开始之前是默认的 1，开始那一帧可能「咔」地一下满幅，现在开始之前就是静音。
 > - **第六个形象 Grok 娘**（`grok-chan`）：上面这些她都有（跪坐混合体、跪坐和趴着的实时脸、画好的睁眼眨眼、小泪滴、手臂图一帧切换、头部和身体的动作、七个新画的手势、表情对 118 对、音效），词表是 Claude 娘的 119 个加 `wingbeat` 扇翅膀，共 120 个；扇的是蝴蝶结后面的两只小蝙蝠翅膀（站、坐是活的翅膀，跪坐换混合体，趴着扇趴姿图上画的翅膀）。
 > - **表情决策模式**（decider，不动 kit 和形象）：有 OpenRouter 密钥时 bot 不再看词表，只写一句心情，由 OpenRouter 的决策模型按部位各答一道选择题挑出一组词；走动由 bot 按像素决定，每次调用都带位置（§一.12）。
+> - **四个画好眼睛的新表情**（只在 plus 下；扩展脸 `PLUS_FACES` 只用现有的脸字段）：`eyeroll` 翻白眼/白眼（眼珠翻上去藏在平平的上眼皮下，只剩眼白，身子往后仰一点）、`shocked` 震惊/惊呆/傻眼（白眼珠、瞳孔缩成一个小点，头顶感叹号、额头三道黑线、僵住发抖；不设 `wide`，否则大肥鱼会先画惊讶的眼睛）、`deadpan` 死鱼眼/生无可恋/麻了（压成一条直线的眼皮、没有高光的呆滞眼珠，盯着你不动；矮的 `ring`，不是 `lid`）、`drool` 流口水/口水（半眯的 `lid` 眼望着上方、嘴角挂一滴口水、慢慢晃）。四位娘和大肥鱼的眼睛是生成后按原有画风裁切的贴图（`<expr>_eyeL/R`，大肥鱼 8 套配色各一份），四位娘还多了两张嘴：`mouth_drool`（带口水）和震惊的大张嘴 `mouth_gasp`，大肥鱼多了 `drool_mouth`；Coo 用 kit 的环形眼画（翻白眼的环往上看、震惊的大环、死鱼眼的扁环、流口水的眯眼）。音色借现成的：翻白眼 wry、震惊 surprised、死鱼眼 hmm、流口水 soft。另外「眯眼笑」成了开心的一个名字。原计划的「咬嘴唇」因为桌宠大小下咬住的嘴唇只有约 2 像素、和害羞的嘴分不开，没有加。新表情的表情对这一轮没有挑（`pairs` 不变）。设计和选图记录在 `scratch/expr2/DESIGN.md`。
 >
 > 实测：
 > - 组合扩展改动的行为，在真实 kit 上用 `/tmp/combo/` 下的脚本重新测过：
@@ -72,14 +73,14 @@
 
 | 形象 | 词数 | 表情 | 动作 |
 |---|---|---|---|
-| Coo | 103 | 58（28 + 30 个组合脸） | 45 |
-| 大肥鱼 | 118 | 58（28 + 30 个组合脸） | 60（多 `muse` 和 `droop`、`blink`、`closer`、`leanback`、`sway`、`stamp`，`clap`、`shrug`、`headhold`、`raise`、`thumbs`、`shush`、`wipe`，还有 `wag`） |
-| Claude 娘 | 119 | 58（28 + 30 个组合脸） | 61（少 `spout`，多 `muse`、`fist`、`jot`、`twiddle` 和上面六个、七个） |
-| GPT 娘 | 121 | 58（28 + 30 个组合脸） | 63（Claude 娘的 61 个，加 `wag`、`wingbeat`） |
-| Gemini 娘 | 123 | 58（28 + 30 个组合脸） | 65（Claude 娘的 61 个，加 `wag`、`earflick`、`earsup`、`earsdown`） |
-| Grok 娘 | 120 | 58（28 + 30 个组合脸） | 62（Claude 娘的 61 个，加 `wingbeat`） |
+| Coo | 107 | 62（32 + 30 个组合脸） | 45 |
+| 大肥鱼 | 122 | 62（32 + 30 个组合脸） | 60（多 `muse` 和 `droop`、`blink`、`closer`、`leanback`、`sway`、`stamp`，`clap`、`shrug`、`headhold`、`raise`、`thumbs`、`shush`、`wipe`，还有 `wag`） |
+| Claude 娘 | 123 | 62（32 + 30 个组合脸） | 61（少 `spout`，多 `muse`、`fist`、`jot`、`twiddle` 和上面六个、七个） |
+| GPT 娘 | 125 | 62（32 + 30 个组合脸） | 63（Claude 娘的 61 个，加 `wag`、`wingbeat`） |
+| Gemini 娘 | 127 | 62（32 + 30 个组合脸） | 65（Claude 娘的 61 个，加 `wag`、`earflick`、`earsup`、`earsdown`） |
+| Grok 娘 | 124 | 62（32 + 30 个组合脸） | 62（Claude 娘的 61 个，加 `wingbeat`） |
 
-- 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面，后来的六个带特效的组合脸排在 `meh` 后面，安慰 `comfort` 排在 `brave` 后面；之后又加了 `tilt` 歪头，排在 `sigh` 后面；表情手臂姿势的几个手势词（`muse` 等）排在 `idea` 后面，七个新画的手势（`clap` 到 `wipe`）紧跟在它们后面、`hips` 前面；`droop`、`blink` 排在 `tilt` 后面，`closer`、`leanback`、`sway`、`stamp` 排在 `peek` 后面。
+- 组合扩展之前是 72 / 71 个词。新加的 23 个组合脸（§一.9）排在 `giggle` 后面、第一个动作前面，后来的六个带特效的组合脸排在 `meh` 后面，安慰 `comfort` 排在 `brave` 后面；之后又加了 `tilt` 歪头，排在 `sigh` 后面；表情手臂姿势的几个手势词（`muse` 等）排在 `idea` 后面，七个新画的手势（`clap` 到 `wipe`）紧跟在它们后面、`hips` 前面；`droop`、`blink` 排在 `tilt` 后面，`closer`、`leanback`、`sway`、`stamp` 排在 `peek` 后面；四个画好眼睛的新表情 `eyeroll`、`shocked`、`deadpan`、`drool` 排在 `giggle` 后面、第一个组合脸 `smirk` 前面。
 - 一个名字在一个形象里只能指一个词（`readVocab` 校验，`vocabId` 查）。六个形象同一个词的名字相同（只有 `song` 不同：四位娘是「哼小曲」，Coo 和大肥鱼是「鲸歌」；`muse` 四位娘以「琢磨」开头、大肥鱼以「托腮」开头），包括上面那些近义名字；只有「握拳」在四位娘那里是 `fist`，在 Coo 和大肥鱼那里是 `determined`。
 - `spout` 只在 `coo/figure.json:1591` 和 `whale/figure.json:1684` 里。
 - 带 `lasting: true` 的只有 4 个词：`sit`、`sleep`、`kneel`、`lie`。
@@ -475,7 +476,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **出厂验证**〔实测〕：用 World 自己的 `parseScript`，按每个形象的词表和 `pairs` 解析 `【A+B】`（一半按键的顺序写，一半反过来），检查得到的组是 `眼+嘴`（按名单的方向）或别名词，再把组在示例页上 `ctl.doGroup`。5 个形象共 476 格（大肥鱼重挑后重跑了她的 98 格），脸名和 `parts` 全部和名单一致，控制台 0 个错误（`scratch/combo2/tools/ship-plan.ts` → `shipshots.cjs`，图在 `scratch/combo2/verify/shipped-<形象>.png`；大肥鱼重跑的 98 格在 `scratch/combo4/verify/shipped-whale.png`，`combo2` 里的那张还是重挑前的 81 格）。
 - **测试用的参数**：World 侧 `parseScript`/`parseActions`/`vocabTable` 的 `pairs` 参数（默认空），World 运行时传当前形象的名单。
 - **没有 `doAll` 的身体、非 plus 身体**：非 plus 身体没有 `doGroup`，不变。World 只为声明了 `pairs` 的形象合并（5 个内置形象都声明了；导出给上游的包不带 `pairs`），没声明的照旧拆开。声明了合成对、身体却不会合成时（没有 `doAll`），`figure-frame.js` 逐个做，后一个表情胜出，不会出错；页面的 `acts.js` 队列按成员计时，不受影响。
-- 〔测试〕`pet-actions.test.js`「two faces of one group shown as one」（26 个基本表情两两、两个方向共 650 种都按「第一个的眼、第二个的嘴」合成；内置名单的每一对经 World 的 `parseActions` 两种写法都发成名单的方向，kit 显示的眼和嘴与名单一致）；四位娘 figure 测试和 `whale-pose.test.js` 用自己的图画名单里的每一对（大肥鱼的 smug、angry、sad、shy 用自己画好的眼睛，shy 回头看你时用画的睁眼：`whale-pose.test.js`「takes smug's, angry's, sad's and shy's own drawn eyes…」；眨眼闭到四成以上是画的眼皮和睫毛线，站、坐、转头、跪坐、趴下都是：「blinks smug's, angry's, sad's and shy's drawn eyes shut…」「kneeling and lying, a drawn eye blinks shut…」；四位娘各自的 figure 测试「blinks a drawn open eye shut with the painted lid…」两条）；`PKG/tests/script.test.ts`「two expressions of one group as one face」、`packs.test.ts`、`world.test.ts`。
+- 〔测试〕`pet-actions.test.js`「two faces of one group shown as one」（基本表情两两、两个方向都按「第一个的眼、第二个的嘴」合成，现在是 30 个、870 种，含后来加的翻白眼、震惊、死鱼眼、流口水；内置名单的每一对经 World 的 `parseActions` 两种写法都发成名单的方向，kit 显示的眼和嘴与名单一致）；四位娘 figure 测试和 `whale-pose.test.js` 用自己的图画名单里的每一对（大肥鱼的 smug、angry、sad、shy 用自己画好的眼睛，shy 回头看你时用画的睁眼：`whale-pose.test.js`「takes smug's, angry's, sad's and shy's own drawn eyes…」；眨眼闭到四成以上是画的眼皮和睫毛线，站、坐、转头、跪坐、趴下都是：「blinks smug's, angry's, sad's and shy's drawn eyes shut…」「kneeling and lying, a drawn eye blinks shut…」；四位娘各自的 figure 测试「blinks a drawn open eye shut with the painted lid…」两条）；`PKG/tests/script.test.ts`「two expressions of one group as one face」、`packs.test.ts`、`world.test.ts`。
 
 ### 10. 头部通道（plus）
 
@@ -543,6 +544,7 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 - **位置**：页面发 `{ t: 'pose', x, w, facing, mode }`（连上时、`mode` 变化、走完、尺寸变化、朝向变化），World 由此和最后发出的姿势词算出姿势（跪坐在页面上也是 `sit`）。decider 模式下每个桌宠工具回执末尾、每批投递的事件里（恒挂一个 `piggyback` 的延迟事件 `desktop-pet.pose`，投递时现渲染）都有一行 `[位置] 屏幕横向 x/w 像素(百分比),面朝…,站着;往左还能走约…像素,往右约…像素。`。classic 模式不发这行。
 - **走动**：`pet_walk` 从最后报的 `x` 加减 `pixels`，先截到 `[0, w]`，页面和 kit 再截到舞台边；实际走的比要求少 8 像素以上就在回执里说「走到屏幕边停下了」并报停在哪。
 - kit、各形象、`figure.json`、导出包都没改；表情对清单和计数不变。评测：`scratch/combo2/eval`（`--decider`、`--classic`，见它的 README）。
+- **加了四个新表情之后**（翻白眼、震惊、死鱼眼、流口水）：它们自动成为表情题的选项，六个形象的表情题都从 59 个选项变成 63 个（62 个表情加「不换表情」，按 `buildQuestions` 点数）。说明就是 `about`，每条都写了什么时候用、和旁边哪张脸区别（比「嫌弃」更直接、比「惊讶」重、不是困也不是生气、眼睛放光想吃用「馋」）。选项多了会分走概率，表情门槛 0.20 和 `pairMin` 本该用 `scratch/decider/tune/requery.ts` 和 `scratch/combo2/eval/run.ts --decider` 重测，但这一轮环境里没有 `EVAL_DECIDER_KEY`，**没有实测**，门槛照旧。离线只能看旧答案（`answers-perplexity_pplx-decider-v1.1-27b.jsonl`，193 次决策，59 个选项）：188 次表情胜者 ≥ 0.20，其中 21 次在 0.20–0.30 之间——新脸的邻居（馋、嫌弃、呵呵、惊讶等）分走一部分概率时，这些最可能落到门槛下变成「不动」。有密钥后先跑 requery 看这一档的比例。
 
 ## 二、可同时使用性
 
@@ -606,11 +608,11 @@ LLM ──pet_say【词】<词>──────┤  └─ groupToken：整个
 5. **跪坐保持到手或全身动作**，表情、头部手势和尾巴、耳朵、翅膀的动作不结束它；大肥鱼和四位娘只占「手」的手势也不结束它。
 6. **一组词同一帧做**：World 先按部位把一组拆好（§二.6），页面把整组交给 `doAll`，kit 在同一帧里做完（`doGroup`）。组里的表情至少持续到同组手势自带的脸结束（唱歌 4.1 s、看书 4.4 s、喝茶 3.7 s、跳舞 3.4 s）。
 
-### 2. 词的分类与部位（共 103 个，数据来自 Coo 的 `figure.json`；部位见 `script.ts:84-104` 的 `CHANNELS`）
+### 2. 词的分类与部位（共 107 个，数据来自 Coo 的 `figure.json`；部位见 `script.ts:84-104` 的 `CHANNELS`）
 
 | 类 | 部位（`CHANNELS`） | 词 |
 |---|---|---|
-| **E 表情（58）** | 表情 | neutral 平静、happy 开心、wink 眨眼、love 喜欢、shy 害羞、surprised 惊讶、angry 生气、sad 难过、sleepy 犯困、thinking 思考、smug 得意、pout 嘟嘴、worried 担心、determined 认真、flustered 慌张、scared 害怕、excited 期待、cry 大哭、confused 疑惑、disgusted 嫌弃、nervous 紧张、gentle 温柔、awkward 尴尬、moved 感动、coax 撒娇、tongue 吐舌、giggle 偷笑；30 个组合脸（§一.9）；**petrify 石化**占全部部位，不和别的同时做 |
+| **E 表情（62）** | 表情 | neutral 平静、happy 开心、wink 眨眼、love 喜欢、shy 害羞、surprised 惊讶、angry 生气、sad 难过、sleepy 犯困、thinking 思考、smug 得意、pout 嘟嘴、worried 担心、determined 认真、flustered 慌张、scared 害怕、excited 期待、cry 大哭、confused 疑惑、disgusted 嫌弃、nervous 紧张、gentle 温柔、awkward 尴尬、moved 感动、coax 撒娇、tongue 吐舌、giggle 偷笑、eyeroll 翻白眼、shocked 震惊、deadpan 死鱼眼、drool 流口水；30 个组合脸（§一.9）；**petrify 石化**占全部部位，不和别的同时做 |
 | **H 头部手势（4）** | 头 | nod 点头、shake 摇头、sigh 叹气、tilt 歪头；Coo 没有的：droop 低头、blink 眨眨眼（大肥鱼、四位娘） |
 | **P 尾巴、耳朵、翅膀（0）** | 尾巴 / 耳朵 / 翅膀，各算一个部位（提示词里按形象有的部位列成一组，如「尾巴、耳朵(各算一个部位)」；sleep、petrify 也占它们） | Coo 没有的：wag 摇尾巴（大肥鱼、GPT 娘、Gemini 娘）、wingbeat 扇翅膀（GPT 娘、Grok 娘）、earflick 抖耳朵、earsup 竖耳朵、earsdown 耳朵耷拉（Gemini 娘） |
 | **G 手势（18）**：不改模式 | 手 | wave 招手、shiver 发抖、heart 比心、serve 奉茶、salute 敬礼、vsign 比耶、point 指、cover 捂嘴笑、cross 抱臂、stretch 伸懒腰、pray 拜托、scratch 挠头、idea 有了、hug 抱抱、hips 叉腰、spout 喷水（仅 Coo/大肥鱼）、sip 喝茶、read 看书；Coo 没有的：muse 托腮/琢磨（大肥鱼、四位娘）、fist 加油、jot 记笔记、twiddle 对手指（四位娘）；clap 拍手、shrug 摊手、headhold 抱头、raise 举手、thumbs 点赞、shush 嘘、wipe 擦汗（大肥鱼、四位娘） |
@@ -947,7 +949,7 @@ busy 那一行补充：鼠标输入仍然生效。翻滚中戳她，可能把翻
 - 跪坐、趴下时脸是实时的：`poses.<kneel|lie>.face`（空白脸 `<id>_blank` + 头发前景 `<id>_fringe` 两张图，中间是实时脸贴图 `<id>Fx`）。`paintFace` 带上 `face.place` 再画一遍：每只眼睛（连同它那边的腮红、眼泪）和嘴各按自己的矩阵从站姿脸的像素贴到趴着、跪着的头上（转正、缩放，趴着时远侧的眼睛窄一些），所以 smug、angry、sad、shy 的眼睛图也跟着上去。脸挂在 `kneelHead` / `lieLegs` 上，跟着点头、摇头、叹气、呼吸和趴着时头的歪动；透明度跟跪坐图、趴姿图一样，所以一帧切换时跟着切。趴着时这三张用 12×8 的网格（`FLOOR_GRID`，空白脸和头发前景的写在 model.json 里），头转动时跟趴姿图的细网格贴在一起，头发前景不会在图上的头发上滑开。8 套配色各有一张空白脸：由默认配色那张按各自的颜色重新上色（不要直接拷默认配色的，它的发梢在头发前景的羽化边下会透出 DeepSeek 的蓝头发）；头发前景按各自的跪坐图、趴姿图裁。缺这两张图的配色仍用笑、闭眼、说话贴片。〔测试〕`tests/whale-pose.test.js`
 - 跪坐混合体：手势有手臂图或抬手（招手、比心、欢呼的手臂、发抖、端着的东西、抬手类）或托腮时切进去；唱歌、喷水和表情带的手臂角度不算（仍画跪坐图）。她的身体按坐着的 rig 下沉 19.4，腰（`st.waist.ty`）抬回 `headDrop − (low − 9.6·sitK)`，所以头落在跪坐图的头上；混合体时藏起站姿和坐姿的裙子、腰后的蝴蝶结、腿和尾巴，`kneel_low`（z 5.2，同她的裙子）画尾鳍。8 套配色各有一张 `kneel_low`，用同一套蒙版从各自的跪坐图和裙子裁出。
 - 大肥鱼画的手臂换拳头手臂也是一帧切换（`SWAP_AT`）：招手、伸懒腰在拳头手臂转到 82.5° 时；欢呼和长的抬手在离目标角还差 14.5° 时（画的手臂这时还跟着拳头手臂的角度，之后再转到自己的角度）；比心那一类（端杯、拿书、双手的、弯臂抬手）在手势包络进来到 0.175、出去降到 0.475 时（`handsIn`，图之后再升起到位）；敬礼按手势时钟（0.045 / 0.905）；托腮在托腮份额 0.15 时（前臂还几乎垂着，和垂下的手臂方向接近）。〔测试〕`tests/whale-pose.test.js`
-- 组合脸由 `paintFace` 按部位画眼睛和嘴。smug、angry、sad、shy 有自己画好的眼睛（`drawnEye`；8 套配色各一份），所以 smirk、doubt、bashful、huff、sulk 和眼睛取自这四张脸的表情对也用它们；这时眼皮褶（`eye_creases`）淡出，贴图自带。眨眼（和 kit 让她闭眼）闭上超过 `DRAWN_SHUT`（0.4）时换成画的眼睛，眼皮按同样程度落下，闭眼的帧有眼皮和睫毛线；这之前贴图只压扁（`sy = 1 - .9·shut`），一帧切换藏在眨眼里。站、坐、转头和跪坐、趴下的实时脸走的都是这一处。shy 回头看你那一下（plus 的 shy 每 2.6 s 一次）用画的睁眼。worried、determined 仍是画的睁眼加眉。〔测试〕`tests/whale-pose.test.js`
+- 组合脸由 `paintFace` 按部位画眼睛和嘴。smug、angry、sad、shy 有自己画好的眼睛（`drawnEye`；8 套配色各一份），所以 smirk、doubt、bashful、huff、sulk 和眼睛取自这四张脸的表情对也用它们（后来 eyeroll、shocked、deadpan 也有了自己画好的眼睛，都是 `ring` 眼，所以同样走 `drawnEye`、同样过了 DRAWN_SHUT 就切回画的眼睛闭合）；这时眼皮褶（`eye_creases`）淡出，贴图自带。眨眼（和 kit 让她闭眼）闭上超过 `DRAWN_SHUT`（0.4）时换成画的眼睛，眼皮按同样程度落下，闭眼的帧有眼皮和睫毛线；这之前贴图只压扁（`sy = 1 - .9·shut`），一帧切换藏在眨眼里。站、坐、转头和跪坐、趴下的实时脸走的都是这一处。shy 回头看你那一下（plus 的 shy 每 2.6 s 一次）用画的睁眼。worried、determined 仍是画的睁眼加眉。〔测试〕`tests/whale-pose.test.js`
 
 **Claude 娘**
 

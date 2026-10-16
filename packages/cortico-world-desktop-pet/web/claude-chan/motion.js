@@ -398,6 +398,8 @@ export const MOOD = {
   gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], pleading: [.2, .3], moved: [.4, .5], sighing: [-.3, 0], petrify: [.6, 0],
   coax: [.5, 1], singing: [.6, .6], saluting: [.9, .3], tongue: [.6, .8], stretching: [.3, .2], pointing: [.8, .4],
   sipping: [.1, .2], reading: [0, .1],
+  // (expr2) rolling her eyes and dead-fish eyes droop a little and go still; shocked is stiff and up; drooling sways
+  eyeroll: [-.3, 0], shocked: [1, 0], deadpan: [-.5, 0], drool: [.3, .4],
 };
 // brows by face, master pixels: [lift of both brows, extra lift of their inner ends, extra lift of the right brow]
 export const BROW = {
@@ -408,6 +410,8 @@ export const BROW = {
   excited: [3, 0], cry: [1, 5], confused: [1, 0, 5], disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
   gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5],
   singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
+  // (expr2) eyeroll's brows up a little and flat; shocked's high, as petrify's; deadpan's lowered, flat; drool's soft
+  eyeroll: [1, -1], shocked: [6, 1], deadpan: [-1.5, 0], drool: [1, 1],
 };
 // the head by face: in-plane tilt (degrees, toward +x) and pitch (angleY, down +)
 export const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: -4, giggle: 5, pleading: 4, coax: 4, tongue: -5 };

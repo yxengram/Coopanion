@@ -1193,6 +1193,51 @@ describe('a gentle smile, an awkward one and a giggle', () => {
   });
 });
 
+describe('rolling her eyes, shocked, dead-fish eyes and drooling (expr2, plus)', () => {
+  const P = { exprAt: 0, exprUntil: 9, modeT: 1 };
+  it('are plus faces made only of face fields every figure already reads, each with a tone the other faces play', () => {
+    const NEW = ['eyeroll', 'shocked', 'deadpan', 'drool'];
+    expect(PLUS_EXPRESSIONS.slice(PLUS_EXPRESSIONS.indexOf('tongue') + 1, PLUS_EXPRESSIONS.indexOf('tongue') + 5)).toEqual(NEW);
+    for (const n of NEW) {
+      expect(FACES[n], n).toBeUndefined();
+      expect(KIT_EXPRESSIONS, n).not.toContain(n);
+      expect(PLUS_MIXES[n], n).toBeUndefined();
+      for (const t of [0, .7, 2.3]) {
+        const fc = PLUS_FACES[n].f(t, P);
+        expect(Object.keys(fc).every((k) => ['gap', 'eyes', 'lookAt', 'lean', 'bang', 'gloom', 'shake', 'sag', 'lookLock', 'blush', 'rock'].includes(k)), n).toBe(true);
+        for (const e of fc.eyes) expect(['ring', 'lid'], n).toContain(e.shape);
+      }
+    }
+    expect(NEW.map((n) => EXPR_TONES[n])).toEqual(['wry', 'surprised', 'hmm', 'soft']);
+    // (lipbite was planned and dropped: no drawing of a bitten lip reads at pet size)
+    expect(PLUS_FACES.lipbite).toBeUndefined();
+  });
+
+  it('eyeroll looks up, shocked is wide-ringed without `wide`, deadpan is a low ring held on you, drool a half-shut lid that rocks', () => {
+    const e = PLUS_FACES.eyeroll.f(1, P);
+    expect(e.eyes.every((x) => x.shape === 'ring' && x.dy === -5 && x.ry === 12)).toBe(true);
+    expect(e.lookAt[1]).toBeLessThan(0);
+    expect(e.lean).toBeLessThan(0);
+    const s = PLUS_FACES.shocked.f(1, P);
+    expect(s.eyes.every((x) => x.shape === 'ring' && x.rx === 19 && x.ry === 20)).toBe(true);
+    expect([s.wide, s.bang, s.gloom, s.shake]).toEqual([undefined, true, true, .6]);
+    const d = PLUS_FACES.deadpan.f(1, P);
+    expect(d.eyes.every((x) => x.shape === 'ring' && x.ry === 9)).toBe(true);
+    expect(d.lookLock).toBe(true);
+    const r = (t) => PLUS_FACES.drool.f(t, P).rock;
+    expect(PLUS_FACES.drool.f(1, P).eyes.every((x) => x.shape === 'lid' && x.ry === 7)).toBe(true);
+    expect(Math.max(r(.8), r(2.4)) - Math.min(r(.8), r(2.4))).toBeGreaterThan(.3);
+    // the pet takes each as an asked-for face and holds it
+    const pet = barePet();
+    run(pet, 1);
+    for (const n of ['eyeroll', 'shocked', 'deadpan', 'drool']) {
+      expect(pet.doWord(n), n).toBe(true);
+      run(pet, .5);
+      expect(pet.pet._fname, n).toBe(n);
+    }
+  });
+});
+
 describe("a whale's spout", () => {
   /** The spray beads drawn now, as [x, y] on the stage. */
   const beads = pet => [...pet.fxHtml().matchAll(/<circle fill="#cdeeff"[^>]*cx="([-\d.]+)" cy="([-\d.]+)"/g)].map(m => [+m[1], +m[2]]);
@@ -3028,8 +3073,8 @@ describe('two faces of one group shown as one (plus)', () => {
     expect(pet.pet._fc.parts.mouth).toBe('happy');
   });
 
-  it('every two plain faces (26), either way round, make a face of the first one\'s eyes and the second one\'s mouth, and no stone', () => {
-    expect(PLAIN.length).toBe(26);
+  it('every two plain faces (30), either way round, make a face of the first one\'s eyes and the second one\'s mouth, and no stone', () => {
+    expect(PLAIN.length).toBe(30);
     for (const n of PLAIN) expect(PLUS_FACES[n] ?? FACES[n], n).toBeDefined();
     const pet = barePet();
     run(pet, 1);
@@ -3049,7 +3094,7 @@ describe('two faces of one group shown as one (plus)', () => {
         run(pet, 1 / 30);
       }
     }
-    expect(n).toBe(650);
+    expect(n).toBe(870);
   });
 
   it("the built-in figures' pairs: the World sends each as its manifest says, and the kit shows those eyes and that mouth (the four girls the same)", () => {

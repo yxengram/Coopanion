@@ -1420,6 +1420,15 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     expect(drawnEye('happy', ring(), has)).toBe(null);
     expect(drawnEye('angry', ring(), () => false)).toBe(null);
     for (const f of DRAWN_EYES) for (const k of ['eyeL', 'eyeR']) expect(model.feat.sprites[`${f}_${k}`], `${f}_${k}`).toHaveLength(4);
+    // expr2's eyeroll, shocked and deadpan: ring eyes, so their own drawings (shocked is not `wide`, which would paint
+    // the surprised eyes first)
+    expect(DRAWN_EYES).toEqual(expect.arrayContaining(['eyeroll', 'shocked', 'deadpan']));
+    for (const f of ['eyeroll', 'shocked', 'deadpan']) {
+      const fc = PLUS_FACES[f].f(.5, { exprAt: 0, exprUntil: 9, modeT: 1 });
+      expect(fc.wide, f).toBeUndefined();
+      for (const e of fc.eyes) expect(drawnEye(f, e, has), f).toBe(f);
+      expect(drawnEye(f, fc.eyes[0], () => false), f).toBe(null);
+    }
     const { pet, run, done } = await whaleOnKit();
     try {
       let st = null;
@@ -1445,6 +1454,11 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
       const paint = (fc, o) => { drawn.length = 0; fig.draw(petG, fc, o); return drawn.filter(n => /eye[LR]/.test(n)); };
       const t = .5, p = { exprAt: 0, exprUntil: 9, modeT: 1 };
+      // (expr2) drool: the half-shut painted eyes and her own drooling mouth, moved up onto the mouth line; shocked: the
+      // surprised mouth, a little bigger
+      const mouths = (f) => { drawn.length = 0; fig.draw(petG, PLUS_FACES[f].f(t, p), frame({ face: f, t })); return drawn.filter(n => /mouth/.test(n)); };
+      expect(mouths('drool')).toEqual(['drool_mouth.png']);
+      expect(mouths('shocked')).toEqual(['surprised_mouth.png']);
       for (const f of DRAWN_EYES) {
         const fc = (PLUS_FACES[f] ?? FACES[f]).f(t, p);
         // standing, sitting, and turned (looking off to one side): the same eyes

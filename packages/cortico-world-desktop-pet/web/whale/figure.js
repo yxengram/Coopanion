@@ -378,9 +378,10 @@ export const FLOOR_GRID = { kneel: [6, 6], lie: [12, 8] };
 
 /**
  * Faces whose own drawn eyes (feat `<face>_eyeL` / `_eyeR`) stand in for the painted open eye, as the girls' FACE_EYES
- * do: smug's half-lids (its `lid` eyes as well), angry's and sad's slanted lids, shy's averted glance.
+ * do: smug's half-lids (its `lid` eyes as well), angry's and sad's slanted lids, shy's averted glance; eyeroll's irises
+ * rolled up under the lids, shocked's white eyes with pinpoint pupils, deadpan's flat lids over dull irises.
  */
-export const DRAWN_EYES = ['smug', 'angry', 'sad', 'shy'];
+export const DRAWN_EYES = ['smug', 'angry', 'sad', 'shy', 'eyeroll', 'shocked', 'deadpan'];
 /**
  * The drawn eye standing in for eye `e` of a face whose eyes are `eyesFace`'s (partsOf(...).eyes), or null for the
  * painted one: an open (ring) eye, or smug's half-shut lid; not shy's peek back at you (its eyes without the averting
@@ -783,7 +784,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // Each mouth sprite sits where its expression edit drew it, and three of those edits drew the mouth
   // higher than the master's: these move them down (master pixels) so the middle of each visible mouth
   // is on the master's mouth line, y 769, as the neutral, love, dizzy and surprised mouths already are.
-  const MOUTH_DY = { happy_mouth: 9, drag_mouth: 16, sleep_mouth: 4 };
+  // (drool's mouth was drawn 4 px low: up, its drop with it)
+  const MOUTH_DY = { happy_mouth: 9, drag_mouth: 16, sleep_mouth: 4, drool_mouth: -4 };
   // the model has a face's drawn eyes (both of them)
   const hasEyes = f => EYES.every(k => feat.sprites[`${f}_${k}`]);
 
@@ -861,6 +863,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     disgusted: ['drag_mouth', .6], nervous: -.2,
     // [form, width]: a drawn mouth wider (or narrower) than the usual
     gentle: .45, awkward: [.05, 1.6], giggle: .6, pleading: .25, moved: ['happy_mouth', .7], petrify: ['surprised_mouth', .5], saluting: .15, stretching: ['surprised_mouth', .75], pointing: .3,
+    eyeroll: -.3, shocked: ['surprised_mouth', 1], deadpan: [0, .8], drool: 'drool_mouth',
   };
 
   // where the face's outline is under each eye's tear (master y), with room for the stream's rounded end
@@ -1072,6 +1075,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     excited: [1, 1], cry: [-1, 0, -1], confused: [.2, .1], bowing: [-.2, .2],
     disgusted: [-.4, 0], nervous: [-.4, 0], peeking: [.6, .5],
     gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], pleading: [.2, .3], moved: [.4, .5], sighing: [-.3, 0], petrify: [.6, 0], coax: [.5, 1], singing: [.6, .6], saluting: [.9, .3], tongue: [.6, .8], stretching: [.3, .2], pointing: [.8, .4],
+    // (expr2) rolling her eyes and dead-fish eyes droop a little and go still; shocked is stiff and up; drooling sways
+    eyeroll: [-.3, 0], shocked: [1, 0], deadpan: [-.5, 0], drool: [.3, .4],
   };
   // brows by face, in master pixels: [lift of the whole brow, lift of its inner end (by the nose), extra lift of
   // the far brow]; a negative inner lift is the frown
@@ -1083,6 +1088,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     excited: [3, 0], cry: [1, 5], confused: [1, 0, 5],
     disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
     gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5], singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
+    // (expr2) eyeroll's brows up a little and flat; shocked's high, as petrify's; deadpan's lowered, flat; drool's soft
+    eyeroll: [1, -1], shocked: [6, 1], deadpan: [-1.5, 0], drool: [1, 1],
   };
   // the head by face: tilt (degrees, forward +) and pitch (angleY, down +)
   const HEAD_TILT = { shy: 7, thinking: -8, smug: -6, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -7, gentle: 6, awkward: -4, giggle: 5, pleading: 4, coax: 4, tongue: -5 };

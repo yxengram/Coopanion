@@ -150,7 +150,7 @@ describe('figure packs', () => {
     expect(unaliasSkin({ figure: 'coopanion-grok-chan', scheme: 'original' })).toEqual({ figure: 'grok-chan', scheme: 'original' });
   });
 
-  it('Coo knows 103 words (73 and 30 faces made of parts), the whale those, her chin on her hand, six moves of the head and body, seven arm words drawn anew and a wag of her tail (118), Claude-chan, GPT-chan, Gemini-chan and Grok-chan all but spout and the wag and three more arm poses (119), GPT-chan her tail\'s and wings\' (121), Gemini-chan her tail\'s and ears\' (123), Grok-chan her little wings\' (120), sit, sleep, lie and kneel lasting', () => {
+  it('Coo knows 107 words (77 and 30 faces made of parts), the whale those, her chin on her hand, six moves of the head and body, seven arm words drawn anew and a wag of her tail (122), Claude-chan, GPT-chan, Gemini-chan and Grok-chan all but spout and the wag and three more arm poses (123), GPT-chan her tail\'s and wings\' (125), Gemini-chan her tail\'s and ears\' (127), Grok-chan her little wings\' (124), sit, sleep, lie and kneel lasting', () => {
     const { packs } = figurePacks([]);
     let [coo, whale, claude, gpt, gemini, grok] = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab);
     // (the faces' arm poses as words of their own: drawn by the whale (her chin) and the girls (all four), not by Coo;
@@ -168,12 +168,18 @@ describe('figure packs', () => {
     for (const v of [whale, claude, gpt, gemini, grok]) expect(v!.filter((w) => NEW_ARMS.includes(w.id)).map((w) => w.id)).toEqual(NEW_ARMS);
     expect(whale!.filter((w) => MORE.includes(w.id)).map((w) => w.id).sort()).toEqual([...MORE].sort());
     expect(claude!.filter((w) => MORE.includes(w.id)).map((w) => w.id).sort()).toEqual([...MORE].sort());
-    expect(coo).toHaveLength(103);
-    expect(whale).toHaveLength(117);
-    expect(claude).toHaveLength(119);
-    expect([gpt, gemini, grok].map((v) => v!.length)).toEqual([119, 119, 119]);
-    expect(['whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab.length)).toEqual([118, 119, 121, 123, 120]);
-    expect(coo!.filter((w) => w.kind === 'expression')).toHaveLength(58);
+    expect(coo).toHaveLength(107);
+    expect(whale).toHaveLength(121);
+    expect(claude).toHaveLength(123);
+    expect([gpt, gemini, grok].map((v) => v!.length)).toEqual([123, 123, 123]);
+    expect(['whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].map((id) => packs.find((p) => p.id === id)!.manifest.vocab.length)).toEqual([122, 123, 125, 127, 124]);
+    expect(coo!.filter((w) => w.kind === 'expression')).toHaveLength(62);
+    // (expr2's four faces, in every pack after giggle, and 眯眼笑 a name of happy)
+    for (const v of [coo, whale, claude, gpt, gemini, grok]) {
+      const ids = v!.map((w) => w.id);
+      expect(ids.slice(ids.indexOf('giggle') + 1, ids.indexOf('giggle') + 5)).toEqual(['eyeroll', 'shocked', 'deadpan', 'drool']);
+      expect(v!.find((w) => w.id === 'happy')!.names.zh).toEqual(['开心', '高兴', '眯眼笑']);
+    }
     expect(claude!.map((w) => w.id).filter((id) => !POSES.includes(id))).toEqual(whale!.map((w) => w.id).filter((id) => id !== 'spout' && !POSES.includes(id)));
     expect(claude!.filter((w) => POSES.includes(w.id)).map((w) => w.id)).toEqual(POSES);
     expect(claude!.map((w) => [w.id, w.seconds]).filter(([id]) => id !== 'fist' && id !== 'jot' && id !== 'twiddle'))

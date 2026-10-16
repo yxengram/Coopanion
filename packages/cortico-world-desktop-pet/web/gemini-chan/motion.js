@@ -473,6 +473,8 @@ export const MOOD = {
   gentle: [.2, .25], awkward: [-.3, .1], giggle: [.4, .6], pleading: [.2, .4], moved: [.3, .45], sighing: [-.3, 0, -.5], petrify: [.6, 0],
   coax: [.6, .9], singing: [.5, .55], saluting: [.7, .3], tongue: [.6, .7], stretching: [.3, .3], pointing: [.6, .4],
   sipping: [.1, .2], reading: [.1, .15],
+  // (expr2) rolling her eyes and dead-fish eyes droop a little and go still; shocked is stiff and up; drooling sways
+  eyeroll: [-.3, 0], shocked: [1, 0], deadpan: [-.5, 0], drool: [.3, .4],
 };
 /**
  * Her ears by face: [up, flat, droop] (0..1 each). Up stands them tall, turned a touch outward (glad, startled,
@@ -488,6 +490,8 @@ export const EAR_MOOD = {
   worried: [0, .5, 0], nervous: [0, .5, 0], awkward: [0, .4, 0], pout: [0, .4, 0], shy: [0, .4, 0], flustered: [0, .3, 0],
   dragged: [0, .3, 0], bowing: [0, .2, 0], pleading: [0, .3, .2], sighing: [0, .3, .4], dizzy: [0, 0, .6],
   sleepy: [0, 0, .8], sleep: [0, 0, 1], waking: [0, 0, .5], content: [0, 0, .25], sipping: [.1, 0, .1],
+  // (expr2) ears back a little rolling her eyes, straight up shocked, drooping dead-eyed, perked at something tasty
+  eyeroll: [0, .4, 0], shocked: [1, 0, 0], deadpan: [0, 0, .5], drool: [.3, 0, 0],
 };
 /**
  * How far her ears move: degrees out from her head and the height they take (sy) when up, flat or drooping; the idle
@@ -557,6 +561,8 @@ export const BROW = {
   excited: [3, 0], cry: [1, 5], confused: [1, 0, 5], disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
   gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5],
   singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
+  // (expr2) eyeroll's brows up a little and flat; shocked's high, as petrify's; deadpan's lowered, flat; drool's soft
+  eyeroll: [1, -1], shocked: [6, 1], deadpan: [-1.5, 0], drool: [1, 1],
 };
 // the head by face: in-plane tilt (degrees, toward +x) and pitch (angleY, down +)
 export const HEAD_TILT = { shy: 6, thinking: -7, smug: -5, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -6, gentle: 5, awkward: -4, giggle: 4, pleading: 4, coax: 4, tongue: -5 };

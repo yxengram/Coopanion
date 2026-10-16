@@ -182,6 +182,16 @@ export const PLUS_FACES = {
       shake: s > 1.1 && s < 1.35 ? 1.6 : 0,
     };
   } },
+  // rolling her eyes (翻白眼): eyes rolled up under flat lids, leaning back a little; a figure with drawn eyes shows its own
+  eyeroll:   { label: '翻白眼', kao: '(◔_◔)', f: () => ({ gap: [34, 34], eyes: [ring({ ry: 12, dy: -5 }), ring({ ry: 12, dy: -5 })], lookAt: [1.5, -4], lean: -4 }) },
+  // utterly shocked (震惊): wide eyes, the 「!」, three gloom lines, a stiff tremor. Not `wide`: the whale paints `wide` ring
+  // eyes with her surprised sprite before her own drawn eyes, so `wide` would hide the shocked ones
+  shocked:   { label: '震惊', kao: 'Σ(°□°|||)', f: () => ({ gap: [62, 62], eyes: [ring({ rx: 19, ry: 20 }), ring({ rx: 19, ry: 20 })], bang: true, gloom: true, shake: .6, sag: -.05 }) },
+  // dead-fish eyes (死鱼眼): a flat, dull, half-shut stare held on you. A low ring, not `lid`: the girls' planEye uses a
+  // face's own sprite on a lid eye only for cry and smug, the whale's drawnEye only for smug
+  deadpan:   { label: '死鱼眼', kao: '(ー_ー)', f: () => ({ gap: [30, 30], eyes: [ring({ ry: 9 }), ring({ ry: 9 })], lookLock: true, sag: .03 }) },
+  // drooling (流口水): dreamy half-shut eyes up at something tasty, a drop at the corner of the mouth (drawn mouths), a slow rock
+  drool:     { label: '流口水', kao: '(¯﹃¯)', f: t => ({ gap: [46, 46], eyes: [{ shape: 'lid', ry: 7 }, { shape: 'lid', ry: 7 }], blush: .35, lookAt: [2, -3], rock: .4 * Math.sin(t * 2) }) },
   // motions' own faces (not ones to ask for): wide, alert eyes held ahead for a peek
   peeking:   { label: '探头', f: () => ({ gap: [44, 44], eyes: [ring({ rx: 17, ry: 18 }), ring({ rx: 17, ry: 18 })], lookAt: [5, -1] }) },
   // ...a sip: eyes half shut over the cup, shut for the sip itself (1.4–2.3 s in), a little warm blush
@@ -257,7 +267,8 @@ export const PLUS_MIXES = {
   starry:   { label: '眼冒金星', kao: '(> ~ <) *', eyes: 'flustered', mouth: 'flustered', add: { orbit: true, sweat: false } },
 };
 /** The faces and motions a plus body adds to the kit's words. `lie` and `kneel` last until something else happens. */
-export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue', ...Object.keys(PLUS_MIXES)];
+export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue',
+  'eyeroll', 'shocked', 'deadpan', 'drool', ...Object.keys(PLUS_MIXES)];
 export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh', 'tilt',
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel',
   'muse', 'fist', 'jot', 'twiddle', 'droop', 'blink', 'closer', 'leanback', 'sway', 'stamp', 'wag', 'earflick', 'earsup', 'earsdown',
@@ -266,6 +277,7 @@ export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 
  *  tones of their own (web/sound.js), timed to the marks (the steam's puffs, the heart's crack, the dots). */
 const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
+  eyeroll: 'wry', shocked: 'surprised', deadpan: 'hmm', drool: 'soft',
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
   brave: 'wry', comfort: 'comfort', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',

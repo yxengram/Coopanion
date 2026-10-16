@@ -660,6 +660,42 @@
     544,
     587
    ],
+   "eyeroll_eyeL": [
+    345,
+    485,
+    466,
+    556
+   ],
+   "eyeroll_eyeR": [
+    558,
+    470,
+    683,
+    557
+   ],
+   "shocked_eyeL": [
+    348,
+    465,
+    463,
+    569
+   ],
+   "shocked_eyeR": [
+    559,
+    447,
+    683,
+    558
+   ],
+   "deadpan_eyeL": [
+    348,
+    483,
+    468,
+    565
+   ],
+   "deadpan_eyeR": [
+    556,
+    476,
+    679,
+    555
+   ],
    "neutral_mouth": [
     492,
     568,
@@ -726,6 +762,18 @@
     550,
     584
    ],
+   "mouth_drool": [
+    492,
+    564,
+    545,
+    600
+   ],
+   "mouth_gasp": [
+    491,
+    548,
+    541,
+    612
+   ],
    "nose": [
     510,
     543,
@@ -788,7 +836,9 @@
     "mouth_pout": -8,
     "mouth_cat": -4,
     "mouth_grin": -12,
-    "mouth_tongue": -11
+    "mouth_tongue": -11,
+    "mouth_drool": -4,
+    "mouth_gasp": -6
    }
   },
   "blush": [

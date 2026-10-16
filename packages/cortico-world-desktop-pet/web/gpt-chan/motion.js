@@ -464,6 +464,8 @@ export const MOOD = {
   gentle: [.1, .1], awkward: [-.4, 0], giggle: [.3, .4], pleading: [.2, .3], moved: [.3, .4], sighing: [-.3, 0, -.5], petrify: [.6, 0],
   coax: [.5, .9], singing: [.5, .4], saluting: [.9, .2], tongue: [.5, .6], stretching: [.3, .2], pointing: [.7, .3],
   sipping: [.1, .1], reading: [0, .05],
+  // (expr2) rolling her eyes and dead-fish eyes droop a little and go still; shocked is stiff and up; drooling sways
+  eyeroll: [-.3, 0], shocked: [1, 0], deadpan: [-.5, 0], drool: [.3, .4],
 };
 /**
  * Her wings, in degrees at most: spread up by the mood (`up`), turned in when folded (`fold`), a slow breath (`breath`).
@@ -503,6 +505,8 @@ export const BROW = {
   excited: [3, 0], cry: [1, 5], confused: [1, 0, 5], disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
   gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5],
   singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
+  // (expr2) eyeroll's brows up a little and flat; shocked's high, as petrify's; deadpan's lowered, flat; drool's soft
+  eyeroll: [1, -1], shocked: [6, 1], deadpan: [-1.5, 0], drool: [1, 1],
 };
 // the head by face: in-plane tilt (degrees, toward +x) and pitch (angleY, down +)
 export const HEAD_TILT = { shy: 6, thinking: -7, smug: -5, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -6, gentle: 5, awkward: -4, giggle: 4, pleading: 4, coax: 4, tongue: -5 };

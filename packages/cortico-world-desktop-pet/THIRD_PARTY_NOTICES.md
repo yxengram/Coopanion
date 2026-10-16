@@ -27,9 +27,9 @@ Electron 44.4.4,从 [electron/electron releases](https://github.com/electron/ele
 `web/whale/` 的贴图由 ChatGPT(OpenAI 的图像模型)按参考图生成后拆件:角色原设为「溟月」(上善无形),
 DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项目自己画的图标(`examples/whale/apron-whale.svg`)。
 
-趴姿、招手和托腮的手臂、欢呼的双臂、比心的双手、捧着杯子和书的双手、合十、叉腰、张开的双手、挠头和竖起食指的手臂、端着茶的托盘、敬礼和比耶的手臂、指、捂嘴、抱臂、伸懒腰、屈膝礼的手臂、拍手(合掌和分开)、摊手、抱头、举手、点赞、嘘、擦汗的手臂、背面、团成球、跪坐、趴着时的笑嘴和说话嘴、跪坐和趴着时去掉眼睛和嘴的空白脸(画实时的脸用)、得意/生气/难过/害羞的眼睛的贴图(`tex/lie_*.png`、`tex/arm_wave*.png`、`tex/arm_chin.png`、`tex/arm_cheer_*.png`、`tex/arm_heart.png`、`tex/arm_cup.png`、`tex/arm_book.png`、`tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、`tex/arm_scratch*.png`、`tex/arm_idea*.png`、`tex/arm_tea.png`、`tex/arm_salute*.png`、`tex/arm_vsign*.png`、`tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、`tex/arm_clap*.png`、`tex/arm_shrug.png`、`tex/arm_headhold.png`、`tex/arm_raise.png`、`tex/arm_thumbs.png`、`tex/arm_shush*.png`、`tex/arm_wipe.png`、`tex/back_body.png`、`tex/roll_ball.png`、`tex/kneel_*.png`、`tex/lie_smile.png`、`tex/lie_talk.png`、`feat/smug_eye*.png`、`feat/angry_eye*.png`、`feat/sad_eye*.png`、`feat/shy_eye*.png`
+趴姿、招手和托腮的手臂、欢呼的双臂、比心的双手、捧着杯子和书的双手、合十、叉腰、张开的双手、挠头和竖起食指的手臂、端着茶的托盘、敬礼和比耶的手臂、指、捂嘴、抱臂、伸懒腰、屈膝礼的手臂、拍手(合掌和分开)、摊手、抱头、举手、点赞、嘘、擦汗的手臂、背面、团成球、跪坐、趴着时的笑嘴和说话嘴、跪坐和趴着时去掉眼睛和嘴的空白脸(画实时的脸用)、得意/生气/难过/害羞/翻白眼/震惊/死鱼眼的眼睛、流口水的嘴的贴图(`tex/lie_*.png`、`tex/arm_wave*.png`、`tex/arm_chin.png`、`tex/arm_cheer_*.png`、`tex/arm_heart.png`、`tex/arm_cup.png`、`tex/arm_book.png`、`tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、`tex/arm_scratch*.png`、`tex/arm_idea*.png`、`tex/arm_tea.png`、`tex/arm_salute*.png`、`tex/arm_vsign*.png`、`tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、`tex/arm_clap*.png`、`tex/arm_shrug.png`、`tex/arm_headhold.png`、`tex/arm_raise.png`、`tex/arm_thumbs.png`、`tex/arm_shush*.png`、`tex/arm_wipe.png`、`tex/back_body.png`、`tex/roll_ball.png`、`tex/kneel_*.png`、`tex/lie_smile.png`、`tex/lie_talk.png`、`feat/smug_eye*.png`、`feat/angry_eye*.png`、`feat/sad_eye*.png`、`feat/shy_eye*.png`、`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/drool_mouth.png`
 及各配色下的同名文件)是按上面这些贴图渲染出的站姿编辑生成,再拆件、按区域换色得到的,属于同一形象的衍生图:
-用的是 ChatGPT 的图像模型(gpt-image-2.5;拍手到擦汗这七个手势的手臂用的是 OpenAI 官方 API 的 gpt-image-2.5-sunburst)。
+用的是 ChatGPT 的图像模型(gpt-image-2.5;拍手到擦汗这七个手势的手臂用的是 OpenAI 官方 API 的 gpt-image-2.5-sunburst,翻白眼、震惊、死鱼眼的眼睛和流口水的嘴也是 gpt-image-2.5-sunburst,只改眼睛或嘴的局部编辑)。
 
 这些贴图不在本包的 AGPL 授权范围内。它们随 Coopanion 分发,想在别处使用请自行确认原设的权利。
 
@@ -37,6 +37,7 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 `web/claude-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Claude 同人角色「Claude 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
+翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
@@ -44,6 +45,7 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 `web/gpt-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 GPT 同人角色「GPT 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
+翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
@@ -51,6 +53,7 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 `web/gemini-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Gemini 同人角色「Gemini 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
+翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
@@ -58,6 +61,7 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 `web/grok-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Grok 同人角色「Grok 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
+翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 

@@ -56,7 +56,11 @@ export function describeFloorFace(name, { dir, M, F, GESTURES }) {
 
   describe(`${name}: live faces on the kneeling and lying drawings`, () => {
     it('paints the standing face call for call as before the floor faces (frozen at 298977d)', () => {
-      expect(paintRecord(faceMod, model, R0.FACE)).toEqual(fixture.faces);
+      // (the faces that came later, expr2's eyeroll, shocked, deadpan and drool, have no frozen record: every other face is
+      // painted as it was)
+      const rec = paintRecord(faceMod, model, R0.FACE);
+      expect(Object.keys(rec).filter((n) => !(n in fixture.faces))).toEqual(['eyeroll', 'shocked', 'deadpan', 'drool']);
+      expect(Object.fromEntries(Object.keys(fixture.faces).map((n) => [n, rec[n]]))).toEqual(fixture.faces);
     });
 
     it('paints each feature through its own matrix (an eye with its cheek and tear, the mouth), the nose left to the drawing', () => {

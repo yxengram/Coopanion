@@ -13,13 +13,16 @@ export const EYES = ['eyeL', 'eyeR'];
 export const TALK_SHAPES = ['a', 'i', 'u', 'e'];
 /** The drawn eye for each of the kit's eye shapes. */
 export const SHAPE_SPRITE = { up: 'happy', down: 'sleep', gt: 'drag', lt: 'drag', heart: 'love', spiral: 'dizzy' };
-/** Faces whose own drawn eyes stand in for the open eyes (cry and smug for their shut and half-shut ones too). */
+/**
+ * Faces whose own drawn eyes stand in for the open eyes (cry and smug for their shut and half-shut ones too). A model
+ * without shocked's drawn eyes shows its surprised ones (as for a `wide` face).
+ */
 export const FACE_EYES = {
   surprised: 'surprised', scared: 'surprised', petrify: 'surprised', angry: 'angry', determined: 'determined', saluting: 'determined',
-  sad: 'sad', worried: 'sad', shy: 'shy', smug: 'smug', cry: 'cry',
+  sad: 'sad', worried: 'sad', shy: 'shy', smug: 'smug', cry: 'cry', eyeroll: 'eyeroll', shocked: 'shocked', deadpan: 'deadpan',
 };
 /** Faces with half-shut eyes: the drawn half lid shows while the lid is not nearly shut. */
-export const HALF_LID = ['sleepy', 'content', 'gentle', 'reading', 'sipping', 'disgusted', 'smug', 'sighing'];
+export const HALF_LID = ['sleepy', 'content', 'gentle', 'reading', 'sipping', 'disgusted', 'smug', 'sighing', 'drool'];
 /**
  * How far shut (a blink, or the kit closing her eyes from one face to the next) a drawn open eye may be: past it the
  * painted eye takes over, its lid lowered by as much, so the closed frames show the lid and its lash line; squashed
@@ -46,6 +49,8 @@ export const MOUTHS = {
   saluting: ['smile', .15], stretching: [['surprised_mouth', .75], 'a', 'O'], pointing: ['smile', .3], peeking: ['neutral_mouth', 0],
   sipping: ['smile', .3], reading: ['neutral_mouth', 0], bowing: ['smile', .3], sighing: [0], singing: ['smile', .5], coax: ['cat', 'smile', .5],
   tongue: ['tongue', 'smile', .5],
+  // (shocked's own gasp; drool's slack mouth with its drop, else the tip of the tongue)
+  eyeroll: [['frown', .8], -.3], shocked: ['gasp', ['surprised_mouth', 1.1], 'a', 'O'], deadpan: [[0, .9]], drool: ['drool', 'tongue', .4],
 };
 
 /** The sprite `n` stands for, if the model has it: `n` itself, or `mouth_<n>`. */
@@ -80,7 +85,7 @@ function planEye(k, e, i, face, fc, o, t, has, lx, ly, tilt, shut) {
     // painted eye closing (one frame), whose lid comes down with its lash line
     if (shut <= DRAWN_SHUT) {
       if (own && own !== 'cry') { const s = spr(own, blinkSq); if (s) return s; }
-      if (fc.wide && e.shape === 'ring') { const s = spr('surprised', blinkSq); if (s) return s; }
+      if ((fc.wide || own === 'shocked') && e.shape === 'ring') { const s = spr('surprised', blinkSq); if (s) return s; }
       if (e.shape === 'lid' && HALF_LID.includes(face) && (e.ry ?? 16) >= 5) { const s = spr('halflid', blinkSq); if (s) return s; }
     }
     // the iris fills most of the eye: it only shifts a little, so the white never shows past the outline

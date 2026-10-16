@@ -60,7 +60,9 @@ const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
 
 /* ---------- a made-up model with every drawing, so the code is tested before (and beyond) the art ---------- */
 const FAMS = ['happy', 'sleep', 'surprised', 'love', 'dizzy', 'drag', 'cry', 'smug', 'angry', 'sad', 'wink', 'halflid', 'shy', 'determined'];
-const MOUTH_SPRITES = ['neutral_mouth', ...TALK_SHAPES.map(s => `mouth_${s}`), ...['frown', 'pout', 'cat', 'grin', 'tongue', 'smile'].map(s => `mouth_${s}`)];
+// (expr2: eye-only drawings, no mouth of their own; drool's and shocked's own mouths)
+const EYE_FAMS = ['eyeroll', 'shocked', 'deadpan'];
+const MOUTH_SPRITES = ['neutral_mouth', ...TALK_SHAPES.map(s => `mouth_${s}`), ...['frown', 'pout', 'cat', 'grin', 'tongue', 'smile', 'drool', 'gasp'].map(s => `mouth_${s}`)];
 // her arm drawings: two-arm ones, then armL's own
 const BOTH_POSES = ['cheer', 'pray', 'cross', 'oops', 'search', 'read', 'write', 'heart', 'hips', 'stretch', 'shy', 'cup', 'hug', 'curtsy',
   'clap', 'clapo', 'shrug', 'headhold'];
@@ -76,6 +78,7 @@ function synthModel() {
   };
   const sprites = { ...Object.fromEntries(MOUTH_SPRITES.map(n => [n, [484, 590, 508, 606]])) };
   for (const f of FAMS) Object.assign(sprites, { [`${f}_eyeL`]: [404, 470, 484, 560], [`${f}_eyeR`]: [508, 470, 588, 560], [`${f}_mouth`]: [484, 590, 508, 606] });
+  for (const f of EYE_FAMS) Object.assign(sprites, { [`${f}_eyeL`]: [404, 470, 484, 560], [`${f}_eyeR`]: [508, 470, 588, 560] });
   const poses = {};
   for (const id of ARM_POSES) {
     const one = ONE_POSES.includes(id);
@@ -728,6 +731,33 @@ describe('Grok-chan: faces', () => {
       }
     }
   });
+  it('draws expr2\'s faces with their own art: eyeroll, shocked and deadpan their drawn eyes (the painted eye past DRAWN_SHUT), drool the half lids and its mouth, shocked its gasp; without the art, the fallbacks', () => {
+    const P0 = { exprAt: 0, exprUntil: 9, modeT: 1, drowse: 0 };
+    const plan = (f, o = {}, has = fullHas, t = .5) => planFace(PLUS_FACES[f].f(t, P0), f, frame(f, { t, ...o }), t, has);
+    for (const f of ['eyeroll', 'shocked', 'deadpan']) {
+      // ring eyes, so the face's own drawing stands in for them (a lid would only for cry and smug)
+      expect(PLUS_FACES[f].f(.5, P0).eyes.map(e => e.shape), f).toEqual(['ring', 'ring']);
+      for (const blink of [0, .3, DRAWN_SHUT]) expect(plan(f, { blink }).eyes.map(e => e.name), `${f} blink ${blink}`).toEqual([`${f}_eyeL`, `${f}_eyeR`]);
+      for (const s of [{ blink: .6 }, { blink: 1 }, { eyeClose: 1 }]) expect(plan(f, s).eyes.map(e => e.kind), `${f} ${JSON.stringify(s)}`).toEqual(['open', 'open']);
+    }
+    // shocked is not `wide` (the whale paints wide ring eyes with her surprised ones before her own drawn eyes)
+    expect(PLUS_FACES.shocked.f(.5, P0).wide).toBeUndefined();
+    expect(plan('shocked').mouth).toMatchObject({ kind: 'sprite', name: 'mouth_gasp' });
+    expect(plan('eyeroll').mouth).toMatchObject({ kind: 'sprite', name: 'mouth_frown', s: .8 });
+    expect(plan('deadpan').mouth).toMatchObject({ kind: 'line', form: 0, w: .9 });
+    expect(plan('drool').eyes.map(e => e.name)).toEqual(['halflid_eyeL', 'halflid_eyeR']);
+    expect(plan('drool').mouth).toMatchObject({ kind: 'sprite', name: 'mouth_drool' });
+    // talking takes over with the talking mouths
+    expect(plan('drool', { talk: 1, talkShape: 1, t: Math.PI / 34 }, fullHas, Math.PI / 34).mouth.name).toBe('mouth_i');
+    // a model without expr2's art: shocked shows the surprised eyes and mouth, drool the tongue, eyeroll and deadpan the painted eyes
+    const bare = n => full.has(n) && !/^(eyeroll|shocked|deadpan)_|^mouth_(drool|gasp)$/.test(n);
+    expect(plan('shocked', {}, bare).eyes.map(e => e.name)).toEqual(['surprised_eyeL', 'surprised_eyeR']);
+    expect(plan('shocked', {}, bare).mouth).toMatchObject({ kind: 'sprite', name: 'surprised_mouth', s: 1.1 });
+    expect(plan('drool', {}, bare).mouth.name).toBe('mouth_tongue');
+    for (const f of ['eyeroll', 'deadpan']) expect(plan(f, {}, bare).eyes.map(e => e.kind), f).toEqual(['open', 'open']);
+    // her model has every one of them
+    if (real) for (const n of [...['eyeroll', 'shocked', 'deadpan'].flatMap(f => [`${f}_eyeL`, `${f}_eyeR`]), 'mouth_drool', 'mouth_gasp']) expect(real.feat.sprites[n], n).toBeDefined();
+  });
   it('only wobbles a drawn dizzy eye (its lashes and lid would spin with it), and spins the stroked spiral whole', () => {
     for (const rot of [0, 1, 2.5, 6, 40]) {
       const fc = { eyes: [{ shape: 'spiral', rot }, { shape: 'spiral', rot }] };
@@ -999,6 +1029,9 @@ describe.skipIf(!real)('Grok-chan: model.json and its files', () => {
     for (const e of Object.values(real.feat.eyes)) expect(e.ball[3]).toBeLessThan(F.mouth[1]);
     for (const [n, b] of Object.entries(S)) {
       if (!n.endsWith('_mouth') && !n.startsWith('mouth_')) continue;
+      // (drool's drop hangs below its mouth: the mouth, not the box with the drop, is centred on the line, so the line
+      // runs through the upper part of the box)
+      if (n === 'mouth_drool') { const dy = F.mouthDy[n] || 0; expect(b[1] + dy, n).toBeLessThan(F.mouth[1]); expect(mid(b) + dy, n).toBeGreaterThan(F.mouth[1]); continue; }
       expect(Math.abs(mid(b) + (F.mouthDy[n] || 0) - F.mouth[1]), n).toBeLessThan(2);
     }
   });

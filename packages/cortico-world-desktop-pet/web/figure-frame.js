@@ -18,7 +18,7 @@
  *   busy, moving, pressing, cursor, box, hit, bubble, side }, see the kit's `layout`); `resize()` takes new
  *   bounds (`set({ bounds })` from the page changes what `host.bounds()` returns, then calls it); `do(word)`, `walk(x, run, id)`, `stopWalk(id)`, `pointer(type, p)`, `drop(p)`, `shift(dx, dy)`, `place(x, facing)`,
  *   `set(state)`, `cue(kind)`, `talk(ch?)` (`ch`: the character being said; pages that do not send it
- *   leave it undefined), `setScheme(id, { fade, at })`, `z` (the colour of its sleep z's), `doAll(words)` (a group
+ *   leave it undefined), `setScheme(id, { fade })`, `z` (the colour of its sleep z's), `doAll(words)` (a group
  *   of words done at once; a body without it gets them one by one through `do`, each it turns down (returns false
  *   for) tried again every frame for up to RETRY_MAX seconds) and `dispose()`. Only `step`, `layout` and `do` are
  *   required.
@@ -89,7 +89,8 @@ addEventListener('message', async (e) => {
       post({ t: 'frame', layout: body.layout(), events, sounds, z: body.z ?? null });
       events = []; sounds = [];
     } else if (m.t === 'scheme') {
-      await body.setScheme?.(m.id, { fade: m.fade, at: m.at });
+      // the fade starts at the body's next frame: the page's clock is not the body's
+      await body.setScheme?.(m.id, { fade: m.fade });
       post({ t: 'scheme', seq: m.seq, z: body.z ?? null });
     } else if (m.t === 'do') body.do(m.word);
     else if (m.t === 'do-all') {

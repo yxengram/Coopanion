@@ -12,7 +12,7 @@
 import { applyTheme, clamp, f, ICONS } from './ui.js';
 import { createSfx, OWN_PACKS } from './sound.js';
 import { COO_CSS, mini, normalizeSkin, skinCss } from './coo/coo.js';
-import { loadBody } from './body-host.js';
+import { afterBubbles, dropActs, leftActs, loadBody, takeDeferred, walkHold } from './body-host.js';
 import { attachSayActs, createActs, sayHeld } from './acts.js';
 
 const $ = (s) => document.querySelector(s);
@@ -122,7 +122,7 @@ async function showFigure(s) {
   // a pick changed while the same pack is on screen fades in; Coo's picks are its skin
   if (body?.pack === s.figure) {
     body.set({ skin: s });
-    if (s.figure !== 'coo') await body.setScheme(s.scheme, { fade: .45, at: T });
+    if (s.figure !== 'coo') await body.setScheme(s.scheme, { fade: .45 });
     reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme);
     return;
   }
@@ -150,6 +150,11 @@ async function swapBody(s) {
   next.set({ roam: prefs.roam, ...bodyState });
   body?.dispose();
   body = next;
+  // the old body's walk went with it (or one waiting to start): the World hears so, and words sent now are not
+  // done at once as during a walk
+  for (const id of walkTargets.keys()) send({ t: 'interrupted', walkId: id, x: (was?.x ?? x) / innerWidth, by: 'figure' });
+  walkTargets.clear();
+  heldWalk = null;
   words = new Map(pack.vocab.map((w) => [w.id, w]));
   sfx.usePack(pack.base, pack.sounds, { plus: OWN_PACKS.includes(pack.id) });
   reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme);
@@ -216,9 +221,9 @@ function onOrder(m) {
     case 'ask': dropAsks(); queue.push({ kind: 'ask', id: m.id, question: m.question, options: m.options || [], own: m.own !== false }); holdRoam(20); break;
     case 'confirm': dropAsks(); queue.push({ kind: 'ask', confirm: true, id: m.id, question: m.question, options: m.options, own: false }); holdRoam(20); break;
     case 'walk': walk(m); break;
-    case 'walk-stop': body?.stopWalk(m.id); break;
+    case 'walk-stop': stopWalk(m.id); break;
     case 'ask-close': closeAsk(m.id); break;
-    case 'act': acts.push(...m.actions); holdRoam(20); break;
+    case 'act': actAfterBubbles(m.actions); holdRoam(20); break;
     case 'listen': onListen(m); break;
     case 'thinking': setBody({ thinking: !!m.on }); break;
     case 'dialog': queue.push({ kind: 'dialog', id: m.id, d: m }); holdRoam(20); break;
@@ -257,21 +262,59 @@ function onBody(kind, d) {
 /**
  * A walk the World asked for. A body that cannot take it now (carried, in the air, rolling) says so in its next
  * frame: figure-frame.js reports it `interrupted` by `busy`, which goes back to the World at once like any other.
+ *
+ * Words sent before it that still wait on a bubble (pet_act after pet_say, body-host.js afterBubbles) are done first,
+ * and the walk waits for them and any others still queued (at most WALK_HOLD_MAX seconds): one of them done during
+ * the walk (坐下) would stop it. The wait (`wordHold`) is the page's, not the walk's: a walk that replaces a waiting
+ * one, or comes after one stopped before it started, waits for the same words.
  */
+const WALK_HOLD_MAX = 6;
+let heldWalk = null, wordHold = null;
 function walk(m) {
   const x = m.to === 'cursor' ? (pointerSeen ? lastPointer.x : innerWidth / 2) : clamp(Number(m.to), 0, 1) * innerWidth;
   holdRoam(20);
+  const before = takeDeferred(queue, item);
+  acts.push(...before);
   if (!body) { send({ t: 'interrupted', walkId: m.id, x: .5, by: 'none' }); return; }
+  // a newer walk takes the place of one still waiting, as it would of one under way
+  if (heldWalk) { walkTargets.delete(heldWalk.id); send({ t: 'interrupted', walkId: heldWalk.id, x: (at()?.x ?? x) / innerWidth, by: 'walk' }); heldWalk = null; }
   walkTargets.set(m.id, true);
+  if (!wordHold && acts.length) wordHold = walkHold(T, WALK_HOLD_MAX);
+  if (wordHold && !wordHold.due(T, acts.length)) { heldWalk = { id: m.id, x, run: !!m.run }; return; }
+  wordHold = null;
   body.walk(x, !!m.run, m.id);
+}
+function stepWalk() {
+  if (!wordHold?.due(T, acts.length)) return;
+  wordHold = null;
+  const h = heldWalk;
+  heldWalk = null;
+  if (h) body?.walk(h.x, h.run, h.id);
+}
+function stopWalk(id) {
+  if (heldWalk?.id !== id) { body?.stopWalk(id); return; }
+  // stopped before it started: where she stands is where it ended
+  heldWalk = null;
+  walkTargets.delete(id);
+  send({ t: 'interrupted', walkId: id, x: (at()?.x ?? 0) / innerWidth, by: 'idle' });
 }
 
 /* ---------- actions: words of the body's vocabulary, one after another (acts.js) ---------- */
 const acts = createActs();
 /** A word, or a group of words done at once (ids joined by '+', body first, face last; see src/script.ts). */
 const playEntry = (a) => { const ws = a.split('+'); if (ws.length === 1) body.do(a); else body.doAll(ws); };
+const wordSeconds = (a) => words.get(a)?.seconds ?? 1;
 function stepActs() {
-  if (acts.step(T, at(), playEntry, (a) => words.get(a)?.seconds ?? 1)) holdRoam(15);
+  const w = acts.step(T, at(), playEntry, wordSeconds);
+  if (w) { holdRoam(15); wordHold?.started(Math.max(...w.split('+').map(wordSeconds)), T); }
+  stepWalk();
+}
+/**
+ * Words sent after bubbles still to come wait for them (body-host.js afterBubbles), else they are done now; so are
+ * words sent during a World walk, which would otherwise wait past its end or stop it partway, as they always did.
+ */
+function actAfterBubbles(list) {
+  if (walkTargets.size || afterBubbles(queue, item, list) === 'now') acts.push(...(list || []));
 }
 
 /* ---------- say / ask ---------- */
@@ -281,8 +324,11 @@ const PAUSE = /[,。!?…、,.!?]/, SILENT = /[\s,。!?…、,.!?「」:()]/;
 
 /** A newer question replaces the bot's open one; a World's confirmation stays until answered. */
 function dropAsks() {
-  for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'ask' && !queue[i].confirm) queue.splice(i, 1);
+  const left = [];
+  for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'ask' && !queue[i].confirm) left.unshift(...dropActs(queue.splice(i, 1)[0]));
   if (item && item.kind === 'ask' && !item.answered && !item.confirm) closeBubble();
+  // the words a dropped question took go with the bubble before it
+  if (left.length) actAfterBubbles(left);
 }
 
 function openBubble(kind, html) {
@@ -294,6 +340,8 @@ function openBubble(kind, html) {
 }
 function closeBubble() {
   releaseKeys(item);
+  // a say cut short (the typing box opened over it) still does the words that waited on it
+  if (item?.kind === 'say') acts.push(...leftActs(item));
   if (item?.kind === 'dialog') talk.motion = null;
   bubble.hidden = true; bubble.innerHTML = '';
   item = null;
@@ -322,6 +370,8 @@ function startItem(it) {
     bubble.querySelector('.b-close').addEventListener('click', () => dismissAsk());
     it.text = it.question; it.shown = 0; it.acc = 0; it.optsShown = false;
     sfx.pop();
+    // words sent after it while it waited (body-host.js afterBubbles)
+    acts.push(...dropActs(it));
   }
 }
 
@@ -439,7 +489,9 @@ function answer(node, a) {
 }
 /** The question was answered elsewhere (the chat page): it leaves the queue or the bubble without an answer from here. */
 function closeAsk(id) {
-  for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'ask' && queue[i].id === id) queue.splice(i, 1);
+  const left = [];
+  for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'ask' && queue[i].id === id) left.unshift(...dropActs(queue.splice(i, 1)[0]));
+  if (left.length) actAfterBubbles(left);
   if (item && item.kind === 'ask' && item.id === id && !item.answered) { item.answered = true; closeBubble(); }
 }
 function dismissAsk() {
@@ -1347,10 +1399,26 @@ const MOVING_FPS = 60, RESTING_FPS = 30;
 let last = performance.now(), dueAt = 0, gap = 1000 / MOVING_FPS;
 /** The last error the frame loop logged, so one that keeps recurring is reported once, not per frame. */
 let frameErr = null;
+/**
+ * Frames whose timestamp was not past the one before (a zero or negative dt), and when that was last logged (ms):
+ * one such frame used to leave the whale without hair, tail and skirt until restart (#87), and where these
+ * timestamps come from is not known yet. Logged at most once a minute, with the count so far. The first frame is
+ * left out: `last` starts at the page's clock, which may be ahead of the first frame's timestamp.
+ */
+let stalls = 0, stallLoggedAt = -Infinity, framed = false;
 function frame(now) {
   // a display refresh up to a quarter gap early counts as on time, so the rate averages out over refresh rates it does not divide
   if (now < dueAt - gap / 4) { requestAnimationFrame(frame); return; }
-  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (framed && now <= last) {
+    stalls++;
+    if (performance.now() - stallLoggedAt > 60_000) {
+      stallLoggedAt = performance.now();
+      console.warn(`[pet] 帧时间戳没有前进(累计 ${stalls} 次):now=${now} 上一帧=${last} 页面=${document.visibilityState} 焦点=${document.hasFocus()} 模式=${at()?.mode ?? '-'}`);
+    }
+  }
+  framed = true;
+  // a timestamp behind the last one (the first frame's may be) counts as no time: the page's clock never runs back
+  const dt = clamp((now - last) / 1000, 0, .05); last = now;
   try {
     T += dt;
     if (T >= poseCheckAt) { poseCheckAt = T + 1; reportPose(); }

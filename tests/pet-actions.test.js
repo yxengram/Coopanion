@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS, TONES } from '../packages/cortico-world-desktop-pet/web/sound.js';
@@ -8,6 +8,7 @@ import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web
 import { attachSayActs, createActs, sayHeld, SAY_HOLD_MS, WALK_MAX } from '../packages/cortico-world-desktop-pet/web/acts.js';
 import { figurePacks, readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { CHANNELS, parseActions } from '../packages/cortico-world-desktop-pet/src/script.ts';
+import { upstreamKit } from './helpers/upstream-kit.js';
 import { FACE_ARMS as CLAUDE_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { FACE_ARMS as GPT_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { FACE_ARMS as GEMINI_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
@@ -40,29 +41,6 @@ function hearingPet(opts = {}) {
   return pet;
 }
 const run = (pet, seconds) => { for (let i = 0; i < seconds * 60; i++) { pet.step(1 / 60); pet.render(); } };
-/**
- * Upstream's kit at v0.1.17 (body.js and rig.js from the tag), or null in a local checkout without the tag; on CI
- * (which fetches the tag) a missing tag fails, so the comparisons cannot skip unnoticed. The copy goes inside the
- * project (node_modules/.cache), where vitest loads it like any other module, on Windows too.
- */
-async function upstreamKit() {
-  const { execFileSync } = await import('node:child_process');
-  const { mkdirSync, writeFileSync } = await import('node:fs');
-  const { join } = await import('node:path');
-  const { fileURLToPath, pathToFileURL } = await import('node:url');
-  const dir = fileURLToPath(new URL('../node_modules/.cache/upstream-kit-v0.1.17/', import.meta.url));
-  mkdirSync(dir, { recursive: true });
-  try {
-    for (const f of ['body.js', 'rig.js']) {
-      writeFileSync(join(dir, f), execFileSync('git', ['show', `v0.1.17:packages/cortico-world-desktop-pet/web/kit/${f}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
-    }
-  } catch (e) {
-    if (process.env.CI) throw new Error(`v0.1.17 tag missing on CI (the workflow fetches it): ${e}`);
-    return null;
-  }
-  writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
-  return import(pathToFileURL(join(dir, 'body.js')).href);
-}
 const eyesIn = html => (html.match(/class="eye"/g) || []).length;
 /** Runs `fn` with Math.random drawn from a fixed seed (mulberry32), so a free-roaming pet does the same each time. */
 function seeded(fn, seed = 7) {
@@ -632,6 +610,50 @@ describe('the words the model can use', () => {
   });
 });
 
+describe('a frame that took no time (#87)', () => {
+  it('a frame that took no time leaves the swing a number (#87: the whale lost her hair, tail and skirt for good)', () => {
+    const pet = barePet();
+    run(pet, 1);
+    pet.doWord('sleep');
+    run(pet, 1);
+    pet.step(0);
+    run(pet, 1);
+    expect(Number.isFinite(pet.pet.swing)).toBe(true);
+  });
+
+  it('skips a frame whose dt is zero, negative or not a number, plus or not: nothing moves on, the clock included', () => {
+    for (const plus of [true, false]) {
+      const pet = barePet(undefined, { plus });
+      run(pet, 1);
+      pet.walkTo(pet.pet.x + 300, false, 1);
+      run(pet, .3);
+      const before = { x: pet.pet.x, modeT: pet.pet.modeT, velX: pet.pet.velX, swing: pet.pet.swing };
+      for (const dt of [0, -1 / 60, NaN, Infinity]) pet.step(dt);
+      expect({ x: pet.pet.x, modeT: pet.pet.modeT, velX: pet.pet.velX, swing: pet.pet.swing }, `plus ${plus}`).toEqual(before);
+      run(pet, .5);
+      expect(Number.isFinite(pet.pet.swing), `plus ${plus}`).toBe(true);
+    }
+  });
+
+  it('a horizontal speed that is not finite starts over at 0, logged once for the run of such frames', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const pet = barePet();
+      run(pet, 1);
+      pet.walkTo(pet.pet.x + 300, false, 1);
+      run(pet, .3);
+      // moved a way over a dt so short that it is an infinite speed, two frames running (as a drag can between frames)
+      for (let i = 0; i < 2; i++) { pet.pet.x += 40; pet.step(Number.MIN_VALUE); }
+      expect(pet.pet.velX).toBe(0);
+      expect(Number.isFinite(pet.pet.swing)).toBe(true);
+      expect(warn.mock.calls.filter(([m]) => String(m).startsWith('[pet] 横向速度不是有限数'))).toHaveLength(1);
+      run(pet, .5);
+      expect(Number.isFinite(pet.pet.swing)).toBe(true);
+      expect(Math.abs(pet.pet.velX)).toBeGreaterThan(0);
+    } finally { warn.mockRestore(); }
+  });
+});
+
 describe('lying down', () => {
   /** A pet that has lain down and settled. */
   function lying(onEvent) {
@@ -1072,7 +1094,7 @@ describe('a roll, a cup and a book', () => {
   });
 
   it("without plus, a pack's roll draws as with upstream's kit (v0.1.17): the same gestures and group, frame by frame", async () => {
-    const up = await upstreamKit();
+    const up = await upstreamKit('upstream-kit-v0.1.17');
     if (!up) return;
     const ours = await import('../packages/cortico-world-desktop-pet/web/kit/body.js');
     const frames = (kit, W) => seeded(() => {
@@ -2634,7 +2656,7 @@ describe('a body without plus keeps upstream\'s faces and words', () => {
   });
 
   it("frames and faces are upstream's (v0.1.17) through faces, gestures, postures, covers, a poke and a pat, frame by frame", async () => {
-    const up = await upstreamKit();
+    const up = await upstreamKit('upstream-kit-v0.1.17');
     if (!up) return;
     const ours = await import('../packages/cortico-world-desktop-pet/web/kit/body.js');
     const FIELDS = ['look', 'legs', 'low', 'blink', 'eyeClose', 'face', 'mode', 'modeT', 'talk', 'drowse', 'sit', 'facing', 'tilt', 'lean', 'groupRot', 'gesture'];
@@ -3345,6 +3367,6 @@ describe('decider mode: words that follow their bubble (acts.js attachSayActs, s
     // a bubble the World did not hold never waits
     expect(sayHeld({ kind: 'say', id: 'x', beats: [], i: -1 }, 0)).toBe(false);
     expect(sayHeld(bubble('s2', { holdMs: undefined }), 0)).toBe(true);
-    expect(SAY_HOLD_MS).toBe(900);
+    expect(SAY_HOLD_MS).toBe(1100);
   });
 });

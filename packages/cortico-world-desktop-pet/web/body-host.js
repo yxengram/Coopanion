@@ -30,9 +30,37 @@ const BOX_MAX = 1.5 * Math.SQRT2;
  */
 const TOUCH_MS = 1000;
 const TOUCHES = new Set(['poke', 'pet', 'grab', 'drop', 'throw', 'crash']);
+/**
+ * The halo blurs only a window around the body (haloRect) instead of the whole stage: drawn with a CSS filter over
+ * the stage-sized frame, it blurs the full window on every frame the body redraws, which on a Mac (where it is always
+ * on) kept the GPU busy at 60 to 90 percent behind the whale. False goes back to the filter over the whole frame.
+ */
+export const HALO_CLIP = true;
+/**
+ * How far around the body's box that window reaches: shares of the box's width (each side) and height (above), and at
+ * least HALO_SIDE_PX / HALO_TOP_PX pixels (hearts, notes and z's rise and drift by pixels, not by the body's size) and
+ * HALO_REACH, the drop shadows' spread. The particles and marks a body draws leave its box: confetti thrown up and out
+ * over her, hearts, notes and z's rising, steam off the head, a rain cloud or 「……」 beside it; rendered on the pet page
+ * (whale and Claude-chan at sizes 1 and 2), the farthest went 52 px past the side of a 150 px wide box and 98 px over
+ * a 193 px tall one, and 82 px over a 98 px one. Below the box the window reaches the floor (`floorY`): tears, spray,
+ * chips and dust fall to it, confetti flutters down to it.
+ */
+const HALO_SIDE = .6, HALO_TOP = .8, HALO_SIDE_PX = 80, HALO_TOP_PX = 130, HALO_REACH = 24;
+/**
+ * A body on the move leaves its particles behind (a run's dust, the hearts where it was picked up before a throw), and
+ * they last up to the kit's confetti's 2.4 s: the halo's window is the union of the body's windows over that long
+ * (haloTrail). A body at rest keeps just its own.
+ */
+const HALO_TRAIL_MS = 2500;
 
 const num = (v, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 const clampTo = (v, a, b) => Math.max(a, Math.min(b, v));
+/** Rect `r` cut to a `size` stage (one that shrank since), or null when nothing of it is left. */
+const clipTo = (r, size) => {
+  if (!r) return null;
+  const x = Math.max(0, r.x), y = Math.max(0, r.y), w = Math.min(Math.ceil(size.W), r.x + r.w) - x, h = Math.min(Math.ceil(size.H), r.y + r.h) - y;
+  return w > 0 && h > 0 ? { x, y, w, h } : null;
+};
 
 /** A body's layout report as the page takes it (`size`: the stage, { W, H, S }): numbers where numbers belong, and the limits above. */
 export function readLayout(l, size) {
@@ -58,6 +86,38 @@ export function onBody(layout, p) {
   const b = layout?.box;
   if (!b || p.x < b.x || p.y < b.y || p.x > b.x + b.w || p.y > b.y + b.h) return false;
   return layout.hit.some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r);
+}
+
+/**
+ * The window the halo is drawn in for a body with `layout` (readLayout's) on a `size` stage ({ W, H, floorY }):
+ * its box with the reach above around it, in whole pixels inside the stage; null when there is no box to draw around.
+ */
+export function haloRect(layout, size) {
+  const b = layout?.box;
+  if (!b || !(b.w > 0) || !(b.h > 0)) return null;
+  const px = Math.max(HALO_REACH, b.w * HALO_SIDE, HALO_SIDE_PX), top = Math.max(HALO_REACH, b.h * HALO_TOP, HALO_TOP_PX);
+  const floor = Math.max(b.y + b.h, num(size.floorY, size.H)) + HALO_REACH;
+  const x = Math.max(0, Math.floor(b.x - px)), y = Math.max(0, Math.floor(b.y - top));
+  const w = Math.min(Math.ceil(size.W), Math.ceil(b.x + b.w + px)) - x, h = Math.min(Math.ceil(size.H), Math.ceil(floor)) - y;
+  return w > 0 && h > 0 ? { x, y, w, h } : null;
+}
+
+/**
+ * The halo's windows of the last HALO_TRAIL_MS: `add(rect, now)` (ms; `rect` haloRect's, null adds nothing) returns the
+ * rect around all of them, or null when there are none.
+ */
+export function haloTrail() {
+  let list = [];
+  return {
+    add(rect, now) {
+      list = list.filter((e) => now - e.at < HALO_TRAIL_MS);
+      if (rect) list.push({ at: now, rect });
+      if (!list.length) return null;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const { rect: r } of list) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    },
+  };
 }
 
 /**
@@ -89,6 +149,12 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
     frame.tabIndex = -1;
     frame.className = 'figure-frame';
     frame.src = '/figure-frame';
+    // the frame's window onto the stage: all of it, or with the halo on, the halo's rect around the body (haloRect)
+    const clip = document.createElement('div');
+    clip.className = 'figure-clip';
+    clip.appendChild(frame);
+    let haloAt = '';
+    const trail = haloTrail();
     let ready = false, gone = false, seq = 0, size = bounds;
     let layout = null, z = null;
     const touches = touchGate();
@@ -101,7 +167,7 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
       gone = true;
       clearTimeout(timer);
       removeEventListener('message', onMessage);
-      frame.remove();
+      clip.remove();
       for (const done of waits.values()) done();
       waits.clear();
     }
@@ -135,13 +201,27 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
       setScheme(id, o = {}) {
         if (gone) return Promise.resolve();
         const s = ++seq;
-        post({ t: 'scheme', id, fade: o.fade ?? 0, at: o.at ?? 0, seq: s });
+        post({ t: 'scheme', id, fade: o.fade ?? 0, seq: s });
         return new Promise((done) => waits.set(s, done));
       },
-      /** The light halo behind the body (pet-app's backdrop), as a CSS filter on the frame: 0 removes it. */
+      /**
+       * The light halo behind the body (pet-app's backdrop), as a CSS filter on the frame's window cut down to
+       * the body's surroundings (haloRect, haloTrail), so it blurs only those; 0 removes it. Called once a frame: it follows the body.
+       */
       setHalo(k) {
-        const c = `rgba(184,184,184,${k.toFixed(2)})`;
-        frame.style.filter = k ? `drop-shadow(0 0 3px ${c}) drop-shadow(0 0 7px ${c})` : '';
+        const c = k ? `rgba(184,184,184,${k.toFixed(2)})` : '';
+        const filter = k ? `drop-shadow(0 0 3px ${c}) drop-shadow(0 0 7px ${c})` : '';
+        if (!HALO_CLIP) { frame.style.filter = filter; return; }
+        const r = k ? clipTo(trail.add(haloRect(layout, size), performance.now()), size) : null;
+        // (the stage's size too: the frame inside the window keeps it)
+        // a body that reports no box (a third-party pack's) keeps the halo over the whole stage, as before the clip
+        const key = r ? `${r.x},${r.y},${r.w},${r.h},${size.W},${size.H},${c}` : k ? `all,${c}` : '';
+        if (key === haloAt) return;
+        haloAt = key;
+        if (!r) { clip.removeAttribute('style'); frame.removeAttribute('style'); if (k) frame.style.filter = filter; return; }
+        Object.assign(clip.style, { inset: 'auto', left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px`, overflow: 'hidden', filter });
+        // the frame keeps the stage's size and place, so the body inside it neither moves nor resizes
+        Object.assign(frame.style, { inset: 'auto', left: `${-r.x}px`, top: `${-r.y}px`, width: `${size.W}px`, height: `${size.H}px` });
       },
       dispose: close,
     };
@@ -184,6 +264,97 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
       }
     }
     addEventListener('message', onMessage);
-    layer.appendChild(frame);
+    layer.appendChild(clip);
   });
+}
+
+/* ---------- the order of the page's words among its bubbles ---------- */
+/**
+ * The pet page's `act` (pet_act, and the decider's pet_feel and pet_ask words) in the order it was sent among the
+ * bubbles: a bubble waits in the page's queue and does its 【】 marks when its turn comes, so words pushed at once
+ * would run ahead of the marks of a bubble sent before them (two pet_say, then a pet_act: the act came before the
+ * second bubble's marks). Kept here, apart from the page, so it can be tested.
+ *
+ * `afterBubbles(queue, current, actions)`: the latest bubble still to come or still typing (`current`, the page's
+ * item on screen, or one of `queue`) takes `actions`:
+ * - a say, as a last inline marker at the end of its last beat, tagged `deferred` (done once that beat is typed out,
+ *   after all of the bubble's own marks; a beat with no text does its markers as it starts);
+ * - a question not shown yet, as words done when it is shown (`it.acts`, see `dropActs`).
+ * A question already up, a say whose last beat is typed out, and no bubble at all leave them to be done at once
+ * (`'now'`, the caller does them); otherwise `'attached'`. An app's dialog step in between does not count: its words
+ * are its own.
+ *
+ * Words taken this way are never lost: a bubble that leaves before its turn is over gives them back.
+ * - `dropActs(it)`: the words a question took that is leaving the queue unshown (replaced, answered elsewhere).
+ * - `leftActs(it)`: the words a say took that it has not done yet, taken off it (cut short by the typing box);
+ *   the bubble's own marks it did not reach stay lost, as they always were.
+ * - `takeDeferred(queue, current)`: all words still waiting on bubbles, taken off them, in the order they were sent.
+ *   A World walk takes them first: walking is not busy, so a word waiting on a bubble (坐下, 趴下) would otherwise
+ *   come in the middle of a walk sent after it and stop it there (the World is told it was interrupted). The walk
+ *   then waits for them (`walkHold`).
+ * The caller does them at once, as it would have without the bubble.
+ *
+ * `walkHold(T, maxS)`: walks waiting for the words queued ahead of them (the page's acts.js queue, the ones taken off
+ * the bubbles last), made when a walk comes while words are queued and kept by the page, not by one walk: a walk that
+ * replaces a waiting one, or comes after one stopped before it started, waits for the same words. `started(seconds, T)`
+ * for each entry the queue starts (`seconds`: how long that one holds the queue at most), and `due(T, queued)`,
+ * whether a walk may go: once the queue is empty (`queued`, words sent meanwhile included) and the last word started has
+ * had its time, and at most `maxS` after the first walk came (a body carried meanwhile starts no word, and the World
+ * times a walk from when it sent it).
+ */
+export function afterBubbles(queue, current, actions) {
+  const list = Array.isArray(actions) ? actions.filter((a) => typeof a === 'string' && a) : [];
+  if (!list.length) return 'now';
+  for (const it of [current, ...queue].reverse()) {
+    if (!it || (it.kind !== 'say' && it.kind !== 'ask')) continue;
+    if (it.kind === 'ask') {
+      if (it === current) return 'now';
+      it.acts = [...(it.acts || []), ...list];
+      return 'attached';
+    }
+    const beats = Array.isArray(it.beats) ? it.beats : [];
+    const n = beats.length - 1, last = beats[n];
+    // nothing left to type: what comes now is after all of it
+    if (!last || (it === current && (it.i > n || (it.i === n && it.beatDone)))) return 'now';
+    last.anchors = [...(last.anchors || []), { at: (last.text || '').length, actions: list, deferred: true }];
+    return 'attached';
+  }
+  return 'now';
+}
+
+export function dropActs(it) {
+  const list = it?.acts || [];
+  if (it) it.acts = [];
+  return list;
+}
+
+export function leftActs(it) {
+  if (!it) return [];
+  if (it.kind === 'ask') return dropActs(it);
+  if (it.kind !== 'say' || !Array.isArray(it.beats)) return [];
+  const out = [];
+  it.beats.forEach((b, j) => {
+    if (!b || !Array.isArray(b.anchors) || j < it.i || (j === it.i && it.beatDone)) return;
+    // the beat being typed has done its first `fired` markers
+    const done = j === it.i && b.text ? it.fired || 0 : 0;
+    b.anchors = b.anchors.filter((a, k) => {
+      if (k < done || !a?.deferred) return true;
+      out.push(...a.actions);
+      return false;
+    });
+  });
+  return out;
+}
+
+export function takeDeferred(queue, current) {
+  return [current, ...queue].flatMap((it) => leftActs(it));
+}
+
+export function walkHold(T, maxS) {
+  let end = T;
+  const by = T + maxS;
+  return {
+    started(seconds, T) { end = Math.max(end, T + seconds); },
+    due(T, queued) { return T >= by || (queued === 0 && T >= end); },
+  };
 }

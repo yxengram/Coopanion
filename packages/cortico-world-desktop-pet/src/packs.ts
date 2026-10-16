@@ -135,8 +135,9 @@ const namesOf = (v: unknown): Names | null => {
   for (const [k, s] of Object.entries(v)) if (typeof s === 'string' && s.trim()) out[k] = s.trim();
   return Object.keys(out).length ? out : null;
 };
-/** A path inside the pack: relative, no `..`. */
-const inside = (p: unknown): p is string => typeof p === 'string' && p !== '' && !p.startsWith('/') && !p.split(/[\\/]/).includes('..') && !/^[a-z]+:/i.test(p);
+/** A path inside the pack: relative, no `..`, none of `<>"` or a control character (no Windows file name holds them). */
+const inside = (p: unknown): p is string => typeof p === 'string' && p !== '' && !p.startsWith('/') && !p.split(/[\\/]/).includes('..') && !/^[a-z]+:/i.test(p)
+  && !/[<>"\x00-\x1f]/.test(p);
 /** Characters that end a word in a script's markers (script.ts): a name holding one could never be written. */
 const NAME_BREAK = /[,，、\s【】<>＜＞]/;
 const WORD_KINDS = new Set(['expression', 'motion']);

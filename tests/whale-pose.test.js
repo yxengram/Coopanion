@@ -7,6 +7,7 @@ import { CLAP, createPet, TEAR_FX, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { chainPoint, meshGap } from './helpers/mesh.js';
+import { upstreamKit } from './helpers/upstream-kit.js';
 
 // the whale's own figure.js runs below without WebGL: its rig keeps the last frame's deformer states for the tests
 // (and the names of the textures uploaded since `up` was last cleared)
@@ -852,8 +853,11 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
 });
 
 describe('a face and a gesture at once, as the whale draws them', () => {
-  /** The whale's own figure.js on the kit's body (plus), without a GPU: every frame's deformer states, and the frame. */
-  async function whaleOnKit() {
+  /**
+   * The whale's own figure.js on the kit's body (plus), without a GPU: every frame's deformer states, and the frame.
+   * `make` is the kit's createPet to run her on (upstream's, for a pack exported to it).
+   */
+  async function whaleOnKit(make = createPet) {
     // a do-nothing stand-in for whatever DOM or 2D canvas call the figure makes (numbers read as 0)
     const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
     const doc = globalThis.document;
@@ -866,7 +870,7 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     Object.defineProperty(figure, 'anchors', { get: () => fig.anchors });
     Object.defineProperty(figure, 'poses', { get: () => fig.poses });
     const fxG = el();
-    const pet = createPet({ petG, shadowEl: el(), fxG }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
+    const pet = make({ petG, shadowEl: el(), fxG }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
     pet.resize();
     const run = (s, each = () => {}) => { for (let i = 0; i < s * 60; i++) { pet.step(1 / 60); pet.render(); each(rigSeen.st, frame); } };
     return { pet, run, tree: rigSeen.tree, frame: () => frame, fx: () => fxG.innerHTML, fig, done: () => { globalThis.document = doc; } };
@@ -1043,6 +1047,62 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     point: { parts: model.poses.point.required, plain: ['arm_far'] },
   };
 
+  /** What in a frame's deformer states is not a finite number: the rotations and moves, and each warp at its corners and middle. */
+  const notFinite = (tree, st) => {
+    const bad = [];
+    for (const [id, s] of Object.entries(st)) {
+      if (typeof s !== 'object' || !s || id === 'alpha') continue;
+      for (const k of ['a', 'tx', 'ty', 'sx', 'sy', 's']) if (k in s && !Number.isFinite(s[k])) bad.push(`${id}.${k}=${s[k]}`);
+      if (!s.fn) continue;
+      const [x0, y0, x1, y1] = tree.deformers[id]?.rect ?? [0, 0, 256, 256];
+      for (const [u, v] of [[0, 0], [1, 0], [.5, .5], [0, 1], [1, 1]]) {
+        if (!s.fn(u, v, x0 + u * (x1 - x0), y0 + v * (y1 - y0)).every(Number.isFinite)) bad.push(`${id}.fn(${u},${v})`);
+      }
+    }
+    return bad;
+  };
+  it('keeps her hair, bangs, tail and skirt drawn after a frame that took no time or a swing that is not a number (#87)', async () => {
+    // on the kit: a frame of dt 0 while she walks and is held is skipped, and the frames after it are whole
+    const { pet, run, done } = await whaleOnKit();
+    try {
+      run(.5);
+      pet.walkTo(pet.pet.x + 300, false, 1);
+      run(.3);
+      pet.step(0);
+      run(.3);
+      expect(notFinite(rigSeen.tree, rigSeen.st)).toEqual([]);
+      expect(Number.isFinite(pet.pet.swing)).toBe(true);
+    } finally { done(); }
+    // her pack exported to upstream's kit (v0.1.17, without the kit's guard): the frame of dt 0 leaves its swing NaN for
+    // good, and she is handed it every frame; she reads it as none, so every warp and turn is still drawn
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const up = await upstreamKit('upstream-kit-v0.1.17-whale');
+      if (up) {
+        const { pet, run, done } = await whaleOnKit(up.createPet);
+        try {
+          run(.5);
+          pet.walkTo(pet.pet.x + 300, false, 1);
+          run(.3);
+          pet.step(0); pet.render();
+          run(.3);
+          expect(pet.pet.swing).toBeNaN();
+          expect(notFinite(rigSeen.tree, rigSeen.st)).toEqual([]);
+        } finally { done(); }
+      }
+      // drawn by hand, a frame that took no time, then a NaN swing and gaze for a frame or two (what reaches her
+      // springs): they hold, and the frames after it draw every warp again
+      const draw = await whaleByHand(), fc = faceOf('neutral');
+      for (const mode of ['walk', 'drag']) {
+        let t = 1;
+        for (let i = 0; i < 30; i++) draw(fc, frame({ t: t += 1 / 60, mode, swing: 8 }));
+        draw(fc, frame({ t, mode, swing: NaN, look: [NaN, NaN] }));
+        draw(fc, frame({ t: t += 1 / 60, mode, swing: NaN, look: [NaN, NaN] }));
+        for (let i = 0; i < 3; i++) draw(fc, frame({ t: t += 1 / 60, mode, swing: 8 }));
+        expect(notFinite(rigSeen.tree, rigSeen.st), mode).toEqual([]);
+      }
+    } finally { warn.mockRestore(); }
+  });
   it("draws a gesture's arms over a nervous or coaxing face's idle arms, handing over from the fist arms as without it", async () => {
     const { pet, run, done } = await whaleOnKit();
     try {

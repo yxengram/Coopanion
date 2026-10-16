@@ -15,6 +15,7 @@ import type { MicMode } from '../src/config.ts';
 import type { SherpaModule } from '../src/asr/funasr.ts';
 import type { ModelSpec } from '../src/runtime/store.ts';
 import { parseHotkey, type Hotkey } from '../src/asr/hotkey.ts';
+import { rmsDb } from '../src/asr/segmenter.ts';
 import { FakeHost } from './helpers/fake-host.ts';
 import { FakePage } from './helpers/page.ts';
 import { fakeSapi } from './helpers/fake-sapi.ts';
@@ -154,13 +155,21 @@ describe('voice input', () => {
     expect(host.events[0].text).toBe('[语音] 伙伴:帮我看看这个');
   });
 
-  it('a talk key that cannot be read falls back to listening all the time', async () => {
+  it('a talk key that cannot be read keeps the gate closed and says why', async () => {
     const { watch } = scriptedKey('no keyboard here');
-    const { host, page, world } = await setup('还是听得见', 'hold', watch);
-    expect(world.voiceState().input).toMatchObject({ mode: 'hold', effectiveMode: 'always', hotkeyProblem: 'no keyboard here', open: true });
-    expect((world.voiceState().input as { hint: string }).hint).toContain('no keyboard here');
-    for (const fr of [...tone(900, .3), ...tone(900, 0)]) page.audio(fr);
-    await expect.poll(() => host.events.length, { timeout: 5000 }).toBe(1);
+    const { host, page, world } = await setup('不该听见', 'toggle', watch);
+    expect(world.voiceState().input).toMatchObject({ mode: 'toggle', hotkeyProblem: 'no keyboard here', open: false });
+    const hint = (world.voiceState().input as { hint: string }).hint;
+    expect(hint).toContain('no keyboard here');
+    expect(hint).toContain('暂不识别说话');
+    // the pet's microphone button keeps the configured mode: it shows the key, never AUTO
+    expect((world as unknown as { snapshot(): { voice: unknown } }).snapshot().voice).toMatchObject({ mode: 'toggle' });
+    const last = tone(20, .05)[0]!;
+    for (const fr of [...tone(900, .3), ...tone(900, 0), last]) page.audio(fr);
+    // frames arrive in order: once the last one is metered, every sentence the others made is counted
+    await expect.poll(() => world.voiceState().level).toBe(rmsDb(last));
+    expect((world.voiceState().counts as { utterances: number }).utterances).toBe(0);
+    expect(host.events).toHaveLength(0);
   });
 
   it('the microphone button held down sends the sentence without waiting for its closing pause', async () => {

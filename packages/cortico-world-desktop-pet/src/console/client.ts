@@ -29,8 +29,6 @@ interface VoiceState {
     mode: MicMode;
     hotkey: string;
     deviceId: string;
-    /** `always` while the talk key cannot be read */
-    effectiveMode: MicMode;
     /** The keys alone; how they are pressed is the press choice beside them */
     keyLabel: string;
     hint: string;
@@ -276,9 +274,9 @@ const voicePanel: ConsolePanel = {
       if (document.activeElement !== pressSel) pressSel.value = String(taps);
       if (!capturing) keyBtn.textContent = `说话键:${input.keyLabel}`;
       keyBtn.hidden = pressSel.hidden = input.mode === 'always';
-      modeRow.set(input.open ? '正在收音' : '等说话键', input.open ? 'on' : 'off', input.hotkeyProblem ? `${input.hotkeyProblem},改为一直收音` : input.hint);
+      modeRow.set(input.open ? '正在收音' : '等说话键', input.open ? 'on' : 'off', input.hint);
       // the loudness threshold only decides where speech starts when the key is not held down
-      mark.hidden = input.effectiveMode === 'hold';
+      mark.hidden = input.mode === 'hold';
       mark.style.left = `${meterPct(next.thresholdDb)}%`;
       for (const line of next.recent) {
         if (line.at <= seen) continue;

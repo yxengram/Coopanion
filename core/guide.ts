@@ -84,6 +84,8 @@ const S = {
   downloadFail: (why: string) => `没下载下来:${why}。之后在设置的「语音输入」页可以再试。`,
   modelLater: '好,之后在设置的「语音输入」页一键就能下。',
   talk: (hint: string) => `想和我说话:${hint}。`,
+  /** The talk key cannot be read: nothing is heard until it can (the microphone never falls back to always listening). */
+  talkKeyProblem: (why: string) => `说话键现在用不了,我先不听你说话:${why.replace(/[。.!！]+$/, '')}。`,
   talkOff: '语音输入现在关着,可以在设置的「语音输入」页打开。',
   talkType: '也可以把鼠标停在我身上,点旁边的气泡按钮打字。',
   gotIt: '知道了',
@@ -168,7 +170,21 @@ interface VoiceState {
   enabled?: boolean;
   engine?: 'funasr' | 'system';
   model?: { phase: 'absent' | 'working' | 'ready' | 'error'; done: number; total: number | null; bytes: number; detail: string | null };
-  input?: { effectiveMode?: 'hold' | 'toggle' | 'always'; hint?: string; keyLabel?: string; taps?: number };
+  input?: { mode?: 'hold' | 'toggle' | 'always'; hint?: string; keyLabel?: string; taps?: number; hotkeyProblem?: string | null };
+}
+
+/**
+ * The bubble on how to talk to her: the World words the hint for the key and mode in force; the key cap acts out the
+ * taps and the hold. A talk key that cannot be read hears nothing: say why, and show no key cap that would do nothing.
+ */
+export function talkStep(voice: VoiceState | undefined): PetDialog {
+  const on = voice?.enabled !== false && !!voice?.input?.hint;
+  const problem = on && voice?.input?.mode !== 'always' ? voice?.input?.hotkeyProblem : null;
+  const keyed = on && !problem && voice?.input?.mode !== 'always';
+  return {
+    text: `${problem ? S.talkKeyProblem(problem) : on ? S.talk(voice!.input!.hint!) : S.talkOff}${S.talkType}`,
+    input: { kind: 'buttons', keys: keyed ? voice?.input?.keyLabel : undefined, taps: voice?.input?.taps, options: [{ label: S.gotIt, primary: true }] },
+  };
 }
 
 /** Steps through the pet's bubble; a step the pet page was not there for waits for it and shows again. */
@@ -326,13 +342,7 @@ export async function runGuide(deps: GuideDeps): Promise<void> {
         await step(4, { text: S.modelLater });
       }
     }
-    // the World words the hint for the key and mode in force; the key cap acts out the taps and the hold
-    const on = voice?.enabled !== false && !!voice?.input?.hint;
-    const keyed = on && voice?.input?.effectiveMode !== 'always';
-    await step(4, {
-      text: `${on ? S.talk(voice!.input!.hint!) : S.talkOff}${S.talkType}`,
-      input: { kind: 'buttons', keys: keyed ? voice?.input?.keyLabel : undefined, taps: voice?.input?.taps, options: [{ label: S.gotIt, primary: true }] },
-    });
+    await step(4, talkStep(voice));
 
     // 5 the buttons, the menu, and where settings live
     await step(5, { text: S.buttons, actions: ['wink'], input: { kind: 'buttons', options: [{ label: S.ok, primary: true }] } });

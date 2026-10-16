@@ -59,7 +59,7 @@ export function createActs() {
  * current one already typing gets nothing attached, and the caller does them at once (`'late'`); an id no longer
  * there (said and gone) is dropped (`'missing'`). Either way the bubble no longer waits.
  */
-export const SAY_HOLD_MS = 900;
+export const SAY_HOLD_MS = 1100;
 
 export function sayHeld(it, T) {
   if (!it || !it.pending) return false;

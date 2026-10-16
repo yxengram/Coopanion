@@ -86,6 +86,19 @@ describe('figure packs', () => {
     expect(readManifest(pack({ ...base, sounds: { boing: { file: '../boing.ogg', kind: 'move' } } }))).toMatch(/sounds/);
   });
 
+  it('refuses a file path holding markup characters or a control character', () => {
+    const markup = 't.png"><iframe src="x.html"></iframe>';
+    expect(readManifest(pack({ ...base, thumb: markup }))).toMatch(/thumb/);
+    expect(readManifest(pack({ ...base, thumb: 'a<b.png' }))).toMatch(/thumb/);
+    expect(readManifest(pack({ ...base, entry: 'figure\n.js' }))).toMatch(/entry/);
+    const axis = { id: 'tone', name: { zh: '色调' }, options: [{ id: 'day', name: { zh: '白天' }, thumb: markup }] };
+    expect(readManifest(pack({ ...base, axes: [axis] }))).toMatch(/day/);
+    const fine = { ...axis, options: [{ ...axis.options[0], thumb: 'day.png' }] };
+    expect(readManifest(pack({ ...base, axes: [fine], presets: [{ id: 'dawn', pick: { tone: 'day' }, thumb: markup }] }))).toMatch(/dawn/);
+    // an ordinary path, sub-folder and all, still goes
+    expect(typeof readManifest(pack({ ...base, axes: [fine], presets: [{ id: 'dawn', pick: { tone: 'day' }, thumb: 'thumbs/dawn 1.png' }] }))).toBe('object');
+  });
+
   it('a built-in id is not taken over by an installed pack, Coo\'s included', () => {
     const root = mkdtempSync(join(tmpdir(), 'packs-'));
     for (const id of ['whale', 'coo', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']) {

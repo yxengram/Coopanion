@@ -31,7 +31,7 @@ export const DESKTOP_PET_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_walk_to',
     tags: ['act'],
-    description: '沿屏幕底边走(或跑)到某个位置,走到或被打断后返回,最多等 30 秒。',
+    description: '沿屏幕底边走(或跑)到某个位置,走到或被打断后返回(按路程等,远的等得久)。',
     parameters: {
       type: 'object',
       properties: {
@@ -125,7 +125,7 @@ export const DECIDER_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_walk',
     tags: ['act'],
-    description: '沿屏幕底边朝左或朝右走(或跑)一段,走到或被打断后返回,最多等 30 秒。到屏幕边会停下,回执里说。你现在在哪、离两边多远,见每批事件和桌宠工具回执里的 [位置] 行。',
+    description: '沿屏幕底边朝左或朝右走(或跑)一段,走到或被打断后返回(按路程等,远的等得久)。到屏幕边会停下,回执里说。你现在在哪、离两边多远,见每批事件和桌宠工具回执里的 [位置] 行。',
     parameters: {
       type: 'object',
       properties: {

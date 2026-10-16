@@ -20,8 +20,8 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 |---|---|---|
 | `pet_say(script)` | 冒气泡说话;`【词】` 先做动作再换新气泡,`<词>` 打字到那里时做(没有文字的气泡里的 `<词>` 跟着这个气泡开始);标记里用 `+`(或 `＋`)连起来的词同时做,如 `【坐下+开心+招手】` | 立即返回,报约显示多久、前面排了多久;拆开先后做的组、合成一张脸的两个表情(谁给眼、谁给嘴,或合成了哪个词)和略过的词写在 `[执行参数]` 里 |
 | `pet_ask(question, options, allowOwnAnswer)` | 提问气泡,最多 3 个选项,默认再加一格自己写 | 立即返回;回答以 `[回答]` 事件送达 |
-| `pet_walk_to(to, run)` | 走(跑)到桌宠所在屏幕横向 0–1 处,或 `left` `center` `right` `cursor` | 走到或被打断才返回,最多 30 秒;身体正忙(被拎着、在空中、在翻滚)起不了步时马上返回;`interruptible`,收到 interrupt 时停在原地并写明位置 |
-| `pet_act(actions)` | 不说话,依次做一串表情或动作;一项里用 `+` 连起来的词同时做,如 `"点头+招手"` | 立即返回;拆组、合成和略过的词同 `pet_say`;词表里标着保持的词(Coo、大肥鱼、Claude 娘、GPT 娘、Gemini 娘和 Grok 娘的 `sit` `sleep` `lie` `kneel`,组里的也算)会写明保持多久:坐、趴、睡做手势和换表情时不变,换姿势或走、跳这类全身动作才结束;跪坐换表情、点头、摇头、叹气、歪头、低头、眨眨眼时不变,做下一个手上或全身的动作就变回普通坐着;跪坐带 `keepsArms` 的(大肥鱼和四位娘)只占「手」的手势和唱歌也不变,跪着做,做全身的动作或「手,要站着或坐着不动」那组别的动作才变回普通坐着 |
+| `pet_walk_to(to, run)` | 走(跑)到桌宠所在屏幕横向 0–1 处,或 `left` `center` `right` `cursor` | 走到或被打断才返回,最多等「距离 ÷ 最高速度(走 78、跑 250 像素/秒)× 1.25 + 10 秒」,不少于 30 秒,到时页面还报着在走就再等,最多两倍;身体正忙(被拎着、在空中、在翻滚)起不了步时马上返回;`interruptible`,收到 interrupt 时停在原地并写明位置 |
+| `pet_act(actions)` | 不说话,依次做一串表情或动作;一项里用 `+` 连起来的词同时做,如 `"点头+招手"` | 立即返回;前面的气泡还在排队或打字时,这串词等最后一个气泡的字打完再做(接着来的 `pet_walk_to`/`pet_walk` 先等这些词做完再起步,最多 6 秒;正在走路时照旧马上做);拆组、合成和略过的词同 `pet_say`;词表里标着保持的词(Coo、大肥鱼、Claude 娘、GPT 娘、Gemini 娘和 Grok 娘的 `sit` `sleep` `lie` `kneel`,组里的也算)会写明保持多久:坐、趴、睡做手势和换表情时不变,换姿势或走、跳这类全身动作才结束;跪坐换表情、点头、摇头、叹气、歪头、低头、眨眨眼时不变,做下一个手上或全身的动作就变回普通坐着;跪坐带 `keepsArms` 的(大肥鱼和四位娘)只占「手」的手势和唱歌也不变,跪着做,做全身的动作或「手,要站着或坐着不动」那组别的动作才变回普通坐着 |
 | `pet_set(…)` | 改自己的外观和习惯,见「自己调整」 | 自己能改的立即返回;要问的等对方回答 |
 | `pet_quiet(minutes, sound, roam)` | 临时安静:默认关音效、站着不动,到点恢复,设置不变 | 立即返回 |
 
@@ -44,7 +44,7 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 | `pet_say(text, feeling)` | 一个气泡一句 `feeling`(此刻的心情、想法,怎么写都行);`text` 里习惯性写出的标记去掉、不执行:`【…】` 都去掉,`<…>` 里是词表里的词或只有汉字时去掉(`<小声>`),其他尖括号(`<div>`、`a < b`、`3<5`)照原文显示 | 立刻返回,不等决策:约显示多久、「表情动作照 feeling 自动做」(没有密钥或熔断中时写明这句只说话);决策按调用顺序一个接一个做(`decisionsIdle()` 等它们做完),词挑好后用 `say-acts` 补给气泡,做了哪些词(或失败原因)在下一条桌宠回执或下一批事件的 `[位置]` 行后面跟一行 `[表情动作] 刚才的气泡:「…」词` 说一次 |
 | `pet_ask(question, options, allowOwnAnswer, feeling?)` | 同上;给了 `feeling` 就按它决策,挑好就做(`act`) | 已问出;同样不等决策 |
 | `pet_feel(feeling)` | 替代 `pet_act`:这一轮不说话时只让身体流露心情;坐下、跪坐、趴下、睡觉也由它挑(说话时姿势写进 `pet_say` 的 feeling) | 等它这次决策(排在前面气泡的决策之后)做完才返回:做了什么 + 持续姿势说明;决策失败时不标 `failed` |
-| `pet_walk(direction, pixels, run)` | 替代 `pet_walk_to`:往 `left`/`right` 走多少像素,从页面最后报的位置算,先截到 `[0, 屏幕宽]`,页面再截到舞台边 | 走到才返回:走了多少像素、停在哪;比要求少 8 像素以上就说「走到屏幕边停下了」;`interruptible` |
+| `pet_walk(direction, pixels, run)` | 替代 `pet_walk_to`:往 `left`/`right` 走多少像素,从页面最后报的位置算,先截到 `[0, 屏幕宽]`,页面再截到舞台边 | 走到才返回(等多久同 `pet_walk_to`):走了多少像素、停在哪;比要求少 8 像素以上就说「走到屏幕边停下了」;`interruptible` |
 | `pet_set`、`pet_quiet` | 不变 | 不变 |
 
 决策模式下每个桌宠工具的回执末尾、每批投递的事件里(一个恒挂着的 `piggyback` 延迟事件 `desktop-pet.pose`,投递时现渲染)都有一行
@@ -55,14 +55,15 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 分组用 `partOf`,和词表的部位分组同一来源,每个词恰好在一道题里,`walk`、`run` 不出题,气泡里不出 `sleep`,`body` 题去掉她现在的姿势,
 被拎着或在空中不出 `body` 题),每题第一个选项是「不动」类;选项名是词的第一个中文名(重名退用 `名字(id)`),说明是 `about`、心情组、别名和「会一直保持」。
 `buildState` 写心情、要说的话、对方 10 分钟内最后说的话、姿势与位置、最近 5 次做过的、时间(≤1500 字)。
-`pickGroup`:每题按概率取胜者,「不动」胜出或低于门槛(表情 0.20,头和手 0.30,身 0.55,趴下和睡觉 0.70,尾巴耳朵翅膀 0.50)就不动;
+`pickGroup`:每题按概率取胜者,「不动」胜出或低于门槛(表情 0.20,头和手 0.30,身 0.55,趴下和睡觉 0.70,尾巴耳朵翅膀 0.50;`pet_feel` 是 bot 自己要的身体动作,坐下、跪坐、趴下、睡觉只要 0.50)就不动;
 同一题连着两次是同一个词而第二名够近就换第二名;除表情外最多动 2 个部位;表情第二名够高且在形象的 `pairs` 里就组成表情对;
-最后按概率从高到低用 `clashes` 去掉冲突的,所以拼出的一组 `parseActions` 不会再拆开。
-页面:`say` 带 `acts: 'pending'` 和 `holdMs`(900 ms)时,轮到这个气泡最多等这么久拿到词;词按气泡 id 用 `say-acts` 发来,排队中的气泡把它当第一拍的词,已在打字的立刻做(`web/acts.js` 的 `attachSayActs`、`sayHeld`)。
+最后按概率从高到低用 `clashes` 去掉冲突的,所以拼出的一组 `parseActions` 不会再拆开;例外是 `body` 题胜出的是会一直保持的姿势(睡觉、趴下、坐下、跪坐)时:和它冲突的表情排在它后面(概率按不超过姿势算),姿势留下就换成表情题的第二名(是表情、过门槛、不冲突、不是刚被重复规则换掉的那个时),否则不做表情(气泡里 `石化` 和坐下、趴下、跪坐冲突,也让给姿势);`pet_feel` 上姿势排在所有部位前面,和它冲突的头、手等也都让开(说「去睡觉」时 `犯困`、`低头` 不再挤掉 `睡觉`);姿势最后没留下(被别的部位或部位上限挡掉)时,整组照概率重排,表情不白让。
+决策模型返回错误时,回执写状态码和精简过的原因(OpenRouter「没有符合隐私和防护设置的服务端」写成一句,带上它列的原因,如 `ZDR violation (guardrail)`)。
+页面:`say` 带 `acts: 'pending'` 和 `holdMs`(1100 ms)时,轮到这个气泡最多等这么久拿到词;词按气泡 id 用 `say-acts` 发来,排队中的气泡把它当第一拍的词,已在打字的立刻做(`web/acts.js` 的 `attachSayActs`、`sayHeld`)。
 
 失败:单次失败或超时只让这一句不做表情动作,不换模式;连续 3 次失败 60 秒内不再调用(熔断,日志只警告一次);密钥被删后 5 秒内切回旧模式。
 模式切换时调 `onModeChange(mode)`,应用据此重建前缀(Coopanion 调 `reloadSystemPrefix`);重建前模型调旧工具名仍照旧执行。
-控制台:「表情决策」灯、配置组 `world:desktop-pet:decider`(开关、模型、超时)、`pet.state` 里的 `decider`(只有有没有密钥,没有密钥本身)、`pet.deciders` 列出 OpenRouter 上的决策模型(`GET https://openrouter.ai/api/v1/models?output_modalities=decisions`,公开、不带密钥;World 缓存 6 小时;返回 `{ models: [{ id, name?, promptPerM, context }], source: 'live' | 'cache' | 'fallback', minContext }`,上下文小于 `max(DECIDER_MIN_CONTEXT = 8192, 本次运行最大请求 × 1.25)` 的不列出;连不上时给上次的列表,再不行给 `DECIDER_FALLBACK_MODELS` 里已知的几个 id,价格和上下文为 null;`deciderModelsUrl` 可指到本地假端点)。
+控制台:「表情决策」灯、配置组 `world:desktop-pet:decider`(开关、模型、超时)、`pet.state` 里的 `decider`(只有有没有密钥,没有密钥本身)、`pet.deciders` 列出 OpenRouter 上的决策模型(`GET https://openrouter.ai/api/v1/models?output_modalities=decisions`,公开、不带密钥;World 缓存 6 小时;返回 `{ models: [{ id, name?, promptPerM, context }], source: 'live' | 'cache' | 'fallback', minContext }`,上下文小于 `max(DECIDER_MIN_CONTEXT = 8192, 本次运行最大请求 × 1.25)` 的不列出;连不上时给上次的列表,再不行给 `DECIDER_FALLBACK_MODELS` 里已知的几个 id(不含 `:free` 模型:开着零数据保留时它们没有可用的服务端,免费服务端也可能记录提示词),价格和上下文为 null;`deciderModelsUrl` 可指到本地假端点)。
 决策用量以 `桌宠·表情决策` 记入 `reportUsage`;`onDecision(rec)` 给评测和测试每次决策的记录(不含密钥)。
 部署里改过环境提示词时(Cortico 只按 World id 存一份覆盖文件,两种模式都会读它),决策模式下记一条警告,控制台提示去「提示词」页还原。
 
@@ -166,7 +167,7 @@ SenseVoice 一次识别整句;说话过程中每 0.5 秒把这句到目前为止
 说话键 `asr.mic.hotkey` 用 `+` 连写组合键(`Ctrl+Space`、`F8`、`Mouse4`),结尾加 `*2` / `*3` 表示连按:前面几下是快速的一按一放(每下不超过 300 ms,两下之间隔不超过 400 ms),最后一下按住才算按下。
 默认 `LeftAlt*2`:快速按一下左 Alt(Mac 上是左 Option),紧接着按住说话。按完快速的那一下,World 给桌宠页发 `listen` 的 `ready`,Coo 先抬头看一眼,按住时立刻进入聆听。
 在哪个窗口里按都算;「语音输入」面板的说话键按钮录下组合键,旁边的下拉框选「双击再按住」(`*2`)或「直接按住」(不带 `*`),录键时保留当前的按法。桌宠麦克风按钮的角标显示说话键的简写(`Alt×2`、`F8`、`M4`),一直收音时显示 `AUTO`。
-Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 CoreGraphics 的 `CGEventSourceKeyState`,要在「系统设置 → 隐私与安全性 → 输入监控」里允许,第一次会弹出询问;Linux 上轮询 X11 的 `XQueryKeymap`(Wayland 下经 XWayland,只在 X11 窗口有键盘焦点时读得到;鼠标侧键读不到)。读不到时退回 `always`,面板上写明原因。
+Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 CoreGraphics 的 `CGEventSourceKeyState`,要在「系统设置 → 隐私与安全性 → 输入监控」里允许,第一次会弹出询问;Linux 上轮询 X11 的 `XQueryKeymap`(Wayland 下经 XWayland,只在 X11 窗口有键盘焦点时读得到;鼠标侧键读不到)。读不到时不识别说话(收音方式不会改成 `always`),面板和引导上写明原因。
 `asr.mic.deviceId` 选麦克风,留空用系统默认;设备列表由桌宠页在拿到麦克风权限后报上来。
 麦克风在「开启语音输入」总开关开着时一直打开,电平条随时显示音量,说话键只决定哪一段送去识别。
 

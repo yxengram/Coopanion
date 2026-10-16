@@ -64,10 +64,13 @@ const RECENT_DECISIONS = 5;
 const CLAMP_SLACK_PX = 8;
 /** A position event armed this long without being rendered is armed again (one that never came back is replaced). */
 const POSE_REARM_MS = 5 * 60_000;
-/** How long a posture word sent is told as her posture before the page shows it (see `pendingPosture`). */
-const POSTURE_PENDING_MS = 4000;
-/** How long a kneel word sent waits for the page to sit down before the kneel is forgotten. */
-const KNEEL_WAIT_MS = 10_000;
+/**
+ * How long a posture word sent is told as her posture before the page shows it (see `pendingPosture`): long enough
+ * for one sent after bubbles, which the page does once their text is typed out (web/body-host.js afterBubbles).
+ */
+const POSTURE_PENDING_MS = 30_000;
+/** How long a kneel word sent waits for the page to sit down before the kneel is forgotten (as long, for the same reason). */
+const KNEEL_WAIT_MS = 30_000;
 /** How long OpenRouter's listing of decision models is kept before it is fetched again. */
 const DECIDER_LIST_TTL_MS = 6 * 3600_000;
 /** The posture each posture word puts her in. */
@@ -79,7 +82,16 @@ export type PetMode = 'classic' | 'decider';
 const QUIET_MAX_MIN = 24 * 60;
 const FRAME_MS = 20;
 const SAMPLE_RATE = 16_000;
+/** The shortest wait for a walk the page was sent. */
 const WALK_TIMEOUT_MS = 30_000;
+/** Top walking and running speeds on the page in px/s (the kit's `vMax` in web/kit/body.js). */
+const WALK_PX_S = 78;
+const RUN_PX_S = 250;
+/** On top of the distance at top speed: setting off, getting up first, slowing down at the end. */
+const WALK_SLACK = 1.25;
+const WALK_MARGIN_MS = 10_000;
+/** A walk the page still reports under way when its time is up is waited on this much longer, up to twice its time. */
+const WALK_RECHECK_MS = 10_000;
 /** Touches of one kind closer than this are reported as one event with a count. */
 const TOUCH_MERGE_MS = 2500;
 /** How long a confirmation bubble waits for an answer. */
@@ -229,7 +241,8 @@ type Decided = { ok: true; actions: string[]; notes: string[] } | { ok: false; r
 /** How a walk ended: the page's report (`x` a share of the screen), no report in time, or the World or page gone. */
 type WalkEnd =
   | { t: 'arrived' | 'interrupted'; x: number | null; by?: unknown; stopping?: boolean }
-  | { t: 'timeout' | 'stopped' | 'gone' };
+  | { t: 'timeout'; ms: number }
+  | { t: 'stopped' | 'gone' };
 
 interface PendingWalk {
   resolve: (end: WalkEnd) => void;
@@ -349,7 +362,7 @@ export class DesktopPetWorld implements World {
   /** The talk key is down (hold) or was switched on (toggle). */
   private talking = false;
   private keyWatcher: KeyWatcher | null = null;
-  /** Why the talk key cannot be read; the gate then stays open as in `always`. */
+  /** Why the talk key cannot be read; the gate then stays closed. */
   private hotkeyProblem: string | null = null;
   private hotkeyKey = '';
   private level = -100;
@@ -798,7 +811,7 @@ export class DesktopPetWorld implements World {
       ready,
       detail: ready ? null : b?.phase === 'starting' ? '识别服务启动中' : b?.detail ?? '识别服务没有运行',
       hint: this.talkHint(),
-      mode: this.micMode(),
+      mode: this.cfg.asr.mic.mode,
       key: hotkeyBadge(this.cfg.asr.mic.hotkey),
     };
   }
@@ -1157,14 +1170,9 @@ export class DesktopPetWorld implements World {
 
   /* ---------- talk key ---------- */
 
-  /** The mode in force: hold and toggle fall back to always while the talk key cannot be read. */
-  private micMode(): MicMode {
-    return this.hotkeyProblem ? 'always' : this.cfg.asr.mic.mode;
-  }
-
   /** Audio reaches the segmenter only while this is true. */
   private gateOpen(): boolean {
-    return this.micMode() === 'always' || this.talking;
+    return this.cfg.asr.mic.mode === 'always' || this.talking;
   }
 
   /**
@@ -1173,7 +1181,7 @@ export class DesktopPetWorld implements World {
    */
   private segmentConfig(): SegmentConfig {
     const seg = this.cfg.asr.segment;
-    return this.micMode() === 'hold' ? { ...seg, thresholdDb: -Infinity, minSpeechMs: 0 } : seg;
+    return this.cfg.asr.mic.mode === 'hold' ? { ...seg, thresholdDb: -Infinity, minSpeechMs: 0 } : seg;
   }
 
   /** Starts, restarts or stops the key watcher to match the configured mode and key. */
@@ -1193,19 +1201,17 @@ export class DesktopPetWorld implements World {
     if (key !== this.hotkeyKey) { if (typeof watcher !== 'string') watcher.stop(); return; }
     if (typeof watcher === 'string') {
       this.hotkeyProblem = watcher;
-      this.log?.warn(`按键收音不可用,改为一直收音:${watcher}`);
+      this.log?.warn(`说话键不可用,暂不识别说话:${watcher}`);
     } else this.keyWatcher = watcher;
-    this.segmenter.configure(this.segmentConfig());
   }
 
   /** One line telling the person how to be heard. */
   private talkHint(): string {
     const { hotkey } = this.cfg.asr.mic;
     const key = comboLabel(hotkey), { taps } = splitTaps(hotkey);
-    const mode = this.micMode();
-    if (mode === 'always') return this.hotkeyProblem
-      ? `说话键不可用，暂时自动收音：${this.hotkeyProblem}`
-      : '一直在听,直接说话';
+    const mode = this.cfg.asr.mic.mode;
+    if (mode === 'always') return '一直在听,直接说话';
+    if (this.hotkeyProblem) return `说话键不可用，暂不识别说话：${this.hotkeyProblem}`;
     if (mode === 'toggle') return taps > 1 ? `${hotkeyLabel(hotkey)} 开始听,再${taps === 2 ? '双击' : '三击'}停` : `按一下 ${key} 开始听,再按一下停`;
     return taps > 1 ? `快速按${taps === 2 ? '一' : '两'}下 ${key},紧接着按住说话,松开就发出去` : `按住 ${key} 说话,松开就发出去`;
   }
@@ -1217,7 +1223,7 @@ export class DesktopPetWorld implements World {
   }
 
   private onTalkKey(down: boolean): void {
-    if (this.micMode() === 'hold') this.setTalking(down);
+    if (this.cfg.asr.mic.mode === 'hold') this.setTalking(down);
     else if (down) this.setTalking(!this.talking);
   }
 
@@ -1245,7 +1251,7 @@ export class DesktopPetWorld implements World {
   private commitSpeech(): void {
     if (!this.cfg.asr.enabled || !this.micWanted()) return;
     this.committing = true;
-    if (this.micMode() === 'toggle' && this.talking) this.setTalking(false);
+    if (this.cfg.asr.mic.mode === 'toggle' && this.talking) this.setTalking(false);
     else {
       const tail = this.segmenter.flush();
       if (tail) this.enqueue(tail);
@@ -1586,8 +1592,30 @@ export class DesktopPetWorld implements World {
     return { text: `已问出。${replaced}${cut}${shown}${did}回答到了会以 [回答] 事件送达。` };
   }
 
-  /** Waits for the walk `walkId` the page was sent; an interrupt stops it where the pet stands. */
-  private awaitWalk(walkId: string, ctx?: ToolCallContext): Promise<WalkEnd> {
+  /**
+   * How long a walk of `px` pixels may take before it counts as not arriving: the distance at top speed with room to
+   * spare, never under WALK_TIMEOUT_MS. A walk across a wide screen takes longer than that at 78 px/s.
+   */
+  private walkBudgetMs(px: number, run: boolean): number {
+    const ms = Math.abs(px) / (run ? RUN_PX_S : WALK_PX_S) * 1000 * WALK_SLACK + WALK_MARGIN_MS;
+    return Math.round(Math.max(WALK_TIMEOUT_MS, Number.isFinite(ms) ? ms : 0));
+  }
+
+  /** How far a walk to `to` (a share of the stage, or the cursor) goes from where the page last said she stands. */
+  private walkDistance(to: number | 'cursor'): number {
+    const from = this.pose;
+    const w = from?.w ?? this.screen?.w ?? 0;
+    if (!from) return w;
+    // the cursor can be anywhere: the farther edge
+    return to === 'cursor' ? Math.max(from.x, w - from.x) : Math.abs(to * w - from.x);
+  }
+
+  /**
+   * Waits for the walk `walkId` the page was sent; an interrupt stops it where the pet stands. Its time is `budgetMs`;
+   * when that is up while the page still reports her walking or running, it waits on, up to twice that.
+   */
+  private awaitWalk(walkId: string, budgetMs: number, ctx?: ToolCallContext): Promise<WalkEnd> {
+    const started = Date.now();
     return new Promise<WalkEnd>((resolve) => {
       const onAbort = (): void => {
         if (!this.walks.has(walkId)) return;
@@ -1598,11 +1626,18 @@ export class DesktopPetWorld implements World {
         ctx?.signal?.removeEventListener('abort', onAbort);
         resolve(e);
       };
-      const timer = setTimeout(() => {
+      const expire = (): void => {
+        if (this.walks.get(walkId) !== walk) return;
+        const mode = this.pose?.mode;
+        const waited = Date.now() - started;
+        if ((mode === 'walk' || mode === 'run') && waited < budgetMs * 2) {
+          walk.timer = setTimeout(expire, Math.min(WALK_RECHECK_MS, budgetMs * 2 - waited));
+          return;
+        }
         this.walks.delete(walkId);
-        done({ t: 'timeout' });
-      }, WALK_TIMEOUT_MS);
-      const walk: PendingWalk = { resolve: done, timer };
+        done({ t: 'timeout', ms: waited });
+      };
+      const walk: PendingWalk = { resolve: done, timer: setTimeout(expire, budgetMs) };
       this.walks.set(walkId, walk);
       ctx?.signal?.addEventListener('abort', onAbort, { once: true });
     });
@@ -1610,7 +1645,7 @@ export class DesktopPetWorld implements World {
 
   /** A walk's end as `pet_walk_to` (and an unfinished `pet_walk`) tells it. */
   private walkText(e: WalkEnd): string {
-    if (e.t === 'timeout') return `${WALK_TIMEOUT_MS / 1000} 秒内没有走到。`;
+    if (e.t === 'timeout') return `${Math.round(e.ms / 1000)} 秒内没有走到。`;
     if (e.t === 'stopped') return 'World 已停止,没走到。';
     if (e.t === 'gone') return '没走到:桌宠窗口断开了。';
     if (e.t !== 'arrived' && e.t !== 'interrupted') return '';
@@ -1621,6 +1656,7 @@ export class DesktopPetWorld implements World {
       : e.by === 'drag' ? `没走到:走到 ${at} 处时被${this.cfg.user}拎起来了。`
       : e.by === 'busy' ? `没走:身体正忙(被拎着、在跳、在空中或在翻滚),没法起步,还在屏幕横向 ${at} 处。等它落地站稳再走。`
       : e.by === 'none' ? '没走:桌宠的身体还没准备好。'
+      : e.by === 'figure' ? `没走完:换了形象,停在屏幕横向 ${at} 处。`
       : `没走到:走到 ${at} 处时换成了别的动作(${String(e.by)})。`;
   }
 
@@ -1642,7 +1678,7 @@ export class DesktopPetWorld implements World {
     if (!this.server.sendPet({ t: 'walk', id: walkId, to: target, run })) return this.notConnected('pet_walk_to');
     this.kneeling = false;
     this.pendingPosture = null;
-    return { text: this.walkText(await this.awaitWalk(walkId, ctx)) };
+    return { text: this.walkText(await this.awaitWalk(walkId, this.walkBudgetMs(this.walkDistance(target), run), ctx)) };
   }
 
   /**
@@ -1668,7 +1704,7 @@ export class DesktopPetWorld implements World {
     if (!this.server.sendPet({ t: 'walk', id: walkId, to: tx / from.w, run })) return this.notConnected('pet_walk');
     this.kneeling = false;
     this.pendingPosture = null;
-    const end = await this.awaitWalk(walkId, ctx);
+    const end = await this.awaitWalk(walkId, this.walkBudgetMs(tx - from.x, run), ctx);
     if (end.t !== 'arrived' || end.x === null) return { text: this.walkText(end) };
     const w = from.w;
     const x = Math.round(end.x * w);
@@ -1971,7 +2007,7 @@ export class DesktopPetWorld implements World {
       return { ok: false, reason: res.reason, why };
     }
     this.host?.reportUsage({ promptTokens: res.usage.inputTokens, completionTokens: res.usage.outputTokens, cacheHitTokens: 0, cacheMissTokens: res.usage.inputTokens }, { model, label: '桌宠·表情决策' });
-    const pick = pickGroup(questions, res.answers, { vocab, pairs, recent: this.recentPicks.map((r) => r.chosen) });
+    const pick = pickGroup(questions, res.answers, { vocab, pairs, recent: this.recentPicks.map((r) => r.chosen), feel: o.tool === 'pet_feel' });
     const parsed = parseActions(pick.ids.length ? [pick.ids.join('+')] : [], vocab, pairs);
     const split = parsed.notes.filter((n) => n.includes('不能同时做'));
     if (split.length) this.log?.warn(`表情决策挑出的一组被拆开了:${split.join('')}`);
@@ -2174,7 +2210,6 @@ export class DesktopPetWorld implements World {
       mic: this.micState,
       input: {
         ...this.cfg.asr.mic,
-        effectiveMode: this.micMode(),
         hotkeyLabel: hotkeyLabel(this.cfg.asr.mic.hotkey),
         /** The keys alone, and how many presses (the last one held): for a key cap that shows the taps. */
         keyLabel: comboLabel(this.cfg.asr.mic.hotkey),

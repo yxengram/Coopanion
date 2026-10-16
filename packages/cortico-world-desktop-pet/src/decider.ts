@@ -9,8 +9,9 @@
  * - `buildState`: the background, in Chinese: the feeling, what she is about to say, what the person said last, her
  *   posture and place, what she did lately, the time.
  * - `pickGroup`: from the answers to one group of words (`a+b+c`): a floor per question, a repeat avoided, at most two
- *   parts besides the face, a pair of faces the figure composes, clashes (`clashes`) settled by probability. The
- *   group then goes through `parseActions` as any other.
+ *   parts besides the face, a pair of faces the figure composes, clashes (`clashes`) settled by probability, except
+ *   that a posture she stays in wins over a face it cannot be shown with (on `pet_feel` over any part). The group then goes through
+ *   `parseActions` as any other.
  * - `DeciderClient`: the HTTP call with a timeout, a circuit breaker and usage parsing; the key is read at each call
  *   and never kept, logged or put in an error.
  */
@@ -33,12 +34,16 @@ export const DECIDER_MODELS_URL = 'https://openrouter.ai/api/v1/models?output_mo
  * wings ask five or six questions; 8k leaves room for those, a longer state and a third-party pack's bigger list.
  */
 export const DECIDER_MIN_CONTEXT = 8192;
-/** The listing the console offers when OpenRouter cannot be reached (ids only: no price or context is made up). */
+/**
+ * The listing the console offers when OpenRouter cannot be reached (ids only: no price or context is made up). No
+ * `:free` model: under OpenRouter's zero-data-retention setting it never has an endpoint, and a free endpoint may log
+ * prompts (inception/mercury-decide:free failed every call that way).
+ */
 export const DECIDER_FALLBACK_MODELS: readonly string[] = [
-  DECIDER_DEFAULT_MODEL, '~perplexity/pplx-decider-latest', 'typesafe/jev-1.14', 'inception/mercury-decide:free', 'liquid/d1',
+  DECIDER_DEFAULT_MODEL, '~perplexity/pplx-decider-latest', 'typesafe/jev-1.14', 'liquid/d1',
 ];
 /** How long the pet page holds a bubble for its words before it starts typing anyway (`say` with `acts: 'pending'`). */
-export const DECIDER_HOLD_MS = 900;
+export const DECIDER_HOLD_MS = 1100;
 /** Consecutive failures that open the breaker, and how long it stays open. */
 export const BREAKER_FAILS = 3;
 export const BREAKER_MS = 60_000;
@@ -115,6 +120,10 @@ export interface QuestionOptions {
   /** For a bubble (`pet_say`, `pet_ask`): sleep is left out (asleep she cannot talk). */
   forSay?: boolean;
   posture?: Posture;
+  /** Leave the words' other names out of the options' guidance (a shorter, faster request). */
+  noAliases?: boolean;
+  /** Leave a face's mood group out of its guidance. */
+  noMood?: boolean;
 }
 
 /**
@@ -148,7 +157,7 @@ export function buildQuestions(vocab: readonly VocabWord[], opts: QuestionOption
       let key = firstName(v);
       if (taken.has(key) || key === keep) key = `${key}(${v.id})`;
       taken.add(key);
-      options.push({ key, id: v.id, about: aboutOf(v, vocab) });
+      options.push({ key, id: v.id, about: aboutOf(v, opts) });
     }
     out.push({ id, instructions: INSTRUCTIONS[id], keep, options });
   }
@@ -156,17 +165,16 @@ export function buildQuestions(vocab: readonly VocabWord[], opts: QuestionOption
 }
 
 /** An option's guidance: what it looks like, its other names, its mood group (a face), and that a posture lasts. */
-function aboutOf(v: VocabWord, vocab: readonly VocabWord[]): string {
+function aboutOf(v: VocabWord, opts: QuestionOptions = {}): string {
   const about = (v.about.zh ?? Object.values(v.about)[0] ?? '').trim();
   const names = (v.names.zh ?? Object.values(v.names)[0] ?? []).slice(1);
   const parts = [about || firstName(v)];
-  if (v.kind === 'expression') parts.push(`心情:${moodLabel(v.id)}`);
-  if (names.length) parts.push(`也叫:${names.join('、')}`);
+  if (v.kind === 'expression' && !opts.noMood) parts.push(`心情:${moodLabel(v.id)}`);
+  if (names.length && !opts.noAliases) parts.push(`也叫:${names.join('、')}`);
   if (v.lasting) parts.push('会一直保持下去');
   if (v.id === 'petrify') parts.push('其他部位都不能同时动');
   const app = APPENDAGES.find((c) => channelsOf(v).length === 1 && channelsOf(v)[0] === c);
   if (app) parts.push(`${APPENDAGE_NAMES[app]}的动作`);
-  void vocab;
   return parts.join(';');
 }
 
@@ -309,17 +317,29 @@ export function parseUsage(body: unknown): DecisionUsage {
 export const FLOOR: Record<QuestionId, number> = { face: .20, head: .30, arm: .30, body: .55, tail: .50, ears: .50, wings: .50 };
 /** Postures that need more: she stays in them. */
 const FLOOR_WORD: Record<string, number> = { sleep: .70, lie: .70 };
+/** On `pet_feel` the bot asks for a body itself (to go to sleep, to lie down): a posture needs only this. */
+const FEEL_FLOOR_WORD: Record<string, number> = { sleep: .50, lie: .50, sit: .50, kneel: .50 };
+/** The postures she stays in, which win over a face they clash with (`postureOverFace`); on `pet_feel` over any part. */
+const LASTING_POSTURES = new Set(['sleep', 'lie', 'sit', 'kneel']);
 
 /**
  * The knobs of `pickGroup` (scratch/decider/tune/tune.ts runs it over a grid of them): the floor per question and per
  * lasting posture; a repeated winner (the same word in this question in each of the last `repeatWindow` decisions)
  * gives way to the second when that is a word, above its floor and at least `repeatRatio` of the winner
  * (`repeatWindow` 0: never); at most `budget` parts besides the face; a face's second choice joins it as a pair (when
- * the figure composes the two) above `pairMin` and `pairRatio` of the winner, unless `pairs` is off.
+ * the figure composes the two) above `pairMin` and `pairRatio` of the winner, unless `pairs` is off. On a `pet_feel`
+ * call (`PickContext.feel`) a word of `feelFloorWord` needs that instead of its question's and `floorWord`'s floor.
+ * With `postureOverFace`, a body winner that is a posture she stays in (sleep, lie, sit, kneel) and clashes with the
+ * face is settled before the face, which gives way to its runner-up (a face that fits) or goes, whichever is likelier;
+ * on a `pet_feel` call the posture also comes before every other part (the bot asked for it), so whatever clashes
+ * with it goes. When the posture is not kept after all (another part or the budget keeps it out), probability alone
+ * settles the group, as without `postureOverFace`. (Sleep takes every face; petrify clashes with sit, lie and kneel.)
  */
 export interface PickParams {
   floor: Record<QuestionId, number>;
   floorWord: Record<string, number>;
+  feelFloorWord: Record<string, number>;
+  postureOverFace: boolean;
   budget: number;
   repeatWindow: number;
   repeatRatio: number;
@@ -328,7 +348,7 @@ export interface PickParams {
   pairRatio: number;
 }
 export const PICK_DEFAULTS: Readonly<PickParams> = {
-  floor: FLOOR, floorWord: FLOOR_WORD, budget: 2, repeatWindow: 2, repeatRatio: .6, pairs: true, pairMin: .20, pairRatio: .5,
+  floor: FLOOR, floorWord: FLOOR_WORD, feelFloorWord: FEEL_FLOOR_WORD, postureOverFace: true, budget: 2, repeatWindow: 2, repeatRatio: .6, pairs: true, pairMin: .20, pairRatio: .5,
 };
 
 export interface PickContext {
@@ -336,6 +356,8 @@ export interface PickContext {
   pairs?: Pairs;
   /** The option keys each question chose in the last decisions, most recent first. */
   recent?: ReadonlyArray<Partial<Record<QuestionId, string | null>>>;
+  /** The decision is for `pet_feel`: the bot asked for the body itself, with no bubble (`feelFloorWord`). */
+  feel?: boolean;
   /** Other knobs than the shipped ones (tuning). */
   params?: Partial<PickParams>;
 }
@@ -364,45 +386,74 @@ export function pickGroup(questions: readonly Question[], answers: Readonly<Reco
   const byId = new Map(ctx.vocab.map((v) => [v.id, v]));
   const why: Pick['why'] = {};
   const chosen: Pick['chosen'] = {};
-  type Cand = { q: Question; key: string; v: VocabWord; p: number; pair?: VocabWord };
+  type Cand = { q: Question; key: string; v: VocabWord; p: number; pair?: VocabWord; alt?: Cand };
   const cands: Cand[] = [];
   for (const q of questions) {
     const r = ranked(q, answers[q.id]);
     const idOf = (key: string) => q.options.find((o) => o.key === key)?.id ?? null;
-    let win = r[0], second = r[1];
+    let win = r[0], second = r[1], swapped = false;
     chosen[q.id] = null;
     if (!win) { why[q.id] = '没有回答'; continue; }
     if (idOf(win.key) === null) { why[q.id] = `${win.key}(${win.p.toFixed(2)})`; continue; }
-    const floorOf = (key: string) => Math.max(P.floor[q.id], P.floorWord[idOf(key) ?? ''] ?? 0);
+    const floorOf = (key: string) => {
+      const id = idOf(key) ?? '';
+      return ctx.feel && Object.hasOwn(P.feelFloorWord, id) ? P.feelFloorWord[id]! : Math.max(P.floor[q.id], P.floorWord[id] ?? 0);
+    };
     // the same word in this question in the last decisions: the second, when it is a word nearly as likely
     const repeated = P.repeatWindow > 0 && (ctx.recent ?? []).slice(0, P.repeatWindow).filter((d) => d[q.id] === win!.key).length >= P.repeatWindow;
     if (repeated && second && idOf(second.key) !== null && second.p >= P.repeatRatio * win.p && second.p >= floorOf(second.key)) {
       why[q.id] = `${win.key} 刚做过两次,换成 ${second.key}`;
       [win, second] = [second, r[0]];
+      swapped = true;
     }
     if (win.p < floorOf(win.key)) { why[q.id] = `${win.key} 概率 ${win.p.toFixed(2)} 不够`; continue; }
     const v = byId.get(idOf(win.key)!);
     if (!v) continue;
     const cand: Cand = { q, key: win.key, v, p: win.p };
-    // two faces this figure shows as one
-    if (P.pairs && q.id === 'face' && second) {
+    if (q.id === 'face' && second) {
       const v2 = byId.get(idOf(second.key) ?? '');
-      if (v2 && v2.kind === 'expression' && second.p >= P.pairMin && second.p >= P.pairRatio * win.p && Object.hasOwn(ctx.pairs ?? {}, pairKey(v.id, v2.id))) cand.pair = v2;
+      // two faces this figure shows as one
+      if (P.pairs && v2 && v2.kind === 'expression' && second.p >= P.pairMin && second.p >= P.pairRatio * win.p && Object.hasOwn(ctx.pairs ?? {}, pairKey(v.id, v2.id))) cand.pair = v2;
+      // the face in its place when a posture takes this one (not the one the repeat rule just put aside)
+      if (!swapped && v2 && v2.kind === 'expression' && second.p >= floorOf(second.key)) cand.alt = { q, key: second.key, v: v2, p: second.p };
     }
     cands.push(cand);
     why[q.id] ??= `${win.key}(${win.p.toFixed(2)})`;
   }
-  // most likely first: at most P.budget parts besides the face, and none that clashes with one kept
-  cands.sort((a, b) => b.p - a.p);
-  const kept: Cand[] = [];
-  let parts = 0;
-  for (const c of cands) {
-    const clash = kept.find((k) => clashes(k.v, c.v));
-    if (clash) { why[c.q.id] = `${c.key} 和 ${clash.key} 不能同时做,没做`; continue; }
-    if (c.q.id !== 'face' && parts >= P.budget) { why[c.q.id] = `${c.key} 超出一次最多动 ${P.budget} 个部位,没做`; continue; }
-    if (c.q.id !== 'face') parts++;
-    kept.push(c);
-    chosen[c.q.id] = c.key;
+  // most likely first: at most P.budget parts besides the face, and none that clashes with one kept. A posture she
+  // stays in comes before a face it clashes with (so the face never takes it), and on pet_feel before everything;
+  // when the posture is not kept after all, the face does not give way for nothing and probability alone settles it
+  const posture = P.postureOverFace ? cands.find((c) => c.q.id === 'body' && LASTING_POSTURES.has(c.v.id)) : undefined;
+  const why0 = { ...why }, chosen0 = { ...chosen };
+  const settle = (first: Cand | undefined) => {
+    const rank = (c: Cand) => (!first ? c.p : c === first && ctx.feel ? Infinity
+      : c.q.id === 'face' && clashes(c.v, first.v) ? Math.min(c.p, first.p) : c.p);
+    const order = [...cands].sort((a, b) => rank(b) - rank(a) || Number(b === first) - Number(a === first));
+    const kept: Cand[] = [];
+    let parts = 0;
+    for (const c of order) {
+      const clash = kept.find((k) => clashes(k.v, c.v));
+      if (c.q.id === 'face' && first && kept.includes(first) && clashes(c.v, first.v)) {
+        const alt = c.alt && !kept.some((k) => clashes(k.v, c.alt!.v)) ? c.alt : undefined;
+        why.face = `${c.key} 和 ${first.key} 不能同时做,留下姿势${alt ? `,换成 ${alt.key}` : ''}`;
+        if (alt) { kept.push(alt); chosen.face = alt.key; }
+        continue;
+      }
+      if (clash && clash === first && ctx.feel) { why[c.q.id] = `${c.key} 和 ${clash.key} 不能同时做,留下姿势`; continue; }
+      if (clash) { why[c.q.id] = `${c.key} 和 ${clash.key} 不能同时做,没做`; continue; }
+      if (c.q.id !== 'face' && parts >= P.budget) { why[c.q.id] = `${c.key} 超出一次最多动 ${P.budget} 个部位,没做`; continue; }
+      if (c.q.id !== 'face') parts++;
+      kept.push(c);
+      chosen[c.q.id] = c.key;
+    }
+    return kept;
+  };
+  let kept = settle(posture);
+  if (posture && !kept.includes(posture)) {
+    for (const k of Object.keys(why) as QuestionId[]) delete why[k];
+    Object.assign(why, why0);
+    Object.assign(chosen, chosen0);
+    kept = settle(undefined);
   }
   const ids = kept.flatMap((c) => (c.pair ? [c.v.id, c.pair.id] : [c.v.id]));
   return { ids, why, chosen };
@@ -442,6 +493,26 @@ export function failureText(reason: DecideFailure, detail = ''): string {
     case 'bad': return '决策模型的回答看不懂';
     default: return `连不上决策模型${detail ? `(${detail})` : ''}`;
   }
+}
+
+/** How much of an error message a receipt shows. */
+const ERROR_MAX = 120;
+
+/**
+ * An OpenRouter error message cut to what a receipt can show: links and whitespace runs out, and its "no endpoint
+ * matches your guardrails or data policy" answer told as that with the reasons it lists (`ZDR violation (guardrail)`),
+ * which a plain cut loses after the boilerplate.
+ */
+export function errorGist(msg: string): string {
+  const lines = msg.split(/\n+/)
+    .map((l) => l.replace(/;?\s*configurable at\s+\S+/gi, '').replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  if (/guardrail|data policy/i.test(lines[0] ?? '')) {
+    const reasons = [...new Set(lines.slice(1).map((l) => l.split(':')[0]!.trim()).filter((r) => r && r.length <= 60))];
+    return `这个模型没有符合 OpenRouter 隐私和防护设置的服务端${reasons.length ? `:${reasons.join('、')}` : ''};换一个模型,或在 OpenRouter 的设置里放宽`;
+  }
+  const s = lines.join(' ');
+  return s.length > ERROR_MAX ? `${s.slice(0, ERROR_MAX)}…` : s;
 }
 
 export class DeciderClient {
@@ -497,7 +568,7 @@ export class DeciderClient {
       if (!res.ok) {
         let msg = '';
         try { msg = String((JSON.parse(text) as { error?: { message?: unknown } }).error?.message ?? ''); } catch { /* not JSON */ }
-        return fail('http', this.scrub(`HTTP ${res.status}${msg ? ` ${msg.slice(0, 120)}` : ''}`, key));
+        return fail('http', this.scrub(`HTTP ${res.status}${msg ? ` ${errorGist(msg)}` : ''}`, key));
       }
       let json: unknown;
       try { json = JSON.parse(text); } catch { return fail('bad'); }

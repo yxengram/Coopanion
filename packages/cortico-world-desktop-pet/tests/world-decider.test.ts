@@ -180,7 +180,7 @@ describe('pet_say', () => {
     m.host.events.length = 0;
     const out = textOf(await tool(m.world, 'pet_say').handler({ text: '你好呀', feeling: '见到你很高兴' }, ctx));
     const say = await p.next((x) => x.t === 'say');
-    expect(say).toMatchObject({ beats: [{ actions: [], text: '你好呀', anchors: [] }], acts: 'pending', holdMs: 900 });
+    expect(say).toMatchObject({ beats: [{ actions: [], text: '你好呀', anchors: [] }], acts: 'pending', holdMs: 1100 });
     const acts = await p.next((x) => x.t === 'say-acts');
     expect(acts.id).toBe(say.id);
     expect((acts.actions as string[])).toHaveLength(1);
@@ -350,6 +350,26 @@ describe('pet_feel', () => {
     expect(Object.keys(m.mock.requests[0].body.questions.body.criteria)).toContain('睡觉');
   });
 
+  it('asked to sleep, she sleeps: the posture beats a likelier sleepy face, and needs less than on a bubble', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    // recorded: 犯困 came out likelier than 睡觉, and the sleep was dropped as clashing with it
+    m.mock.answer = () => ({ face: ['犯困', .8], body: ['睡觉', .62] });
+    const out = textOf(await tool(m.world, 'pet_feel').handler({ feeling: '困了,道过晚安,去睡觉' }, ctx));
+    expect((await p.next((x) => x.t === 'act')).actions).toEqual(['sleep']);
+    expect(out).toContain('做了:睡觉。');
+    expect(m.records[0].why.face).toContain('留下姿势');
+  });
+
+  it('a posture on pet_feel needs about half: lying down at .61 is done', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    m.mock.answer = () => ({ body: ['趴下', .61] });
+    const out = textOf(await tool(m.world, 'pet_feel').handler({ feeling: '想趴一会儿' }, ctx));
+    expect((await p.next((x) => x.t === 'act')).actions).toEqual(['lie']);
+    expect(out).toContain('做了:趴下。');
+  });
+
   it('tracks a kneel the page shows as sitting, until a word ends it', async () => {
     const m = await mounted();
     const p = await page(m);
@@ -490,7 +510,7 @@ describe('a decision slower than the hold', () => {
     await tool(m.world, 'pet_say').handler({ text: '慢慢来', feeling: '想招手' }, ctx);
     expect(Date.now() - t0).toBeLessThan(500);
     const say = await p.next((x) => x.t === 'say');
-    expect(say).toMatchObject({ acts: 'pending', holdMs: 900 });
+    expect(say).toMatchObject({ acts: 'pending', holdMs: 1100 });
     const acts = await p.next((x) => x.t === 'say-acts');
     expect(acts).toMatchObject({ id: say.id, actions: ['wave'] });
     expect(Date.now() - t0).toBeGreaterThanOrEqual(1200);

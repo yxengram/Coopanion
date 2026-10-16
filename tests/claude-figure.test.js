@@ -18,6 +18,8 @@ import { describeArmCut } from './helpers/arm-cut.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
 import { createClaudeFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/claude-chan/figure.js';
+import { spring } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
+import { upstreamKit } from './helpers/upstream-kit.js';
 
 const DIR = new URL('../packages/cortico-world-desktop-pet/web/claude-chan/', import.meta.url);
 const SRC = ['figure.js', 'face.js', 'motion.js', 'fx.js'];
@@ -464,6 +466,44 @@ describe('Claude-chan: motion helpers', () => {
 });
 
 describe('Claude-chan: every word on the kit', () => {
+  it('keeps every warp drawn through a frame that took no time, on our kit and on upstream\'s; a spring handed a number that is not finite holds (#87)', async () => {
+    // on our kit a frame of dt 0 while she walks is skipped; upstream's (v0.1.17, a pack exported to it) leaves its
+    // swing NaN for good after one, and she reads that as none. Either way every frame after it is whole
+    const up = await upstreamKit('upstream-kit-v0.1.17-claude');
+    for (const make of [createPet, up?.createPet].filter(Boolean)) {
+      const { fig, seen } = stubFigure(SYNTH), el = () => ({ setAttribute() {}, innerHTML: '' });
+      const at = make({ petG: el(), shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', bounds: BOUNDS });
+      at.resize();
+      run(at, .5);
+      at.walkTo(at.pet.x + 300, false, 1);
+      run(at, .3);
+      at.step(0); at.render();
+      run(at, .3);
+      expect(seen.bad, make === createPet ? 'ours' : 'upstream').toEqual([]);
+      if (make === createPet) expect(Number.isFinite(at.pet.swing)).toBe(true);
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // a spring handed a target or a dt that is not a number holds where it was, and goes on from there
+      const s = spring(55, 7, 1.8);
+      for (let i = 0; i < 10; i++) s.step(1, 1 / 60);
+      const was = { x: s.x, v: s.v };
+      for (const [target, dt] of [[NaN, 1 / 60], [Infinity, 1 / 60], [1, NaN], [1, Infinity]]) s.step(target, dt);
+      expect({ x: s.x, v: s.v }).toEqual(was);
+      expect(Number.isFinite(s.step(1, 1 / 60))).toBe(true);
+      // her motion handed a frame that took no time (her figure.js clamps a clock that did not move to dt 0) draws
+      // every warp, that frame and the ones after it
+      const R = buildRig(SYNTH), motion = createMotion(SYNTH, R), caps = { pose: () => false, tex: () => true }, fc = FACES.neutral.f(0);
+      for (const mode of ['walk', 'drag']) {
+        let t = 1, out;
+        for (let i = 0; i < 30; i++) out = motion.step(fc, { t: t += 1 / 60, mode, face: 'neutral', swing: 8 }, 1 / 60, caps);
+        out = motion.step(fc, { t, mode, face: 'neutral', swing: 8 }, 0, caps);
+        expect(badValues(R, out), `${mode}, no time`).toEqual([]);
+        for (let i = 0; i < 3; i++) out = motion.step(fc, { t: t += 1 / 60, mode, face: 'neutral', swing: 8 }, 1 / 60, caps);
+        expect(badValues(R, out), mode).toEqual([]);
+      }
+    } finally { warn.mockRestore(); }
+  });
   it("puts the kit's own marks by her head: the rain cloud and the dots beside it standing (her bulb spot), by the lying head lying", () => {
     const { fig } = stubFigure(SYNTH);
     const pet = barePet(fig);

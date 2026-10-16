@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
 import { parseActions, vocabId, type VocabWord } from '../src/script.ts';
 import {
-  buildQuestions, buildRequest, buildState, DECIDER_MIN_CONTEXT, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
+  buildQuestions, buildRequest, buildState, DECIDER_FALLBACK_MODELS, DECIDER_MIN_CONTEXT, DeciderClient, errorGist, failureText, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
   QUESTION_IDS, stripMarkers, type Answer, type Question, type QuestionId,
 } from '../src/decider.ts';
 
@@ -102,6 +102,18 @@ describe('questions', () => {
     const bare = buildRequest('m', 'S', qs, false);
     expect(bare.questions.face).not.toHaveProperty('instructions');
     expect(bare.state).toContain('题目:face:');
+  });
+
+  it('leaves the other names or the mood group out of the guidance when asked (tuning)', () => {
+    const vocab = packOf('claude-chan').manifest.vocab;
+    const about = (o?: Parameters<typeof buildQuestions>[1]) => buildQuestions(vocab, o)[0].options.find((x) => x.id === 'happy')!.about;
+    expect(about()).toMatch(/心情:开心.*也叫:/);
+    expect(about({ noAliases: true })).not.toContain('也叫:');
+    expect(about({ noAliases: true })).toContain('心情:开心');
+    expect(about({ noMood: true })).not.toContain('心情:');
+    // the option keys stay, so answers to either request read the same
+    expect(buildQuestions(vocab, { noAliases: true, noMood: true }).map((q) => q.options.map((x) => x.key)))
+      .toEqual(buildQuestions(vocab).map((q) => q.options.map((x) => x.key)));
   });
 });
 
@@ -215,6 +227,86 @@ describe('pickGroup', () => {
     expect(pickGroup(cq, ans([['body', keyOf(cq, 'body', 'kneel'), .8], ['arm', keyOf(cq, 'arm', 'wave'), .7]]), { vocab: coo }).ids).toEqual(['kneel']);
   });
 
+  it('keeps a posture she stays in over a face it clashes with', () => {
+    const feel = buildQuestions(vocab, { forSay: false });
+    const f = (q: QuestionId, id: string) => keyOf(feel, q, id);
+    // recorded: pet_feel asked to sleep, and the face 犯困 and head 低头 came out more likely than 睡觉
+    const asleep = ans([['face', f('face', 'sleepy'), .8], ['head', f('head', 'droop'), .75], ['body', f('body', 'sleep'), .72]]);
+    const p = pickGroup(feel, asleep, { vocab, pairs, feel: true });
+    expect(p.ids).toEqual(['sleep']);
+    expect(p.chosen).toMatchObject({ face: null, head: null, body: f('body', 'sleep') });
+    expect(p.why.face).toContain('留下姿势');
+    expect(p.why.head).toContain('留下姿势');
+    // the old rule, by probability
+    expect(pickGroup(feel, asleep, { vocab, pairs, feel: true, params: { postureOverFace: false } }).ids.sort()).toEqual(['droop', 'sleepy']);
+    // the same when the posture is the likelier one: the face gives way to it
+    expect(pickGroup(feel, ans([['body', f('body', 'sleep'), .9], ['face', f('face', 'sleepy'), .8]]), { vocab, pairs, feel: true }).ids).toEqual(['sleep']);
+    // sitting does not take the face, so nothing clashes and both stay
+    expect(pickGroup(feel, ans([['face', f('face', 'sad'), .8], ['body', f('body', 'sit'), .6]]), { vocab, pairs, feel: true }).ids.sort()).toEqual(['sad', 'sit']);
+    // recorded: the face just below 睡觉, with 低头 above it
+    expect(pickGroup(feel, ans([['face', f('face', 'sleepy'), .7], ['head', f('head', 'droop'), .75], ['body', f('body', 'sleep'), .72]]), { vocab, pairs, feel: true }).ids).toEqual(['sleep']);
+    // asked for on pet_feel, the posture comes before any part, with no face about: lying takes the arms
+    expect(pickGroup(feel, ans([['arm', f('arm', 'wave'), .8], ['body', f('body', 'sleep'), .75]]), { vocab, pairs, feel: true }).ids).toEqual(['sleep']);
+    expect(pickGroup(feel, ans([['arm', f('arm', 'wave'), .8], ['body', f('body', 'lie'), .75]]), { vocab, pairs, feel: true }).ids).toEqual(['lie']);
+    // and an unrelated face does not change that
+    for (const happy of [.9, .3]) {
+      expect(pickGroup(feel, ans([['face', f('face', 'happy'), happy], ['arm', f('arm', 'wave'), .8], ['body', f('body', 'sleep'), .75]]), { vocab, pairs, feel: true }).ids).toEqual(['sleep']);
+    }
+    // the parts it takes from free the budget for it: asleep, nothing else shows
+    const full = ans([['face', f('face', 'sleepy'), .9], ['head', f('head', 'nod'), .85], ['arm', f('arm', 'wave'), .8], ['body', f('body', 'sleep'), .7]]);
+    expect(pickGroup(feel, full, { vocab, pairs, feel: true }).ids).toEqual(['sleep']);
+    expect(pickGroup(feel, full, { vocab, pairs, feel: true, params: { budget: 0 } }).ids).toEqual(['sleepy']);
+  });
+
+  it('in a bubble a posture takes only the face it clashes with; other parts go by probability', () => {
+    const say = buildQuestions(vocab, { forSay: true });
+    const s = (q: QuestionId, id: string) => keyOf(say, q, id);
+    // stone clashes with sitting and lying: the posture stays, and the face's runner-up takes its place when it fits
+    expect(pickGroup(say, ans([['face', s('face', 'petrify'), .7], ['body', s('body', 'sit'), .6]]), { vocab, pairs }).ids).toEqual(['sit']);
+    const p = pickGroup(say, ans([['face', s('face', 'petrify'), .7, [s('face', 'happy'), .25]], ['body', s('body', 'sit'), .6]]), { vocab, pairs });
+    expect(p.ids.sort()).toEqual(['happy', 'sit']);
+    expect(p.why.face).toContain('留下姿势');
+    expect(p.chosen.face).toBe(s('face', 'happy'));
+    // a runner-up below the face floor does not
+    expect(pickGroup(say, ans([['face', s('face', 'petrify'), .7, [s('face', 'happy'), .1]], ['body', s('body', 'sit'), .6]]), { vocab, pairs }).ids).toEqual(['sit']);
+    // the likelier wave still wins over lying in a bubble, whatever the face
+    expect(pickGroup(say, ans([['arm', s('arm', 'wave'), .85], ['body', s('body', 'lie'), .8]]), { vocab, pairs }).ids).toEqual(['wave']);
+    for (const happy of [.95, .3]) {
+      expect(pickGroup(say, ans([['face', s('face', 'happy'), happy], ['arm', s('arm', 'wave'), .85], ['body', s('body', 'lie'), .8]]), { vocab, pairs }).ids.sort()).toEqual(['happy', 'wave']);
+    }
+    // the face gives way only when the posture stays: here the wave keeps lying out, so the likeliest stone stays
+    const stone = pickGroup(say, ans([['face', s('face', 'petrify'), .9], ['arm', s('arm', 'wave'), .85], ['body', s('body', 'lie'), .8]]), { vocab, pairs });
+    expect(stone.ids).toEqual(['petrify']);
+    expect(stone.why.face).not.toContain('留下姿势');
+    expect(stone.chosen).toMatchObject({ face: s('face', 'petrify'), arm: null, body: null });
+    // sitting stays (the budget has room for it and the nod), so the stone gives way to it, and the nod goes along
+    expect(pickGroup(say, ans([['face', s('face', 'petrify'), .9], ['head', s('head', 'nod'), .7], ['body', s('body', 'sit'), .6]]), { vocab, pairs }).ids.sort()).toEqual(['nod', 'sit']);
+    expect(pickGroup(say, ans([['face', s('face', 'petrify'), .9, [s('face', 'happy'), .3]], ['head', s('head', 'nod'), .7], ['body', s('body', 'sit'), .6]]), { vocab, pairs }).ids.sort()).toEqual(['happy', 'nod', 'sit']);
+    // the old rule
+    expect(pickGroup(say, ans([['face', s('face', 'petrify'), .7], ['body', s('body', 'sit'), .6]]), { vocab, pairs, params: { postureOverFace: false } }).ids).toEqual(['petrify']);
+    // the runner-up is not the face the repeat rule just put aside
+    const happy = s('face', 'happy');
+    const rep = ans([['face', happy, .7, [s('face', 'petrify'), .5]], ['body', s('body', 'sit'), .6]]);
+    expect(pickGroup(say, rep, { vocab, pairs, recent: [{ face: happy }, { face: happy }] }).ids).toEqual(['sit']);
+  });
+
+  it('on pet_feel a posture needs a lower floor; a bubble keeps the shipped ones', () => {
+    const feel = buildQuestions(vocab, { forSay: false });
+    const f = (q: QuestionId, id: string) => keyOf(feel, q, id);
+    // recorded: 趴下 at .61 on a pet_feel
+    const lie = ans([['body', f('body', 'lie'), .61]]);
+    expect(pickGroup(feel, lie, { vocab, pairs, feel: true }).ids).toEqual(['lie']);
+    expect(pickGroup(feel, lie, { vocab, pairs }).ids).toEqual([]);
+    expect(pickGroup(feel, ans([['body', f('body', 'sleep'), .52]]), { vocab, pairs, feel: true }).ids).toEqual(['sleep']);
+    expect(pickGroup(feel, ans([['body', f('body', 'sleep'), .45]]), { vocab, pairs, feel: true }).ids).toEqual([]);
+    expect(pickGroup(feel, ans([['body', f('body', 'kneel'), .52]]), { vocab, pairs, feel: true }).ids).toEqual(['kneel']);
+    expect(pickGroup(feel, ans([['body', f('body', 'kneel'), .52]]), { vocab, pairs }).ids).toEqual([]);
+    // other body words keep their question's floor
+    expect(pickGroup(feel, ans([['body', f('body', 'dance'), .52]]), { vocab, pairs, feel: true }).ids).toEqual([]);
+    // the knob
+    expect(pickGroup(feel, lie, { vocab, pairs, feel: true, params: { feelFloorWord: {} } }).ids).toEqual([]);
+  });
+
   it.each(FIGURES)('%s: 1000 random answer sets give groups parseActions keeps whole', (fig) => {
     const pack = packOf(fig);
     const v = pack.manifest.vocab;
@@ -222,7 +314,8 @@ describe('pickGroup', () => {
     const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
     for (let i = 0; i < 1000; i++) {
       const postures = ['stand', 'sit', 'kneel', 'lie', 'sleep'] as const;
-      const q = buildQuestions(v, { forSay: rnd() < .5, posture: postures[Math.floor(rnd() * postures.length)] });
+      const forSay = rnd() < .5;
+      const q = buildQuestions(v, { forSay, posture: postures[Math.floor(rnd() * postures.length)] });
       const answers: Record<string, Answer> = {};
       for (const x of q) {
         const probs: Record<string, number> = {};
@@ -235,7 +328,7 @@ describe('pickGroup', () => {
         }
         answers[x.id] = { choice: null, probabilities: probs, confidence: null };
       }
-      const p = pickGroup(q, answers, { vocab: v, pairs: pack.manifest.pairs });
+      const p = pickGroup(q, answers, { vocab: v, pairs: pack.manifest.pairs, feel: !forSay });
       if (!p.ids.length) continue;
       const r = parseActions([p.ids.join('+')], v, pack.manifest.pairs);
       expect(r.dropped, p.ids.join('+')).toEqual([]);
@@ -246,6 +339,37 @@ describe('pickGroup', () => {
 
   it('knows every question id', () => {
     expect(QUESTION_IDS).toEqual(['face', 'head', 'arm', 'body', 'tail', 'ears', 'wings']);
+  });
+});
+
+describe('errors and fallbacks', () => {
+  // OpenRouter's answer when the workspace's zero-data-retention guardrail leaves the model no endpoint
+  const GUARDRAIL = '0 endpoints out of 1 requested are available matching your guardrail restrictions and data policy. We removed them for the following reasons (an endpoint may have matched multiple reasons):\nZDR violation (guardrail): 1 endpoint excluded; configurable at https://openrouter.ai/workspaces/default/guardrails';
+
+  it('tells a guardrail refusal by its reasons, short, and cuts other messages with a mark', () => {
+    const g = errorGist(GUARDRAIL);
+    expect(g).toContain('ZDR violation (guardrail)');
+    expect(g).toContain('隐私');
+    expect(g).not.toContain('https://');
+    expect(g.length).toBeLessThan(90);
+    expect(errorGist('Rate limit exceeded')).toBe('Rate limit exceeded');
+    const long = errorGist(`${'x'.repeat(200)}\nsecond line`);
+    expect(long).toHaveLength(121);
+    expect(long.endsWith('…')).toBe(true);
+  });
+
+  it('the client reports an HTTP error through the gist', async () => {
+    const fetchImpl = (async () => new Response(JSON.stringify({ error: { message: GUARDRAIL } }), { status: 404 })) as unknown as typeof fetch;
+    const c = new DeciderClient({ url: () => 'http://127.0.0.1:9/decisions', key: () => 'sk-or-test', timeoutMs: () => 1000, fetch: fetchImpl });
+    const r = await c.decide({ model: 'm', state: 's', questions: {} });
+    expect(r.ok).toBe(false);
+    const text = failureText((r as { reason: 'http' }).reason, (r as { detail: string }).detail);
+    expect(text).toMatch(/^决策模型返回错误\(HTTP 404 这个模型没有符合 OpenRouter 隐私和防护设置的服务端:ZDR violation \(guardrail\);/);
+  });
+
+  it('offers no free model when OpenRouter cannot be reached', () => {
+    expect(DECIDER_FALLBACK_MODELS.length).toBeGreaterThan(0);
+    expect(DECIDER_FALLBACK_MODELS.filter((id) => id.endsWith(':free'))).toEqual([]);
   });
 });
 

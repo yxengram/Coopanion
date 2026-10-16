@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -148,6 +148,38 @@ describe('with a pet page', () => {
     const early = tool(world, 'pet_walk_to').handler({ to: 'right' }, ctx);
     page.send({ t: 'interrupted', walkId: (await page.next((m) => m.t === 'walk')).id, x: .5, by: 'none' });
     expect(await early).toEqual({ text: '没走:桌宠的身体还没准备好。' });
+  });
+
+  it('pet_walk_to across a wide stage waits as long as the walk takes, and on while the page says she is walking', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const seen = (mode: string) => expect.poll(() => (world as unknown as { pose: { mode: string } | null }).pose?.mode).toBe(mode);
+    page.send({ t: 'pose', x: 100, w: 3840, facing: 1, mode: 'idle' });
+    await seen('idle');
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    cleanup.push(async () => { vi.useRealTimers(); });
+    let settled = false;
+    // 3548 px at 78 px/s is 45 s of walking: more than the old fixed 30 s
+    const far = tool(world, 'pet_walk_to').handler({ to: 'right' }, ctx).finally(() => { settled = true; });
+    const walk = await page.next((m) => m.t === 'walk');
+    page.send({ t: 'pose', x: 120, w: 3840, facing: 1, mode: 'walk' });
+    await seen('walk');
+    await vi.advanceTimersByTimeAsync(35_000);
+    expect(settled).toBe(false);
+    // past its time (about 67 s) but the page still reports her walking: it waits on
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(settled).toBe(false);
+    page.send({ t: 'arrived', walkId: walk.id, x: .95 });
+    expect(await far).toEqual({ text: '走到了屏幕横向 95% 处。' });
+
+    // a walk the page no longer reports under way times out at its time, and says how long that was
+    page.send({ t: 'pose', x: 3648, w: 3840, facing: 1, mode: 'idle' });
+    await seen('idle');
+    const lost = tool(world, 'pet_walk_to').handler({ to: 'left' }, ctx);
+    await page.next((m) => m.t === 'walk');
+    await vi.advanceTimersByTimeAsync(66_000);
+    expect(await lost).toEqual({ text: '65 秒内没有走到。' });
   });
 
   it('pet_walk_to rejects a target it cannot read', async () => {

@@ -459,11 +459,18 @@ const FACE = { x: 520, y: 578, w: 390, h: 252 };
 const HEAD = [30, 12, 215, 168];
 
 /* ---------- springs ---------- */
+/** Whether a spring was handed a target (or a dt) that is not a finite number yet: logged the first time only. */
+let badTargetLogged = false;
 // `lim` bounds the output: a hard throw may overshoot, the hair must not fold over itself
 function spring(k, c, lim = Infinity) {
   return {
     x: 0, v: 0,
     step(target, dt) {
+      // a NaN target would stay in x for good, and the warps that read it (hair, tail, skirt) draw nothing (#87)
+      if (!Number.isFinite(target) || !Number.isFinite(dt)) {
+        if (!badTargetLogged) { badTargetLogged = true; console.warn(`[大肥鱼] 弹簧收到的目标不是有限数,这一帧不动:target=${target} dt=${dt}`); }
+        return this.x;
+      }
       this.v += ((target - this.x) * k - this.v * c) * dt;
       this.x += this.v * dt;
       if (Math.abs(this.x) > lim) { this.x = Math.sign(this.x) * lim; this.v = 0; }
@@ -1163,7 +1170,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     tiltK = tiltEased(tiltK, tiltS, dt);
     tiltT += tilt * (tiltDir * TILT_DEG - (HEAD_TILT[face] || 0)) * (1 - .7 * chinK);
     if (face === 'dizzy') tiltT += 3 * Math.sin(t * 4.5);
-    if (held) tiltT += o.swing * .25;
+    if (held) tiltT += (o.swing || 0) * .25;
     headTilt = sp.head.step(tiltT, dt);
     // what the kit meant for the whole body and the group did not take goes to the neck (forward +)
     const [gT, gL] = GROUP[mode] || [0, 0];
@@ -1210,7 +1217,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const angleY = clamp(clamp(o.look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + bow * .5 - flinch * .3 - peek * .1 - .1 * inh + .3 * exh - .12 * tilt + DROOP.pitch * downK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
 
     /* springs */
-    const sway = clamp(o.swing / 26, -1.6, 1.6);
+    // (a kit without the guard against a frame of dt 0, upstream's before #87, may hand over a NaN swing for good: as none)
+    const sway = clamp((o.swing || 0) / 26, -1.6, 1.6);
     const up = airborne || held ? 1 : 0;
     const hair = sp.hair.step(sway * 1.1 - tiltVel * .004 - yawVel * .02 + (walking ? -.25 : 0), dt);
     const hairY = sp.hairY.step(up * -1 + lowV * .006, dt);
@@ -1310,7 +1318,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     /* deformer states */
     // the kit sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
     // going down to lie she tips forward off the seat before the lying drawing takes over
-    st.body = { a: -sway * 1.2 + (held ? o.swing * .15 : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA), ty: low - 9.6 * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
+    st.body = { a: -sway * 1.2 + (held ? (o.swing || 0) * .15 : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA), ty: low - 9.6 * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
     // stretching she grows tall on her toes; a curtsy sinks low with a little bow
     if (propG === 'stretch') st.body.sy *= 1 + .05 * smooth(.2, .45, gk) * hold;
     const curt = propG === 'curtsy' ? Math.sin(Math.PI * clamp((gk - .15) / .7, 0, 1)) * hold : 0;

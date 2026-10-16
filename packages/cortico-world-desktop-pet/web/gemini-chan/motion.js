@@ -27,11 +27,18 @@ export const smooth = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); r
 export const approach = (v, to, dt, dur) => v + clamp(to - v, -dt / dur, dt / dur);
 
 /* ---------- springs ---------- */
+/** Whether a spring was handed a target (or a dt) that is not a finite number yet: logged the first time only. */
+let badTargetLogged = false;
 // `lim` bounds the output: a hard throw may overshoot, the hair must not fold over itself
 export function spring(k, c, lim = Infinity) {
   return {
     x: 0, v: 0,
     step(target, dt) {
+      // a NaN target would stay in x for good, and the warps that read it (hair, skirt, ...) draw nothing (#87)
+      if (!Number.isFinite(target) || !Number.isFinite(dt)) {
+        if (!badTargetLogged) { badTargetLogged = true; console.warn(`[Gemini 娘] 弹簧收到的目标不是有限数,这一帧不动:target=${target} dt=${dt}`); }
+        return this.x;
+      }
       this.v += ((target - this.x) * k - this.v * c) * dt;
       this.x += this.v * dt;
       if (Math.abs(this.x) > lim) { this.x = Math.sign(this.x) * lim; this.v = 0; }

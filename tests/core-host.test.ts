@@ -104,7 +104,9 @@ describe('Core host', () => {
     expect(states.filter(([s]) => s === 'restarting').every(([, d]) => d === undefined)).toBe(true);
   });
 
-  it('restarts on demand while a child that exited is still held for its last stderr lines', async () => {
+  // Windows does not keep the stderr pipe open through a grandchild that inherits it, so no exit is ever held there;
+  // the restart path is the same on every platform
+  it.skipIf(process.platform === 'win32')('restarts on demand while a child that exited is still held for its last stderr lines', async () => {
     const appRoot = join(scratch, 'held');
     mkdirSync(join(appRoot, 'core'), { recursive: true });
     // a start that fails on a missing module while a process it started keeps its stderr open, so the host waits

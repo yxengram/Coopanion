@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.{ts,js}', 'packages/cortico-provider-coo/tests/**/*.test.ts'],
     env: { CORTICO_LANGUAGE: 'zh' },
+    globalSetup: ['tests/global-setup.ts'],
     testTimeout: 20000,
     pool: 'forks',
   },

@@ -174,6 +174,24 @@ describe('lying down, as the whale draws it', () => {
     }
   });
 
+  it('keeps the lying drawing where it was drawn in a box 4 texture rows taller at the top (the winter outfit\'s spout), the maid\'s rows padded empty', () => {
+    // (both outfits share the pose's box: the maid drawing has 4 empty rows on top, so each of its pixels lies where it lay
+    // in the 473-row drawing in the box [9.6, 106.4, 236.96, 149.76], to a thousandth of a texel)
+    expect(BODY.box).toEqual([9.6, 105.13, 236.96, 151.03]);
+    const [, by, , bh] = BODY.box, old = { y: 106.4, h: 149.76, rows: 473 };
+    for (const id of SCHEMES) {
+      const { w, h, a } = alphaOf(new URL(`${dir(id)}tex/lie_body.png`, WHALE));
+      expect([w, h], id).toEqual([748, 477]);
+      for (let i = 0; i < 4 * w; i++) expect(a[i], `${id} row ${Math.floor(i / w)}`).toBe(0);
+      // a drawn row r (r ≥ 4) at the rig height of row r - 4 in the old box
+      for (const r of [4, 240, 476]) expect(Math.abs((by + (r + .5) * bh / h) - (old.y + (r - 4 + .5) * old.h / old.rows)) * TEX_PER_UNIT, `${id} row ${r}`).toBeLessThan(.02);
+      // and something is drawn on the first row under the pad
+      let top = 0;
+      for (let x = 0; x < w; x++) top = Math.max(top, a[4 * w + x]);
+      expect(top, id).toBeGreaterThan(0);
+    }
+  });
+
   it('lies on the floor inside the figure\'s view, its pivots, anchors and hit area on the drawing', () => {
     const [vx0, vy0, vx1, vy1] = model.view;
     const body = LIE.required.find(p => p.id === 'lie_body').box;
@@ -792,7 +810,8 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
   it('keeps the kit\'s points on her kneeling head while she gets up, and seated after a sit word', () => {
     // her points as figure.js gives them: raised by seatStep's `up`, with no kneelRaise for the kit to add
     const src = readFileSync(new URL('figure.js', WHALE), 'utf8');
-    expect(src).toMatch(/seat = seatStep\(seat, o, \{[^}]*kneelRaise: KNEEL_RAISE[^}]*\}, dt\);/);
+    // (only with the kneeling drawing: a dress without it kneels as the seated rig, whose head the points follow down)
+    expect(src).toMatch(/seat = seatStep\(seat, o, \{[^}]*kneelRaise: KNEEL && kneelOK\(\) \? KNEEL_RAISE : 0[^}]*\}, dt\);/);
     expect(src).toMatch(/get anchors\(\) \{ return liftAnchors\(POINTS, seat\.up\); \}/);
     expect(src).not.toMatch(/const POINTS = \{[^;]*kneelRaise/);
     const K = 29 - model.poses.kneel.headDrop, POINTS = { gaze: [140, 110], tears: [[120, 120], [150, 120]], hearts: [96, 176, 62], bubble: [128, 18] };
@@ -1336,7 +1355,9 @@ describe('a face and a gesture at once, as the whale draws them', () => {
         expect(Math.max(...rock) - Math.min(...rock), mode).toBeGreaterThan(BODY_LEAN.swayBody * 1.5);
       }
       // a stamp gets her up and lifts a leg
-      const legs = span('stamp', 1.4, x => Math.min(x.legBack.ty, x.legFront.ty));
+      // (the legs are warps about the hip, `hinge`: how far each foot, at the bottom of its leg's box, moves up or down)
+      const foot = (x, id) => { const [x0, , x1, y1] = rigSeen.tree.deformers[id].rect; return x[id].fn(.5, 1, (x0 + x1) / 2, y1 - 4)[1]; };
+      const legs = span('stamp', 1.4, x => Math.min(foot(x, 'legBack'), foot(x, 'legFront')));
       expect(last().mode).toBe('idle');
       expect(Math.min(...legs)).toBeLessThan(-8);
       // kneeling the drawing's head drops, the kneel kept; lying the head turns forward about the chin
@@ -1832,7 +1853,7 @@ describe('live faces on the kneeling and lying drawings, as the whale draws them
    * (each loaded image keeps its file name) by its size, so the floor faces' canvases are told apart (`missing`:
    * textures that fail to load). Each frame: the alphas, the textures uploaded, and what each canvas drew.
    */
-  async function onKit(missing = []) {
+  async function onKit(missing = [], scheme = undefined) {
     const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
     const canvases = [];
     const makeCanvas = () => {
@@ -1844,7 +1865,7 @@ describe('live faces on the kneeling and lying drawings, as the whale draws them
     };
     const doc = globalThis.document;
     globalThis.document = { createElement: makeCanvas, createElementNS: () => any };
-    const fig = await createWhaleFigure(WHALE, { model, loadImage: async url => { if (missing.some(n => String(url).endsWith(`tex/${n}.png`))) throw new Error('missing'); return { width: 1, height: 1, src: String(url).split('/').pop() }; } });
+    const fig = await createWhaleFigure(WHALE, { model, scheme, loadImage: async url => { if (missing.some(n => String(url).endsWith(`tex/${n}.png`))) throw new Error('missing'); return { width: 1, height: 1, src: String(url).split('/').pop() }; } });
     const el = () => ({ setAttribute() {}, innerHTML: '' });
     const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
     const seen = { fig, frames: [] };
@@ -1958,26 +1979,50 @@ describe('live faces on the kneeling and lying drawings, as the whale draws them
     } finally { s.done(); }
   });
 
-  it('lying, the face\'s meshes stay on the drawing as her head nods (the fringe never slides off its hair)', async () => {
-    const s = await onKit();
-    try {
-      s.run(.5);
-      s.pet.doWord('lie'); s.run(3);
-      const { parts, deformers } = rigSeen.tree, P = Object.fromEntries(parts.map(p => [p.id, p]));
-      let worst = 0, shut = 0, turned = 0;
-      const look = () => {
-        const st = rigSeen.st, d = chainPoint(deformers, st, 'lieHead', P.lie_live.box[0], P.lie_live.box[1]), r = chainPoint(deformers, { ...st, lieHead: null }, 'lieHead', P.lie_live.box[0], P.lie_live.box[1]);
-        turned = Math.max(turned, Math.hypot(d[0] - r[0], d[1] - r[1]));
-        for (const k of ['lie_blank', 'lie_live', 'lie_fringe']) worst = Math.max(worst, meshGap(deformers, st, P[k], P.lie_body));
-        shut = Math.max(shut, meshGap(deformers, st, P.lie_shut, P.lie_body));
-      };
-      for (let n = 0; n < 2; n++) { s.pet.doWord('nod'); s.run(1.2, look); }
-      expect(s.last().lie).toBe(1);
-      expect(s.last().alpha.lie_live).toBe(1);
-      expect(turned).toBeGreaterThan(1);  // (the head did turn)
-      // (the drawn eyes-shut patch, on its [8, 6] mesh, as the yardstick; the face on [4, 4] slid ~1)
-      expect(worst).toBeLessThan(Math.max(.3, 2 * shut));
-    } finally { s.done(); }
+  it('lying, the face\'s meshes stay on the drawing as her head nods (the fringe never slides off its hair), in both outfits', async () => {
+    // (the winter outfit's blank and fringe are on boxes of their own, poseParts: they must ride the head as closely)
+    for (const look of ['deepseek', 'deepseek-cape']) {
+      const s = await onKit([], look);
+      try {
+        s.run(.5);
+        s.pet.doWord('lie'); s.run(3);
+        const { parts, deformers } = rigSeen.tree, P = Object.fromEntries(parts.map(p => [p.id, p]));
+        let worst = 0, shut = 0, turned = 0;
+        const look1 = () => {
+          const st = rigSeen.st, d = chainPoint(deformers, st, 'lieHead', P.lie_live.box[0], P.lie_live.box[1]), r = chainPoint(deformers, { ...st, lieHead: null }, 'lieHead', P.lie_live.box[0], P.lie_live.box[1]);
+          turned = Math.max(turned, Math.hypot(d[0] - r[0], d[1] - r[1]));
+          for (const k of ['lie_blank', 'lie_live', 'lie_fringe']) worst = Math.max(worst, meshGap(deformers, st, P[k], P.lie_body));
+          shut = Math.max(shut, meshGap(deformers, st, P.lie_shut, P.lie_body));
+        };
+        for (let n = 0; n < 2; n++) { s.pet.doWord('nod'); s.run(1.2, look1); }
+        expect(s.last().lie, look).toBe(1);
+        expect(s.last().alpha.lie_live, look).toBe(1);
+        expect(turned, look).toBeGreaterThan(1);  // (the head did turn)
+        // (the drawn eyes-shut patch, on its [8, 6] mesh, as the yardstick; the face on [4, 4] slid ~1)
+        expect(worst, look).toBeLessThan(Math.max(.3, 2 * shut));
+      } finally { s.done(); }
+    }
+  });
+
+  it('kneeling, the face\'s meshes ride the kneeling head with the drawing as she nods and tilts, in both outfits', async () => {
+    for (const look of ['deepseek', 'deepseek-cape']) {
+      const s = await onKit([], look);
+      try {
+        s.run(.5);
+        s.pet.doWord('kneel'); s.run(3.5);
+        const { parts, deformers } = rigSeen.tree, P = Object.fromEntries(parts.map(p => [p.id, p]));
+        let worst = 0, shut = 0, kneeling = 0;
+        const look1 = () => {
+          if (rigSeen.st.alpha.kneel_live !== 1) return;
+          kneeling++;
+          for (const k of ['kneel_blank', 'kneel_live', 'kneel_fringe']) worst = Math.max(worst, meshGap(deformers, rigSeen.st, P[k], P.kneel_body));
+          shut = Math.max(shut, meshGap(deformers, rigSeen.st, P.kneel_shut, P.kneel_body));
+        };
+        for (const w of ['nod', 'tilt', 'nod']) { s.pet.doWord(w); s.run(1.2, look1); }
+        expect(kneeling, look).toBeGreaterThan(60);
+        expect(worst, look).toBeLessThan(Math.max(.3, 2 * shut));
+      } finally { s.done(); }
+    }
   });
 
   it('hands the face over with the body at the kneeling hybrid\'s cut: one of the two faces in every frame', async () => {

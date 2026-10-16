@@ -124,11 +124,11 @@
   {
    "id": "leg_back",
    "tex": "leg_back",
-   "z": 3,
+   "z": 4,
    "parent": "legBack",
    "grid": [
     3,
-    6
+    10
    ],
    "box": [
     96.08,
@@ -140,11 +140,11 @@
   {
    "id": "leg_front",
    "tex": "leg_front",
-   "z": 4,
+   "z": 3,
    "parent": "legFront",
    "grid": [
     3,
-    6
+    10
    ],
    "box": [
     120.21,
@@ -832,9 +832,9 @@
      ],
      "box": [
       9.6,
-      106.4,
+      105.13,
       236.96,
-      149.76
+      151.03
      ]
     }
    ],
@@ -2429,5 +2429,1018 @@
    "rest": -154,
    "source": "gpt-image-2.5-sunburst edit of the standing rig render: wipe_gpt 2"
   }
- }
+ },
+ "outfits": [
+  {
+   "id": "maid"
+  },
+  {
+   "id": "cape",
+   "parts": [
+    {
+     "id": "hood_back",
+     "tex": "cape_hood_back",
+     "src": "outfits/cape/hood_back.png",
+     "z": 0.5,
+     "parent": "headBack",
+     "grid": [
+      6,
+      6
+     ],
+     "box": [
+      53.14,
+      37.69,
+      143.83,
+      124.83
+     ]
+    },
+    {
+     "id": "hair_back",
+     "tex": "hair_back",
+     "z": 1,
+     "parent": "hairSway",
+     "grid": [
+      8,
+      12
+     ],
+     "box": [
+      39.46,
+      48.33,
+      144.21,
+      173.66
+     ]
+    },
+    {
+     "id": "tail",
+     "tex": "tail",
+     "z": 1.5,
+     "parent": "tailBend",
+     "grid": [
+      10,
+      4
+     ],
+     "box": [
+      24.26,
+      172.21,
+      83.03,
+      40.47
+     ]
+    },
+    {
+     "id": "hair_back_curl",
+     "tex": "hair_back_curl",
+     "z": 1.75,
+     "parent": "hairSway",
+     "grid": [
+      4,
+      8
+     ],
+     "box": [
+      74.23,
+      171.83,
+      41.23,
+      47.88
+     ]
+    },
+    {
+     "id": "hood_lining",
+     "tex": "cape_hood_lining",
+     "src": "outfits/cape/hood_lining.png",
+     "z": 2,
+     "parent": "headBack",
+     "grid": [
+      6,
+      3
+     ],
+     "box": [
+      76.89,
+      64.1,
+      118.18,
+      69.16
+     ]
+    },
+    {
+     "id": "leg_front",
+     "tex": "cape_leg_front",
+     "src": "outfits/cape/leg_front.png",
+     "z": 3,
+     "parent": "legFront",
+     "grid": [
+      3,
+      10
+     ],
+     "box": [
+      124.58,
+      171.45,
+      34.77,
+      83.79
+     ]
+    },
+    {
+     "id": "leg_back",
+     "tex": "cape_leg_back",
+     "src": "outfits/cape/leg_back.png",
+     "z": 4,
+     "parent": "legBack",
+     "grid": [
+      3,
+      10
+     ],
+     "box": [
+      96.46,
+      171.45,
+      35.72,
+      85.88
+     ]
+    },
+    {
+     "id": "arm_far",
+     "tex": "cape_arm_far",
+     "src": "outfits/cape/arm_far.png",
+     "z": 4.5,
+     "parent": "armFar",
+     "grid": [
+      3,
+      5
+     ],
+     "box": [
+      149.47,
+      157.2,
+      39.9,
+      44.27
+     ]
+    },
+    {
+     "id": "scarf_tail_back",
+     "tex": "cape_scarf_tail_back",
+     "src": "outfits/cape/scarf_tail_back.png",
+     "z": 4.8,
+     "parent": "scarfBack",
+     "grid": [
+      3,
+      4
+     ],
+     "box": [
+      88.29,
+      149.41,
+      30.78,
+      32.87
+     ]
+    },
+    {
+     "id": "skirt",
+     "tex": "cape_skirt",
+     "src": "outfits/cape/skirt.png",
+     "z": 4.9,
+     "parent": "skirt",
+     "grid": [
+      8,
+      6
+     ],
+     "box": [
+      86.58,
+      167.65,
+      100.51,
+      61.94
+     ]
+    },
+    {
+     "id": "skirt_sit",
+     "tex": "cape_skirt_sit",
+     "src": "outfits/cape/skirt_sit.png",
+     "z": 4.95,
+     "parent": "skirtSit",
+     "grid": [
+      8,
+      4
+     ],
+     "box": [
+      74.8,
+      186.46,
+      133.57,
+      57.0
+     ]
+    },
+    {
+     "id": "cloak",
+     "tex": "cape_cloak",
+     "src": "outfits/cape/cloak.png",
+     "z": 5,
+     "parent": "waist",
+     "grid": [
+      8,
+      8
+     ],
+     "box": [
+      73.66,
+      152.07,
+      114.95,
+      78.85
+     ]
+    },
+    {
+     "id": "hair_front_right",
+     "tex": "hair_front_right",
+     "z": 5.05,
+     "parent": "hairSway",
+     "grid": [
+      4,
+      6
+     ],
+     "box": [
+      146.62,
+      148.27,
+      30.21,
+      42.75
+     ]
+    },
+    {
+     "id": "arm_far_end_front",
+     "tex": "cape_arm_far_end_front",
+     "src": "outfits/cape/arm_far_end_front.png",
+     "z": 5.1,
+     "parent": "armFar",
+     "grid": [
+      3,
+      3
+     ],
+     "box": [
+      165.62,
+      177.15,
+      23.75,
+      24.32
+     ]
+    },
+    {
+     "id": "scarf_tail_front",
+     "tex": "cape_scarf_tail_front",
+     "src": "outfits/cape/scarf_tail_front.png",
+     "z": 5.2,
+     "parent": "scarfFront",
+     "grid": [
+      3,
+      4
+     ],
+     "box": [
+      141.49,
+      150.55,
+      43.51,
+      57.76
+     ]
+    },
+    {
+     "id": "hair_front_left",
+     "tex": "hair_front_left",
+     "z": 5.4,
+     "parent": "hairSway",
+     "grid": [
+      4,
+      8
+     ],
+     "box": [
+      60.93,
+      118.63,
+      44.84,
+      76.57
+     ]
+    },
+    {
+     "id": "arm_near",
+     "tex": "cape_arm_near",
+     "src": "outfits/cape/arm_near.png",
+     "z": 6,
+     "parent": "armNear",
+     "grid": [
+      4,
+      6
+     ],
+     "box": [
+      87.15,
+      156.06,
+      39.33,
+      50.92
+     ]
+    },
+    {
+     "id": "cloak_shoulder_cover",
+     "tex": "cape_cloak_shoulder_cover",
+     "src": "outfits/cape/cloak_shoulder_cover.png",
+     "z": 6.1,
+     "parent": "waist",
+     "grid": [
+      3,
+      3
+     ],
+     "box": [
+      93.99,
+      154.73,
+      34.2,
+      20.14
+     ]
+    },
+    {
+     "id": "scarf_neck",
+     "tex": "cape_scarf_neck",
+     "src": "outfits/cape/scarf_neck.png",
+     "z": 6.2,
+     "parent": "waist",
+     "grid": [
+      4,
+      3
+     ],
+     "box": [
+      103.68,
+      144.66,
+      58.9,
+      36.67
+     ]
+    },
+    {
+     "id": "hood_fin_far",
+     "tex": "cape_hood_fin_far",
+     "src": "outfits/cape/hood_fin_far.png",
+     "z": 7,
+     "parent": "finFar",
+     "grid": [
+      4,
+      3
+     ],
+     "box": [
+      179.49,
+      75.88,
+      25.65,
+      33.06
+     ]
+    },
+    {
+     "id": "sidelocks",
+     "tex": "sidelocks",
+     "z": 7.5,
+     "parent": "bangsSway",
+     "grid": [
+      4,
+      8
+     ],
+     "box": [
+      87.72,
+      124.14,
+      98.23,
+      49.21
+     ]
+    },
+    {
+     "id": "face",
+     "tex": "face",
+     "z": 8,
+     "parent": "headMid",
+     "grid": [
+      6,
+      6
+     ],
+     "box": [
+      100.26,
+      73.98,
+      75.62,
+      82.08
+     ]
+    },
+    {
+     "id": "eye_creases",
+     "tex": "eye_creases",
+     "z": 8.5,
+     "parent": "headFeat",
+     "grid": [
+      4,
+      2
+     ],
+     "box": [
+      126.29,
+      108.94,
+      44.46,
+      9.88
+     ]
+    },
+    {
+     "id": "brows",
+     "tex": "brows",
+     "z": 8.6,
+     "parent": "headFeat",
+     "grid": [
+      12,
+      2
+     ],
+     "box": [
+      117.74,
+      97.35,
+      58.33,
+      9.12
+     ]
+    },
+    {
+     "id": "hood_fin_near",
+     "tex": "cape_hood_fin_near",
+     "src": "outfits/cape/hood_fin_near.png",
+     "z": 11,
+     "parent": "finNear",
+     "grid": [
+      5,
+      3
+     ],
+     "box": [
+      42.5,
+      72.46,
+      50.92,
+      40.09
+     ]
+    },
+    {
+     "id": "bangs",
+     "tex": "bangs",
+     "z": 13,
+     "parent": "bangsSway",
+     "grid": [
+      8,
+      10
+     ],
+     "box": [
+      80.69,
+      51.75,
+      112.29,
+      99.75
+     ]
+    },
+    {
+     "id": "hood_tie_far",
+     "tex": "cape_hood_tie_far",
+     "src": "outfits/cape/hood_tie_far.png",
+     "z": 13.3,
+     "parent": "tieFar",
+     "grid": [
+      2,
+      6
+     ],
+     "box": [
+      180.44,
+      106.85,
+      23.94,
+      52.06
+     ]
+    },
+    {
+     "id": "hood_tie_near",
+     "tex": "cape_hood_tie_near",
+     "src": "outfits/cape/hood_tie_near.png",
+     "z": 13.35,
+     "parent": "tieNear",
+     "grid": [
+      2,
+      6
+     ],
+     "box": [
+      67.58,
+      108.18,
+      26.03,
+      50.54
+     ]
+    },
+    {
+     "id": "spout",
+     "tex": "cape_spout",
+     "src": "outfits/cape/spout.png",
+     "z": 13.45,
+     "parent": "ahoge",
+     "grid": [
+      4,
+      4
+     ],
+     "box": [
+      101.4,
+      15.27,
+      43.32,
+      36.48
+     ]
+    },
+    {
+     "id": "hood_front",
+     "tex": "cape_hood_front",
+     "src": "outfits/cape/hood_front.png",
+     "z": 13.5,
+     "parent": "headFront",
+     "grid": [
+      8,
+      6
+     ],
+     "box": [
+      49.53,
+      37.69,
+      151.81,
+      104.31
+     ]
+    }
+   ],
+   "pivots": {
+    "finNear": [
+     79.93,
+     87.09
+    ],
+    "finFar": [
+     186.52,
+     87.85
+    ],
+    "ahoge": [
+     123.25,
+     46.43
+    ]
+   },
+   "deformers": {
+    "tieNear": {
+     "parent": "headFront",
+     "pivot": [
+      89.43,
+      110.46
+     ],
+     "gain": 1
+    },
+    "tieFar": {
+     "parent": "headFront",
+     "pivot": [
+      186.9,
+      109.13
+     ],
+     "gain": 1
+    },
+    "scarfFront": {
+     "parent": "waist",
+     "pivot": [
+      153.84,
+      158.34
+     ],
+     "gain": 0.5
+    },
+    "scarfBack": {
+     "parent": "waist",
+     "pivot": [
+      113.56,
+      156.63
+     ],
+     "gain": 0.5
+    }
+   },
+   "poses": {
+    "lie_tail": "scheme",
+    "lie_body": "scheme",
+    "lie_shut": "scheme",
+    "lie_smile": "scheme",
+    "lie_talk": "scheme",
+    "lie_blank": "scheme",
+    "lie_fringe": "scheme",
+    "arm_wave": "shared",
+    "arm_wave_top": "shared",
+    "arm_chin": "shared",
+    "arm_cheer_near": "shared",
+    "arm_cheer_near_top": "shared",
+    "arm_cheer_far": "shared",
+    "arm_cheer_far_top": "shared",
+    "arm_heart": "shared",
+    "back_body": "scheme",
+    "arm_cup": "shared",
+    "arm_book": "shared",
+    "roll_ball": "scheme",
+    "arm_pray": "shared",
+    "arm_hips": "shared",
+    "arm_hug": "shared",
+    "arm_scratch": "shared",
+    "arm_scratch_top": "shared",
+    "arm_idea": "shared",
+    "arm_idea_top": "shared",
+    "arm_tea": "shared",
+    "arm_salute": "shared",
+    "arm_salute_top": "shared",
+    "arm_vsign": "shared",
+    "arm_vsign_top": "shared",
+    "arm_point": "shared",
+    "arm_cover": "shared",
+    "arm_cover_top": "shared",
+    "arm_cross": "shared",
+    "arm_curtsy": "shared",
+    "arm_stretch": "shared",
+    "kneel_body": "scheme",
+    "kneel_shut": "scheme",
+    "kneel_smile": "scheme",
+    "kneel_talk": "scheme",
+    "kneel_blank": "scheme",
+    "kneel_fringe": "scheme",
+    "kneel_low": "scheme",
+    "arm_clap": "shared",
+    "arm_clapo": "shared",
+    "arm_shrug": "shared",
+    "arm_headhold": "shared",
+    "arm_raise": "shared",
+    "arm_thumbs": "shared",
+    "arm_shush": "shared",
+    "arm_shush_top": "shared",
+    "arm_wipe": "shared"
+   },
+   "poseZ": {
+    "arm_shush": 6.25,
+    "arm_cover": 6.25,
+    "arm_scratch": 13.4,
+    "arm_salute": 13.4,
+    "kneel_low": 5.08
+   },
+   "poseParts": {
+    "kneel_blank": {
+     "box": [
+      111.39,
+      116.74,
+      64.25,
+      48.48
+     ]
+    },
+    "kneel_fringe": {
+     "box": [
+      100.95,
+      115.16,
+      79.76,
+      53.87
+     ]
+    },
+    "lie_blank": {
+     "box": [
+      159.44,
+      180.17,
+      57.97,
+      42.43
+     ]
+    }
+   },
+   "kneelLowHides": [
+    "cloak",
+    "scarf_tail_front",
+    "scarf_tail_back"
+   ],
+   "rollSupport": [
+    95.43,
+    95.55,
+    95.65,
+    95.72,
+    95.76,
+    95.77,
+    95.97,
+    96.22,
+    96.44,
+    96.67,
+    96.89,
+    97.1,
+    97.3,
+    97.5,
+    97.7,
+    97.86,
+    98.0,
+    98.13,
+    98.26,
+    98.4,
+    98.53,
+    98.63,
+    98.71,
+    98.84,
+    98.94,
+    99.0,
+    99.04,
+    99.09,
+    99.15,
+    99.18,
+    99.18,
+    99.16,
+    99.17,
+    99.14,
+    99.1,
+    99.06,
+    99.01,
+    98.95,
+    98.9,
+    99.1,
+    99.27,
+    99.46,
+    99.61,
+    99.73,
+    99.81,
+    99.87,
+    100.02,
+    100.14,
+    100.22,
+    100.27,
+    100.3,
+    100.33,
+    100.33,
+    100.31,
+    100.3,
+    100.27,
+    100.21,
+    100.14,
+    100.06,
+    99.95,
+    99.87,
+    99.76,
+    99.62,
+    99.45,
+    99.3,
+    99.17,
+    99.01,
+    98.83,
+    98.65,
+    98.43,
+    98.19,
+    97.92,
+    97.68,
+    97.47,
+    97.23,
+    96.97,
+    96.67,
+    96.37,
+    96.06,
+    95.76,
+    95.54,
+    95.61,
+    95.64,
+    95.65,
+    95.62,
+    95.57,
+    95.49,
+    95.37,
+    95.23,
+    95.06,
+    94.87,
+    94.76,
+    94.64,
+    94.48,
+    94.29,
+    94.08,
+    93.83,
+    93.56,
+    93.75,
+    94.08,
+    94.38,
+    94.65,
+    94.89,
+    95.1,
+    95.28,
+    95.44,
+    95.56,
+    95.66,
+    95.72,
+    95.77,
+    95.8,
+    95.79,
+    95.76,
+    95.7,
+    95.61,
+    95.49,
+    96.42,
+    97.6,
+    98.78,
+    99.93,
+    101.05,
+    102.13,
+    103.19,
+    104.21,
+    105.21,
+    106.19,
+    107.14,
+    108.05,
+    108.93,
+    109.78,
+    110.6,
+    111.38,
+    112.13,
+    112.84,
+    113.52,
+    114.17,
+    114.82,
+    115.44,
+    116.03,
+    116.58,
+    117.1,
+    117.58,
+    118.02,
+    118.43,
+    118.8,
+    119.14,
+    119.44,
+    119.72,
+    119.96,
+    120.17,
+    120.35,
+    120.48,
+    120.58,
+    120.65,
+    120.7,
+    120.74,
+    120.74,
+    120.71,
+    120.64,
+    120.53,
+    120.39,
+    120.21,
+    120.0,
+    119.76,
+    119.49,
+    119.18,
+    118.83,
+    118.45,
+    118.03,
+    117.59,
+    117.12,
+    116.63,
+    116.09,
+    115.53,
+    114.92,
+    114.38,
+    114.07,
+    113.72,
+    113.34,
+    112.92,
+    112.47,
+    112.05,
+    111.6,
+    111.11,
+    110.59,
+    110.04,
+    109.45,
+    108.83,
+    108.17,
+    107.48,
+    106.76,
+    106.01,
+    105.25,
+    104.46,
+    103.63,
+    102.78,
+    101.9,
+    100.98,
+    100.04,
+    99.06,
+    98.06,
+    97.02,
+    95.96,
+    94.89,
+    93.8,
+    92.68,
+    91.53,
+    90.35,
+    89.28,
+    89.23,
+    89.2,
+    89.15,
+    89.14,
+    89.1,
+    89.06,
+    89.04,
+    89.0,
+    88.94,
+    88.93,
+    88.89,
+    88.83,
+    88.78,
+    88.7,
+    88.6,
+    88.46,
+    88.3,
+    88.27,
+    88.22,
+    88.13,
+    88.61,
+    89.41,
+    90.17,
+    90.91,
+    91.62,
+    92.31,
+    92.96,
+    93.59,
+    94.2,
+    94.79,
+    95.35,
+    95.88,
+    96.38,
+    96.86,
+    97.3,
+    97.72,
+    98.12,
+    98.48,
+    98.82,
+    99.13,
+    99.4,
+    99.65,
+    99.86,
+    100.07,
+    100.25,
+    100.41,
+    100.54,
+    100.64,
+    100.71,
+    100.74,
+    100.76,
+    100.76,
+    100.73,
+    100.68,
+    100.59,
+    100.47,
+    100.32,
+    100.14,
+    99.93,
+    99.69,
+    99.41,
+    99.11,
+    98.94,
+    99.05,
+    99.13,
+    99.19,
+    99.21,
+    99.2,
+    99.16,
+    99.18,
+    99.41,
+    99.63,
+    99.83,
+    100.01,
+    100.15,
+    100.26,
+    100.36,
+    100.44,
+    100.48,
+    100.49,
+    100.48,
+    100.45,
+    100.39,
+    100.29,
+    100.17,
+    100.02,
+    99.83,
+    99.62,
+    99.39,
+    99.17,
+    98.91,
+    98.63,
+    98.38,
+    98.6,
+    98.78,
+    98.94,
+    99.08,
+    99.19,
+    99.28,
+    99.36,
+    99.41,
+    99.43,
+    99.42,
+    99.38,
+    99.31,
+    99.2,
+    99.07,
+    99.0,
+    98.91,
+    98.78,
+    98.62,
+    98.43,
+    98.21,
+    97.96,
+    97.68,
+    97.4,
+    97.09,
+    96.75,
+    96.38,
+    95.98,
+    95.55,
+    95.13,
+    95.17,
+    95.42,
+    95.63,
+    95.87,
+    96.12,
+    96.34,
+    96.54,
+    96.7,
+    96.86,
+    97.0,
+    97.11,
+    97.2,
+    97.28,
+    97.33,
+    97.36,
+    97.35,
+    97.34,
+    97.29,
+    97.23,
+    97.16,
+    97.05,
+    96.92,
+    96.75,
+    96.56,
+    96.38,
+    96.18,
+    95.96,
+    95.7,
+    95.42
+   ]
+  }
+ ]
 }

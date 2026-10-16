@@ -205,19 +205,33 @@ export function packExporter(d) {
     };
   }
 
-  /** Every texture path (relative to the figure's directory) it loads, scheme by scheme, recorded through `opts.loadImage`. */
+  /** A texture file the figure asked for that is not there. */
+  class MissingTexture extends Error { constructor(path) { super(`no ${path}`); this.path = path; } }
+  /**
+   * Every texture path (relative to the figure's directory) it loads, scheme by scheme and, for a figure with outfits
+   * (model.outfits, the whale's), in every outfit (`<scheme>-<outfit>`), recorded through `opts.loadImage`. A file that
+   * is not there fails to load, as in the app: the figure does without it (an optional pose), and the pack has no such file.
+   */
   async function textureFiles() {
     const make = (await import(pathToFileURL(join(WEB, d.entry)).href))[d.factory];
     if (typeof make !== 'function') throw new Error(`${d.entry} exports no ${d.factory}`);
     const model = readJson(join(FIG, 'model.json'));
     const all = new Set();
     for (const sc of model.schemes ?? [{ id: d.fallbackScheme }]) {
-      const seen = new Set();
-      // the figure loads a scheme's textures before it makes its canvases; with no DOM here it stops there
-      await make('x/', { model, scheme: sc.id, asset: (p) => p, loadImage: async (p) => { seen.add(String(p)); return { width: 1, height: 1 }; } })
-        .catch(() => {});
-      if (!seen.size) throw new Error(`${d.dir}: scheme ${sc.id} loaded no textures`);
-      for (const p of seen) all.add(p);
+      for (const look of model.outfits ? model.outfits.map((o) => `${sc.id}-${o.id}`) : [sc.id]) {
+        const seen = new Set();
+        // the figure loads a scheme's textures before it makes its canvases; with no DOM here it stops there
+        await make('x/', {
+          model, scheme: look, asset: (p) => p,
+          loadImage: async (p) => { if (!existsSync(join(FIG, String(p)))) throw new MissingTexture(String(p)); seen.add(String(p)); return { width: 1, height: 1 }; },
+        }).catch((err) => {
+          // (a missing file the figure needs, not an optional pose it does without, is an error; anything else is the
+          // figure stopping at its first canvas, there being no DOM here)
+          if (err instanceof MissingTexture) throw new Error(`${d.dir}: ${look} needs ${err.path}, which is not there`);
+        });
+        if (!seen.size) throw new Error(`${d.dir}: ${look} loaded no textures`);
+        for (const p of seen) all.add(p);
+      }
     }
     return [...all].sort();
   }

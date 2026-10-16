@@ -25,6 +25,15 @@ describe('figure packs', () => {
     expect(packs.find((p) => p.id === 'grok-chan')).toMatchObject({ base: '/web/grok-chan/', manifest: { export: 'createGrokBody', model: 'model.json' } });
   });
 
+  it('the whale has two axes, 配色 (eight schemes) and 服装 (the maid dress and the winter outfit), every preset in the maid dress', () => {
+    const { packs } = figurePacks([]);
+    const m = packs.find((p) => p.id === 'whale')!.manifest;
+    expect(m.axes.map((a) => [a.id, a.options.length])).toEqual([['scheme', 8], ['outfit', 2]]);
+    expect(m.axes[1]!.options.map((o) => [o.id, o.thumb])).toEqual([['maid', 'thumbs/maid.png'], ['cape', 'thumbs/cape.png']]);
+    expect(m.presets).toHaveLength(8);
+    for (const p of m.presets) expect(p.pick).toEqual({ scheme: p.id, outfit: 'maid' });
+  });
+
   it('Claude-chan has one scheme, original, with settings-window colours, credited to the character\'s designer, and no alias', () => {
     const { packs } = figurePacks([]);
     const m = packs.find((p) => p.id === 'claude-chan')!.manifest;

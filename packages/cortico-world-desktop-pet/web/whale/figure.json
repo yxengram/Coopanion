@@ -8,8 +8,8 @@
     "en": "DeepSeek Whale"
   },
   "about": {
-    "zh": "一个 Q 版鲸鱼女仆,二头身,侧身朝右站;蓝色长发、头顶一根呆毛,头两侧各一只鲸鱼鳍,穿女仆裙和围裙,围裙右下角印着一只喷水的小鲸鱼,身后一条鲸鱼尾巴",
-    "en": "a chibi whale maid, two heads tall, standing three-quarters on facing right; long blue hair with an ahoge, a whale fin on each side of the head, a maid dress and an apron with a little spouting whale printed on its lower corner, and a whale tail behind her"
+    "zh": "一个 Q 版鲸鱼娘,二头身,侧身朝右站;蓝色长发、头顶一根呆毛,头两侧各一只鲸鱼鳍,身后一条鲸鱼尾巴;服装是括号里选的那套:女仆装是女仆裙和围裙,围裙右下角印着一只喷水的小鲸鱼,冬装是戴鲸鱼兜帽、围条纹围巾的毛边斗篷",
+    "en": "a chibi whale girl, two heads tall, standing three-quarters on facing right; long blue hair with an ahoge, a whale fin on each side of the head, and a whale tail behind; she wears the outfit picked in brackets: the maid dress is a maid dress and an apron with a little spouting whale printed on its lower corner, and the winter outfit a fur-trimmed cape with a whale hood and a striped scarf"
   },
   "author": "Pal-AI-Lab",
   "credits": [
@@ -99,13 +99,39 @@
           "accent": "#D92D7A"
         }
       ]
+    },
+    {
+      "id": "outfit",
+      "name": {
+        "zh": "服装",
+        "en": "Outfit"
+      },
+      "options": [
+        {
+          "id": "maid",
+          "name": {
+            "zh": "女仆装",
+            "en": "Maid dress"
+          },
+          "thumb": "thumbs/maid.png"
+        },
+        {
+          "id": "cape",
+          "name": {
+            "zh": "冬装",
+            "en": "Winter outfit"
+          },
+          "thumb": "thumbs/cape.png"
+        }
+      ]
     }
   ],
   "presets": [
     {
       "id": "deepseek",
       "pick": {
-        "scheme": "deepseek"
+        "scheme": "deepseek",
+        "outfit": "maid"
       },
       "name": {
         "zh": "DeepSeek"
@@ -134,7 +160,8 @@
     {
       "id": "harness",
       "pick": {
-        "scheme": "harness"
+        "scheme": "harness",
+        "outfit": "maid"
       },
       "name": {
         "zh": "DeepSeek Harness"
@@ -163,7 +190,8 @@
     {
       "id": "chatgpt",
       "pick": {
-        "scheme": "chatgpt"
+        "scheme": "chatgpt",
+        "outfit": "maid"
       },
       "name": {
         "zh": "ChatGPT"
@@ -192,7 +220,8 @@
     {
       "id": "claude",
       "pick": {
-        "scheme": "claude"
+        "scheme": "claude",
+        "outfit": "maid"
       },
       "name": {
         "zh": "Claude"
@@ -221,7 +250,8 @@
     {
       "id": "gemini",
       "pick": {
-        "scheme": "gemini"
+        "scheme": "gemini",
+        "outfit": "maid"
       },
       "name": {
         "zh": "Gemini"
@@ -250,7 +280,8 @@
     {
       "id": "qwen",
       "pick": {
-        "scheme": "qwen"
+        "scheme": "qwen",
+        "outfit": "maid"
       },
       "name": {
         "zh": "千问"
@@ -279,7 +310,8 @@
     {
       "id": "kimi",
       "pick": {
-        "scheme": "kimi"
+        "scheme": "kimi",
+        "outfit": "maid"
       },
       "name": {
         "zh": "Kimi"
@@ -308,7 +340,8 @@
     {
       "id": "minimax",
       "pick": {
-        "scheme": "minimax"
+        "scheme": "minimax",
+        "outfit": "maid"
       },
       "name": {
         "zh": "MiniMax"

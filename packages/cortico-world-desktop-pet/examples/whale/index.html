@@ -67,6 +67,7 @@
 <div class="panel">
   <div class="row" id="figures"><span>形象</span></div>
   <div class="row" id="schemes" hidden><span>配色</span></div>
+  <div class="row" id="outfits" hidden><span>服装</span></div>
   <div class="row"><span>交互</span>
     <button id="talk">说话</button><button id="listen">倾听</button><button id="think">思考</button>
     <button id="roam">自由活动：开</button><button id="toss" title="kit 的 dragged 脸（被拎起），不是词表里的词">抛起来</button>
@@ -96,7 +97,7 @@ const sfx = createSfx({ storageKey: 'whale-demo.sound' });
 ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => sfx.unlock(), { capture: true }));
 let scale = +$('#scale').value;
 const q = new URLSearchParams(location.search);
-// ?figure= picks the figure (default the whale), ?scheme= its colour scheme; each pack's figure.json lists its words
+// ?figure= picks the figure (default the whale), ?scheme= its look (a colour scheme, or the whale's `<scheme>-<outfit>`); each pack's figure.json lists its words
 const FIGURES = [['whale', '大肥鱼'], ['claude-chan', 'Claude 娘'], ['gpt-chan', 'GPT 娘'], ['gemini-chan', 'Gemini 娘'], ['grok-chan', 'Grok 娘'], ['coo', 'Coo']];
 const fig = FIGURES.some(([id]) => id === q.get('figure')) ? q.get('figure') : 'whale';
 const figLabel = FIGURES.find(([id]) => id === fig)[1];
@@ -189,7 +190,7 @@ const partOf = (v, has = []) => {
 };
 /* ---------- end of the mirror ---------- */
 
-const { vocab, pairs = {} } = await load('figure.json');
+const { vocab, pairs = {}, axes = [] } = await load('figure.json');
 const byId = new Map(vocab.map(v => [v.id, v]));
 const first = v => v.names.zh?.[0] ?? v.id;
 const nameOf = id => (byId.has(id) ? first(byId.get(id)) : id);
@@ -324,20 +325,36 @@ $('#comboGo').onclick = () => combo($('#combo').value);
 $('#combo').onkeydown = e => { if (e.key === 'Enter') combo(e.target.value); };
 
 $('#toss').onclick = () => ctl.setExpr('dragged');
+// the look drawn: its colour scheme and (the whale) its outfit, figure.scheme being `<scheme>` or `<scheme>-<outfit>`
+const lookNow = () => { const [scheme, outfit] = String(figure?.scheme ?? '').split('-'); return { scheme, outfit }; };
+const lookId = (scheme, outfit) => (outfit ? `${scheme}-${outfit}` : scheme);
+// a new colour scheme crossfades; another outfit is another set of parts, a cut
+const setLook = async (scheme, outfit, fade) => {
+  await figure.setScheme(lookId(scheme, outfit), { fade });
+  const now = lookNow();
+  schemeBtns.forEach((x, i) => x.classList.toggle('on', figure.schemes[i].id === now.scheme));
+  outfitBtns.forEach((x, i) => x.classList.toggle('on', figure.outfits[i].id === now.outfit));
+  const u = new URLSearchParams(location.search); u.set('scheme', figure.scheme); history.replaceState(null, '', `?${u}`);
+  ctl.pet.sqv += 1.4; ctl.setExpr('happy', 1.2);
+};
 const schemeBtns = (figure?.schemes || []).map(sc => {
   const b = el('button', { textContent: sc.brand });
-  b.onclick = async () => {
-    await figure.setScheme(sc.id, { fade: .45 });
-    schemeBtns.forEach((x, i) => x.classList.toggle('on', figure.schemes[i].id === sc.id));
-    const u = new URLSearchParams(location.search); u.set('scheme', sc.id); history.replaceState(null, '', `?${u}`);
-    ctl.pet.sqv += 1.4; ctl.setExpr('happy', 1.2);
-  };
-  b.classList.toggle('on', sc.id === figure.scheme);
+  b.onclick = () => setLook(sc.id, lookNow().outfit, .45);
+  b.classList.toggle('on', sc.id === lookNow().scheme);
   $('#schemes').append(b);
   return b;
 });
-// (a figure with one scheme has nothing to choose)
+const outfitNames = axes.find(a => a.id === 'outfit')?.options ?? [];
+const outfitBtns = (figure?.outfits || []).map(of => {
+  const b = el('button', { textContent: outfitNames.find(o => o.id === of.id)?.name?.zh ?? of.id });
+  b.onclick = () => setLook(lookNow().scheme, of.id, 0);
+  b.classList.toggle('on', of.id === lookNow().outfit);
+  $('#outfits').append(b);
+  return b;
+});
+// (a figure with one scheme, or one outfit, has nothing to choose)
 $('#schemes').hidden = schemeBtns.length < 2;
+$('#outfits').hidden = outfitBtns.length < 2;
 
 // talking: a line of text into the bubble, one character at a time, the mouth moving with it
 let line = '', shown = 0, nextAt = 0;

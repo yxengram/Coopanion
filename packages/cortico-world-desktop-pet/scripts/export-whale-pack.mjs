@@ -23,11 +23,11 @@ export function packReadme(manifest, sounds) {
 
 Coopanion 的桌宠形象「DeepSeek 大肥鱼」导出成的形象包(id \`${manifest.id}\`,版本 ${manifest.version}),可以装进别的 Coopanion
 (包括原版 v0.1.17 及以后)。她带着自己的 kit(\`kit/body.js\`、\`kit/rig.js\`),所以在原版里也会全部 ${manifest.vocab.length} 个表情和动作:
-趴下、跪坐、翻滚、喷水、唱歌、喝茶、看书、敬礼、比耶……以及 ${manifest.axes[0].options.length} 套配色。
-原版没有的 ${sounds.length} 个音效事先渲染成了 \`sounds/*.wav\`。
+趴下、跪坐、翻滚、喷水、唱歌、喝茶、看书、敬礼、比耶……以及 ${manifest.axes[0].options.length} 套配色${manifest.axes[1] ? `和 ${manifest.axes[1].options.length} 套服装(${manifest.axes[1].options.map((o) => o.name.zh).join('、')})` : ''}。
+原版没有的 ${sounds.length} 个音效事先渲染成了 \`sounds/*.wav\`。${manifest.axes[1] ? '\n冬装的手上动作和整身的姿势都画好了:毛绒袖口带蓝色小蝴蝶结的手臂,跪坐(跪着也能做手上的动作)、趴下、背影和翻滚时团成的球,\n八套配色各一份。' : ''}
 
 ${installSection(manifest)}
-然后重启 Coopanion,在装扮页最上面一行「形象」里选「${manifest.name.zh}」,配色在下面一行。
+然后重启 Coopanion,在装扮页最上面一行「形象」里选「${manifest.name.zh}」,配色${manifest.axes[1] ? '和服装' : ''}在下面${manifest.axes[1] ? '两行' : '一行'}。
 
 在 Coopanion 自己(${SOURCE_URL})里,这个包是内置大肥鱼的别名:装了不会多出一个形象,
 配置里选着它时显示的就是内置的「DeepSeek 大肥鱼」,配色不变。
@@ -44,7 +44,7 @@ ${soundSection(sounds)}
 
 - 代码(\`whale/figure.js\`、\`kit/body.js\`、\`kit/rig.js\`)是 AGPL-3.0-or-later,全文见 \`LICENSE\`;
   源码在 ${SOURCE_URL}(\`${PKG_REL}/web/\`),导出脚本是 \`${PKG_REL}/scripts/export-whale-pack.mjs\`。
-- 贴图(\`tex/\`、\`feat/\`、\`schemes/\`、\`thumbs/\`)不在 AGPL 授权范围内:由 ChatGPT 的图像模型按参考图生成后拆件,
+- 贴图(\`tex/\`、\`feat/\`、\`schemes/\`、\`outfits/\`、\`thumbs/\`)不在 AGPL 授权范围内:由 ChatGPT 的图像模型按参考图生成后拆件,
   ${(manifest.credits ?? []).filter((c) => !c.url).map((c) => `${c.role}「${c.name}」`).join(',')};围裙上的喷水小鲸鱼是 Coopanion 自己画的。
   它们随 Coopanion 分发,想在别处使用请自行确认原设的权利。
 - 音效由上面的代码合成,和代码同一许可。

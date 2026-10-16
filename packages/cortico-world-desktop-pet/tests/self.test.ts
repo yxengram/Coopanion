@@ -27,6 +27,17 @@ describe('pet_set', () => {
     expect(planSettings({ figure: 'grok-chan', scheme: 'grok' }, cfg(), packs).errors).toHaveLength(1);
   });
 
+  it('dresses the whale in a scheme and an outfit (`<scheme>-<outfit>`), a bare scheme being her maid dress', () => {
+    const { changes, errors } = planSettings({ figure: 'whale', scheme: 'claude-cape' }, cfg(), packs);
+    expect(errors).toEqual([]);
+    expect(changes.find((c) => c.key === 'scheme')).toMatchObject({ say: expect.stringContaining('配色:Claude,服装:冬装'), patch: { skin: { scheme: 'claude-cape' } } });
+    expect(planSettings({ figure: 'whale', scheme: 'qwen-maid' }, cfg(), packs).errors).toEqual([]);
+    expect(planSettings({ figure: 'whale', scheme: 'qwen' }, cfg(), packs).errors).toEqual([]);
+    // an outfit she does not have, or a third part, is no look of hers
+    expect(planSettings({ figure: 'whale', scheme: 'qwen-tuxedo' }, cfg(), packs).errors).toHaveLength(1);
+    expect(planSettings({ figure: 'whale', scheme: 'qwen-cape-x' }, cfg(), packs).errors).toHaveLength(1);
+  });
+
   it('switches to Claude-chan in her one scheme', () => {
     const { changes, errors } = planSettings({ figure: 'claude-chan' }, cfg(), packs);
     expect(errors).toEqual([]);

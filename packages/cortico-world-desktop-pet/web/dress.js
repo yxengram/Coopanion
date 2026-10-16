@@ -153,10 +153,15 @@ function schemeOf(pack, picks) {
   const preset = pack.presets.find((p) => pack.axes.every((a) => p.pick[a.id] === picks[a.id]));
   return preset ? preset.id : pack.axes.map((a) => picks[a.id]).join('-');
 }
+/**
+ * The figure's picture for a set of picks: its preset's, else the picture of the last later axis picked off its first
+ * option (the whale's winter outfit: no preset is a scheme in it), else the first axis's pick's, else the pack's own.
+ */
 const thumbOf = (pack, picks) => {
   const preset = pack.presets.find((p) => p.id === schemeOf(pack, picks));
-  const opt = pack.axes[0]?.options.find((o) => o.id === picks[pack.axes[0].id]);
-  const file = preset?.thumb ?? opt?.thumb ?? pack.thumb;
+  const opt = (a) => a?.options.find((o) => o.id === picks[a.id]);
+  const other = pack.axes.slice(1).reverse().find((a) => picks[a.id] !== a.options[0]?.id && opt(a)?.thumb);
+  const file = preset?.thumb ?? opt(other)?.thumb ?? opt(pack.axes[0])?.thumb ?? pack.thumb;
   return file ? pack.base + file : null;
 };
 

@@ -23,6 +23,17 @@ describe('console colours follow the pet', () => {
     expect(theme(dir).selectedId).toBe(COO_SCHEME);
   });
 
+  it('gives a look that is no preset the colours of the preset with its colour scheme (the whale in her winter outfit)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cc-theme-'));
+    followPetLook(dir, { figure: 'whale', scheme: 'claude-cape' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-whale-claude');
+    followPetLook(dir, { figure: 'whale', scheme: 'qwen-maid' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-whale-qwen');
+    // (an unknown pick still falls back to the first preset)
+    followPetLook(dir, { figure: 'whale', scheme: 'nope-cape' }, packs);
+    expect(theme(dir).selectedId).toBe('coo-whale-deepseek');
+  });
+
   it('gives the exported whale pack (an alias of the built-in whale) the whale\'s schemes', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cc-theme-'));
     followPetLook(dir, { figure: 'coopanion-whale', scheme: 'kimi' }, packs);

@@ -78,13 +78,20 @@ export function figureSchemes(packs: readonly FigurePack[]): ThemeScheme[] {
   });
 }
 
-/** The console scheme for a pet look: Coo's, or the pack preset's (its first with colours for a pick that is not a preset); an aliased figure is its built-in pack. */
+/**
+ * The console scheme for a pet look: Coo's, or the pack preset's; an aliased figure is its built-in pack. A pick that is
+ * not a preset (the whale's `claude-cape`) takes the colours of the preset with colours that picks the same option on
+ * the most axes, the first of them on a tie.
+ */
 export function schemeForSkin(skin: { figure?: string; scheme?: string } | undefined, packs: readonly FigurePack[]): string {
   const figure = skin?.figure === undefined ? undefined : figureOf(skin.figure);
   const pack = packs.find((p) => p.id === figure);
   const presets = pack?.manifest.presets.filter((p) => p.console) ?? [];
   if (!pack || !presets.length) return COO_SCHEME;
-  return schemeId(pack.id, (presets.find((p) => p.id === skin?.scheme) ?? presets[0]!).id);
+  const picks = String(skin?.scheme ?? '').split('-');
+  const shared = (p: (typeof presets)[number]) => pack.manifest.axes.filter((a, i) => p.pick[a.id] === picks[i]).length;
+  const preset = presets.find((p) => p.id === skin?.scheme) ?? presets.reduce((best, p) => (shared(p) > shared(best) ? p : best));
+  return schemeId(pack.id, preset.id);
 }
 
 /**

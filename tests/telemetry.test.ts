@@ -69,6 +69,8 @@ describe('the figure in the day record', () => {
     expect([...builtins]).toEqual(expect.arrayContaining(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']));
     expect(reportedLook(figureOf('whale'), 'deepseek', builtins)).toEqual({ figure: 'whale', scheme: 'deepseek' });
     expect(reportedLook(figureOf('coopanion-whale'), 'deepseek', builtins)).toEqual({ figure: 'whale', scheme: 'deepseek' });
+    // (her look with an outfit, `<scheme>-<outfit>`, as stored)
+    expect(reportedLook(figureOf('whale'), 'claude-cape', builtins)).toEqual({ figure: 'whale', scheme: 'claude-cape' });
     expect(reportedLook(null, null, builtins)).toEqual({ figure: null, scheme: null });
   });
   it('reports an installed figure pack as custom, without its id or scheme', () => {

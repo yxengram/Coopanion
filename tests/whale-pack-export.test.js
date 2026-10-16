@@ -171,6 +171,36 @@ describe('exported whale pack', () => {
     }
     for (const p of model.parts) expect(to).toContain(`tex/${p.tex}.png`);
     for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`tex/${n}.png`);
+    // her outfits (the pack's second axis): the winter outfit's own parts, the same in every scheme, and both outfits'
+    // thumbnails; only the files there are (the outfit's pose drawings it lists: its 37 arm drawings, one shared file
+    // each, and its 16 whole-body drawings, one per scheme), no maid drawing under outfits/
+    const cape = model.outfits.find((o) => o.id === 'cape');
+    const own = cape.parts.filter((p) => p.src).map((p) => p.src);
+    expect(own.length).toBe(20);
+    for (const f of own) expect(to).toContain(f);
+    const poses = Object.entries(cape.poses ?? {});
+    const shared = poses.filter(([, w]) => w === 'shared').map(([n]) => n), perScheme = poses.filter(([, w]) => w === 'scheme').map(([n]) => n);
+    expect([shared.length, perScheme.length, poses.length]).toEqual([37, 16, 53]);
+    expect(shared.filter((n) => !n.startsWith('arm_'))).toEqual([]);
+    expect(perScheme.filter((n) => n.startsWith('arm_'))).toEqual([]);
+    expect([...to].filter((t) => t.startsWith('outfits/')).sort()).toEqual([
+      ...own, ...shared.map((n) => `outfits/cape/poses/${n}.png`),
+      ...model.schemes.flatMap((sc) => perScheme.map((n) => `outfits/cape/schemes/${sc.id}/poses/${n}.png`)),
+    ].sort());
+    expect([...to].filter((t) => t.startsWith('outfits/')).length).toBe(20 + 37 + 16 * 8);
+    for (const t of ['thumbs/maid.png', 'thumbs/cape.png']) expect(to).toContain(t);
+    // (the parts the winter outfit keeps from the maid dress, recoloured by the scheme, are each scheme's own)
+    for (const p of cape.parts.filter((q) => !q.src)) for (const sc of model.schemes.slice(1)) expect(to).toContain(`schemes/${sc.id}/tex/${p.tex}.png`);
+  });
+
+  it('carries the outfit axis to an upstream app: the winter outfit and its thumbnails, every preset in the maid dress', async () => {
+    const m = await buildManifest({ upstreamTones, volumes: { song: .05 } });
+    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', builtin('whale').axes[0].options.map((o) => o.id)], ['outfit', ['maid', 'cape']]]);
+    expect(m.axes[1].options.map((o) => o.thumb)).toEqual(['thumbs/maid.png', 'thumbs/cape.png']);
+    for (const p of m.presets) expect(p.pick.outfit, p.id).toBe('maid');
+    // the about text describes both outfits, and never a vendor's mark
+    expect(m.about.zh).toContain('冬装');
+    expect(JSON.stringify(m.about)).not.toMatch(/logo|标志|商标/i);
   });
 
   it('encodes 16-bit mono WAV and keeps the tone level through the manifest volume', () => {

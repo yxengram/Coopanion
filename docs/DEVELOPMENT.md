@@ -84,7 +84,7 @@ GitHub Actions 会构建 Windows 安装包和两个 Mac 包(Apple 芯片、Intel
 
 ## 代理、主题与字标
 
-Core 使用内置 Electron 的 Node 环境代理支持，读取 HTTP_PROXY/HTTPS_PROXY 等变量。NO_PROXY 与 no_proxy 合并后补齐 localhost、127.0.0.1 和 IPv6 回环地址，避免本机控制台和桌宠通信被代理。变量必须存在于应用启动环境中；Finder 启动不自动读取 shell 配置。
+Core 使用内置 Electron 的 Node 环境代理支持，读取 HTTP_PROXY/HTTPS_PROXY 等变量。启动环境里没有这些变量时，主进程在每次启动 Core 前用 `session.resolveProxy` 查询系统代理（5 秒超时），HTTP/HTTPS 代理写成这四个变量，DIRECT、SOCKS 或查询失败时不设；`core.log` 每次启动记一行代理来源（不写地址）。NO_PROXY 与 no_proxy 合并后补齐 localhost、127.0.0.1 和 IPv6 回环地址，避免本机控制台和桌宠通信被代理。Core 还带 `--use-system-ca` 启动，TLS 也信任系统证书库（公司网络、杀毒软件的中间人证书）。
 
 装扮页通过 URL 初始值和父窗口消息跟随控制台主题，消息校验精确来源与父窗口；桌宠配色独立保存。
 

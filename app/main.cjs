@@ -5,7 +5,8 @@
  * - the app: tray icon, the settings window (the Cortico console served by the Core child on
  *   127.0.0.1), and the Core child process (`core-host.cjs`). A start shows the pet and the tray
  *   icon only; the settings window opens from the tray, the pet's menu, or when the pet asks for
- *   a missing model key (`core/companion.ts`). Starting it again while it runs brings the pet back;
+ *   a missing model key (`core/companion.ts`). Starting it again while it runs brings the pet back, or starts the
+ *   Core again when it stopped retrying (`failed`);
  * - `--pet-host --pet-url=… --parent-pid=…`: the desktop pet's transparent window, started by
  *   the desktop-pet World through `CORTICO_DESKTOP_PET_HOST`. It uses its own profile directory.
  *
@@ -20,7 +21,7 @@
  * On macOS the app lives in the menu bar (the Info.plist sets LSUIElement): no Dock icon, except
  * while the settings window is open, so it can be reached with Command-Tab.
  */
-const { app, BrowserWindow, Menu, Notification, Tray, dialog, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, dialog, nativeImage, session, shell } = require('electron');
 const { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
 const { delimiter, dirname, join } = require('node:path');
 
@@ -40,8 +41,35 @@ const DATA = process.env.CORTICO_COMPANION_DATA
     : MAC || LINUX ? join(app.getPath('appData'), 'Coopanion') : join(dirname(process.execPath), 'data'));
 
 /**
- * An install made through the installer's pages sits in %LOCALAPPDATA%\Programs\Coopanion: the "only for me"
- * page sets that after installer/nsis.nsh's customInit ran. From 0.1.14 to 0.1.16 an update, which installs
+ * data\ beside the program cannot be written when the program sits in a directory that needs administrator
+ * rights, such as Program Files. The app then says why and quits before anything is created under DATA; the
+ * probe goes into DATA, or into the install directory while DATA does not exist yet (an empty data\ made here
+ * would be taken for data in use by restoreStrandedData).
+ */
+function dataWritable() {
+  const probe = join(existsSync(DATA) ? DATA : dirname(DATA), `.write-test-${process.pid}`);
+  try {
+    writeFileSync(probe, '');
+    rmSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+if (app.isPackaged && process.platform === 'win32' && !process.env.CORTICO_COMPANION_DATA && !dataWritable()) {
+  // Chromium's own files for this one dialog go to the temp directory
+  app.setPath('userData', join(app.getPath('temp'), 'Coopanion'));
+  app.whenReady().then(() => {
+    const suggested = join(process.env.LOCALAPPDATA ?? app.getPath('home'), 'Programs', 'Coopanion');
+    dialog.showErrorBox('Coopanion', `Coopanion 无法写入数据目录,没有启动:\n${DATA}\n\n请重新运行安装器,安装到当前用户有权写入的目录,例如:\n${suggested}`);
+    app.exit(1);
+  });
+  return;
+}
+
+/**
+ * An install made through the installer's pages sits in %LOCALAPPDATA%\Programs\Coopanion: the per-user
+ * install mode (installer/nsis.nsh's customInstallMode) sets that after its customInit ran. From 0.1.14 to 0.1.16 an update, which installs
  * silently and so keeps customInit's choice, moved the program to %USERPROFILE%\Coopanion and left data\ behind
  * (#84). The first start in the new place takes that data\ back. When the app has run here since, this data\ may
  * be the one in use, so a dialog asks first (askRestoreStranded); taking the old one back then happens on the
@@ -111,6 +139,8 @@ const petHost = app.isPackaged ? [process.execPath, '--pet-host'] : [process.exe
 const core = new CoreHost({
   appRoot: APP_ROOT,
   logDir: join(userData, 'logs'),
+  // the default session follows the operating system's proxy settings, PAC scripts included
+  resolveProxy: (url) => session.defaultSession.resolveProxy(url),
   env: {
     ...process.env,
     CORTICO_HOME: join(userData, 'home'),
@@ -268,7 +298,10 @@ core.on('hide', () => {
   if (MAC) app.dock?.hide();
 });
 core.on('quit', () => app.quit());
-const bringBack = () => { if (core.state === 'running') ensurePet().catch(() => { /* Core went away meanwhile */ }); };
+const bringBack = () => {
+  if (core.state === 'failed') void core.start();
+  else if (core.state === 'running') ensurePet().catch(() => { /* Core went away meanwhile */ });
+};
 app.on('second-instance', bringBack);
 // macOS: opening the app again while it runs
 app.on('activate', bringBack);
@@ -309,7 +342,7 @@ app.whenReady().then(() => {
   if (askStranded && askRestoreStranded()) return;
   buildTray();
   noteAutostart();
-  core.start();
+  void core.start();
   updater = startUpdater({
     logDir: join(userData, 'logs'),
     tell: (step) => { updateStep = { type: 'companion:update', ...step }; core.send(updateStep); },

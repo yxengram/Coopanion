@@ -94,6 +94,20 @@ CI 在 Windows、macOS、Linux 上各跑一遍上面五项检查,另外:
 - [ ] Linux Wayland(经 XWayland):同上看一遍，记下和 X11 不一样的地方。
 - [ ] Linux:托盘图标出现(GNOME 要装 AppIndicator 扩展),菜单能显示、隐藏桌宠。
 
+## 界面语言
+
+应用的语言就是 Cortico 的 `Language`(`vendor/cortico/src/core/language.ts`),存在部署配置 `<数据目录>/home/companion/config.json` 的 `language` 里,说明在 `core/language.ts` 开头。
+
+- **从哪来**:主进程在 ready 之后读系统语言(`app/i18n/index.cjs` 的 `systemLanguage`:`app.getPreferredSystemLanguages()`、`getLocale()`,按 `languageOfLocale` 映射，认不出时英文),作为 `COOPANION_SYSTEM_LANGUAGE` 交给 Core;`core/seed.ts` 只在新建 `config.json` 时写进去;不是 `zh` 时再写桌宠 World 的语音识别语言、关掉转简体,非中文时还写默认称呼「Pal」(`newInstallWorlds`;`zh-Hant` 只写语音识别,中文新装什么都不多写)。没有 `language` 或值不对的配置读作中文，所以老安装升级不会变。以前只存在控制台 localStorage 里的语言(Cortico 的语言按钮)只改过控制台的显示，不当作应用语言:`app/settings-preload.cjs` 每次加载前都把它改写成应用语言，所以升级后控制台回到中文，称呼、语音设置和 Coo 说话的语言都不变;再选一次语言才走下面的切换。
+- **怎么变**:「习惯」页和设置 → 界面语言都经 `/api/config` 写 `companion` 组的 `language`;`core/companion.ts` 的 `watchLanguage` 马上通知主进程(`companion:language`,托盘和设置窗口跟着刷新)、重建系统前缀，桌宠页面随下一次 `prefs` 换语言。
+- **默认值跟着换**:语言在中文类(`zh`、`zh-Hant`)和别的语言之间变化时,`watchLanguage` 先调 `followLanguageDefaults`:`newInstallWorlds` 决定的几项(桌宠 World 的 `user`、`asr.language`、`asr.simplified`)里，仍是旧语言默认值的换成新语言的默认值(`seed.ts` 的 `languageSwitchPatch`,逐项判断;中文的默认称呼认「伙伴」和 0.1.2 以前的「主人」),先同步写进 `config.json`(在 `/api/config` 写 `language` 之前，那次写会重新读文件),再原地改活配置，桌宠 World 不用重启就用上(称呼随 `prefs`,语音语言变了 FunASR 重启),`coopanion` World 也照常把称呼的变化告诉 Coo。人自己设的值不动;自己填的恰好是「伙伴」/「Pal」、或语音设置恰好等于默认的，分不出来，也会被换掉，这是有意接受的。英语 ↔ 日语只换语音语言，中文 ↔ 繁体只换转简体。从不换语言的中文安装什么都不写(`tests/language-switch.test.ts`)。默认称呼列表 `DEFAULT_USERS` 由引导的称呼框和统计的 `userNamed` 共用。
+- **加文字**:每处给人看的文字都是一对 `zh` / `en` 表，键完全相同，由各自的测试检查键和函数参数个数一致、英文里没有中文:主进程 `app/i18n/{zh,en}.cjs`,桌宠窗口进程 `host/text.cjs`,桌宠页面 `web/i18n/{zh,en}.js`,桌宠 World `src/i18n/{zh,en}.ts`,电脑操作 World `src/strings.ts`,模型服务 `src/connect.ts` / `src/vendors.ts`(`name` / `nameEn`),控制台各页的 `TEXT` 表(`pick(TEXT)`),`core/` 里引导、更新提示、设置项的表。取表一律用 Cortico 的 `pick`:`zh-Hant` 读 `zh`,其他语言都读 `en`。表里只加一种语言的键会被测试拦下;直接写在代码里给人看的中文测试查不到，要自己留意，放进表里。
+- **页面和名字**:桌宠的两个页面(`pet.html`、`dress.html`)按中文写,语言不是中文类时由 `src/server.ts` 在发出前把页面表的英文盖进去(`src/page-text.ts`:`<html lang>`、`<title>`、`data-i18n` 文字和 `data-i18n-label`),所以不会先闪一下中文、窗口标题也不来回变;中文原样发出。三个 World 定义的 `label` 按 `labelLanguage` 取(`core/companion.ts` 在 `createBot` 组装完之前给中文):Cortico 组装时记下的名字用在给 bot 的 World 通知里(「World 「桌宠」…」),保持中文;之后读的(建不起来的 World 在控制台列表里)跟应用语言。对话页心情标签的英文在 `console/features/chat/index.ts` 的 `MOOD_EN`(按表情 id,形象包的 `names` 是 bot 的词表，不加英文),新表情要补上(`tests/console-i18n.test.js` 会拦)。装扮页里形象包的名字在中文下是 `zh`,没有就取第一个，和 World 告诉 bot 的一致。
+- **应用外的文字**:macOS 的权限说明 Info.plist 里是英文,`installer/mac/InfoPlist.strings`(中文，原样)由 `electron-builder.yml` 的 `mac.extraResources` 放进 `zh_CN.lproj`、`zh_TW.lproj`;deb 的 `synopsis` 是英文;Windows 一行安装脚本 `installer/install.ps1` 按 `Get-UICulture` 说中文或英文。
+- **给 bot 看的文字不翻译**:环境提示词(`ENV_PROMPT*.md`)、工具说明、事件、回执、形象的 `about`、闲聊提示、自我描述在任何语言下都是中文、逐字节不变。语言不是 `zh` / `zh-Hant` 时，只由 `coopanion` World 在前缀里多加一行 `replyLanguage`(`core/language.ts`),让 Coo 用那种语言说话。
+- **中文快照**:`tests/i18n-zh-snapshot.test.ts` 把中文下 bot 读到的全部文字(两个 World 的提示词和工具、回执、决策请求、闲聊、引导、自我描述)和 `tests/fixtures/i18n-zh/*.json` 逐字节比对;桌宠 World 的控制台中文另有 `packages/cortico-world-desktop-pet/tests/fixtures/i18n-zh-console.json`。这些快照是从加语言之前的代码(084a201)生成的，改代码后测试不过就改代码，不要重新生成;只有确实要改中文给 bot 的文字时才用 `UPDATE_I18N_ZH=1` 重写，并在 PR 里说明。
+- **试首次运行**:`COOPANION_SYSTEM_LANGUAGE=en`(或 `zh`、`ja` 等)加空的 `CORTICO_COMPANION_DATA` 启动，就按那种系统语言新装一次，不用改系统设置。
+
 ## World 源码来源
 
 两个 World 从子模块转为本仓库的 workspace 包时，保留了原目录和包名;许可随本仓库改为 AGPL-3.0-or-later,原仓库里的历史版本仍是 MIT。源码快照分别取自桌宠

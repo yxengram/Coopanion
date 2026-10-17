@@ -15,6 +15,7 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import type { Logger } from 'cortico/core/types.ts';
+import { petText, type PetText } from './i18n/index.ts';
 
 export const HOST_ENV = 'CORTICO_DESKTOP_PET_HOST';
 export const HOST_MAIN = fileURLToPath(new URL('../host/electron-main.cjs', import.meta.url));
@@ -31,7 +32,8 @@ export interface HostState {
 
 export type HostCommand = { command: string; args: string[]; source: string } | { missing: string };
 
-export function resolveHostCommand(url: string, electronFile: string, managed: string | null): HostCommand {
+/** The command that opens the pet window, or why there is none (in the words of `t`). */
+export function resolveHostCommand(url: string, electronFile: string, managed: string | null, t: PetText['window'] = petText().window): HostCommand {
   const env = process.env[HOST_ENV];
   if (env) {
     try {
@@ -40,10 +42,10 @@ export function resolveHostCommand(url: string, electronFile: string, managed: s
         return { command: argv[0], args: [...argv.slice(1), `--pet-url=${url}`], source: HOST_ENV };
       }
     } catch { /* fall through to the reason below */ }
-    return { missing: `${HOST_ENV} 不是 JSON 字符串数组` };
+    return { missing: t.badHostEnv(HOST_ENV) };
   }
   if (electronFile) {
-    if (!existsSync(electronFile)) return { missing: `Electron 程序不存在:${electronFile}` };
+    if (!existsSync(electronFile)) return { missing: t.noFile(electronFile) };
     return { command: electronFile, args: [HOST_MAIN, `--pet-url=${url}`], source: electronFile };
   }
   if (managed) return { command: managed, args: [HOST_MAIN, `--pet-url=${url}`], source: managed };
@@ -51,14 +53,15 @@ export function resolveHostCommand(url: string, electronFile: string, managed: s
     const bin = createRequire(import.meta.url)('electron') as unknown;
     if (typeof bin === 'string' && existsSync(bin)) return { command: bin, args: [HOST_MAIN, `--pet-url=${url}`], source: bin };
   } catch { /* not installed */ }
-  return { missing: '没有可用的 Electron:在桌宠面板安装窗口运行时,或在配置里指定 Electron 程序' };
+  return { missing: t.noElectron };
 }
 
 export class WindowHost {
   private child: ChildProcess | null = null;
   private st: HostState = { phase: 'stopped', pid: null, source: null, detail: null };
 
-  constructor(private readonly log: Logger) {}
+  /** `text`: the text of the app language, read when a state is set; Chinese when absent. */
+  constructor(private readonly log: Logger, private readonly text: () => PetText['window'] = () => petText().window) {}
 
   state(): HostState {
     return { ...this.st, pid: this.child?.pid ?? null };
@@ -82,7 +85,7 @@ export class WindowHost {
       // the window closes by itself if this process dies without stopping it
       child = spawn(cmd.command, [...cmd.args, `--parent-pid=${process.pid}`], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: false });
     } catch (err) {
-      this.st = { phase: 'error', pid: null, source: cmd.source, detail: `启动失败:${(err as Error).message}` };
+      this.st = { phase: 'error', pid: null, source: cmd.source, detail: this.text().startFailed((err as Error).message) };
       return;
     }
     this.child = child;
@@ -95,7 +98,7 @@ export class WindowHost {
     child.on('exit', (code) => {
       if (this.child !== child) return;
       this.child = null;
-      this.st = { phase: 'stopped', pid: null, source: cmd.source, detail: code === 0 ? '窗口已关闭' : `窗口进程退出(退出码 ${code})` };
+      this.st = { phase: 'stopped', pid: null, source: cmd.source, detail: code === 0 ? this.text().closed : this.text().exited(code) };
     });
   }
 

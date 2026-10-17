@@ -263,11 +263,11 @@ export function focus(handle: string): boolean {
   }
 }
 
-/** A yes/no dialog answered or given up after `timeoutMs`; without zenity the answer is no. */
-export function askYesNo(text: string, caption: string, timeoutMs: number): Promise<'yes' | 'no' | 'timeout'> {
+/** A yes/no dialog answered or given up after `timeoutMs`, `yes` and `no` its buttons; without zenity the answer is no. */
+export function askYesNo(text: string, caption: string, timeoutMs: number, yes = '可以', no = '不行'): Promise<'yes' | 'no' | 'timeout'> {
   const secs = String(Math.max(1, Math.round(timeoutMs / 1000)));
   return new Promise((resolve) => {
-    const p = execFile('zenity', ['--question', `--title=${caption}`, `--text=${text}`, '--ok-label=可以', '--cancel-label=不行', `--timeout=${secs}`, '--no-markup'],
+    const p = execFile('zenity', ['--question', `--title=${caption}`, `--text=${text}`, `--ok-label=${yes}`, `--cancel-label=${no}`, `--timeout=${secs}`, '--no-markup'],
       { timeout: timeoutMs + 5000 }, () => { /* the exit code is read below */ });
     p.on('error', () => resolve('no'));
     p.on('exit', (code) => resolve(zenityAnswer(code)));

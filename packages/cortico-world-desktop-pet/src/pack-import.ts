@@ -22,6 +22,8 @@ import { cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } fr
 import { tmpdir } from 'node:os';
 import { extname, join, normalize, sep } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
+import type { Language } from 'cortico/core/language.ts';
+import { petText, type PetText } from './i18n/index.ts';
 import { MANIFEST_FILE, PACK_ALIASES, inside, readManifest, type FigurePack, type Names } from './packs.ts';
 
 export const PACK_DEPTH = 3;
@@ -36,6 +38,8 @@ const THUMB_MAX = 1024 * 1024;
 const IMAGE: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 
 export interface ImportFile { path: string; bytes: Uint8Array }
+
+type ImportText = PetText['importing'];
 
 /** A pack found in what was sent, as the page lists it for the person to pick. */
 export interface StagedPack {
@@ -81,24 +85,24 @@ export function segments(path: string): string[] | null {
   return parts.some((p) => /[<>:"|?*\x00-\x1f]/.test(p) || /[ .]$/.test(p) || WINDOWS_DEVICE.test(p)) ? null : parts;
 }
 
-/** The files of a zip, its directories left out; a string says why it cannot be read. */
-export function filesFromZip(bytes: Uint8Array): ImportFile[] | string {
+/** The files of a zip, its directories left out; a string says why it cannot be read (in the words of `t`). */
+export function filesFromZip(bytes: Uint8Array, t: ImportText = petText().importing): ImportFile[] | string {
   const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   // the end of central directory record: 22 bytes and a comment of up to 64 KB, at the end
   let end = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 0xffff); i--) {
     if (buf.readUInt32LE(i) === 0x06054b50) { end = i; break; }
   }
-  if (end < 0) return '这不是 zip 文件';
+  if (end < 0) return t.notZip;
   const count = buf.readUInt16LE(end + 10);
   const size = buf.readUInt32LE(end + 12);
   let at = buf.readUInt32LE(end + 16);
-  if (count === 0xffff || size === 0xffffffff || at === 0xffffffff) return '这个 zip 太大(zip64),读不了';
-  if (at + size > end) return 'zip 文件不完整';
+  if (count === 0xffff || size === 0xffffffff || at === 0xffffffff) return t.zip64;
+  if (at + size > end) return t.zipTruncated;
   const files: ImportFile[] = [];
   let total = 0;
   for (let n = 0; n < count; n++) {
-    if (at + 46 > end || buf.readUInt32LE(at) !== 0x02014b50) return 'zip 文件不完整';
+    if (at + 46 > end || buf.readUInt32LE(at) !== 0x02014b50) return t.zipTruncated;
     const flags = buf.readUInt16LE(at + 8);
     const method = buf.readUInt16LE(at + 10);
     const packed = buf.readUInt32LE(at + 20);
@@ -108,21 +112,21 @@ export function filesFromZip(bytes: Uint8Array): ImportFile[] | string {
     const name = buf.subarray(at + 46, at + 46 + nameLen).toString('utf8');
     at += 46 + nameLen + extraLen + commentLen;
     if (name.endsWith('/') || name.endsWith('\\')) continue;
-    if (flags & 1) return `zip 里的 ${name} 加了密码`;
-    if (packed === 0xffffffff || unpacked === 0xffffffff) return '这个 zip 太大(zip64),读不了';
+    if (flags & 1) return t.encrypted(name);
+    if (packed === 0xffffffff || unpacked === 0xffffffff) return t.zip64;
     total += unpacked;
-    if (total > IMPORT_MAX) return `解开后超过 ${IMPORT_MAX / 1048576} MB`;
-    if (files.length >= FILES_MAX) return `文件超过 ${FILES_MAX} 个`;
-    if (local + 30 > buf.length || buf.readUInt32LE(local) !== 0x04034b50) return 'zip 文件不完整';
+    if (total > IMPORT_MAX) return t.tooBig(IMPORT_MAX / 1048576);
+    if (files.length >= FILES_MAX) return t.tooMany(FILES_MAX);
+    if (local + 30 > buf.length || buf.readUInt32LE(local) !== 0x04034b50) return t.zipTruncated;
     const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
-    if (start + packed > buf.length) return 'zip 文件不完整';
+    if (start + packed > buf.length) return t.zipTruncated;
     const raw = buf.subarray(start, start + packed);
     let data: Buffer;
     if (method === 0) data = raw;
     else if (method === 8) {
-      try { data = inflateRawSync(raw, { maxOutputLength: Math.max(1, unpacked) }); } catch (err) { return `zip 里的 ${name} 解不开:${(err as Error).message}`; }
-    } else return `zip 里的 ${name} 用了读不了的压缩方式(${method})`;
-    if (data.length !== unpacked) return `zip 里的 ${name} 大小不对`;
+      try { data = inflateRawSync(raw, { maxOutputLength: Math.max(1, unpacked) }); } catch (err) { return t.inflateFailed(name, (err as Error).message); }
+    } else return t.badMethod(name, method);
+    if (data.length !== unpacked) return t.badSize(name);
     files.push({ path: name, bytes: new Uint8Array(data.buffer, data.byteOffset, data.byteLength) });
   }
   return files;
@@ -132,21 +136,21 @@ export function filesFromZip(bytes: Uint8Array): ImportFile[] | string {
  * The files the page framed (`BUNDLE_TYPE`): for each, the byte length of its path as uint32 little-endian, the
  * path in UTF-8, the byte length of its contents as uint32, the contents.
  */
-export function filesFromBundle(bytes: Uint8Array): ImportFile[] | string {
+export function filesFromBundle(bytes: Uint8Array, t: ImportText = petText().importing): ImportFile[] | string {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const text = new TextDecoder();
   const files: ImportFile[] = [];
   let at = 0;
   while (at < bytes.length) {
-    if (at + 4 > bytes.length) return '上传的内容不完整';
+    if (at + 4 > bytes.length) return t.truncated;
     const pathLen = view.getUint32(at, true); at += 4;
-    if (at + pathLen + 4 > bytes.length) return '上传的内容不完整';
+    if (at + pathLen + 4 > bytes.length) return t.truncated;
     const path = text.decode(bytes.subarray(at, at + pathLen)); at += pathLen;
     const size = view.getUint32(at, true); at += 4;
-    if (at + size > bytes.length) return '上传的内容不完整';
+    if (at + size > bytes.length) return t.truncated;
     files.push({ path, bytes: bytes.subarray(at, at + size) });
     at += size;
-    if (files.length > FILES_MAX) return `文件超过 ${FILES_MAX} 个`;
+    if (files.length > FILES_MAX) return t.tooMany(FILES_MAX);
   }
   return files;
 }
@@ -188,7 +192,16 @@ export class PackImporter {
   /** Counts stagings and cancels: a staging that finds it changed meanwhile was overtaken, and drops what it unpacked. */
   private generation = 0;
 
-  constructor(private readonly opts: { packDir: () => string | null; packs: () => FigurePack[] }) {}
+  /** `language`: the app language, which the person reads the errors and the packs' notes in; Chinese when absent. */
+  constructor(private readonly opts: { packDir: () => string | null; packs: () => FigurePack[]; language?: () => Language }) {}
+
+  private language(): Language {
+    return this.opts.language?.() ?? 'zh';
+  }
+
+  private get t(): ImportText {
+    return petText(this.language()).importing;
+  }
 
   get importable(): boolean {
     return !!this.opts.packDir();
@@ -199,19 +212,19 @@ export class PackImporter {
     // this staging's number, taken before anything is awaited: another one starting meanwhile changes it
     const generation = this.generation + 1;
     await this.cancel();
-    if (!this.importable) return { error: '这里不能导入形象包' };
+    if (!this.importable) return { error: this.t.notHere };
     const kept: Array<{ parts: string[]; bytes: Uint8Array }> = [];
     for (const f of files) {
       const parts = segments(f.path);
-      if (!parts) return { error: `有一个路径不能用:${f.path.slice(0, 200)}` };
+      if (!parts) return { error: this.t.badPath(f.path.slice(0, 200)) };
       if (!JUNK(parts)) kept.push({ parts, bytes: f.bytes });
     }
-    if (!kept.length) return { error: '里面没有文件' };
+    if (!kept.length) return { error: this.t.empty };
     const root = await mkdtemp(join(tmpdir(), 'figure-import-'));
     try {
       for (const { parts, bytes } of kept) {
         const full = join(root, ...parts);
-        if (!within(root, full)) throw new Error(`路径出界:${parts.join('/')}`);
+        if (!within(root, full)) throw new Error(this.t.outside(parts.join('/')));
         await mkdir(join(root, ...parts.slice(0, -1)), { recursive: true });
         await writeFile(full, bytes);
       }
@@ -222,12 +235,12 @@ export class PackImporter {
       for (const dir of dirs) {
         const full = join(root, ...dir.split('/').filter(Boolean));
         const skipped: string[] = [];
-        const m = readManifest(full, false, skipped);
+        const m = readManifest(full, false, skipped, this.language());
         if (typeof m === 'string') { problems.push({ dir, reason: m }); continue; }
         const same = installed.find((p) => p.id === m.id);
-        if (same?.builtin) { problems.push({ dir, reason: `id ${m.id} 是内置形象的,换个 id 才能导入` }); continue; }
-        if (Object.hasOwn(PACK_ALIASES, m.id)) { problems.push({ dir, reason: `${m.id} 是内置形象「${PACK_ALIASES[m.id]}」导出的副本,这里已经有了` }); continue; }
-        if (packs.some((p) => p.id === m.id)) { problems.push({ dir, reason: `id ${m.id} 和这次导入的另一个形象包重复` }); continue; }
+        if (same?.builtin) { problems.push({ dir, reason: this.t.builtinId(m.id) }); continue; }
+        if (Object.hasOwn(PACK_ALIASES, m.id)) { problems.push({ dir, reason: this.t.builtinCopy(m.id, PACK_ALIASES[m.id]!) }); continue; }
+        if (packs.some((p) => p.id === m.id)) { problems.push({ dir, reason: this.t.duplicateId(m.id) }); continue; }
         packs.push({
           dir, id: m.id, name: m.name, version: m.version, author: m.author ?? null,
           credits: (m.credits ?? []).filter((c) => typeof c?.role === 'string' && typeof c?.name === 'string').map(({ role, name }) => ({ role, name })),
@@ -235,28 +248,28 @@ export class PackImporter {
           skipped, installed: same ? same.manifest.version : null,
         });
       }
-      if (!dirs.length) problems.push({ dir: '', reason: `往下 ${PACK_DEPTH} 层都没找到 ${MANIFEST_FILE}` });
+      if (!dirs.length) problems.push({ dir: '', reason: this.t.notFound(PACK_DEPTH, MANIFEST_FILE) });
       if (generation !== this.generation) {
         await rm(root, { recursive: true, force: true });
-        return { error: '又选了别的形象包,这次的已作废' };
+        return { error: this.t.overtaken };
       }
       if (!packs.length) { await rm(root, { recursive: true, force: true }); return { token: '', packs, problems }; }
       this.staged = { token: randomUUID(), root, packs };
       return { token: this.staged.token, packs, problems };
     } catch (err) {
       await rm(root, { recursive: true, force: true });
-      return { error: `没能解开:${(err as Error).message}` };
+      return { error: this.t.unpackFailed((err as Error).message) };
     }
   }
 
   /** Installs the staged packs found at `dirs`; resolves to their ids. */
   async install(token: string, dirs: readonly string[]): Promise<{ installed: string[] } | { error: string }> {
     const staged = this.staged;
-    if (!staged || staged.token !== token) return { error: '这次导入已经过期,请重新选择' };
+    if (!staged || staged.token !== token) return { error: this.t.expired };
     const chosen = staged.packs.filter((p) => dirs.includes(p.dir));
-    if (!chosen.length) return { error: '没有选要导入的形象包' };
+    if (!chosen.length) return { error: this.t.noneChosen };
     const packDir = this.opts.packDir();
-    if (!packDir) return { error: '这里不能导入形象包' };
+    if (!packDir) return { error: this.t.notHere };
     // the token is spent now: a second install of it, while this one runs, is refused
     this.staged = null;
     this.generation++;
@@ -267,7 +280,7 @@ export class PackImporter {
       const installed = this.opts.packs();
       for (const p of chosen) {
         const failed = await this.installOne(packDir, join(staged.root, ...p.dir.split('/').filter(Boolean)), p.id, installed);
-        if (failed) return { error: done.length ? `已导入 ${done.join('、')};${p.id} ${failed}` : `${p.id} ${failed}` };
+        if (failed) return { error: done.length ? this.t.partly(done, p.id, failed) : this.t.failed(p.id, failed) };
         done.push(p.id);
       }
       return { installed: done };
@@ -286,7 +299,7 @@ export class PackImporter {
       await cp(from, temp, { recursive: true });
     } catch (err) {
       await rm(temp, { recursive: true, force: true });
-      return `没能复制进去:${(err as Error).message}`;
+      return this.t.copyFailed((err as Error).message);
     }
     // the pack it replaces may sit in a folder named otherwise; one in another pack root is left alone
     const old = installed.find((x) => x.id === id && !x.builtin && within(packDir, x.dir));
@@ -303,7 +316,7 @@ export class PackImporter {
     } catch (err) {
       await rm(temp, { recursive: true, force: true });
       if (aside && old) await rename(aside, old.dir).catch(() => {});
-      return `没能放进去:${(err as Error).message}`;
+      return this.t.moveFailed((err as Error).message);
     }
     if (aside) await rm(aside, { recursive: true, force: true });
     return null;

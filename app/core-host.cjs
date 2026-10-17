@@ -13,12 +13,17 @@
  * child started after an unexpected exit gets its exit code or signal in `COOPANION_CORE_EXIT`, for
  * the usage statistics. Every start looks up the system proxy again (systemProxyEnvironment) and hands
  * it to the child as proxy variables unless the environment already has its own.
+ *
+ * Events: `ready` ({ port, keyMissing, language }), `language` (the app language, from each ready child and after
+ * each change it reports with `companion:language`), `state` (state, detail in the app language), and the
+ * child's requests (`open`, `hide`, `quit`, `update-install`, `releases`).
  */
 const { fork } = require('node:child_process');
 const { coreEnvironment, systemProxyEnvironment } = require('./core-env.cjs');
 const { EventEmitter } = require('node:events');
 const { createWriteStream, existsSync, mkdirSync, renameSync, statSync } = require('node:fs');
 const { join } = require('node:path');
+const { textOf } = require('./i18n/index.cjs');
 
 const CRASH_WINDOW_MS = 5 * 60_000;
 const MAX_CRASHES = 5;
@@ -40,7 +45,6 @@ const TSX_ENTRY = ['node_modules', 'tsx', 'dist', 'loader.mjs'];
  */
 const CORE_NODE_FLAGS = ['--use-env-proxy', '--use-system-ca'];
 const LOG_ROTATE_BYTES = 5 * 1024 * 1024;
-const FAILED_HINT = '如果刚刚更新过,请从托盘菜单选择「退出」,再重新打开 Coopanion。';
 
 /** Whether a piece of stderr says a module or package could not be found. */
 const isMissingModule = (text) => MISSING_MODULE.test(text);
@@ -58,8 +62,9 @@ function startDiagnostics(appRoot) {
 
 class CoreHost extends EventEmitter {
   /**
-   * `execPath` is the runtime the child runs under, by default this process's own.
-   * @param {{ appRoot: string, env: NodeJS.ProcessEnv, logDir: string, resolveProxy: (url: string) => Promise<string>, execPath?: string }} opts
+   * `execPath` is the runtime the child runs under, by default this process's own. `text` gives the
+   * app language's table (app/i18n) for the state details, read when one is said; by default Chinese.
+   * @param {{ appRoot: string, env: NodeJS.ProcessEnv, logDir: string, resolveProxy: (url: string) => Promise<string>, execPath?: string, text?: () => Record<string, any> }} opts
    */
   constructor(opts) {
     super();
@@ -82,6 +87,13 @@ class CoreHost extends EventEmitter {
     /** Exit code or signal of the last child that exited unasked, not yet handed to a new one. */
     this.unexpectedExit = null;
     this.state = 'stopped';
+    /** The app language as the last ready child said, and after each change it reported (`companion:language`). */
+    this.language = null;
+  }
+
+  /** The table the state details are said in. */
+  text() {
+    return this.opts.text?.() ?? textOf('zh');
   }
 
   async start() {
@@ -122,14 +134,20 @@ class CoreHost extends EventEmitter {
         this.port = msg.port;
         this.dataDir = msg.dataDir;
         this.keyMissing = !!msg.keyMissing;
+        if (typeof msg.language === 'string') this.language = msg.language;
         this.state = 'running';
         this.missingModuleExits = 0;
-        this.emit('ready', { port: msg.port, keyMissing: this.keyMissing });
+        // the language first: a listener of `ready` loads the console in it
+        if (typeof msg.language === 'string') this.emit('language', msg.language);
+        this.emit('ready', { port: msg.port, keyMissing: this.keyMissing, language: this.language });
         this.emit('state', this.state);
       } else if (msg?.type === 'cortico:ready') {
         this.dataDir = msg.dataDir;
       } else if (msg?.type === 'companion:locked') {
         this.locked = { pid: Number.isInteger(msg.pid) ? msg.pid : null, file: String(msg.file ?? '') };
+      } else if (msg?.type === 'companion:language' && typeof msg.language === 'string') {
+        this.language = msg.language;
+        this.emit('language', msg.language);
       } else if (msg?.type === 'cortico:restart') {
         this.restartAsked = true;
       } else if (msg?.type === 'companion:open') {
@@ -163,7 +181,7 @@ class CoreHost extends EventEmitter {
         const { pid, file } = this.locked;
         this.locked = null;
         this.state = 'failed';
-        this.emit('state', this.state, `另一个进程${pid ? `(PID ${pid})` : ''}正在使用 Coopanion 的数据,Core 没有启动。等它退出或手动结束它,再从托盘菜单选「重新启动」。锁文件:${file}`);
+        this.emit('state', this.state, this.text().coreLocked(pid, file));
         return;
       }
       this.unexpectedExit = code ?? signal;
@@ -178,7 +196,7 @@ class CoreHost extends EventEmitter {
           return;
         }
         this.state = 'failed';
-        this.emit('state', this.state, `Core 启动时找不到所需的文件,连续 ${this.missingModuleExits + 1} 次没有启动(退出码 ${code}),已停止重试。${FAILED_HINT}也可能是某个已安装的扩展缺少依赖。日志:${logFile}`);
+        this.emit('state', this.state, this.text().coreMissingModule(this.missingModuleExits + 1, code, logFile));
         return;
       }
       const now = Date.now();
@@ -186,11 +204,11 @@ class CoreHost extends EventEmitter {
       this.crashes.push(now);
       if (this.crashes.length > MAX_CRASHES) {
         this.state = 'failed';
-        this.emit('state', this.state, `Core 在 5 分钟内退出了 ${this.crashes.length} 次(退出码 ${code}),已停止重试。${FAILED_HINT}日志:${logFile}`);
+        this.emit('state', this.state, this.text().coreFailed(this.crashes.length, code, logFile));
         return;
       }
       this.state = 'restarting';
-      this.emit('state', this.state, `Core 意外退出(退出码 ${code}),3 秒后重启`);
+      this.emit('state', this.state, this.text().coreRestarting(code));
       setTimeout(() => { if (!this.stopping) void this.start(); }, 3000);
     };
     child.on('exit', (code, signal) => {

@@ -1,0 +1,1706 @@
+{
+  "darwin.walk.dialogs": [
+    {
+      "text": "你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...",
+      "marks": [
+        "Coo"
+      ],
+      "actions": [
+        "happy",
+        "hop"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "你好,Coo!",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我该怎么称呼你?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就这么叫",
+        "placeholder": "伙伴",
+        "value": "",
+        "maxLength": 20
+      }
+    },
+    {
+      "text": "小明,记住啦!",
+      "marks": null,
+      "actions": [
+        "love"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "你是从哪里认识我的?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "B站"
+          },
+          {
+            "label": "小红书"
+          },
+          {
+            "label": "抖音"
+          },
+          {
+            "label": "GitHub"
+          },
+          {
+            "label": "朋友推荐"
+          },
+          {
+            "label": "其他"
+          },
+          {
+            "label": "不告诉你"
+          }
+        ]
+      }
+    },
+    {
+      "text": "原来是这样,库...",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "先选一个样子吧!之后在「装扮」里随时能换。",
+      "marks": [
+        "装扮"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这个",
+        "value": 0,
+        "options": [
+          {
+            "label": "Coo",
+            "line": "就是现在的我,C 形的小身体。"
+          },
+          {
+            "label": "大肥鱼",
+            "line": "穿女仆裙的大肥鱼,还会喷水。"
+          },
+          {
+            "label": "Claude 娘",
+            "line": "温柔的 Claude 娘。"
+          },
+          {
+            "label": "GPT 娘",
+            "line": "有龙翼和龙尾的 GPT 娘。"
+          },
+          {
+            "label": "Gemini 娘",
+            "line": "有猫耳和猫尾的 Gemini 娘。"
+          },
+          {
+            "label": "Grok 娘",
+            "line": "金发双马尾的吸血鬼 Grok 娘。"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,那我还是 Coo 的样子。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "平时我该安静一点,还是活泼一点?点一下,看看我会怎样。",
+      "marks": null,
+      "actions": null,
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这样",
+        "value": 1,
+        "options": [
+          {
+            "label": "不乱动",
+            "level": "低",
+            "line": "那我就乖乖站着,你叫我我再动。",
+            "motion": "still",
+            "icon": "roam_off"
+          },
+          {
+            "label": "多待着",
+            "level": "中",
+            "line": "我会时不时溜达一圈,大多时候待着。",
+            "motion": "walk",
+            "icon": "roam_calm"
+          },
+          {
+            "label": "常走动",
+            "level": "高",
+            "line": "我可以到处跑来跑去,库...!",
+            "motion": "run",
+            "icon": "roam_free"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,就按这个来。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "要和你聊天,我得先连上大模型。用哪一家的?拿不准就选 DeepSeek。",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就用这家",
+        "value": 0,
+        "options": [
+          {
+            "label": "DeepSeek"
+          },
+          {
+            "label": "通义千问"
+          },
+          {
+            "label": "Kimi"
+          },
+          {
+            "label": "智谱 GLM"
+          },
+          {
+            "label": "豆包"
+          },
+          {
+            "label": "百度千帆"
+          },
+          {
+            "label": "MiniMax"
+          },
+          {
+            "label": "阶跃星辰"
+          },
+          {
+            "label": "OpenRouter"
+          },
+          {
+            "label": "OpenAI"
+          },
+          {
+            "label": "Anthropic"
+          },
+          {
+            "label": "Gemini"
+          },
+          {
+            "label": "xAI"
+          }
+        ]
+      }
+    },
+    {
+      "text": "默认用 deepseek-flash,便宜,还能看图。想用别的模型,改成它的名字就行。",
+      "marks": [
+        "deepseek-flash"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就用这个",
+        "value": "deepseek-flash",
+        "maxLength": 120,
+        "suggestions": [
+          "deepseek-flash",
+          "deepseek-v4-pro"
+        ]
+      }
+    },
+    {
+      "text": "把 DeepSeek 的 API Key 贴在这里吧。按用量计费,注意 token 消耗哦。",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "连接",
+        "placeholder": "sk-…",
+        "secret": true,
+        "maxLength": 200,
+        "link": {
+          "label": "还没有 Key?去DeepSeek申请",
+          "url": "https://platform.deepseek.com/api_keys"
+        },
+        "alt": "稍后再填"
+      }
+    },
+    {
+      "text": "没关系,等你填好我再开口。之后我会再来问你。",
+      "marks": null,
+      "actions": [
+        "sad"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "想和我说话:按住右 Alt 说话。也可以把鼠标停在我身上,点旁边的气泡按钮打字。",
+      "marks": null,
+      "actions": null,
+      "step": [
+        4,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "keys": "Alt",
+        "taps": 0,
+        "options": [
+          {
+            "label": "知道了",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "鼠标停在我身上,旁边会冒出几个按钮;右键我能打开菜单,暂停、设置和退出都在里面。",
+      "marks": null,
+      "actions": [
+        "wink"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "好",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我是什么性子、怎么说话,都写在设置窗口的「系统提示词」页里。想让我换个样子,可以去那里改;直接告诉我也行,我自己来改。",
+      "marks": [
+        "系统提示词"
+      ],
+      "actions": [
+        "happy"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "明白了",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "都准备好啦!菜单栏里也有我的图标,想改设置点它就行。",
+      "marks": null,
+      "actions": [
+        "happy"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "开始吧",
+            "primary": true
+          },
+          {
+            "label": "先给我换身衣服"
+          }
+        ]
+      }
+    }
+  ],
+  "darwin.walk.record": "[启动引导] 小明刚在你的气泡里走完了启动引导:定了你怎么称呼对方(「小明」)、你平时活泼到什么程度、用哪家模型服务,也看过了怎么语音输入、按钮和菜单在哪。\n下面是引导里的对话。引导按程序写好的台词走,「Coo:」那几行是程序替你说的:\n<guide>\nCoo:你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...\n对方:你好,Coo!\nCoo:我该怎么称呼你?\n对方:小明\nCoo:小明,记住啦!\nCoo:你是从哪里认识我的?\n对方:B站\nCoo:原来是这样,库...\nCoo:先选一个样子吧!之后在「装扮」里随时能换。\n对方:Coo\nCoo:好,那我还是 Coo 的样子。\nCoo:平时我该安静一点,还是活泼一点?点一下,看看我会怎样。\n对方:多待着\nCoo:好,就按这个来。\nCoo:要和你聊天,我得先连上大模型。用哪一家的?拿不准就选 DeepSeek。\n对方:DeepSeek\nCoo:默认用 deepseek-flash,便宜,还能看图。想用别的模型,改成它的名字就行。\n对方:deepseek-flash\nCoo:把 DeepSeek 的 API Key 贴在这里吧。按用量计费,注意 token 消耗哦。\n对方:稍后再填\nCoo:没关系,等你填好我再开口。之后我会再来问你。\nCoo:想和我说话:按住右 Alt 说话。也可以把鼠标停在我身上,点旁边的气泡按钮打字。\n对方:知道了\nCoo:鼠标停在我身上,旁边会冒出几个按钮;右键我能打开菜单,暂停、设置和退出都在里面。\n对方:好\nCoo:我是什么性子、怎么说话,都写在设置窗口的「系统提示词」页里。想让我换个样子,可以去那里改;直接告诉我也行,我自己来改。\n对方:明白了\nCoo:都准备好啦!菜单栏里也有我的图标,想改设置点它就行。\n对方:开始吧\n</guide>\n接下来可以和小明商量你们之间的设定:你的性格和说话方式、你怎么称呼对方、对方想怎么叫你、希望你平时做什么不做什么。\n- 你的人设是工作区里的 CONSTITUTION.md,每次开新 session 都放进你的系统前缀。商量出结果后你可以自己改它,下一次 session 生效。\n- 对方的称呼是设置窗口「习惯」页的「怎么称呼你」,由对方自己改;商量好的称呼和其他偏好可以记进你的工作区。\n- 设置窗口的「系统提示词」页能看到并编辑你的整份系统提示词,CONSTITUTION 也在里面。可以引导对方去那里按自己的喜好改;对方想改什么,你也可以替对方改。\n不用一次说完,看对方的兴致。",
+  "darwin.close.dialogs": [
+    {
+      "text": "你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...",
+      "marks": [
+        "Coo"
+      ],
+      "actions": [
+        "happy",
+        "hop"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "你好,Coo!",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我该怎么称呼你?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就这么叫",
+        "placeholder": "伙伴",
+        "value": "",
+        "maxLength": 20
+      }
+    },
+    {
+      "text": "小明,记住啦!",
+      "marks": null,
+      "actions": [
+        "love"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "你是从哪里认识我的?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "B站"
+          },
+          {
+            "label": "小红书"
+          },
+          {
+            "label": "抖音"
+          },
+          {
+            "label": "GitHub"
+          },
+          {
+            "label": "朋友推荐"
+          },
+          {
+            "label": "其他"
+          },
+          {
+            "label": "不告诉你"
+          }
+        ]
+      }
+    },
+    {
+      "text": "原来是这样,库...",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "先选一个样子吧!之后在「装扮」里随时能换。",
+      "marks": [
+        "装扮"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这个",
+        "value": 0,
+        "options": [
+          {
+            "label": "Coo",
+            "line": "就是现在的我,C 形的小身体。"
+          },
+          {
+            "label": "大肥鱼",
+            "line": "穿女仆裙的大肥鱼,还会喷水。"
+          },
+          {
+            "label": "Claude 娘",
+            "line": "温柔的 Claude 娘。"
+          },
+          {
+            "label": "GPT 娘",
+            "line": "有龙翼和龙尾的 GPT 娘。"
+          },
+          {
+            "label": "Gemini 娘",
+            "line": "有猫耳和猫尾的 Gemini 娘。"
+          },
+          {
+            "label": "Grok 娘",
+            "line": "金发双马尾的吸血鬼 Grok 娘。"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,那先到这儿。想再听我介绍,打开设置,在「开始」页点「使用引导」。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": null,
+      "input": null
+    }
+  ],
+  "darwin.close.record": "[启动引导] 小明在第 2 步关掉了启动引导,后面的步骤没有走。\n下面是引导里的对话。引导按程序写好的台词走,「Coo:」那几行是程序替你说的:\n<guide>\nCoo:你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...\n对方:你好,Coo!\nCoo:我该怎么称呼你?\n对方:小明\nCoo:小明,记住啦!\nCoo:你是从哪里认识我的?\n对方:B站\nCoo:原来是这样,库...\nCoo:先选一个样子吧!之后在「装扮」里随时能换。\n(对方点了关闭,引导到这里结束)\nCoo:好,那先到这儿。想再听我介绍,打开设置,在「开始」页点「使用引导」。\n</guide>",
+  "win32.walk.dialogs": [
+    {
+      "text": "你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...",
+      "marks": [
+        "Coo"
+      ],
+      "actions": [
+        "happy",
+        "hop"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "你好,Coo!",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我该怎么称呼你?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就这么叫",
+        "placeholder": "伙伴",
+        "value": "",
+        "maxLength": 20
+      }
+    },
+    {
+      "text": "小明,记住啦!",
+      "marks": null,
+      "actions": [
+        "love"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "你是从哪里认识我的?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "B站"
+          },
+          {
+            "label": "小红书"
+          },
+          {
+            "label": "抖音"
+          },
+          {
+            "label": "GitHub"
+          },
+          {
+            "label": "朋友推荐"
+          },
+          {
+            "label": "其他"
+          },
+          {
+            "label": "不告诉你"
+          }
+        ]
+      }
+    },
+    {
+      "text": "原来是这样,库...",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "先选一个样子吧!之后在「装扮」里随时能换。",
+      "marks": [
+        "装扮"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这个",
+        "value": 0,
+        "options": [
+          {
+            "label": "Coo",
+            "line": "就是现在的我,C 形的小身体。"
+          },
+          {
+            "label": "大肥鱼",
+            "line": "穿女仆裙的大肥鱼,还会喷水。"
+          },
+          {
+            "label": "Claude 娘",
+            "line": "温柔的 Claude 娘。"
+          },
+          {
+            "label": "GPT 娘",
+            "line": "有龙翼和龙尾的 GPT 娘。"
+          },
+          {
+            "label": "Gemini 娘",
+            "line": "有猫耳和猫尾的 Gemini 娘。"
+          },
+          {
+            "label": "Grok 娘",
+            "line": "金发双马尾的吸血鬼 Grok 娘。"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,那我还是 Coo 的样子。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "平时我该安静一点,还是活泼一点?点一下,看看我会怎样。",
+      "marks": null,
+      "actions": null,
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这样",
+        "value": 1,
+        "options": [
+          {
+            "label": "不乱动",
+            "level": "低",
+            "line": "那我就乖乖站着,你叫我我再动。",
+            "motion": "still",
+            "icon": "roam_off"
+          },
+          {
+            "label": "多待着",
+            "level": "中",
+            "line": "我会时不时溜达一圈,大多时候待着。",
+            "motion": "walk",
+            "icon": "roam_calm"
+          },
+          {
+            "label": "常走动",
+            "level": "高",
+            "line": "我可以到处跑来跑去,库...!",
+            "motion": "run",
+            "icon": "roam_free"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,就按这个来。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "要和你聊天,我得先连上大模型。用哪一家的?拿不准就选 DeepSeek。",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就用这家",
+        "value": 0,
+        "options": [
+          {
+            "label": "DeepSeek"
+          },
+          {
+            "label": "通义千问"
+          },
+          {
+            "label": "Kimi"
+          },
+          {
+            "label": "智谱 GLM"
+          },
+          {
+            "label": "豆包"
+          },
+          {
+            "label": "百度千帆"
+          },
+          {
+            "label": "MiniMax"
+          },
+          {
+            "label": "阶跃星辰"
+          },
+          {
+            "label": "OpenRouter"
+          },
+          {
+            "label": "OpenAI"
+          },
+          {
+            "label": "Anthropic"
+          },
+          {
+            "label": "Gemini"
+          },
+          {
+            "label": "xAI"
+          }
+        ]
+      }
+    },
+    {
+      "text": "默认用 deepseek-flash,便宜,还能看图。想用别的模型,改成它的名字就行。",
+      "marks": [
+        "deepseek-flash"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就用这个",
+        "value": "deepseek-flash",
+        "maxLength": 120,
+        "suggestions": [
+          "deepseek-flash",
+          "deepseek-v4-pro"
+        ]
+      }
+    },
+    {
+      "text": "把 DeepSeek 的 API Key 贴在这里吧。按用量计费,注意 token 消耗哦。",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "连接",
+        "placeholder": "sk-…",
+        "secret": true,
+        "maxLength": 200,
+        "link": {
+          "label": "还没有 Key?去DeepSeek申请",
+          "url": "https://platform.deepseek.com/api_keys"
+        },
+        "alt": "稍后再填"
+      }
+    },
+    {
+      "text": "没关系,等你填好我再开口。之后我会再来问你。",
+      "marks": null,
+      "actions": [
+        "sad"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "想和我说话:按住右 Alt 说话。也可以把鼠标停在我身上,点旁边的气泡按钮打字。",
+      "marks": null,
+      "actions": null,
+      "step": [
+        4,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "keys": "Alt",
+        "taps": 0,
+        "options": [
+          {
+            "label": "知道了",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "鼠标停在我身上,旁边会冒出几个按钮;右键我能打开菜单,暂停、设置和退出都在里面。",
+      "marks": null,
+      "actions": [
+        "wink"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "好",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我是什么性子、怎么说话,都写在设置窗口的「系统提示词」页里。想让我换个样子,可以去那里改;直接告诉我也行,我自己来改。",
+      "marks": [
+        "系统提示词"
+      ],
+      "actions": [
+        "happy"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "明白了",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "都准备好啦!任务栏右下角的托盘里也有我的图标,想改设置点它就行。",
+      "marks": null,
+      "actions": [
+        "happy"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "开始吧",
+            "primary": true
+          },
+          {
+            "label": "先给我换身衣服"
+          }
+        ]
+      }
+    }
+  ],
+  "win32.walk.record": "[启动引导] 小明刚在你的气泡里走完了启动引导:定了你怎么称呼对方(「小明」)、你平时活泼到什么程度、用哪家模型服务,也看过了怎么语音输入、按钮和菜单在哪。\n下面是引导里的对话。引导按程序写好的台词走,「Coo:」那几行是程序替你说的:\n<guide>\nCoo:你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...\n对方:你好,Coo!\nCoo:我该怎么称呼你?\n对方:小明\nCoo:小明,记住啦!\nCoo:你是从哪里认识我的?\n对方:B站\nCoo:原来是这样,库...\nCoo:先选一个样子吧!之后在「装扮」里随时能换。\n对方:Coo\nCoo:好,那我还是 Coo 的样子。\nCoo:平时我该安静一点,还是活泼一点?点一下,看看我会怎样。\n对方:多待着\nCoo:好,就按这个来。\nCoo:要和你聊天,我得先连上大模型。用哪一家的?拿不准就选 DeepSeek。\n对方:DeepSeek\nCoo:默认用 deepseek-flash,便宜,还能看图。想用别的模型,改成它的名字就行。\n对方:deepseek-flash\nCoo:把 DeepSeek 的 API Key 贴在这里吧。按用量计费,注意 token 消耗哦。\n对方:稍后再填\nCoo:没关系,等你填好我再开口。之后我会再来问你。\nCoo:想和我说话:按住右 Alt 说话。也可以把鼠标停在我身上,点旁边的气泡按钮打字。\n对方:知道了\nCoo:鼠标停在我身上,旁边会冒出几个按钮;右键我能打开菜单,暂停、设置和退出都在里面。\n对方:好\nCoo:我是什么性子、怎么说话,都写在设置窗口的「系统提示词」页里。想让我换个样子,可以去那里改;直接告诉我也行,我自己来改。\n对方:明白了\nCoo:都准备好啦!任务栏右下角的托盘里也有我的图标,想改设置点它就行。\n对方:开始吧\n</guide>\n接下来可以和小明商量你们之间的设定:你的性格和说话方式、你怎么称呼对方、对方想怎么叫你、希望你平时做什么不做什么。\n- 你的人设是工作区里的 CONSTITUTION.md,每次开新 session 都放进你的系统前缀。商量出结果后你可以自己改它,下一次 session 生效。\n- 对方的称呼是设置窗口「习惯」页的「怎么称呼你」,由对方自己改;商量好的称呼和其他偏好可以记进你的工作区。\n- 设置窗口的「系统提示词」页能看到并编辑你的整份系统提示词,CONSTITUTION 也在里面。可以引导对方去那里按自己的喜好改;对方想改什么,你也可以替对方改。\n不用一次说完,看对方的兴致。",
+  "win32.close.dialogs": [
+    {
+      "text": "你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...",
+      "marks": [
+        "Coo"
+      ],
+      "actions": [
+        "happy",
+        "hop"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "你好,Coo!",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我该怎么称呼你?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就这么叫",
+        "placeholder": "伙伴",
+        "value": "",
+        "maxLength": 20
+      }
+    },
+    {
+      "text": "小明,记住啦!",
+      "marks": null,
+      "actions": [
+        "love"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "你是从哪里认识我的?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "B站"
+          },
+          {
+            "label": "小红书"
+          },
+          {
+            "label": "抖音"
+          },
+          {
+            "label": "GitHub"
+          },
+          {
+            "label": "朋友推荐"
+          },
+          {
+            "label": "其他"
+          },
+          {
+            "label": "不告诉你"
+          }
+        ]
+      }
+    },
+    {
+      "text": "原来是这样,库...",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "先选一个样子吧!之后在「装扮」里随时能换。",
+      "marks": [
+        "装扮"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这个",
+        "value": 0,
+        "options": [
+          {
+            "label": "Coo",
+            "line": "就是现在的我,C 形的小身体。"
+          },
+          {
+            "label": "大肥鱼",
+            "line": "穿女仆裙的大肥鱼,还会喷水。"
+          },
+          {
+            "label": "Claude 娘",
+            "line": "温柔的 Claude 娘。"
+          },
+          {
+            "label": "GPT 娘",
+            "line": "有龙翼和龙尾的 GPT 娘。"
+          },
+          {
+            "label": "Gemini 娘",
+            "line": "有猫耳和猫尾的 Gemini 娘。"
+          },
+          {
+            "label": "Grok 娘",
+            "line": "金发双马尾的吸血鬼 Grok 娘。"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,那先到这儿。想再听我介绍,打开设置,在「开始」页点「使用引导」。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": null,
+      "input": null
+    }
+  ],
+  "win32.close.record": "[启动引导] 小明在第 2 步关掉了启动引导,后面的步骤没有走。\n下面是引导里的对话。引导按程序写好的台词走,「Coo:」那几行是程序替你说的:\n<guide>\nCoo:你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...\n对方:你好,Coo!\nCoo:我该怎么称呼你?\n对方:小明\nCoo:小明,记住啦!\nCoo:你是从哪里认识我的?\n对方:B站\nCoo:原来是这样,库...\nCoo:先选一个样子吧!之后在「装扮」里随时能换。\n(对方点了关闭,引导到这里结束)\nCoo:好,那先到这儿。想再听我介绍,打开设置,在「开始」页点「使用引导」。\n</guide>",
+  "linux.walk.dialogs": [
+    {
+      "text": "你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...",
+      "marks": [
+        "Coo"
+      ],
+      "actions": [
+        "happy",
+        "hop"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "你好,Coo!",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我该怎么称呼你?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就这么叫",
+        "placeholder": "伙伴",
+        "value": "",
+        "maxLength": 20
+      }
+    },
+    {
+      "text": "小明,记住啦!",
+      "marks": null,
+      "actions": [
+        "love"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "你是从哪里认识我的?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "B站"
+          },
+          {
+            "label": "小红书"
+          },
+          {
+            "label": "抖音"
+          },
+          {
+            "label": "GitHub"
+          },
+          {
+            "label": "朋友推荐"
+          },
+          {
+            "label": "其他"
+          },
+          {
+            "label": "不告诉你"
+          }
+        ]
+      }
+    },
+    {
+      "text": "原来是这样,库...",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "先选一个样子吧!之后在「装扮」里随时能换。",
+      "marks": [
+        "装扮"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这个",
+        "value": 0,
+        "options": [
+          {
+            "label": "Coo",
+            "line": "就是现在的我,C 形的小身体。"
+          },
+          {
+            "label": "大肥鱼",
+            "line": "穿女仆裙的大肥鱼,还会喷水。"
+          },
+          {
+            "label": "Claude 娘",
+            "line": "温柔的 Claude 娘。"
+          },
+          {
+            "label": "GPT 娘",
+            "line": "有龙翼和龙尾的 GPT 娘。"
+          },
+          {
+            "label": "Gemini 娘",
+            "line": "有猫耳和猫尾的 Gemini 娘。"
+          },
+          {
+            "label": "Grok 娘",
+            "line": "金发双马尾的吸血鬼 Grok 娘。"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,那我还是 Coo 的样子。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "平时我该安静一点,还是活泼一点?点一下,看看我会怎样。",
+      "marks": null,
+      "actions": null,
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这样",
+        "value": 1,
+        "options": [
+          {
+            "label": "不乱动",
+            "level": "低",
+            "line": "那我就乖乖站着,你叫我我再动。",
+            "motion": "still",
+            "icon": "roam_off"
+          },
+          {
+            "label": "多待着",
+            "level": "中",
+            "line": "我会时不时溜达一圈,大多时候待着。",
+            "motion": "walk",
+            "icon": "roam_calm"
+          },
+          {
+            "label": "常走动",
+            "level": "高",
+            "line": "我可以到处跑来跑去,库...!",
+            "motion": "run",
+            "icon": "roam_free"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,就按这个来。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "要和你聊天,我得先连上大模型。用哪一家的?拿不准就选 DeepSeek。",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就用这家",
+        "value": 0,
+        "options": [
+          {
+            "label": "DeepSeek"
+          },
+          {
+            "label": "通义千问"
+          },
+          {
+            "label": "Kimi"
+          },
+          {
+            "label": "智谱 GLM"
+          },
+          {
+            "label": "豆包"
+          },
+          {
+            "label": "百度千帆"
+          },
+          {
+            "label": "MiniMax"
+          },
+          {
+            "label": "阶跃星辰"
+          },
+          {
+            "label": "OpenRouter"
+          },
+          {
+            "label": "OpenAI"
+          },
+          {
+            "label": "Anthropic"
+          },
+          {
+            "label": "Gemini"
+          },
+          {
+            "label": "xAI"
+          }
+        ]
+      }
+    },
+    {
+      "text": "默认用 deepseek-flash,便宜,还能看图。想用别的模型,改成它的名字就行。",
+      "marks": [
+        "deepseek-flash"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就用这个",
+        "value": "deepseek-flash",
+        "maxLength": 120,
+        "suggestions": [
+          "deepseek-flash",
+          "deepseek-v4-pro"
+        ]
+      }
+    },
+    {
+      "text": "把 DeepSeek 的 API Key 贴在这里吧。按用量计费,注意 token 消耗哦。",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "连接",
+        "placeholder": "sk-…",
+        "secret": true,
+        "maxLength": 200,
+        "link": {
+          "label": "还没有 Key?去DeepSeek申请",
+          "url": "https://platform.deepseek.com/api_keys"
+        },
+        "alt": "稍后再填"
+      }
+    },
+    {
+      "text": "没关系,等你填好我再开口。之后我会再来问你。",
+      "marks": null,
+      "actions": [
+        "sad"
+      ],
+      "step": [
+        3,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "想和我说话:按住右 Alt 说话。也可以把鼠标停在我身上,点旁边的气泡按钮打字。",
+      "marks": null,
+      "actions": null,
+      "step": [
+        4,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "keys": "Alt",
+        "taps": 0,
+        "options": [
+          {
+            "label": "知道了",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "鼠标停在我身上,旁边会冒出几个按钮;右键我能打开菜单,暂停、设置和退出都在里面。",
+      "marks": null,
+      "actions": [
+        "wink"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "好",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我是什么性子、怎么说话,都写在设置窗口的「系统提示词」页里。想让我换个样子,可以去那里改;直接告诉我也行,我自己来改。",
+      "marks": [
+        "系统提示词"
+      ],
+      "actions": [
+        "happy"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "明白了",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "都准备好啦!想改设置的话,右键我打开菜单就行;桌面的托盘区里要是有我的图标,点它也可以。",
+      "marks": null,
+      "actions": [
+        "happy"
+      ],
+      "step": [
+        5,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "开始吧",
+            "primary": true
+          },
+          {
+            "label": "先给我换身衣服"
+          }
+        ]
+      }
+    }
+  ],
+  "linux.walk.record": "[启动引导] 小明刚在你的气泡里走完了启动引导:定了你怎么称呼对方(「小明」)、你平时活泼到什么程度、用哪家模型服务,也看过了怎么语音输入、按钮和菜单在哪。\n下面是引导里的对话。引导按程序写好的台词走,「Coo:」那几行是程序替你说的:\n<guide>\nCoo:你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...\n对方:你好,Coo!\nCoo:我该怎么称呼你?\n对方:小明\nCoo:小明,记住啦!\nCoo:你是从哪里认识我的?\n对方:B站\nCoo:原来是这样,库...\nCoo:先选一个样子吧!之后在「装扮」里随时能换。\n对方:Coo\nCoo:好,那我还是 Coo 的样子。\nCoo:平时我该安静一点,还是活泼一点?点一下,看看我会怎样。\n对方:多待着\nCoo:好,就按这个来。\nCoo:要和你聊天,我得先连上大模型。用哪一家的?拿不准就选 DeepSeek。\n对方:DeepSeek\nCoo:默认用 deepseek-flash,便宜,还能看图。想用别的模型,改成它的名字就行。\n对方:deepseek-flash\nCoo:把 DeepSeek 的 API Key 贴在这里吧。按用量计费,注意 token 消耗哦。\n对方:稍后再填\nCoo:没关系,等你填好我再开口。之后我会再来问你。\nCoo:想和我说话:按住右 Alt 说话。也可以把鼠标停在我身上,点旁边的气泡按钮打字。\n对方:知道了\nCoo:鼠标停在我身上,旁边会冒出几个按钮;右键我能打开菜单,暂停、设置和退出都在里面。\n对方:好\nCoo:我是什么性子、怎么说话,都写在设置窗口的「系统提示词」页里。想让我换个样子,可以去那里改;直接告诉我也行,我自己来改。\n对方:明白了\nCoo:都准备好啦!想改设置的话,右键我打开菜单就行;桌面的托盘区里要是有我的图标,点它也可以。\n对方:开始吧\n</guide>\n接下来可以和小明商量你们之间的设定:你的性格和说话方式、你怎么称呼对方、对方想怎么叫你、希望你平时做什么不做什么。\n- 你的人设是工作区里的 CONSTITUTION.md,每次开新 session 都放进你的系统前缀。商量出结果后你可以自己改它,下一次 session 生效。\n- 对方的称呼是设置窗口「习惯」页的「怎么称呼你」,由对方自己改;商量好的称呼和其他偏好可以记进你的工作区。\n- 设置窗口的「系统提示词」页能看到并编辑你的整份系统提示词,CONSTITUTION 也在里面。可以引导对方去那里按自己的喜好改;对方想改什么,你也可以替对方改。\n不用一次说完,看对方的兴致。",
+  "linux.close.dialogs": [
+    {
+      "text": "你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...",
+      "marks": [
+        "Coo"
+      ],
+      "actions": [
+        "happy",
+        "hop"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "你好,Coo!",
+            "primary": true
+          }
+        ]
+      }
+    },
+    {
+      "text": "我该怎么称呼你?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "text",
+        "submit": "就这么叫",
+        "placeholder": "伙伴",
+        "value": "",
+        "maxLength": 20
+      }
+    },
+    {
+      "text": "小明,记住啦!",
+      "marks": null,
+      "actions": [
+        "love"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "你是从哪里认识我的?",
+      "marks": null,
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": {
+        "kind": "buttons",
+        "options": [
+          {
+            "label": "B站"
+          },
+          {
+            "label": "小红书"
+          },
+          {
+            "label": "抖音"
+          },
+          {
+            "label": "GitHub"
+          },
+          {
+            "label": "朋友推荐"
+          },
+          {
+            "label": "其他"
+          },
+          {
+            "label": "不告诉你"
+          }
+        ]
+      }
+    },
+    {
+      "text": "原来是这样,库...",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": [
+        1,
+        5
+      ],
+      "input": null
+    },
+    {
+      "text": "先选一个样子吧!之后在「装扮」里随时能换。",
+      "marks": [
+        "装扮"
+      ],
+      "actions": [
+        "thinking"
+      ],
+      "step": [
+        2,
+        5
+      ],
+      "input": {
+        "kind": "choices",
+        "confirm": "就这个",
+        "value": 0,
+        "options": [
+          {
+            "label": "Coo",
+            "line": "就是现在的我,C 形的小身体。"
+          },
+          {
+            "label": "大肥鱼",
+            "line": "穿女仆裙的大肥鱼,还会喷水。"
+          },
+          {
+            "label": "Claude 娘",
+            "line": "温柔的 Claude 娘。"
+          },
+          {
+            "label": "GPT 娘",
+            "line": "有龙翼和龙尾的 GPT 娘。"
+          },
+          {
+            "label": "Gemini 娘",
+            "line": "有猫耳和猫尾的 Gemini 娘。"
+          },
+          {
+            "label": "Grok 娘",
+            "line": "金发双马尾的吸血鬼 Grok 娘。"
+          }
+        ]
+      }
+    },
+    {
+      "text": "好,那先到这儿。想再听我介绍,打开设置,在「开始」页点「使用引导」。",
+      "marks": null,
+      "actions": [
+        "nod"
+      ],
+      "step": null,
+      "input": null
+    }
+  ],
+  "linux.close.record": "[启动引导] 小明在第 2 步关掉了启动引导,后面的步骤没有走。\n下面是引导里的对话。引导按程序写好的台词走,「Coo:」那几行是程序替你说的:\n<guide>\nCoo:你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...\n对方:你好,Coo!\nCoo:我该怎么称呼你?\n对方:小明\nCoo:小明,记住啦!\nCoo:你是从哪里认识我的?\n对方:B站\nCoo:原来是这样,库...\nCoo:先选一个样子吧!之后在「装扮」里随时能换。\n(对方点了关闭,引导到这里结束)\nCoo:好,那先到这儿。想再听我介绍,打开设置,在「开始」页点「使用引导」。\n</guide>"
+}

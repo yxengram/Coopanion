@@ -22,7 +22,8 @@ export type EngineRequest =
   | { op: 'key'; chords: KeyCode[][]; yield: Yield }
   | { op: 'windows' }
   | { op: 'focus'; handle: string; yield: Yield }
-  | { op: 'confirm'; text: string; caption: string; timeoutMs: number };
+  /** `yes` and `no` label the dialog's buttons where the system lets them be named. */
+  | { op: 'confirm'; text: string; caption: string; yes: string; no: string; timeoutMs: number };
 
 /** How a yes/no question to the person ended. */
 export type Answer = 'yes' | 'no' | 'timeout';

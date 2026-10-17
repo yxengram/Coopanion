@@ -9,7 +9,7 @@ import { pick } from '../core/language.ts';
 import { promptsFeature } from './prompts/index.ts';
 import type { FeatureContext, FrameworkFeature } from './feature.ts';
 
-const S = pick({
+export const TEXT = {
   zh: {
     button: '清空重开',
     title: '清空当前对话,让 Coo 从头开始?',
@@ -28,7 +28,8 @@ const S = pick({
     cleared: 'Cleared and restarted',
     failed: (why: string) => `Not cleared: ${why}`,
   },
-});
+};
+const S = pick(TEXT);
 
 async function mount(ctx: FeatureContext): Promise<void> {
   await promptsFeature.mount(ctx);

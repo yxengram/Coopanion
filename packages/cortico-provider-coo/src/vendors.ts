@@ -30,14 +30,14 @@ export type Protocol = 'responses' | 'anthropic' | 'gemini';
 
 export interface Vendor {
   id: string;
-  /** Shown to the person. */
+  /** Shown to the person: `name` in Chinese, `nameEn` in every other language (`vendorName`). */
   name: string;
   nameEn: string;
   /** The path before `/responses`. */
   baseUrl: string;
   /** Where a key is created. */
   keyUrl: string;
-  /** Placeholder of the key box: how the service's keys start. */
+  /** Placeholder of the key box: how the service's keys start; in Chinese where it is words (`vendorKeyHint`). */
   keyHint: string;
   secret: string;
   /** The model a new endpoint starts with: the service's cheapest current model that reads images. */
@@ -63,6 +63,10 @@ export interface Vendor {
   /** Responses: past reasoning goes back as the signed blocks the service returned, not as text. */
   encryptedReasoning?: true;
 }
+
+/** The key hint of the services whose keys have no fixed start, and its English (`vendorKeyHint`). */
+const PASTE_KEY = '粘贴 API Key';
+const PASTE_KEY_EN = 'Paste the API key';
 
 export const VENDORS: readonly Vendor[] = [
   {
@@ -91,14 +95,14 @@ export const VENDORS: readonly Vendor[] = [
     // the Responses endpoint is under /api/v1, not the chat path /api/paas/v4; its docs show glm-5.3 only
     // (text), so the flash models there are not confirmed
     id: 'glm', name: '智谱 GLM', nameEn: 'Zhipu GLM',
-    baseUrl: 'https://open.bigmodel.cn/api/v1', keyUrl: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', keyHint: '粘贴 API Key',
+    baseUrl: 'https://open.bigmodel.cn/api/v1', keyUrl: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys', keyHint: PASTE_KEY,
     secret: 'GLM_API_KEY', model: 'glm-5.3-flash', models: ['glm-5.3', 'glm-4.6v-flash'],
     vision: ['glm-5.3-flash', 'glm-4.6v-flash', 'glm-4.6v-flashx'], contextWindows: { 'glm-5.3': 1_000_000 },
   },
   {
     // the model is used by its id, after it is switched on under 开通管理 in the Ark console
     id: 'doubao', name: '豆包', nameEn: 'Doubao',
-    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', keyUrl: 'https://ark.volcengine.com/region:cn-beijing/apikey', keyHint: '粘贴 API Key',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', keyUrl: 'https://ark.volcengine.com/region:cn-beijing/apikey', keyHint: PASTE_KEY,
     secret: 'DOUBAO_API_KEY', model: 'doubao-seed-2-1-lite-260915', models: ['doubao-seed-2-0-mini-260428'],
     vision: ['doubao-seed-2-1-lite-260915', 'doubao-seed-2-0-mini-260428'],
   },
@@ -112,7 +116,7 @@ export const VENDORS: readonly Vendor[] = [
   {
     // takes none / minimal / low / medium / high
     id: 'minimax', name: 'MiniMax', nameEn: 'MiniMax',
-    baseUrl: 'https://api.minimax.cn/v1', keyUrl: 'https://platform.minimax.cn/user-center/basic-information/interface-key', keyHint: '粘贴 API Key',
+    baseUrl: 'https://api.minimax.cn/v1', keyUrl: 'https://platform.minimax.cn/user-center/basic-information/interface-key', keyHint: PASTE_KEY,
     secret: 'MINIMAX_API_KEY', model: 'MiniMax-M3', models: ['MiniMax-M2.7'],
     vision: ['MiniMax-M3'], contextWindows: { 'MiniMax-M3': 1_000_000 },
     effort: { max: 'high' },
@@ -120,7 +124,7 @@ export const VENDORS: readonly Vendor[] = [
   {
     // takes low / medium / high
     id: 'stepfun', name: '阶跃星辰', nameEn: 'StepFun',
-    baseUrl: 'https://api.stepfun.com/v1', keyUrl: 'https://platform.stepfun.com/interface-key', keyHint: '粘贴 API Key',
+    baseUrl: 'https://api.stepfun.com/v1', keyUrl: 'https://platform.stepfun.com/interface-key', keyHint: PASTE_KEY,
     secret: 'STEPFUN_API_KEY', model: 'step-3.7-flash', models: ['step-5-preview'],
     vision: ['step-3.7-flash', 'step-5-preview'],
     effort: { none: 'low', max: 'high' },
@@ -154,7 +158,7 @@ export const VENDORS: readonly Vendor[] = [
   {
     // thinking is sent in the Gemini API's own form (`thinkingConfig` in gemini/wire.ts); the Pro model is a preview
     id: 'gemini', name: 'Gemini', nameEn: 'Gemini',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta', keyUrl: 'https://aistudio.google.com/apikey', keyHint: '粘贴 API Key',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta', keyUrl: 'https://aistudio.google.com/apikey', keyHint: PASTE_KEY,
     secret: 'COO_GEMINI_API_KEY', model: 'gemini-3.5-flash-lite', models: ['gemini-3.8-flash', 'gemini-3.1-pro-preview'],
     vision: ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'],
     contextWindows: { 'gemini-3.5-flash-lite': 1_048_576, 'gemini-3.8-flash': 1_048_576, 'gemini-3.1-pro-preview': 1_048_576 },
@@ -173,6 +177,15 @@ export const VENDORS: readonly Vendor[] = [
 ];
 
 export const vendorById = (id: string): Vendor | null => VENDORS.find((v) => v.id === id) ?? null;
+
+/** Whether `language` (Cortico's `Language`) reads the Chinese text: zh and zh-Hant do, every other language reads English. */
+const readsZh = (language: string) => language === 'zh' || language === 'zh-Hant';
+
+/** `v`'s name as `language` shows it. */
+export const vendorName = (v: Vendor, language: string): string => (readsZh(language) ? v.name : v.nameEn);
+
+/** The placeholder of `v`'s key box in `language`: how its keys start, or a request to paste one. */
+export const vendorKeyHint = (v: Vendor, language: string): string => (v.keyHint === PASTE_KEY && !readsZh(language) ? PASTE_KEY_EN : v.keyHint);
 
 /** The effort values `v` takes for `model`. */
 export const effortOf = (v: Vendor, model: string): EffortMap | undefined => v.modelEffort?.[model] ?? v.effort;

@@ -8,10 +8,11 @@ import type { FeatureContext, FrameworkFeature } from '../feature.ts';
 
 const PET_PAGE = 'world:desktop-pet';
 
-const S = pick({
+export const TEXT = {
   zh: { nav: '语音输入', unavailable: '这个窗口打不开语音输入面板,请重新打开设置窗口。' },
   en: { nav: 'Voice input', unavailable: 'The voice input panel cannot open here; reopen the settings window.' },
-});
+};
+const S = pick(TEXT);
 
 async function mount(ctx: FeatureContext): Promise<void> {
   const { ui, root } = ctx;

@@ -77,7 +77,8 @@
         {
           "id": "qwen",
           "name": {
-            "zh": "千问"
+            "zh": "千问",
+            "en": "Qwen"
           },
           "thumb": "thumbs/qwen.png",
           "accent": "#7F69F0"
@@ -284,7 +285,8 @@
         "outfit": "maid"
       },
       "name": {
-        "zh": "千问"
+        "zh": "千问",
+        "en": "Qwen"
       },
       "thumb": "thumbs/qwen.png",
       "accent": "#7F69F0",

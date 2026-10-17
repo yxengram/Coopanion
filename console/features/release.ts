@@ -10,7 +10,7 @@ const RELEASE_API = 'https://api.github.com/repos/yxengram/Coopanion/releases/la
 /** 与 Cortico 控制台查框架 Release 同一时限。 */
 const RELEASE_TIMEOUT_MS = 15_000;
 
-const S = pick({
+export const TEXT = {
   zh: {
     repoHint: '在 GitHub 上打开 Coopanion 项目',
     update: (latest: string) => `Coopanion ${latest} 已发布,点这里下载更新`,
@@ -19,7 +19,8 @@ const S = pick({
     repoHint: 'Open the Coopanion project on GitHub',
     update: (latest: string) => `Coopanion ${latest} is out: download the update`,
   },
-});
+};
+const S = pick(TEXT);
 
 export interface ReleaseUpdate { version: string; url: string }
 

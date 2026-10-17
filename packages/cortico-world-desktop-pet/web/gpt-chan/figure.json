@@ -33,7 +33,8 @@
         {
           "id": "original",
           "name": {
-            "zh": "原版"
+            "zh": "原版",
+            "en": "Original"
           },
           "thumb": "thumbs/original.png",
           "accent": "#7A8FA8"
@@ -74,7 +75,8 @@
         "outfit": "classic"
       },
       "name": {
-        "zh": "原版"
+        "zh": "原版",
+        "en": "Original"
       },
       "thumb": "thumbs/original.png",
       "accent": "#7A8FA8",

@@ -16,12 +16,20 @@
  * `~/.config/Coopanion` (an AppImage is mounted read-only, a deb installs under /opt); from
  * source `build/data`; or `CORTICO_COMPANION_DATA`. It holds `home/` (deployment, endpoint,
  * Memory), `extensions/` (Worlds and providers installed from npm), `logs/`, `tmp/` (the process
- * temp directory), `pnpm/` (store and caches for extension installs), and the Chromium profiles.
+ * temp directory), `pnpm/` (store and caches for extension installs),
+ * and the Chromium profiles.
  *
  * On macOS the app lives in the menu bar (the Info.plist sets LSUIElement): no Dock icon, except
  * while the settings window is open, so it can be reached with Command-Tab.
+ *
+ * Text follows the app language (`config.language`, tables in `i18n/`): the deployment config's at
+ * start, the system's before the first start, then each one the Core reports (`companion:language`),
+ * which rebuilds the tray menu and reloads the settings window. A new install's language is the
+ * system's, handed to the Core as `COOPANION_SYSTEM_LANGUAGE`. The settings window's preload keeps the
+ * console in the app language (`settings-preload.cjs`); a console language an older version saved there
+ * only changed the console's look and gives way to it.
  */
-const { app, BrowserWindow, Menu, Notification, Tray, dialog, nativeImage, powerMonitor, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, powerMonitor, session, shell } = require('electron');
 const { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
 const { delimiter, dirname, join } = require('node:path');
 
@@ -61,7 +69,9 @@ if (app.isPackaged && process.platform === 'win32' && !process.env.CORTICO_COMPA
   app.setPath('userData', join(app.getPath('temp'), 'Coopanion'));
   app.whenReady().then(() => {
     const suggested = join(process.env.LOCALAPPDATA ?? app.getPath('home'), 'Programs', 'Coopanion');
-    dialog.showErrorBox('Coopanion', `Coopanion 无法写入数据目录,没有启动:\n${DATA}\n\n请重新运行安装器,安装到当前用户有权写入的目录,例如:\n${suggested}`);
+    const { configuredLanguage, systemLanguage, textOf } = require('./i18n/index.cjs');
+    const t = textOf(configuredLanguage(join(DATA, 'home')) ?? systemLanguage(app));
+    dialog.showErrorBox('Coopanion', t.dataNotWritable(DATA, suggested));
     app.exit(1);
   });
   return;
@@ -130,6 +140,9 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const { CoreHost } = require('./core-host.cjs');
+const { systemLanguageEnvironment } = require('./core-env.cjs');
+const { configuredLanguage, systemLanguage, textOf } = require('./i18n/index.cjs');
+const { trayTemplate } = require('./tray-menu.cjs');
 const { RELEASES_URL, startUpdater } = require('./updater.cjs');
 const { startPresence } = require('./presence.cjs');
 
@@ -137,11 +150,16 @@ const userData = app.getPath('userData');
 const shimDir = join(__dirname, 'shims');
 const petHost = app.isPackaged ? [process.execPath, '--pet-host'] : [process.execPath, APP_ROOT, '--pet-host'];
 
+/** The app language, set once the app is ready (see the module header); Chinese until then. */
+let language = 'zh';
+const T = () => textOf(language);
+
 const core = new CoreHost({
   appRoot: APP_ROOT,
   logDir: join(userData, 'logs'),
   // the default session follows the operating system's proxy settings, PAC scripts included
   resolveProxy: (url) => session.defaultSession.resolveProxy(url),
+  text: T,
   env: {
     ...process.env,
     CORTICO_HOME: join(userData, 'home'),
@@ -164,6 +182,8 @@ const core = new CoreHost({
 
 let settings = null;
 let tray = null;
+/** Builds the tray menu again (its labels, the Core's state, the login item); set once the tray exists. */
+let refreshTray = () => {};
 let quitting = false;
 let updater = null;
 /** The updater's last step, told again to a Core that starts after it (`core/companion.ts` says it in the bubble). */
@@ -172,7 +192,8 @@ let updateStep = null;
 const consoleUrl = (path = '') => (core.port ? `http://127.0.0.1:${core.port}/${path}` : null);
 
 function loadingPage(text) {
-  const html = `<!doctype html><meta charset="utf-8"><style>html,body{height:100%;margin:0;display:grid;place-items:center;background:#f4f5f4;color:#5c5c60;font:15px -apple-system,"PingFang SC","Microsoft YaHei UI",system-ui,sans-serif}@media(prefers-color-scheme:dark){html,body{background:#0e1113;color:#9aa0a6}}</style><body>${text}</body>`;
+  // with lang set, Chromium takes the system's Chinese font for Chinese
+  const html = `<!doctype html><html lang="${language === 'zh' ? 'zh-CN' : language}"><meta charset="utf-8"><style>html,body{height:100%;margin:0;display:grid;place-items:center;background:#f4f5f4;color:#5c5c60;font:15px -apple-system,"PingFang SC","Microsoft YaHei UI",system-ui,sans-serif}@media(prefers-color-scheme:dark){html,body{background:#0e1113;color:#9aa0a6}}</style><body>${text}</body></html>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
@@ -191,7 +212,7 @@ function openSettings(path = '') {
     width: 1180, height: 800, minWidth: 880, minHeight: 600,
     title: 'Coopanion', icon: join(ICONS, 'icon.png'), autoHideMenuBar: true, show: false,
     backgroundColor: '#f4f5f4',
-    webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false },
+    webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false, preload: join(__dirname, 'settings-preload.cjs') },
   });
   settings.once('ready-to-show', () => settings.show());
   settings.on('page-title-updated', (e) => e.preventDefault());
@@ -211,7 +232,7 @@ function openSettings(path = '') {
   });
   settings.on('closed', () => { settings = null; });
   const url = consoleUrl(path);
-  settings.loadURL(url ?? loadingPage('正在启动…'));
+  settings.loadURL(url ?? loadingPage(T().starting));
 }
 
 /** Calls a panel method of a World page through the console API. */
@@ -263,16 +284,15 @@ function buildTray() {
   tray = new Tray(icon);
   tray.setToolTip('Coopanion');
   const refresh = () => {
-    const login = loginItem.get();
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: '打开设置', click: () => openSettings() },
-      { label: '显示桌宠', enabled: core.state === 'running', click: () => void showPet() },
-      { type: 'separator' },
-      { label: '开机自动启动', type: 'checkbox', checked: login, enabled: app.isPackaged, click: (item) => { loginItem.set(item.checked); noteAutostart(); refresh(); } },
-      { label: '重新启动', click: () => void core.restart() },
-      { label: '退出', click: () => app.quit() },
-    ]));
+    tray.setContextMenu(Menu.buildFromTemplate(trayTemplate(T(), { running: core.state === 'running', login: loginItem.get(), packaged: app.isPackaged }, {
+      openSettings: () => openSettings(),
+      showPet: () => void showPet(),
+      setLogin: (on) => { loginItem.set(on); noteAutostart(); refresh(); },
+      restart: () => void core.restart(),
+      quit: () => app.quit(),
+    })));
   };
+  refreshTray = refresh;
   refresh();
   core.on('state', refresh);
   // on macOS a click opens the menu, as every menu-bar icon does
@@ -283,6 +303,18 @@ core.on('ready', () => {
   if (settings) settings.loadURL(consoleUrl());
   if (updateStep) core.send(updateStep);
 });
+
+// the app language as the Core has it: at each start and after the 「习惯」 page changes it
+core.on('language', (next) => {
+  if (next === language) return;
+  language = next;
+  refreshTray();
+  if (!settings) return;
+  // the preload sets the console's language before the page loads again; the starting page is drawn anew
+  if (settings.webContents.getURL().startsWith('data:')) settings.loadURL(loadingPage(T().starting));
+  else settings.webContents.reload();
+});
+ipcMain.on('settings:language', (e) => { e.returnValue = language; });
 core.on('update-install', () => updater?.installNow());
 core.on('releases', () => void shell.openExternal(RELEASES_URL));
 core.on('state', (state, detail) => {
@@ -323,10 +355,9 @@ function askRestoreStranded() {
   const response = dialog.showMessageBoxSync({
     type: 'question',
     title: 'Coopanion',
-    message: '找到更新前的设置',
-    detail: `之前的一次自动更新把 Coopanion 装到了现在的位置,更新前的设置、API Key、提示词和记忆还留在:\n${STRANDED_DATA}\n\n`
-      + `换回后,现在这份改名为 data-replaced-<时间>,留在 ${dirname(DATA)} 里,不会删除。选「继续用现在的」以后不再询问。`,
-    buttons: ['换回更新前的设置', '继续用现在的'],
+    message: T().strandedMessage,
+    detail: T().strandedDetail(STRANDED_DATA, dirname(DATA)),
+    buttons: [T().strandedRestore, T().strandedKeep],
     defaultId: 0,
     cancelId: 1,
     noLink: true,
@@ -340,6 +371,10 @@ function askRestoreStranded() {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('ai.pal.coopanion');
+  // the system's language is known from here on: a new install starts in it (core/seed.ts)
+  const system = systemLanguage(app);
+  Object.assign(core.opts.env, systemLanguageEnvironment(system));
+  language = configuredLanguage(join(userData, 'home')) ?? system;
   if (askStranded && askRestoreStranded()) return;
   buildTray();
   // whether the person is at the computer, for the pet's small talk (app/presence.cjs)

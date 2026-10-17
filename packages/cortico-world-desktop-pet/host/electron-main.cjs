@@ -21,6 +21,7 @@ const { join } = require('node:path');
 const { createCursorSource } = require('./cursor.cjs');
 const { createMouseLease } = require('./mouse-lease.cjs');
 const { createShownReport } = require('./shown.cjs');
+const { hostText } = require('./text.cjs');
 
 /** Milliseconds between the cursor reports the page gets. */
 const CURSOR_EVERY_MS = 100;
@@ -277,6 +278,9 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   let displayId = null;
   /** The setting, and whether it is what hid the window. */
   let hideWhenFullscreen = false, autoHidden = false;
+  /** The app language the page last said (`pet:language`); null until it says, which reads Chinese. */
+  let language = null;
+  const text = () => hostText(language);
 
   /** The display the window belongs on: the one it was moved to, or the primary display once that one is gone. */
   const display = () => screen.getAllDisplays().find((d) => d.id === displayId) ?? screen.getPrimaryDisplay();
@@ -307,7 +311,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
       x: wa.x, y: wa.y, width: wa.width, height: wa.height,
       transparent: true, frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
       fullscreenable: false, skipTaskbar: true, hasShadow: false, alwaysOnTop: true, show: false,
-      backgroundColor: '#00000000', title: 'Cortico 桌宠',
+      backgroundColor: '#00000000', title: text().petTitle,
       // Windows: Chromium-based apps treat a topmost window without WS_EX_TOOLWINDOW as covering them and stop painting while the pet takes the mouse
       ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
       webPreferences: {
@@ -398,9 +402,23 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     win.loadURL(url);
   };
 
+  /** The tray icon's tooltip and menu, in the app language. */
+  const drawTray = () => {
+    if (!tray) return;
+    const s = text();
+    tray.setToolTip(s.trayTip);
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: s.show, click: () => { releaseAutoHidden(); if (!win) create(); else win.showInactive(); } },
+      { label: s.hide, click: () => { releaseAutoHidden(); if (win) win.hide(); } },
+      { label: s.dress, click: () => openDress() },
+      { type: 'separator' },
+      { label: s.close, click: () => app.quit() },
+    ]));
+  };
+
   const openDress = (target = `${origin}/dress`) => {
     if (dress) { dress.show(); dress.focus(); return; }
-    dress = new BrowserWindow({ width: 980, height: 720, title: '桌宠装扮', autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
+    dress = new BrowserWindow({ width: 980, height: 720, title: text().dressTitle, autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
     dress.on('closed', () => { dress = null; });
     dress.loadURL(target);
   };
@@ -433,6 +451,12 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   ipcMain.on('pet:hide', () => { releaseAutoHidden(); if (win) win.hide(); });
   ipcMain.on('pet:hideWhenFullscreen', (_e, on) => { hideWhenFullscreen = !!on; });
   ipcMain.on('pet:openDress', () => openDress());
+  // the page's text follows the app language; the tray's menu goes with it (window titles come from the pages)
+  ipcMain.on('pet:language', (_e, code) => {
+    if (typeof code !== 'string' || !/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(code) || code === language) return;
+    language = code;
+    drawTray();
+  });
   ipcMain.handle('pet:sampleBackdrop', (_e, query) => {
     try { return win ? sampleBackdrop(win, query || {}) : []; } catch { return []; }
   });
@@ -470,14 +494,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     screen.on('display-removed', place);
     if (!withTray) return;
     tray = new Tray(trayIcon());
-    tray.setToolTip('Cortico 桌宠');
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: '显示桌宠', click: () => { releaseAutoHidden(); if (!win) create(); else win.showInactive(); } },
-      { label: '隐藏桌宠', click: () => { releaseAutoHidden(); if (win) win.hide(); } },
-      { label: '装扮…', click: () => openDress() },
-      { type: 'separator' },
-      { label: '关闭桌宠窗口', click: () => app.quit() },
-    ]));
+    drawTray();
     tray.on('click', () => { if (win) { releaseAutoHidden(); (win.isVisible() ? win.hide() : win.showInactive()); } });
   });
   app.on('window-all-closed', () => { if (!tray) app.quit(); });

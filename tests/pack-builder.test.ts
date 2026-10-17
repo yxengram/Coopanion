@@ -65,3 +65,30 @@ describe('electron-builder runs on build/app as assembled (scripts/pack.ts)', ()
     }
   });
 });
+
+describe('the macOS permission texts', () => {
+  const yml = readFileSync(join(ROOT, 'electron-builder.yml'), 'utf8');
+  const CJK = /[　-〿㐀-鿿＀-￯]/;
+
+  it('Info.plist has English ones; Chinese and Traditional Chinese get the Chinese ones from InfoPlist.strings', () => {
+    const scalars = ymlScalars();
+    for (const key of ['NSMicrophoneUsageDescription', 'NSAppleEventsUsageDescription']) {
+      const line = new RegExp(`^ {4}${key}: (.+)$`, 'm').exec(yml);
+      expect(line?.[1], key).toBeTruthy();
+      expect(line![1], key).not.toMatch(CJK);
+    }
+    expect(scalars.get('linux.synopsis')).not.toMatch(CJK);
+    const copies = [...yml.matchAll(/- from: (\S+)\n\s+to: (\S+)/g)].map((m) => [m[1], m[2]]);
+    expect(copies.map(([, to]) => to)).toEqual(['zh_CN.lproj/InfoPlist.strings', 'zh_TW.lproj/InfoPlist.strings']);
+    // the folder names of Electron's own bundle, so macOS finds one localization per language
+    const resources = join(ROOT, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'Resources');
+    if (existsSync(resources)) for (const [, to] of copies) expect(existsSync(join(resources, to.split('/')[0])), to).toBe(true);
+    for (const [from] of copies) {
+      // extraResources are resolved against the project directory, build/app
+      const strings = readFileSync(resolve(APP, from), 'utf8');
+      // the Chinese texts as they were before Info.plist became English
+      expect(strings).toContain('"NSMicrophoneUsageDescription" = "Coo 用麦克风听你说话,语音在本机识别,录音不会上传。";');
+      expect(strings).toContain('"NSAppleEventsUsageDescription" = "操作电脑时,Coo 用它把你指定的应用切到前面。";');
+    }
+  });
+});

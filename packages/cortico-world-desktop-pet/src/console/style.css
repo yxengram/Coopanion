@@ -17,3 +17,9 @@
 .pet-switch:focus-visible{outline:2px solid var(--accent, #00a870); outline-offset:2px}
 .pet-voicebody{transition:opacity .15s}
 .pet-voicebody.off{opacity:.5}
+/* the listening row holds three controls: they wrap at the row's end, and why the talk key fails gets a line of its own under the state */
+.mountrow.pet-moderow{flex-wrap:wrap; row-gap:6px}
+.mountrow.pet-moderow .macts{flex:0 1 auto; flex-wrap:wrap; justify-content:flex-end; margin-left:auto; min-width:0}
+.mountrow.pet-moderow .mdetail{order:1; flex:1 0 100%; white-space:normal; overflow-wrap:anywhere}
+.mountrow.pet-moderow .mdetail:empty{display:none}
+@media (min-width: 721px){.mountrow.pet-moderow .mdetail{padding-left:calc(7px + 20px + 6.2 * 13px)}}

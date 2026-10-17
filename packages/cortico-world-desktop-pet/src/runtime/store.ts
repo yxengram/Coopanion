@@ -15,6 +15,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { petText, type PetText } from '../i18n/index.ts';
 import { downloadFile, type DownloadOptions } from './download.ts';
 
 export type Phase = 'absent' | 'working' | 'ready' | 'error';
@@ -79,26 +80,26 @@ export function findFile(dir: string, name: string, depth = 5): string | null {
   return null;
 }
 
-function run(cmd: string, args: string[], cwd: string): Promise<void> {
+function run(cmd: string, args: string[], cwd: string, t: StoreText): Promise<void> {
   return new Promise((done, fail) => {
     const child = spawn(cmd, args, { cwd, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
     let err = '';
     child.stderr.on('data', (d: Buffer) => { err += d.toString(); });
     child.on('error', fail);
-    child.on('close', (code) => (code === 0 ? done() : fail(new Error(`${cmd} 退出码 ${code}: ${err.trim().slice(0, 300)}`))));
+    child.on('close', (code) => (code === 0 ? done() : fail(new Error(t.exitCode(cmd, code, err.trim().slice(0, 300))))));
   });
 }
 
-export async function extract(archive: string, into: string): Promise<void> {
+export async function extract(archive: string, into: string, t: StoreText = petText().store): Promise<void> {
   mkdirSync(into, { recursive: true });
   if (process.platform === 'win32') {
     // bsdtar ships with Windows 10+; GNU tar earlier on PATH (Git's) cannot read zip
     const tar = resolve(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
-    await run(tar, ['-xf', archive, '-C', into], into);
+    await run(tar, ['-xf', archive, '-C', into], into, t);
   } else if (archive.endsWith('.zip') && process.platform === 'linux') {
-    await run('unzip', ['-q', '-o', archive, '-d', into], into);
+    await run('unzip', ['-q', '-o', archive, '-d', into], into, t);
   } else {
-    await run('tar', ['-xf', archive, '-C', into], into);
+    await run('tar', ['-xf', archive, '-C', into], into, t);
   }
 }
 
@@ -107,6 +108,8 @@ export async function sha256File(file: string): Promise<string> {
   for await (const chunk of createReadStream(file)) hash.update(chunk as Buffer);
   return hash.digest('hex');
 }
+
+type StoreText = PetText['store'];
 
 interface Job { state: ArtifactState; promise: Promise<void> | null }
 
@@ -117,6 +120,7 @@ class RuntimeSlot {
     private readonly root: () => string,
     private readonly spec: typeof ELECTRON_RUNTIME,
     private readonly fetchImpl?: typeof fetch,
+    private readonly text: () => StoreText = () => petText().store,
   ) {
     this.job = { state: { phase: 'absent', path: '', done: 0, total: null, detail: null }, promise: null };
   }
@@ -147,12 +151,13 @@ class RuntimeSlot {
 
   install(): Promise<void> {
     if (this.job.promise) return this.job.promise;
+    const t = this.text();
     const asset = this.spec.assets[platformKey()];
     if (!asset) {
-      this.job.state = { phase: 'error', path: this.dir, done: 0, total: null, detail: `没有 ${platformKey()} 的预编译包` };
+      this.job.state = { phase: 'error', path: this.dir, done: 0, total: null, detail: t.noBuild(platformKey()) };
       return Promise.resolve();
     }
-    this.job.state = { phase: 'working', path: this.dir, done: 0, total: asset.bytes, detail: `下载 ${asset.file}` };
+    this.job.state = { phase: 'working', path: this.dir, done: 0, total: asset.bytes, detail: t.downloading(asset.file) };
     const partial = `${this.dir}.partial`;
     const work = (async () => {
       rmSync(partial, { recursive: true, force: true });
@@ -160,8 +165,8 @@ class RuntimeSlot {
       const archive = join(partial, asset.file);
       const opts: DownloadOptions = { fetchImpl: this.fetchImpl, onProgress: (done, total) => { this.job.state.done = done; this.job.state.total = total ?? asset.bytes; } };
       await downloadFile(this.spec.url(asset.file), archive, opts);
-      this.job.state.detail = '解压';
-      await extract(archive, partial);
+      this.job.state.detail = this.text().unpacking;
+      await extract(archive, partial, this.text());
       rmSync(archive, { force: true });
       writeFileSync(join(partial, 'cortico-runtime.json'), JSON.stringify({ id: this.spec.id, version: this.spec.version, source: this.spec.url(asset.file) }, null, 2));
       rmSync(this.dir, { recursive: true, force: true });
@@ -180,7 +185,12 @@ class RuntimeSlot {
 class ModelSlot {
   private job: Job;
   readonly bytes: number;
-  constructor(private readonly root: () => string, private readonly spec: ModelSpec, private readonly fetchImpl?: typeof fetch) {
+  constructor(
+    private readonly root: () => string,
+    private readonly spec: ModelSpec,
+    private readonly fetchImpl?: typeof fetch,
+    private readonly text: () => StoreText = () => petText().store,
+  ) {
     this.bytes = spec.files.reduce((n, f) => n + f.bytes, 0);
     this.job = { state: { phase: 'absent', path: '', done: 0, total: null, detail: null }, promise: null };
   }
@@ -206,7 +216,7 @@ class ModelSlot {
 
   install(): Promise<void> {
     if (this.job.promise) return this.job.promise;
-    this.job.state = { phase: 'working', path: this.dir, done: 0, total: this.bytes, detail: '下载 FunASR 识别模型' };
+    this.job.state = { phase: 'working', path: this.dir, done: 0, total: this.bytes, detail: this.text().downloadingModel };
     const work = (async () => {
       mkdirSync(this.dir, { recursive: true });
       let before = 0;
@@ -217,11 +227,11 @@ class ModelSlot {
         for (const source of this.spec.sources) {
           const url = source(f.name);
           try {
-            this.job.state.detail = `下载 ${f.name}(${new URL(url).host})`;
+            this.job.state.detail = this.text().downloadingFrom(f.name, new URL(url).host);
             await downloadFile(url, partial, { fetchImpl: this.fetchImpl, onProgress: (done) => { this.job.state.done = before + done; } });
-            this.job.state.detail = `校验 ${f.name}`;
+            this.job.state.detail = this.text().verifying(f.name);
             const sum = await sha256File(partial);
-            if (sum !== f.sha256) throw new Error(`校验不符:${sum.slice(0, 12)}…`);
+            if (sum !== f.sha256) throw new Error(this.text().mismatch(sum.slice(0, 12)));
             renameSync(partial, this.file(f.name));
             break;
           } catch (err) {
@@ -229,7 +239,7 @@ class ModelSlot {
             errors.push(`${new URL(url).host}: ${(err as Error).message}`);
           }
         }
-        if (!this.has(f)) throw new Error(`${f.name} 下载失败(${errors.join(';')})`);
+        if (!this.has(f)) throw new Error(this.text().failed(f.name, errors.join(';')));
         before += f.bytes;
         this.job.state.done = before;
       }
@@ -248,6 +258,8 @@ export interface RuntimeStoreOptions {
   fetchImpl?: typeof fetch;
   /** The speech model; tests pass a small one. */
   funasrModel?: ModelSpec;
+  /** The text of the app language, read at each step; Chinese when absent. */
+  text?: () => PetText;
 }
 
 export class RuntimeStore {
@@ -255,7 +267,8 @@ export class RuntimeStore {
   readonly funasr: ModelSlot;
 
   constructor(opts: RuntimeStoreOptions) {
-    this.electron = new RuntimeSlot(opts.runtimesRoot, ELECTRON_RUNTIME, opts.fetchImpl);
-    this.funasr = new ModelSlot(opts.modelsDir, opts.funasrModel ?? FUNASR_MODEL, opts.fetchImpl);
+    const text = () => (opts.text?.() ?? petText()).store;
+    this.electron = new RuntimeSlot(opts.runtimesRoot, ELECTRON_RUNTIME, opts.fetchImpl, text);
+    this.funasr = new ModelSlot(opts.modelsDir, opts.funasrModel ?? FUNASR_MODEL, opts.fetchImpl, text);
   }
 }

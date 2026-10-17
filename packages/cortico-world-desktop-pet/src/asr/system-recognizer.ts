@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import type { Logger } from 'cortico/core/types.ts';
+import { petText, type PetText } from '../i18n/index.ts';
 import type { TranscribeResult } from './result.ts';
 
 export type SystemPhase = 'stopped' | 'starting' | 'running' | 'error';
@@ -35,6 +36,8 @@ export interface SystemRecognizerOptions {
   log: Logger;
   /** Starts the helper; tests pass a fake. */
   spawnImpl?: typeof spawn;
+  /** The text of the app language, read when a state is set; Chinese when absent. */
+  text?: () => PetText;
 }
 
 /** One sentence being heard: frames go in while it is spoken, the text comes back after `end`. */
@@ -52,9 +55,9 @@ const CHUNK = 1600;
 /** Available at all: Windows only. */
 export const systemRecognizerSupported = (): boolean => process.platform === 'win32';
 
-const FATAL: Record<string, (lang: string) => string> = {
-  'system-speech': () => '系统语音组件 System.Speech 加载不了',
-  'no-recognizer': (lang) => `系统里没有${lang === 'auto' ? '' : `「${lang}」的`}语音识别器:在 Windows 设置 → 时间和语言 → 语言里给该语言装上「语音识别」`,
+const FATAL: Record<string, (t: PetText['system'], lang: string) => string> = {
+  'system-speech': (t) => t.noSpeech,
+  'no-recognizer': (t, lang) => t.noRecognizer(lang),
 };
 
 function powershellExe(): string {
@@ -82,8 +85,12 @@ export class SystemRecognizer {
 
   constructor(private readonly opts: SystemRecognizerOptions) {}
 
+  private get t(): PetText['system'] {
+    return (this.opts.text?.() ?? petText()).system;
+  }
+
   state(): SystemRecognizerState {
-    const url = this.culture ? `Windows 语音识别(${this.culture})` : 'Windows 语音识别';
+    const url = this.t.name(this.culture);
     return { phase: this.phase, url, pid: this.child?.pid ?? null, detail: this.detail };
   }
 
@@ -112,7 +119,7 @@ export class SystemRecognizer {
     if (this.child) await this.stop();
     if (!systemRecognizerSupported()) {
       this.phase = 'error';
-      this.detail = '系统语音识别只在 Windows 上可用';
+      this.detail = this.t.windowsOnly;
       return;
     }
     const language = this.opts.language() || 'auto';
@@ -129,7 +136,7 @@ export class SystemRecognizer {
       });
     } catch (err) {
       this.phase = 'error';
-      this.detail = `启动失败:${(err as Error).message}`;
+      this.detail = this.t.startFailed((err as Error).message);
       return;
     }
     this.child = child;
@@ -149,7 +156,7 @@ export class SystemRecognizer {
         ready(true);
       } else if (typeof msg.fatal === 'string') {
         this.phase = 'error';
-        this.detail = FATAL[msg.fatal]?.(language) ?? msg.fatal;
+        this.detail = FATAL[msg.fatal]?.(this.t, language) ?? msg.fatal;
         ready(false);
       } else this.answer(msg);
     });
@@ -158,14 +165,14 @@ export class SystemRecognizer {
       ready(false);
       if (this.child !== child) return;
       this.child = null;
-      this.failAll('系统语音识别进程退出了');
-      if (this.phase !== 'stopped' && this.phase !== 'error') { this.phase = 'error'; this.detail = `系统语音识别进程退出(退出码 ${code})`; }
+      this.failAll(this.t.exited);
+      if (this.phase !== 'stopped' && this.phase !== 'error') { this.phase = 'error'; this.detail = this.t.exitedCode(code); }
     });
     const timer = setTimeout(() => ready(false), READY_TIMEOUT_MS);
     const ok = await readyP;
     clearTimeout(timer);
     if (!ok && this.child === child) {
-      const detail = (this.phase as SystemPhase) === 'error' ? this.detail : '系统语音识别在期限内没有就绪';
+      const detail = (this.phase as SystemPhase) === 'error' ? this.detail : this.t.notReady;
       await this.stop();
       this.phase = 'error';
       this.detail = detail;
@@ -213,7 +220,7 @@ export class SystemRecognizer {
     const started = Date.now();
     if (this.restartable) await this.start();
     const s = this.sentence();
-    if (!s) return { text: '', ms: Date.now() - started, error: this.detail ?? '系统语音识别没有运行' };
+    if (!s) return { text: '', ms: Date.now() - started, error: this.detail ?? this.t.notRunning };
     for (let at = 0; at < pcm.length; at += CHUNK) s.write(pcm.subarray(at, at + CHUNK));
     return s.end();
   }
@@ -226,7 +233,7 @@ export class SystemRecognizer {
     this.open.delete(id);
     if (o.timer) clearTimeout(o.timer);
     const ms = o.endedAt ? Date.now() - o.endedAt : 0;
-    if (typeof msg.error === 'string') o.resolve({ text: '', ms, error: msg.error === 'timeout' ? `识别超时(${this.opts.timeoutMs()}ms)` : msg.error });
+    if (typeof msg.error === 'string') o.resolve({ text: '', ms, error: msg.error === 'timeout' ? this.t.timeout(this.opts.timeoutMs()) : msg.error });
     else o.resolve({ text: typeof msg.text === 'string' ? msg.text.trim() : '', ms, error: null });
   }
 
@@ -242,7 +249,7 @@ export class SystemRecognizer {
     const child = this.child;
     this.child = null;
     if (this.phase !== 'error') this.phase = 'stopped';
-    this.failAll('系统语音识别已停止');
+    this.failAll(this.t.stopped);
     if (!child || child.exitCode !== null) return;
     const exited = new Promise<void>((r) => child.once('exit', () => r()));
     // closing stdin ends the helper's read loop; a stuck one is killed

@@ -12,14 +12,14 @@
  * scripts/stage.ts adds to the console stylesheet.
  */
 import { post } from '../../core/api.ts';
-import { pick } from '../../core/language.ts';
+import { LANGUAGE, pick } from '../../core/language.ts';
 import type { FeatureContext, FrameworkFeature } from '../feature.ts';
 import { readMode, requestMode } from '../mode.ts';
-import { connectVendor, consoleCall, readStatus, testEndpoint, VENDOR_ICONS, VENDORS, vendorOf, type ConnectResult, type Status, type Vendor } from './model.ts';
+import { connectVendor, consoleCall, readStatus, testEndpoint, VENDOR_ICONS, VENDORS, vendorKeyHint, vendorName as nameOf, vendorOf, type ConnectResult, type Status, type Vendor } from './model.ts';
 
 const PET_PAGE = 'world:desktop-pet';
 
-const S = pick({
+export const TEXT = {
   zh: {
     nav: '开始',
     title: 'Coo',
@@ -63,7 +63,7 @@ const S = pick({
     keyLabel: (name: string) => `${name} API key`,
     modelLabel: 'Model',
     keepKey: 'Leave empty to keep the saved key',
-    getKey: (name: string) => `Get a ${name} key`,
+    getKey: (name: string) => `Get a key from ${name}`,
     saveStart: 'Save and start',
     connected: (model: string, title: string) => `Connected to ${title} · ${model}`,
     test: 'Test',
@@ -84,12 +84,17 @@ const S = pick({
     guide: 'Guide',
     guideHint: 'Coo walks you through it again at the bottom of the screen',
   },
-});
+};
+const S = pick(TEXT);
 
 interface PetState { connected: boolean; url: string | null }
 
 const panelPath = (page: string, panel: string, method: string) => `/api/console/providers/${encodeURIComponent(page)}/panels/${panel}/${method}`;
 const errText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+/** A service by the name the console's language uses. */
+const vendorName = (v: Vendor) => nameOf(v, LANGUAGE);
+/** The key box's placeholder: how the service's keys start, or a plain request to paste one where it has no prefix. */
+const keyHint = (v: Vendor) => vendorKeyHint(v, LANGUAGE);
 
 async function mount(ctx: FeatureContext): Promise<void> {
   const { ui, root, signal } = ctx;
@@ -118,7 +123,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     const mark = ui.h('span', 'home-vendormark');
     // the marks are the provider package's own static SVGs
     mark.innerHTML = VENDOR_ICONS[v.id] ?? '';
-    b.append(mark, ui.h('span', null, v.name));
+    b.append(mark, ui.h('span', null, vendorName(v)));
     b.addEventListener('click', () => pickVendor(v), opts);
     vendorRow.append(b);
     return b;
@@ -135,7 +140,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
   modelInput.setAttribute('list', modelList.id);
   const keyRow = ui.rowbar();
   const save = ui.button(S.saveStart, { variant: 'primary' });
-  const keyField = ui.field(S.keyLabel(vendor.name), keyInput);
+  const keyField = ui.field(S.keyLabel(vendorName(vendor)), keyInput);
   const modelField = ui.field(S.modelLabel, modelInput);
   modelField.classList.add('home-modelfield');
   keyRow.append(modelField, keyField, modelList, save);
@@ -146,12 +151,12 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const pickVendor = (v: Vendor) => {
     vendor = v;
     vendorButtons.forEach((b, i) => b.classList.toggle('on', VENDORS[i] === v));
-    keyInput.placeholder = active.vendor === v ? S.keepKey : v.keyHint;
+    keyInput.placeholder = active.vendor === v ? S.keepKey : keyHint(v);
     modelInput.value = active.vendor === v && active.model ? active.model : v.model;
     modelList.replaceChildren(...[v.model, ...(v.models ?? [])].map((m) => Object.assign(document.createElement('option'), { value: m })));
     const label = keyField.querySelector('.fieldlabel');
-    if (label) label.textContent = S.keyLabel(v.name);
-    getKey.textContent = S.getKey(v.name);
+    if (label) label.textContent = S.keyLabel(vendorName(v));
+    getKey.textContent = S.getKey(vendorName(v));
     getKey.href = v.keyUrl;
   };
   pickVendor(vendor);
@@ -209,7 +214,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     keyBox.hidden = ready && !editingKey;
     const current = vendorOf(mc?.baseUrl);
     active = { vendor: current, model: mc?.model ?? '' };
-    if (mc?.model) connectedPill.textContent = S.connected(mc.model, current?.name ?? mc.moduleTitle);
+    if (mc?.model) connectedPill.textContent = S.connected(mc.model, current ? vendorName(current) : mc.moduleTitle);
     // the key box starts on the service in use, once
     if (!vendorShown && current) { vendorShown = true; pickVendor(current); }
   };
@@ -234,7 +239,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     save.disabled = true;
     try {
       testing();
-      const r = await connectVendor(call, vendor, key, modelInput.value);
+      const r = await connectVendor(call, vendor, key, modelInput.value, LANGUAGE);
       keyInput.value = '';
       editingKey = false;
       showTest(r);
@@ -251,7 +256,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     const name = status?.modelConnection?.name;
     if (!name) return;
     testing();
-    showTest(await testEndpoint(call, name));
+    showTest(await testEndpoint(call, name, LANGUAGE));
   });
   change.addEventListener('click', () => { editingKey = true; void refreshModel(); keyInput.focus(); });
 

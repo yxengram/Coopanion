@@ -56,7 +56,7 @@
 | `sound` / `sounds` | 音效总开关；按类的开关（动作、互动、表情、打呼噜、说话、按钮与提示）和呼噜时长 |
 | `theme` / `scale` / `lockFrameRate` | 黑白模式、桌宠大小、是否锁定 60 帧 |
 | `hoverButtons` / `doubleClickChat` / `rememberPosition` | 悬停按钮、双击打字是否打开、是否记住位置 |
-| `userNamed` | 「怎么称呼你」是否改过默认值，只报是或否，不报名字 |
+| `userNamed` | 「怎么称呼你」是否改过默认值(「伙伴」、旧版的「主人」、非中文新装的「Pal」)，只报是或否，不报名字 |
 | `cuaEnabled` / `cuaLevel` | 电脑操作是否启用、询问档位 |
 | `personaChanged` | Coo 的人设（CONSTITUTION.md）是否和初始版本不同，只报是或否 |
 | `memoryFiles` | Coo 工作区（记忆）里的文件个数 |

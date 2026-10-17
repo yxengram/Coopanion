@@ -231,8 +231,11 @@ export function focus(handle: string): boolean {
   return ok;
 }
 
-/** A yes/no system dialog above every window. Runs on a koffi worker thread, so the engine keeps serving other requests. */
-export function askYesNo(text: string, caption: string, timeoutMs: number): Promise<'yes' | 'no' | 'timeout'> {
+/**
+ * A yes/no system dialog above every window. Runs on a koffi worker thread, so the engine keeps serving other requests.
+ * The buttons are the system's own Yes and No, in the system's language: a message box cannot name them.
+ */
+export function askYesNo(text: string, caption: string, timeoutMs: number, _yes?: string, _no?: string): Promise<'yes' | 'no' | 'timeout'> {
   return new Promise((resolve, reject) => {
     MessageBoxTimeoutW.async(null, text, caption, MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND | MB_TOPMOST, 0, timeoutMs, (err: unknown, r: number) => {
       if (err) reject(err as Error);

@@ -1,6 +1,8 @@
 /** Config section `worlds.cua`, defaults and the console config group. */
 import type { ConfigGroup } from 'cortico/core/config-schema.ts';
+import type { Language } from 'cortico/core/language.ts';
 import type { WorldSection } from 'cortico/world.ts';
+import { cuaText } from './strings.ts';
 
 export const CUA_ID = 'cua';
 
@@ -52,26 +54,30 @@ export const CUA_DEFAULTS: CuaConfigSection = {
 
 const K = `worlds.${CUA_ID}`;
 
-export const CUA_CONFIG_GROUP: ConfigGroup = {
-  id: `world:${CUA_ID}`,
-  owner: `world:${CUA_ID}`,
-  schema: {
-    type: 'object',
-    title: '电脑操作',
-    properties: {
-      [`${K}.control`]: { type: 'boolean', title: '允许操作鼠标键盘', description: '关掉后只能截图和列窗口。', 'x-hot': true },
-      [`${K}.permission`]: {
-        type: 'string', title: '什么时候先问你', enum: [...PERMISSION_LEVELS], 'x-hot': true,
-        description: 'ask-each-turn:每一轮看屏幕或动手前都问;ask-before-acting:看屏幕不问,每一轮动鼠标键盘前问;ask-once:看屏幕不问,动鼠标键盘前问一次,同意后「同意管多久」内不再问;never-ask:都不问。',
+/** The console config group, its titles and notes in `language`; the keys and `enum` values are the same in every language. */
+export function cuaConfigGroup(language: Language = 'zh'): ConfigGroup {
+  const t = cuaText(language).config;
+  return {
+    id: `world:${CUA_ID}`,
+    owner: `world:${CUA_ID}`,
+    schema: {
+      type: 'object',
+      title: t.group,
+      properties: {
+        [`${K}.control`]: { type: 'boolean', title: t.control.title, description: t.control.description, 'x-hot': true },
+        [`${K}.permission`]: { type: 'string', title: t.permission.title, enum: [...PERMISSION_LEVELS], 'x-hot': true, description: t.permission.description },
+        [`${K}.grantMinutes`]: { type: 'integer', title: t.grantMinutes.title, minimum: 1, maximum: 1440, 'x-suffix': t.grantMinutes.suffix, description: t.grantMinutes.description, 'x-hot': true },
+        [`${K}.userIdleMs`]: { type: 'integer', title: t.userIdleMs.title, minimum: 0, maximum: 30000, 'x-suffix': 'ms', description: t.userIdleMs.description, 'x-hot': true },
+        [`${K}.maxYieldWaitMs`]: { type: 'integer', title: t.maxYieldWaitMs.title, minimum: 0, maximum: 120000, 'x-suffix': 'ms', 'x-hot': true },
+        [`${K}.screenshot.maxWidth`]: { type: 'integer', title: t.maxWidth.title, minimum: 320, maximum: 3840, 'x-suffix': 'px', 'x-hot': true },
+        [`${K}.screenshot.maxHeight`]: { type: 'integer', title: t.maxHeight.title, minimum: 240, maximum: 2160, 'x-suffix': 'px', 'x-hot': true },
+        [`${K}.screenshot.quality`]: { type: 'integer', title: t.quality.title, minimum: 30, maximum: 95, 'x-hot': true },
+        [`${K}.screenshot.afterAction`]: { type: 'boolean', title: t.afterAction.title, 'x-hot': true },
+        [`${K}.screenshot.settleMs`]: { type: 'integer', title: t.settleMs.title, minimum: 0, maximum: 5000, 'x-suffix': 'ms', 'x-hot': true },
       },
-      [`${K}.grantMinutes`]: { type: 'integer', title: '同意管多久', minimum: 1, maximum: 1440, 'x-suffix': '分钟', description: '只对 ask-once 有效。', 'x-hot': true },
-      [`${K}.userIdleMs`]: { type: 'integer', title: '让位时长', minimum: 0, maximum: 30000, 'x-suffix': 'ms', description: '你动过鼠标或键盘后,要静止这么久才继续操作。', 'x-hot': true },
-      [`${K}.maxYieldWaitMs`]: { type: 'integer', title: '让位最多等待', minimum: 0, maximum: 120000, 'x-suffix': 'ms', 'x-hot': true },
-      [`${K}.screenshot.maxWidth`]: { type: 'integer', title: '截图最大宽', minimum: 320, maximum: 3840, 'x-suffix': 'px', 'x-hot': true },
-      [`${K}.screenshot.maxHeight`]: { type: 'integer', title: '截图最大高', minimum: 240, maximum: 2160, 'x-suffix': 'px', 'x-hot': true },
-      [`${K}.screenshot.quality`]: { type: 'integer', title: '截图质量', minimum: 30, maximum: 95, 'x-hot': true },
-      [`${K}.screenshot.afterAction`]: { type: 'boolean', title: '操作后附截图', 'x-hot': true },
-      [`${K}.screenshot.settleMs`]: { type: 'integer', title: '截图前等待', minimum: 0, maximum: 5000, 'x-suffix': 'ms', 'x-hot': true },
     },
-  },
-};
+  };
+}
+
+/** The config group in Chinese. */
+export const CUA_CONFIG_GROUP: ConfigGroup = cuaConfigGroup('zh');

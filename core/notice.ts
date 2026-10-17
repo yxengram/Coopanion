@@ -15,6 +15,9 @@
  *   person's answers (`guide.ts`), with what is Coo's to settle with the person after it.
  *
  * - Wake-ups Coo sets for itself (`alarms.ts`): its tools, and the event when one is due.
+ * - For an app language other than Chinese, the one prefix line that tells Coo to talk to the person
+ *   in it (`replyLanguage` in language.ts, template NOTICE_ENV_PROMPT.md); in Chinese this World has
+ *   no prompt at all, so the prefix is as it was before there was a choice.
  *
  * The last version told is kept in `notice.json` in the deployment directory, written when the
  * event is delivered, so an update told while events are held (no key yet) is told on a later start.
@@ -22,8 +25,9 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import type { ToolDef, World, WorldHost } from 'cortico/core/types.ts';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import type { ToolDef, World, WorldConsoleDecl, WorldHost } from 'cortico/core/types.ts';
+import { pick, type Language } from 'cortico/core/language.ts';
 import type { WorldDefinition, WorldSection } from 'cortico/world.ts';
 import { Alarms } from './alarms.ts';
 import type { GuideEnd } from './guide.ts';
@@ -31,6 +35,13 @@ import type { GuideEnd } from './guide.ts';
 export const NOTICE_ID = 'coopanion';
 /** How often the watched settings are compared with the last look. */
 const LOOK_EVERY_MS = 1000;
+/** The template of the reply-language line. */
+const ENV_PROMPT_FILE = fileURLToPath(new URL('./NOTICE_ENV_PROMPT.md', import.meta.url));
+/** The reply-language template on the console's prompt page. */
+const REPLY_DOC = {
+  zh: { title: '回复语言', description: '应用语言不是中文时,告诉 Coo 用哪种语言和对方说话。', line: '用哪种语言和对方说话的那一句' },
+  en: { title: 'Reply language', description: 'When the app language is not Chinese, tells Coo which language to talk to you in.', line: 'The line naming the language to talk in' },
+};
 /** Where the release notes stop being about the app: the download list that ends each file. */
 const NOTES_END = /^## 下载/m;
 
@@ -53,7 +64,14 @@ export interface NoticeAssembly {
   guiding: () => boolean;
   /** The instance, once created, for the introduction to hand its record to. */
   onCreate?: (world: NoticeWorld) => void;
+  /** The line telling Coo which language to talk to the person in, read at each prefix build; null (or absent) for Chinese. */
+  replyLanguage?: () => string | null;
+  /** The language of the World's name, read at each use: see `DesktopPetAssembly.labelLanguage`. Without it, Chinese. */
+  labelLanguage?: () => Language;
 }
+
+/** The World's name in the settings window. */
+const LABEL = { zh: '应用通知', en: 'App notifications' };
 
 type Version = [number, number, number];
 
@@ -216,7 +234,23 @@ export class NoticeWorld implements World {
     this.alarms = new Alarms(a.alarmsFile, timezone);
   }
 
-  envPromptVars(): null { return null; }
+  envPromptVars(): Record<string, string> | null {
+    const line = this.a.replyLanguage?.() ?? null;
+    return line ? { 'coopanion.reply': line } : null;
+  }
+
+  /** Only the reply-language template, and only while there is a line: in Chinese nothing is declared. */
+  console(language: Language = 'zh'): WorldConsoleDecl {
+    if (!this.a.replyLanguage?.()) return {};
+    const S = pick(language, REPLY_DOC);
+    return {
+      promptDocs: [{
+        key: `worlds.${NOTICE_ID}.envPrompt`, title: S.title, description: S.description,
+        path: ENV_PROMPT_FILE, role: 'envPrompt', vars: [{ name: 'coopanion.reply', description: S.line }],
+      }],
+    };
+  }
+
   tools(): ToolDef[] { return this.alarms.tools(); }
   /** When the next wake-up Coo set for itself is due, or null: the pet's small talk keeps clear of it. */
   nextAlarmAt(): number | null { return this.alarms.nextAt(); }
@@ -304,7 +338,7 @@ export class NoticeWorld implements World {
 export function noticeDefinition(assembly: NoticeAssembly): WorldDefinition<WorldSection> {
   return {
     id: NOTICE_ID,
-    label: '应用通知',
+    get label() { return pick(assembly.labelLanguage?.() ?? 'zh', LABEL); },
     defaults: () => ({ enabled: false }),
     create: (ctx) => {
       const world = new NoticeWorld(assembly, ctx.timezone);

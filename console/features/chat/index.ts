@@ -10,10 +10,12 @@
  */
 import { panelRoute, panelStreamRoute } from '../../../shared/console-protocol.ts';
 import type { ConsoleImageAttachment } from '../../../shared/client-panel.ts';
-import { pick } from '../../core/language.ts';
+import { languageTag } from '../../../../core/language.ts';
+import { LANGUAGE, pick } from '../../core/language.ts';
 import { openStream } from '../../core/stream.ts';
 import { browserSocketEnv } from '../../core/websocket.ts';
 import type { FeatureContext, FrameworkFeature } from '../feature.ts';
+import { BASE } from '../language.ts';
 import { requestMode } from '../mode.ts';
 
 const PET_PAGE = 'world:desktop-pet';
@@ -30,7 +32,7 @@ type ChatItem =
 type UserItem = Extract<ChatItem, { kind: 'user' }>;
 interface RunPhase { state: 'idle' | 'delivering' | 'model' | 'tools' | 'backoff' | 'handoff'; running: readonly string[]; retryAt?: string }
 
-const S = pick({
+export const TEXT = {
   zh: {
     nav: '对话',
     title: '对话',
@@ -95,10 +97,11 @@ const S = pick({
     seconds: (s: number) => `${s} s`,
     imagesUnseen: (bot: string) => `The current model cannot see images; ${bot} only learns how many you sent.`,
   },
-});
+};
+const S = pick(TEXT);
 
 /** What the person reads for a tool's name. Tools not named here (the Persona's notes and turn control, other Worlds') stay in the run trace. */
-const STEP = pick({
+export const STEP_TEXT = {
   zh: {
     cua_screenshot: '截屏', cua_click: '点击', cua_move: '移动鼠标', cua_drag: '拖动', cua_scroll: '滚动', cua_type: '打字',
     cua_key: '按键', cua_windows: '查看窗口', cua_focus: '切换窗口', cua_wait: '等待',
@@ -109,7 +112,8 @@ const STEP = pick({
     cua_key: 'Press keys', cua_windows: 'List windows', cua_focus: 'Switch window', cua_wait: 'Wait',
     pet_walk_to: 'Walk', pet_walk: 'Walk', pet_act: 'Move about', pet_feel: 'Show a feeling', pet_set: 'Adjust itself', pet_quiet: 'Keep quiet',
   } as Record<string, string>,
-});
+};
+const STEP = pick(STEP_TEXT);
 const stepLabel = (name: string): string => STEP[name] ?? name;
 const shownSteps = (steps: readonly string[]): string[] => steps.filter((s) => s in STEP);
 
@@ -119,9 +123,31 @@ function activityTitle(steps: readonly string[]): string {
   return steps.length === 1 ? stepLabel(steps[0]) : S.things(steps.length);
 }
 
-const LANG = pick({ zh: 'zh', en: 'en' });
-/** An expression by its name in the console's language; without one, English shows the word's id and Chinese any name. */
-const moodName = (mood: Record<string, string>): string => mood[LANG] ?? (LANG === 'en' ? mood.id : mood.zh) ?? mood.id ?? '';
+/** The time of a retry in the app language; Chinese keeps the system's own format, as before there were languages. */
+const retryTime = (at: string): string => (LANGUAGE === 'zh' ? new Date(at).toLocaleTimeString() : new Date(at).toLocaleTimeString(languageTag(LANGUAGE)));
+
+/**
+ * English names of the built-in figures' expressions, by vocabulary id, for the tags under Coo's lines. The packs'
+ * own `names` are the bot's vocabulary and stay Chinese, so English comes from here; tests/console-i18n.test.js
+ * checks every built-in expression has one. Exported for that test.
+ */
+export const MOOD_EN: Readonly<Record<string, string>> = {
+  neutral: 'calm', happy: 'happy', wink: 'wink', love: 'love', shy: 'shy', surprised: 'surprised', angry: 'angry',
+  sad: 'sad', sleepy: 'sleepy', thinking: 'thinking', smug: 'smug', pout: 'pout', worried: 'worried',
+  determined: 'determined', flustered: 'flustered', scared: 'scared', excited: 'excited', cry: 'crying',
+  confused: 'confused', disgusted: 'disgusted', nervous: 'nervous', gentle: 'gentle', awkward: 'awkward',
+  moved: 'moved', petrify: 'turned to stone', coax: 'pleading', tongue: 'tongue out', giggle: 'giggle',
+  eyeroll: 'eye roll', shocked: 'shocked', deadpan: 'deadpan', drool: 'drooling', smirk: 'smirk', sly: 'playful',
+  blissful: 'blissful', lol: 'laughing', laughcry: 'laughing to tears', bashful: 'bashful', flutter: 'heart flutter',
+  smitten: 'smitten', wow: 'wow', crave: 'craving', dreamy: 'dreamy', eager: 'eager', innocent: 'innocent',
+  huff: 'huffy', frantic: 'frantic', ragecry: 'crying with anger', sulk: 'sulking', whimper: 'whimpering',
+  brave: 'brave smile', comfort: 'comforting', pained: 'troubled', doubt: 'doubtful', blank: 'blank', meh: 'meh',
+  fuming: 'fuming', heartbroken: 'heartbroken', celebrate: 'celebrating', gloomy: 'gloomy', speechless: 'speechless',
+  starry: 'seeing stars',
+};
+
+/** An expression by its name in the console's language; without one, English shows the built-in name or the word's id, and Chinese any name. */
+const moodName = (mood: Record<string, string>): string => mood[BASE] ?? (BASE === 'en' ? MOOD_EN[mood.id] ?? mood.id : mood.zh) ?? mood.id ?? '';
 
 const AVATAR_URL = '/api/avatar';
 const blobUrl = (ref: string): string => `${panelRoute(PET_PAGE, 'chat', 'blob')}?args=${encodeURIComponent(JSON.stringify([ref]))}`;
@@ -195,7 +221,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     if (paused) { state = 'paused'; text = S.paused; }
     else if (p?.state === 'model' || p?.state === 'delivering') { state = 'busy'; text = S.thinking(bot); }
     else if (p?.state === 'tools') { const named = shownSteps(p.running); state = 'busy'; text = named.length ? S.doing(stepLabel(named[named.length - 1])) : S.thinking(bot); }
-    else if (p?.state === 'backoff') { state = 'warn'; text = S.retry(p.retryAt ? new Date(p.retryAt).toLocaleTimeString() : '…'); }
+    else if (p?.state === 'backoff') { state = 'warn'; text = S.retry(p.retryAt ? retryTime(p.retryAt) : '…'); }
     else if (p?.state === 'handoff') { state = 'busy'; text = S.handoff; }
     phaseEl.dataset.state = state;
     phaseText.textContent = text;

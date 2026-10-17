@@ -24,7 +24,10 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
+import type { Language } from 'cortico/core/language.ts';
+import { petText } from './i18n/index.ts';
 import { packFile, type FigurePack } from './packs.ts';
+import { pageTable, pageTableOf, stampPage } from './page-text.ts';
 import { BUNDLE_TYPE, IMPORT_MAX, PACK_DEPTH, PackImporter, filesFromBundle, filesFromZip } from './pack-import.ts';
 
 const MIME: Record<string, string> = {
@@ -39,6 +42,8 @@ const MIME: Record<string, string> = {
   '.wav': 'audio/wav',
 };
 const PAGES: Record<string, string> = { '/pet': 'pet.html', '/dress': 'dress.html' };
+/** The table key of each page's `<title>`. */
+const PAGE_TITLES: Record<string, string> = { '/pet': 'pet.title', '/dress': 'dress.title' };
 const LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
 const PORT_ATTEMPTS = 10;
 /** What a watching pet page may still send: input that is the person's whichever page it came from. */
@@ -64,6 +69,8 @@ export interface PetServerOptions {
   packs?(): FigurePack[];
   /** Where the dressing page installs packs (`figures/` in the data directory); without it, packs cannot be imported. */
   packDir?(): string | null;
+  /** The app language, for the errors the pages show and the World's start; Chinese when absent. */
+  language?(): Language;
 }
 
 export class PetServer {
@@ -78,7 +85,11 @@ export class PetServer {
   private readonly importer: PackImporter;
 
   constructor(private readonly opts: PetServerOptions) {
-    this.importer = new PackImporter({ packDir: () => opts.packDir?.() ?? null, packs: () => opts.packs?.() ?? [] });
+    this.importer = new PackImporter({ packDir: () => opts.packDir?.() ?? null, packs: () => opts.packs?.() ?? [], language: () => this.language() });
+  }
+
+  private language(): Language {
+    return this.opts.language?.() ?? 'zh';
   }
 
   get port(): number {
@@ -119,7 +130,7 @@ export class PetServer {
       });
       return this.boundPort;
     }
-    throw new Error(`端口 ${base}–${base + PORT_ATTEMPTS - 1} 都被占用:${lastErr?.message ?? ''}`);
+    throw new Error(petText(this.language()).portsTaken(base, base + PORT_ATTEMPTS - 1, lastErr?.message ?? ''));
   }
 
   async stop(): Promise<void> {
@@ -250,6 +261,9 @@ export class PetServer {
     const root = normalize(this.opts.webDir).replace(/[\\/]+$/, '') + sep;
     const full = normalize(join(root, file));
     if (!full.startsWith(root)) { res.writeHead(403).end(); return; }
+    // a page in another language than Chinese has its text stamped in (page-text.ts)
+    const language = this.language();
+    if (PAGES[path] && pageTableOf(language) !== 'zh') return this.sendPage(res, full, language, PAGE_TITLES[path]!);
     return this.sendFile(res, full, null, path.startsWith('/web/') && req.headers.origin === 'null');
   }
 
@@ -257,10 +271,11 @@ export class PetServer {
     if (path === '/api/figures/import') {
       const type = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
       const zip = type === 'application/zip' || type === 'application/x-zip-compressed';
-      if (!zip && type !== BUNDLE_TYPE) return json(res, 415, { error: '只收 zip 或文件夹' });
+      const t = petText(this.language()).importing;
+      if (!zip && type !== BUNDLE_TYPE) return json(res, 415, { error: t.zipOrFolder });
       const bytes = await readBytes(req, IMPORT_MAX);
-      if (!bytes) return json(res, 413, { error: `超过 ${IMPORT_MAX / 1048576} MB` });
-      const files = zip ? filesFromZip(bytes) : filesFromBundle(bytes);
+      if (!bytes) return json(res, 413, { error: t.overLimit(IMPORT_MAX / 1048576) });
+      const files = zip ? filesFromZip(bytes, t) : filesFromBundle(bytes, t);
       if (typeof files === 'string') return json(res, 400, { error: files });
       const out = await this.importer.stage(files, !zip);
       return json(res, 'error' in out ? 400 : 200, out);
@@ -275,21 +290,35 @@ export class PetServer {
     return json(res, 400, { error: 'bad request' });
   }
 
+  /** A page with the text of `language` stamped in; as it is when the table cannot be read. */
+  private async sendPage(res: ServerResponse, full: string, language: Language, titleKey: string): Promise<void> {
+    const [html, table] = await Promise.all([readFile(full, 'utf8').catch(() => null), pageTable(this.opts.webDir)]);
+    if (html === null) { res.writeHead(404).end(); return; }
+    this.sendBytes(res, full, Buffer.from(table ? stampPage(html, table, language, titleKey) : html), null);
+  }
+
   /** A file with the pages' CSP (or `csp`); `frame` answers the figure frame's CORS request. */
   private async sendFile(res: ServerResponse, full: string, csp: string | null, frame = false): Promise<void> {
+    let bytes: Buffer;
     try {
-      const bytes = await readFile(full);
-      res.writeHead(200, {
-        'content-type': MIME[extname(full)] ?? 'application/octet-stream',
-        'cache-control': 'no-cache',
-        'content-security-policy': csp ?? "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; frame-ancestors 'self' http://127.0.0.1:* http://localhost:*",
-        ...(frame ? { 'access-control-allow-origin': 'null' } : {}),
-      });
-      res.end(bytes);
+      bytes = await readFile(full);
     } catch {
       res.writeHead(404).end();
+      return;
     }
+    this.sendBytes(res, full, bytes, csp, frame);
   }
+
+  private sendBytes(res: ServerResponse, full: string, bytes: Buffer, csp: string | null, frame = false): void {
+    res.writeHead(200, {
+      'content-type': MIME[extname(full)] ?? 'application/octet-stream',
+      'cache-control': 'no-cache',
+      'content-security-policy': csp ?? "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; frame-ancestors 'self' http://127.0.0.1:* http://localhost:*",
+      ...(frame ? { 'access-control-allow-origin': 'null' } : {}),
+    });
+    res.end(bytes);
+  }
+
 }
 
 function parse(text: string): PageMessage | null {

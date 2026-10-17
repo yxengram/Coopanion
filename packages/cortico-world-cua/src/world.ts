@@ -26,7 +26,8 @@ import { fileURLToPath } from 'node:url';
 import type { Logger, ToolCallContext, ToolDef, ToolOutcome, World, WorldConsoleDecl, WorldHost } from 'cortico/core/types.ts';
 import type { Language } from 'cortico/core/language.ts';
 import { childExecArgv } from 'cortico/extensions/runtime.ts';
-import { CUA_CONFIG_GROUP, CUA_ID, type CuaConfigSection, type PermissionLevel } from './config.ts';
+import { CUA_ID, cuaConfigGroup, type CuaConfigSection, type PermissionLevel } from './config.ts';
+import { cuaText } from './strings.ts';
 import { CUA_TOOL_DECLS } from './tools.ts';
 import { fit } from './engine/image.ts';
 import { parseKeys } from './engine/keys.ts';
@@ -48,6 +49,19 @@ export interface CuaWorldOptions {
    * is not available right now, and the system dialog asks instead.
    */
   askPermission?: (question: string) => Promise<Answer | null>;
+  /**
+   * The app language (Cortico's `Language`), read at each use: the permission question and the system dialog follow
+   * it (strings.ts); the console page follows each request's language; the prompt, tool descriptions and receipts the
+   * bot reads stay Chinese. Without it, Chinese.
+   */
+  language?: () => Language;
+  /**
+   * The language of the definition's `label`, read at each use; without it, Chinese. Cortico shows that name for a
+   * World it could not build (the console's World list), and also keeps the name it read while assembling the bot
+   * for the notices it gives the bot about the World, so an app keeping the bot's text Chinese answers Chinese until
+   * the bot is assembled.
+   */
+  labelLanguage?: () => Language;
 }
 
 /** The person did not allow this turn's computer use. */
@@ -85,7 +99,9 @@ export class CuaWorld implements World {
   private seq = 0;
   private readonly pending = new Map<number, { done: (v: unknown) => void; fail: (e: Error) => void; timer: NodeJS.Timeout }>();
   private screen: { width: number; height: number } | null = null;
+  /** The receipt text (Chinese, for the bot) of the engine's last unexpected exit, and its exit code for the console. */
   private engineError: string | null = null;
+  private engineExit: number | null = null;
   /** This turn's answer, asked on first use; cleared when the turn ends. */
   private permission: Promise<Answer> | null = null;
   /** ask-once: a yes holds until then (ms since epoch). */
@@ -139,6 +155,7 @@ export class CuaWorld implements World {
     child.on('exit', (code) => {
       if (this.engine === child) this.engine = null;
       this.engineError = code === 0 ? null : `引擎进程退出(退出码 ${code})`;
+      this.engineExit = code;
       for (const [id, p] of this.pending) { clearTimeout(p.timer); p.fail(new Error(this.engineError ?? '引擎进程已退出')); this.pending.delete(id); }
     });
     return child;
@@ -191,14 +208,14 @@ export class CuaWorld implements World {
       : `使用者这一轮没有允许${level === 'ask-each-turn' ? '用电脑' : '动鼠标键盘'}。`);
   }
 
+  /** The question is asked in the app language, read now. */
   private async askPermission(level: PermissionLevel): Promise<Answer> {
     const who = this.opts.botName || 'bot';
-    const question = level === 'ask-each-turn' ? `${who} 想用你的电脑:看屏幕、动鼠标和键盘。这一次可以吗?`
-      : level === 'ask-once' ? `${who} 想动你的鼠标和键盘。接下来 ${this.cfg.grantMinutes} 分钟里都可以吗?`
-        : `${who} 想动你的鼠标和键盘。这一次可以吗?`;
+    const t = cuaText(this.opts.language?.() ?? 'zh').ask;
+    const question = level === 'ask-each-turn' ? t.eachTurn(who) : level === 'ask-once' ? t.once(who, this.cfg.grantMinutes) : t.acting(who);
     const viaApp = await this.opts.askPermission?.(question) ?? null;
     if (viaApp) return viaApp;
-    return this.call<Answer>({ op: 'confirm', text: question, caption: '电脑操作', timeoutMs: PERMISSION_TIMEOUT_MS });
+    return this.call<Answer>({ op: 'confirm', text: question, caption: t.caption, yes: t.yes, no: t.no, timeoutMs: PERMISSION_TIMEOUT_MS });
   }
 
   /* ---------- coordinates ---------- */
@@ -422,32 +439,27 @@ export class CuaWorld implements World {
   }
 
   console(language: Language = 'zh'): WorldConsoleDecl {
+    const t = cuaText(language);
+    const c = t.console;
     return {
-      label: language === 'en' ? 'Computer use' : '电脑操作',
+      label: c.label,
       lamps: [{
-        label: '操作引擎',
+        label: c.engine,
         state: this.engine ? 'online' : this.engineError ? 'error' : 'offline',
-        hint: this.engineError ?? (this.engine ? `屏幕 ${this.screen?.width}×${this.screen?.height}` : '按需启动'),
+        hint: this.engineError ? c.exited(this.engineExit) : this.engine ? c.screen(this.screen?.width ?? 0, this.screen?.height ?? 0) : c.onDemand,
       }],
       badges: [
-        { label: '操作', value: this.cfg.control ? '允许' : '只看', tone: this.cfg.control ? 'on' : 'off' },
-        { label: '询问', value: { 'ask-each-turn': '每轮', 'ask-before-acting': '动手前', 'ask-once': `${this.cfg.grantMinutes} 分钟一次`, 'never-ask': '不问' }[this.level], tone: 'plain' },
+        { label: c.control, value: this.cfg.control ? c.allowed : c.viewOnly, tone: this.cfg.control ? 'on' : 'off' },
+        { label: c.asking, value: c.levels[this.level](this.cfg.grantMinutes), tone: 'plain' },
       ],
-      config: [CUA_CONFIG_GROUP],
+      config: [cuaConfigGroup(language)],
       promptDocs: [{
         key: `worlds.${CUA_ID}.envPrompt`,
-        title: '电脑操作环境',
-        description: '截图坐标、让位规则与操作边界。',
+        title: t.prompt.title,
+        description: t.prompt.description,
         path: ENV_PROMPT_FILE,
         role: 'envPrompt',
-        vars: [
-          { name: 'cua.os', description: '这台电脑的系统:Windows 或 Mac' },
-          { name: 'cua.keys', description: '这个系统常用的快捷键' },
-          { name: 'cua.shot', description: '截图尺寸' },
-          { name: 'cua.control', description: '是否允许操作鼠标键盘' },
-          { name: 'cua.idle', description: '让位时长(秒)' },
-          { name: 'cua.permission', description: '什么时候先问使用者(按 permission 设置)' },
-        ],
+        vars: Object.entries(t.prompt.vars).map(([name, description]) => ({ name, description })),
       }],
     };
   }

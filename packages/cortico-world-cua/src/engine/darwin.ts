@@ -322,9 +322,8 @@ export function focus(handle: string): boolean {
   }
 }
 
-/** A yes/no dialog in front of every window, answered or given up after `timeoutMs`. */
-export function askYesNo(text: string, caption: string, timeoutMs: number): Promise<'yes' | 'no' | 'timeout'> {
-  const yes = '可以', no = '不行';
+/** A yes/no dialog in front of every window, answered or given up after `timeoutMs`; `yes` and `no` are its buttons. */
+export function askYesNo(text: string, caption: string, timeoutMs: number, yes = '可以', no = '不行'): Promise<'yes' | 'no' | 'timeout'> {
   const script = `display dialog ${appleString(text)} with title ${appleString(caption)} buttons {${appleString(no)}, ${appleString(yes)}} default button ${appleString(yes)} giving up after ${Math.max(1, Math.round(timeoutMs / 1000))}`;
   return new Promise((resolve) => {
     execFile('/usr/bin/osascript', ['-e', script], { timeout: timeoutMs + 5000 }, (err, stdout) => {

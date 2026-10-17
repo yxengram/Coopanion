@@ -9,8 +9,10 @@
  * Everything else (computer use, voice input, the microphone, statistics, the model) is not the
  * bot's to change. The person can take the whole of it back with `selfAdjust` on the Habits page.
  */
+import type { Language } from 'cortico/core/language.ts';
 import type { DeepPartial } from 'cortico/world.ts';
 import { MAX_HOVER_BUTTONS, PET_ACTIONS, hoverButtonList, type DesktopPetConfigSection } from './config.ts';
+import { petText } from './i18n/index.ts';
 import { COO, lookOf, lookPatch, nameIn, type FigurePack } from './packs.ts';
 
 export type Tier = 'self' | 'ask';
@@ -18,8 +20,10 @@ export type Tier = 'self' | 'ask';
 export interface SettingChange {
   key: string;
   tier: Tier;
-  /** What changes, from what to what, for the bubble and the receipt. */
+  /** What changes, from what to what, for the bot's receipt (Chinese). */
   say: string;
+  /** The same in the app language, for the consent bubble the person reads; in Chinese it is `say`. */
+  shown: string;
   patch: DeepPartial<DesktopPetConfigSection>;
 }
 
@@ -42,14 +46,31 @@ export function pickWords(pack: FigurePack, scheme: string): string | null {
   return words.join(',');
 }
 
-const figureName = (id: string, packs: readonly FigurePack[]) => nameIn(packs.find((p) => p.id === id)?.manifest.name ?? { zh: id });
+/** `pickWords` for the person, in `language`. */
+function pickShown(pack: FigurePack, scheme: string, language: Language): string | null {
+  const m = pack.manifest;
+  const preset = m.presets.find((p) => p.id === scheme);
+  const parts = scheme.split('-');
+  const words: Array<[string, string]> = [];
+  for (const [i, a] of m.axes.entries()) {
+    const o = a.options.find((x) => x.id === (preset ? preset.pick[a.id] : parts[i]));
+    if (!o) return null;
+    words.push([nameIn(a.name, language), nameIn(o.name, language)]);
+  }
+  if (!preset && parts.length !== m.axes.length) return null;
+  return petText(language).consent.pick(words);
+}
+
+const figureName = (id: string, packs: readonly FigurePack[], language = 'zh') => nameIn(packs.find((p) => p.id === id)?.manifest.name ?? { zh: id }, language);
 
 /**
  * Checks what `pet_set` asks for against the current config; returns the changes, or why one
- * cannot be made. A value equal to the current one is left out.
+ * cannot be made. A value equal to the current one is left out. The receipt's words (`say`) and the
+ * errors are Chinese, for the bot; `shown` is in `language`, the app's, for the person.
  */
-export function planSettings(args: Record<string, unknown>, cfg: DesktopPetConfigSection, packs: readonly FigurePack[]):
+export function planSettings(args: Record<string, unknown>, cfg: DesktopPetConfigSection, packs: readonly FigurePack[], language: Language = 'zh'):
   { changes: SettingChange[]; errors: string[] } {
+  const t = petText(language).consent;
   const changes: SettingChange[] = [];
   const errors: string[] = [];
   const skin = cfg.skin;
@@ -62,7 +83,7 @@ export function planSettings(args: Record<string, unknown>, cfg: DesktopPetConfi
       const pack = packs.find((p) => p.id === v)!;
       // a pack starts in its first pick; Coo keeps the one it had
       const scheme = pack.manifest.presets[0]?.id ?? pack.manifest.axes.map((a) => a.options[0]!.id).join('-');
-      changes.push({ key: 'figure', tier: 'self', say: `形象 ${figureName(figure, packs)} → ${figureName(v, packs)}`, patch: { skin: { figure: v, ...(v !== COO && !('scheme' in args) ? { scheme } : {}) } } });
+      changes.push({ key: 'figure', tier: 'self', say: `形象 ${figureName(figure, packs)} → ${figureName(v, packs)}`, shown: t.figure(figureName(figure, packs, language), figureName(v, packs, language)), patch: { skin: { figure: v, ...(v !== COO && !('scheme' in args) ? { scheme } : {}) } } });
       figure = v;
     }
   }
@@ -75,50 +96,52 @@ export function planSettings(args: Record<string, unknown>, cfg: DesktopPetConfi
     else {
       const now = lookOf(pack, skin);
       if (v !== now || figure !== skin.figure) {
-        const before = (skin.figure ?? COO) === figure ? pickWords(pack, now) : null;
-        changes.push({ key: 'scheme', tier: 'self', say: `${nameIn(pack.manifest.name)}的打扮 ${before ?? '默认'} → ${words}`, patch: { skin: lookPatch(pack, v as string) } });
+        const same = (skin.figure ?? COO) === figure;
+        const before = same ? pickWords(pack, now) : null;
+        const shown = t.scheme(nameIn(pack.manifest.name, language), same ? pickShown(pack, now, language) : null, pickShown(pack, v as string, language) ?? words);
+        changes.push({ key: 'scheme', tier: 'self', say: `${nameIn(pack.manifest.name)}的打扮 ${before ?? '默认'} → ${words}`, shown, patch: { skin: lookPatch(pack, v as string) } });
       }
     }
   }
   if ('roam' in args) {
     const v = args.roam;
     if (typeof v !== 'string' || !(v in ROAM)) errors.push('roam 应为 free、calm 或 off');
-    else if (v !== cfg.roam) changes.push({ key: 'roam', tier: 'self', say: `走动 ${ROAM[cfg.roam]} → ${ROAM[v]}`, patch: { roam: v as DesktopPetConfigSection['roam'] } });
+    else if (v !== cfg.roam) changes.push({ key: 'roam', tier: 'self', say: `走动 ${ROAM[cfg.roam]} → ${ROAM[v]}`, shown: t.roam(t.roamNames[cfg.roam] ?? cfg.roam, t.roamNames[v] ?? v), patch: { roam: v as DesktopPetConfigSection['roam'] } });
   }
   if ('snoreSeconds' in args) {
     const v = args.snoreSeconds;
     if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 3600) errors.push('snoreSeconds 应为 0–3600 的整数');
-    else if (v !== cfg.sounds.snoreSeconds) changes.push({ key: 'snoreSeconds', tier: 'self', say: `每次睡着打呼噜 ${v === 0 ? '一直打到醒' : `${v} 秒`}`, patch: { sounds: { snoreSeconds: v } } });
+    else if (v !== cfg.sounds.snoreSeconds) changes.push({ key: 'snoreSeconds', tier: 'self', say: `每次睡着打呼噜 ${v === 0 ? '一直打到醒' : `${v} 秒`}`, shown: t.snore(v), patch: { sounds: { snoreSeconds: v } } });
   }
   if ('sound' in args) {
     const v = args.sound;
     if (typeof v !== 'boolean') errors.push('sound 应为 true 或 false');
-    else if (v !== cfg.sound) changes.push({ key: 'sound', tier: 'ask', say: `音效 ${v ? '打开' : '关掉'}`, patch: { sound: v } });
+    else if (v !== cfg.sound) changes.push({ key: 'sound', tier: 'ask', say: `音效 ${v ? '打开' : '关掉'}`, shown: t.sound(v), patch: { sound: v } });
   }
   if ('scale' in args) {
     const v = args.scale;
     if (typeof v !== 'number' || !(v >= .5 && v <= 2)) errors.push('scale 应为 0.5–2 的数');
     else {
       const s = Math.round(v * 20) / 20;
-      if (s !== cfg.window.scale) changes.push({ key: 'scale', tier: 'ask', say: `在屏幕上的大小 ${cfg.window.scale} 倍 → ${s} 倍`, patch: { window: { scale: s } } });
+      if (s !== cfg.window.scale) changes.push({ key: 'scale', tier: 'ask', say: `在屏幕上的大小 ${cfg.window.scale} 倍 → ${s} 倍`, shown: t.scale(cfg.window.scale, s), patch: { window: { scale: s } } });
     }
   }
   if ('theme' in args) {
     const v = args.theme;
     if (typeof v !== 'string' || !(v in THEME)) errors.push('theme 应为 dark 或 light');
-    else if (v !== cfg.theme) changes.push({ key: 'theme', tier: 'ask', say: `换成${THEME[v]}`, patch: { theme: v as DesktopPetConfigSection['theme'] } });
+    else if (v !== cfg.theme) changes.push({ key: 'theme', tier: 'ask', say: `换成${THEME[v]}`, shown: t.theme(t.themeNames[v] ?? v), patch: { theme: v as DesktopPetConfigSection['theme'] } });
   }
   if ('hoverButtons' in args) {
     const v = args.hoverButtons;
     const ids = Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
     const list = hoverButtonList(ids.join(','));
     if (!Array.isArray(v) || !list.length || list.length !== ids.length) errors.push(`hoverButtons 应为 1–${MAX_HOVER_BUTTONS} 个不重复的 ${PET_ACTIONS.join('、')}`);
-    else if (list.join(',') !== cfg.hoverButtons) changes.push({ key: 'hoverButtons', tier: 'ask', say: `悬停按钮换成 ${list.join('、')}`, patch: { hoverButtons: list.join(',') } });
+    else if (list.join(',') !== cfg.hoverButtons) changes.push({ key: 'hoverButtons', tier: 'ask', say: `悬停按钮换成 ${list.join('、')}`, shown: t.hover(list), patch: { hoverButtons: list.join(',') } });
   }
   if ('user' in args) {
     const v = typeof args.user === 'string' ? args.user.trim() : '';
     if (!v || v.length > 20) errors.push('user 应为 1–20 个字');
-    else if (v !== cfg.user) changes.push({ key: 'user', tier: 'ask', say: `对你的称呼「${cfg.user}」→「${v}」`, patch: { user: v } });
+    else if (v !== cfg.user) changes.push({ key: 'user', tier: 'ask', say: `对你的称呼「${cfg.user}」→「${v}」`, shown: t.user(cfg.user, v), patch: { user: v } });
   }
   const known = new Set(['figure', 'scheme', 'roam', 'snoreSeconds', 'sound', 'scale', 'theme', 'hoverButtons', 'user']);
   for (const k of Object.keys(args)) if (!known.has(k)) errors.push(`${k} 不是你能改的设置`);

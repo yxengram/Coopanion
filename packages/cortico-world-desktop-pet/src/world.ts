@@ -21,12 +21,13 @@ import type {
   WorldHost, WorldLamp, WorldPanelDecl, WorldStreamSocket,
 } from 'cortico/core/types.ts';
 import { nowIso, shortTime } from 'cortico/core/util.ts';
-import type { Language } from 'cortico/core/language.ts';
+import { isLanguage, type Language } from 'cortico/core/language.ts';
 import type { DeepPartial } from 'cortico/world.ts';
 import {
-  DESKTOP_PET_ASR_CONFIG_GROUP, DESKTOP_PET_CONFIG_GROUP, DESKTOP_PET_DECIDER_CONFIG_GROUP, DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, DESKTOP_PET_SOUND_CONFIG_GROUP, MAX_HOVER_BUTTONS, PET_ACTIONS, hoverButtonList,
+  DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, MAX_HOVER_BUTTONS, PET_ACTIONS, desktopPetConfigGroups, hoverButtonList,
   type AsrEngine, type DesktopPetConfigSection, type MicMode, type PetSkin, type PetTheme, type RoamMode,
 } from './config.ts';
+import { petText, type PetText } from './i18n/index.ts';
 import { PetServer, type PageMessage } from './server.ts';
 import { WindowHost, resolveHostCommand } from './window-host.ts';
 import { RuntimeStore, type ModelSpec } from './runtime/store.ts';
@@ -47,11 +48,17 @@ import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack
 import { dressTable, planSettings, type SettingChange } from './self.ts';
 import { PRESENCE_STALE_MS, SMALLTALK_STALE_MS, SMALLTALK_TICK_MS, SmallTalk, TOPIC_MAX_AGE_MS, localMinutes, parseClock, smallTalkText, type Presence, type SmallTalkSignals, type SmallTalkVerdict } from './smalltalk.ts';
 
-export const DESKTOP_PET_PANEL_DECLS: readonly WorldPanelDecl[] = [
-  { id: 'pet', title: '桌宠', description: '窗口、装扮与窗口运行时。', getMethods: ['state'] },
-  { id: 'voice', title: '语音输入', description: '识别引擎、电平与识别结果。', getMethods: ['state'] },
-  { id: 'chat', title: '对话', description: '对话页:打字和发图给它,看它说过的话与做过的事。', getMethods: ['blob'] },
-];
+/** The console panels, titled in `language`. */
+export function desktopPetPanelDecls(language: Language = 'zh'): WorldPanelDecl[] {
+  const p = petText(language).console.panels;
+  return [
+    { id: 'pet', title: p.pet.title, description: p.pet.description, getMethods: ['state'] },
+    { id: 'voice', title: p.voice.title, description: p.voice.description, getMethods: ['state'] },
+    { id: 'chat', title: p.chat.title, description: p.chat.description, getMethods: ['blob'] },
+  ];
+}
+
+export const DESKTOP_PET_PANEL_DECLS: readonly WorldPanelDecl[] = desktopPetPanelDecls('zh');
 
 const WEB_DIR = fileURLToPath(new URL('../web/', import.meta.url));
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
@@ -250,6 +257,12 @@ export interface DesktopPetWorldOptions {
   presence?: () => (Presence & { at: number }) | null;
   /** When the next wake-up the bot set for itself is due (epoch ms), or null: small talk keeps clear of it. */
   nextAlarmAt?: () => number | null;
+  /**
+   * The app language (Cortico's `Language`), read at each use: the text people read (bubbles the World writes itself,
+   * the menu, the console's lamps and panels, the pet and dress pages) follows it; the text the bot reads stays
+   * Chinese. Without it, Chinese.
+   */
+  language?: () => Language;
 }
 
 /**
@@ -308,17 +321,13 @@ interface PendingConfirm {
   timer: NodeJS.Timeout;
 }
 
-/** The environment prompt's variables (decider mode's template has no `pet.vocab`, the classic one no `pet.parts`). */
-const PROMPT_VARS = [
-  { name: 'pet.user', description: '对使用者的称呼' },
-  { name: 'pet.vocab', description: '当前形象的表情与动作词表(开头一句用这些词写的例子)', multiline: true },
-  { name: 'pet.voice', description: '语音输入开着还是关着' },
-  { name: 'pet.body', description: '当前形象的样子' },
-  { name: 'pet.parts', description: '当前形象还会动的尾巴、耳朵、翅膀(如「,还会摇尾巴、扇翅膀」),没有的尾巴、翅膀也写明' },
-  { name: 'pet.dress', description: 'pet_set 能选的形象与打扮', multiline: true },
-  { name: 'pet.self', description: '「允许自己调整」开着还是关着' },
-  { name: 'pet.chat', description: '应用提供对话页时,对它的说明;没有时为空' },
-];
+/**
+ * The environment prompt's variables, described in `language` for the console's prompt page (decider mode's template
+ * has no `pet.vocab`, the classic one no `pet.parts`).
+ */
+const MULTILINE_VARS = new Set(['pet.vocab', 'pet.dress']);
+const promptVars = (language: Language) => Object.entries(petText(language).console.vars)
+  .map(([name, description]) => ({ name, description, ...(MULTILINE_VARS.has(name) ? { multiline: true } : {}) }));
 
 /** Characters a step's line is shown for per second (typing, then reading), for its time limit. */
 const DIALOG_CPS = 4;
@@ -334,18 +343,21 @@ function moodOf(actions: readonly string[], vocab: readonly VocabWord[]): { mood
   return { mood: { id: v.id, ...Object.fromEntries(Object.entries(v.names).flatMap(([lang, names]) => (names[0] ? [[lang, names[0]]] : []))) } };
 }
 
-/** Images of a chat page message: the whole batch is taken, or the reason it is not. */
-function parseChatImages(raw: unknown, user: string): { ok: true; blobs: BlobInput[] } | { ok: false; reason: string } {
+/**
+ * Images of a chat page message: the whole batch is taken, or the reason it is not, in the words of `t` (the person
+ * reads it on the page; each image's stand-in text is for the bot, in Chinese).
+ */
+function parseChatImages(raw: unknown, user: string, t: PetText['chat']): { ok: true; blobs: BlobInput[] } | { ok: false; reason: string } {
   if (raw === undefined) return { ok: true, blobs: [] };
-  if (!Array.isArray(raw)) return { ok: false, reason: '图片格式不对' };
-  if (raw.length > IMAGES_MAX) return { ok: false, reason: `一次最多 ${IMAGES_MAX} 张图` };
+  if (!Array.isArray(raw)) return { ok: false, reason: t.badImages };
+  if (raw.length > IMAGES_MAX) return { ok: false, reason: t.tooManyImages(IMAGES_MAX) };
   const blobs: BlobInput[] = [];
   for (const [i, item] of raw.entries()) {
     const img = (item ?? {}) as { mime?: unknown; base64?: unknown; name?: unknown };
-    if (typeof img.mime !== 'string' || !IMAGE_MIMES.has(img.mime)) return { ok: false, reason: `不支持的图片格式 ${String(img.mime)}` };
+    if (typeof img.mime !== 'string' || !IMAGE_MIMES.has(img.mime)) return { ok: false, reason: t.badMime(String(img.mime)) };
     const bytes = typeof img.base64 === 'string' ? Buffer.from(img.base64, 'base64') : Buffer.alloc(0);
-    if (bytes.length === 0) return { ok: false, reason: '有一张图是空的' };
-    if (bytes.length > IMAGE_MAX_BYTES) return { ok: false, reason: `单张图不能超过 ${IMAGE_MAX_BYTES / 1048576} MB` };
+    if (bytes.length === 0) return { ok: false, reason: t.emptyImage };
+    if (bytes.length > IMAGE_MAX_BYTES) return { ok: false, reason: t.bigImage(IMAGE_MAX_BYTES / 1048576) };
     const name = typeof img.name === 'string' && img.name.trim() ? img.name.trim().slice(0, 120) : undefined;
     blobs.push({ bytes, mime: img.mime, ...(name ? { name } : {}), fallbackText: `[${user}发来的图片 ${i + 1}/${raw.length}]` });
   }
@@ -364,6 +376,8 @@ export class DesktopPetWorld implements World {
   private system: SystemRecognizer | null = null;
   /** The engine the running backend belongs to; a config change starts the other one. */
   private runningEngine: AsrEngine | null = null;
+  /** The app language at the engine's last start: why it is not running (`detail`) is written in it. */
+  private voiceLanguage: Language | null = null;
   /** The person asked to send what was heard now, without waiting for the pause that ends a sentence. */
   private committing = false;
   private readonly segmenter: Segmenter;
@@ -483,7 +497,7 @@ export class DesktopPetWorld implements World {
     this.mode = this.wantedMode();
     this.segmenter = new Segmenter(this.segmentConfig(), FRAME_MS);
     this.segmenter.setSink(this.sink);
-    this.store = new RuntimeStore({ runtimesRoot: opts.runtimesRoot, modelsDir: opts.modelsDir, fetchImpl: opts.fetchImpl, funasrModel: opts.funasrModel });
+    this.store = new RuntimeStore({ runtimesRoot: opts.runtimesRoot, modelsDir: opts.modelsDir, fetchImpl: opts.fetchImpl, funasrModel: opts.funasrModel, text: () => this.text() });
     this.server = new PetServer({
       port: () => this.cfg.port,
       webDir: WEB_DIR,
@@ -497,6 +511,7 @@ export class DesktopPetWorld implements World {
       avatarFile: opts.avatarFile,
       packs: () => this.packs(),
       packDir: () => this.opts.packDir?.() ?? null,
+      language: () => this.appLanguage(),
     });
   }
 
@@ -662,7 +677,7 @@ export class DesktopPetWorld implements World {
     this.toldVocab = { vocab: this.vocab(), pairs: this.pairs() };
     this.toldParts = this.partsText();
     await this.server.start();
-    this.windowHost = new WindowHost(host.log);
+    this.windowHost = new WindowHost(host.log, () => this.text().window);
     if (this.cfg.window.enabled) this.openWindow();
     this.funasr = new FunAsrRecognizer({
       model: () => this.funasrModel(),
@@ -670,12 +685,14 @@ export class DesktopPetWorld implements World {
       threads: () => this.cfg.asr.threads,
       log: host.log,
       load: this.opts.loadSherpa,
+      text: () => this.text(),
     });
     this.system = new SystemRecognizer({
       language: () => this.cfg.asr.language,
       timeoutMs: () => this.cfg.asr.timeoutMs,
       log: host.log,
       spawnImpl: this.opts.spawnSystemRecognizer,
+      text: () => this.text(),
     });
     if (this.cfg.asr.enabled) void this.startVoiceBackend();
     await this.syncHotkey();
@@ -811,14 +828,15 @@ export class DesktopPetWorld implements World {
       case 'send': {
         const id = msg.id;
         const text = typeof msg.text === 'string' ? msg.text.trim().slice(0, CHAT_TEXT_MAX) : '';
-        const images = parseChatImages(msg.images, this.cfg.user);
+        const t = this.text().chat;
+        const images = parseChatImages(msg.images, this.cfg.user, t);
         if (!images.ok) { this.chat.send(socket, { t: 'rejected', id, reason: images.reason }); return; }
         if (!text && images.blobs.length === 0) return;
-        if (!host) { this.chat.send(socket, { t: 'rejected', id, reason: '还没连上' }); return; }
+        if (!host) { this.chat.send(socket, { t: 'rejected', id, reason: t.offline }); return; }
         if (text) this.lastHeard = { text, via: '打字', at: Date.now() };
         const e = await this.push('desktop-pet.message', 'desktop-pet.chat', `[打字] ${this.cfg.user}:${text}`, 'preempt',
           { meta: { via: 'chat', text }, ...(images.blobs.length ? { blobs: images.blobs } : {}) });
-        this.chat.send(socket, e ? { t: 'sent', id, cursor: e.cursor } : { t: 'rejected', id, reason: '没能送出' });
+        this.chat.send(socket, e ? { t: 'sent', id, cursor: e.cursor } : { t: 'rejected', id, reason: t.notSent });
         return;
       }
       case 'now': {
@@ -830,7 +848,7 @@ export class DesktopPetWorld implements World {
         const cursor = msg.cursor;
         if (!host?.withdrawPending || typeof cursor !== 'number') return;
         if (!await host.withdrawPending(cursor)) {
-          this.chat.send(socket, { t: 'notice', text: '这条已经送到了,撤不回来。' });
+          this.chat.send(socket, { t: 'notice', text: this.text().chat.tooLate });
           return;
         }
         this.pendingChat.delete(cursor);
@@ -864,13 +882,26 @@ export class DesktopPetWorld implements World {
   openWindow(): void {
     if (!this.windowHost || !this.server.port) return;
     const managed = this.store.electron.executable();
-    this.windowHost.start(resolveHostCommand(this.petUrl, this.cfg.window.electronFile, managed));
+    this.windowHost.start(resolveHostCommand(this.petUrl, this.cfg.window.electronFile, managed, this.text().window));
   }
 
   /* ---------- page protocol ---------- */
 
+  /** The app language as the embedding app has it now (`DesktopPetWorldOptions.language`), Chinese without one. */
+  appLanguage(): Language {
+    const language = this.opts.language?.();
+    return isLanguage(language) ? language : 'zh';
+  }
+
+  /** The text people read, in the app language. */
+  private text(): PetText {
+    return petText(this.appLanguage());
+  }
+
   private snapshot(): Record<string, unknown> {
     return {
+      // the pages' language: a change reaches them with the next `prefs` (PREFS_SYNC_MS)
+      language: this.appLanguage(),
       skin: this.skin,
       roam: this.quiet?.roam ?? this.cfg.roam,
       sound: this.quiet?.sound ?? this.cfg.sound,
@@ -898,7 +929,8 @@ export class DesktopPetWorld implements World {
     let avatar: string | null = null;
     try { if (this.opts.avatarFile) avatar = String(statSync(this.opts.avatarFile).mtimeMs); } catch { /* no avatar yet */ }
     const pause = !!(c?.isPaused && c.setPaused);
-    const quitLabel = c?.quit ? c.quitLabel || '退出' : '';
+    const menu = this.text().menu;
+    const quitLabel = c?.quit ? c.quitLabel || menu.quit : '';
     return {
       name: this.opts.botName ?? '',
       avatar,
@@ -906,7 +938,7 @@ export class DesktopPetWorld implements World {
       buttons: { pause, settings: !!c?.openSettings, dress: !!c?.openDress, quit: !!c?.quit, chat: !!c?.openChat },
       paused: pause && c?.isPaused ? c.isPaused() : null,
       quitLabel,
-      quitPrompt: quitLabel ? `${quitLabel}?` : '',
+      quitPrompt: quitLabel ? menu.quitPrompt(quitLabel) : '',
     };
   }
 
@@ -925,6 +957,8 @@ export class DesktopPetWorld implements World {
     else if (this.cfg.asr.enabled && this.runningEngine === 'system' && this.system?.languageChanged) void this.startVoiceBackend();
     // FunASR loads the model for one language and thread count
     else if (this.cfg.asr.enabled && this.runningEngine === 'funasr' && this.funasr?.configChanged) void this.startVoiceBackend();
+    // an engine that is not running says why in the app language of its start: a new language starts it again
+    else if (this.cfg.asr.enabled && this.runningEngine && this.voiceLanguage !== this.appLanguage() && !['running', 'starting'].includes(this.backendState()?.phase ?? '')) void this.startVoiceBackend();
     void this.syncHotkey();
     // the person changed what a quiet holds back: theirs wins
     if (this.quiet && (this.cfg.sound !== this.quiet.base.sound || this.cfg.roam !== this.quiet.base.roam)) this.endQuiet();
@@ -948,7 +982,7 @@ export class DesktopPetWorld implements World {
     return {
       enabled: this.cfg.asr.enabled,
       ready,
-      detail: ready ? null : b?.phase === 'starting' ? '识别服务启动中' : b?.detail ?? '识别服务没有运行',
+      detail: ready ? null : b?.phase === 'starting' ? this.text().voice.starting : b?.detail ?? this.text().voice.notRunning,
       hint: this.talkHint(),
       mode: this.cfg.asr.mic.mode,
       key: hotkeyBadge(this.cfg.asr.mic.hotkey),
@@ -1225,15 +1259,16 @@ export class DesktopPetWorld implements World {
     void this.push('desktop-pet.touch', 'desktop-pet.touch', `[互动] ${text}`, wakes ? 'debounce' : 'piggyback', { meta: { chat: this.touchLine(t) } });
   }
 
-  /** The touch as the chat page tells it to the person. */
+  /** The touch as the chat page tells it to the person, in the app language when it happened (the event keeps it). */
   private touchLine(t: TouchBatch): string {
     const b = this.opts.botName || 'Coo';
+    const say = this.text().chat.touch;
     switch (t.kind) {
-      case 'poke': return t.woke ? `你把睡着的 ${b} 戳醒了` : t.count > 1 ? `你戳了 ${b} ${t.count} 下` : `你戳了 ${b} 一下`;
-      case 'pet': return t.count > 1 ? `你摸了 ${b} 好几下` : `你摸了摸 ${b}`;
-      case 'throw': return `你把 ${b} 拎起来甩了出去${t.crashed ? `,${b} 摔晕了一会儿` : ''}`;
-      case 'drop': return `你把 ${b} 拎起来换了个地方${t.crashed ? `,${b} 摔晕了一会儿` : ''}`;
-      default: return `${b} 重重落地,摔晕了一会儿`;
+      case 'poke': return say.poke(b, t.count, t.woke);
+      case 'pet': return say.pet(b, t.count);
+      case 'throw': return say.throw(b, t.crashed);
+      case 'drop': return say.drop(b, t.crashed);
+      default: return say.crash(b);
     }
   }
 
@@ -1295,7 +1330,7 @@ export class DesktopPetWorld implements World {
   /* ---------- voice ---------- */
 
   private funasrModel(): { model: string; tokens: string } | { missing: string } {
-    if (this.store.funasr.state().phase !== 'ready') return { missing: `识别模型还没下载(约 ${Math.round(this.store.funasr.bytes / 1048576)} MB):在「语音输入」页下载` };
+    if (this.store.funasr.state().phase !== 'ready') return { missing: this.text().voice.modelMissing(Math.round(this.store.funasr.bytes / 1048576)) };
     return { model: this.store.funasr.file('model.int8.onnx'), tokens: this.store.funasr.file('tokens.txt') };
   }
 
@@ -1317,6 +1352,7 @@ export class DesktopPetWorld implements World {
       else if (this.runningEngine === 'funasr') await this.funasr.stop();
       this.runningEngine = engine;
     }
+    this.voiceLanguage = this.appLanguage();
     if (engine === 'system') await this.system.start();
     else await this.funasr.start();
     this.syncPrefs();
@@ -1349,7 +1385,8 @@ export class DesktopPetWorld implements World {
   private async syncHotkey(): Promise<void> {
     const { mode, hotkey } = this.cfg.asr.mic;
     const key = mode === 'always' || !this.host ? '' : `${mode}:${hotkey}`;
-    if (key === this.hotkeyKey) return;
+    // a key that could not be watched is tried again in a new app language, so the reason reads in it
+    if ((this.hotkeyProblem ? `${key}|${this.appLanguage()}` : key) === this.hotkeyKey) return;
     this.hotkeyKey = key;
     this.keyWatcher?.stop();
     this.keyWatcher = null;
@@ -1358,23 +1395,25 @@ export class DesktopPetWorld implements World {
     if (!key) return;
     const parsed = parseHotkey(hotkey);
     const watch = this.opts.watchHotkey ?? watchHotkey;
-    const watcher = parsed ? await watch(parsed, (down) => this.onTalkKey(down), HOTKEY_POLL_MS, () => this.onTalkTap()) : `认不出按键「${hotkey}」`;
+    const watcher = parsed ? await watch(parsed, (down) => this.onTalkKey(down), HOTKEY_POLL_MS, () => this.onTalkTap(), this.appLanguage()) : this.text().voice.badKey(hotkey);
     if (key !== this.hotkeyKey) { if (typeof watcher !== 'string') watcher.stop(); return; }
     if (typeof watcher === 'string') {
       this.hotkeyProblem = watcher;
+      this.hotkeyKey = `${key}|${this.appLanguage()}`;
       this.log?.warn(`说话键不可用,暂不识别说话:${watcher}`);
     } else this.keyWatcher = watcher;
   }
 
-  /** One line telling the person how to be heard. */
-  private talkHint(): string {
+  /** One line telling the person how to be heard, in `language` (the app's, or the console request's). */
+  private talkHint(language: Language = this.appLanguage()): string {
     const { hotkey } = this.cfg.asr.mic;
-    const key = comboLabel(hotkey), { taps } = splitTaps(hotkey);
+    const t = petText(language).voice;
+    const key = comboLabel(hotkey, process.platform, language), { taps } = splitTaps(hotkey);
     const mode = this.cfg.asr.mic.mode;
-    if (mode === 'always') return '一直在听,直接说话';
-    if (this.hotkeyProblem) return `说话键不可用，暂不识别说话：${this.hotkeyProblem}`;
-    if (mode === 'toggle') return taps > 1 ? `${hotkeyLabel(hotkey)} 开始听,再${taps === 2 ? '双击' : '三击'}停` : `按一下 ${key} 开始听,再按一下停`;
-    return taps > 1 ? `快速按${taps === 2 ? '一' : '两'}下 ${key},紧接着按住说话,松开就发出去` : `按住 ${key} 说话,松开就发出去`;
+    if (mode === 'always') return t.always;
+    if (this.hotkeyProblem) return t.keyProblem(this.hotkeyProblem);
+    if (mode === 'toggle') return taps > 1 ? t.toggleTaps(hotkeyLabel(hotkey, process.platform, language), taps) : t.toggle(key);
+    return taps > 1 ? t.holdTaps(key, taps) : t.hold(key);
   }
 
   /** A quick tap before the held press: the pet perks up, so the hold that follows feels answered at once. */
@@ -1456,12 +1495,12 @@ export class DesktopPetWorld implements World {
             ? await this.system.transcribe(u.pcm)
             : this.funasr
               ? await this.funasr.transcribe(u.pcm)
-              : { text: '', ms: 0, error: '识别没有启动' };
+              : { text: '', ms: 0, error: this.text().voice.notStarted };
         let text = res.text;
         if (this.cfg.asr.simplified) text = toSimplified(text);
         if (res.error || looksHallucinated(text)) {
           this.counts.dropped++;
-          this.remember({ text: res.error ? `[失败] ${res.error}` : text, at: Date.now(), ms: res.ms, dropped: true });
+          this.remember({ text: res.error ? this.text().voice.failedLine(res.error) : text, at: Date.now(), ms: res.ms, dropped: true });
           this.voiceFrame({ type: 'dropped', text: res.error ?? text, ms: res.ms });
           // the page was showing this sentence as it was heard: take it back
           if (u.result) this.showHeard();
@@ -2010,7 +2049,7 @@ export class DesktopPetWorld implements World {
   private async setSettings(args: Record<string, unknown>): Promise<ToolOutcome> {
     if (!this.cfg.selfAdjust) return { text: `[pet_set 没执行] ${this.cfg.user}在「习惯」页关掉了「允许自己调整」。`, failed: true };
     const packs = this.packs();
-    const { changes, errors } = planSettings(args, { ...this.cfg, skin: this.skin }, packs);
+    const { changes, errors } = planSettings(args, { ...this.cfg, skin: this.skin }, packs, this.appLanguage());
     if (errors.length) return { text: `[pet_set 没执行] ${errors.join(';')}。`, failed: true };
     if (!changes.length) return { text: '要改的都和现在一样,没有改动。' };
     const lines: string[] = [];
@@ -2025,7 +2064,9 @@ export class DesktopPetWorld implements World {
     if (mine.length) { apply(mine); lines.push(`已改:${mine.map((c) => c.say).join(';')}。`); }
     const asked = changes.filter((c) => c.tier === 'ask');
     if (asked.length) {
-      const answer = await this.confirm(`我想${asked.map((c) => c.say).join('、')},可以吗?`, ['可以', '不用了']);
+      // the bubble is the person's, in the app language; the receipt stays the bot's
+      const consent = this.text().consent;
+      const answer = await this.confirm(consent.question(asked.map((c) => c.shown)), consent.choices);
       if (answer === 'yes') { apply(asked); lines.push(`${this.cfg.user}同意了,已改:${asked.map((c) => c.say).join(';')}。`); }
       else lines.push(`${answer === 'unavailable' ? '桌宠窗口没有连接,没法问' : answer === 'timeout' ? `${this.cfg.user}没有回答` : `${this.cfg.user}没同意`},这些没改:${asked.map((c) => c.say).join(';')}。`);
     }
@@ -2457,7 +2498,7 @@ export class DesktopPetWorld implements World {
     const res = await this.decider.decide(buildRequest(model, state, questions));
     if (!res.ok) return this.failedDecision(o, prep, res.reason, res.detail, res.ms);
     const base = this.recordBase(o, prep, res.ms);
-    this.host?.reportUsage({ promptTokens: res.usage.inputTokens, completionTokens: res.usage.outputTokens, cacheHitTokens: 0, cacheMissTokens: res.usage.inputTokens }, { model, label: '桌宠·表情决策' });
+    this.host?.reportUsage({ promptTokens: res.usage.inputTokens, completionTokens: res.usage.outputTokens, cacheHitTokens: 0, cacheMissTokens: res.usage.inputTokens }, { model, label: this.text().console.decider.usage });
     const pick = pickGroup(questions, res.answers, { vocab, pairs, recent: this.recentPicks.filter((r) => !r.local).map((r) => r.chosen), feel: o.tool === 'pet_feel' });
     // the figure may have changed while the model answered: the words go to the body on screen now, and its words decide
     const nowVocab = this.vocab(), switched = nowVocab.map((v) => v.id).join() !== vocab.map((v) => v.id).join();
@@ -2498,12 +2539,13 @@ export class DesktopPetWorld implements World {
     return { models: DECIDER_FALLBACK_MODELS.map((id) => ({ id, promptPerM: null, context: null })), source: 'fallback', minContext };
   }
 
-  /** The console's view of decider mode (no key in it: only whether there is one). */
-  deciderState(): Record<string, unknown> {
+  /** The console's view of decider mode (no key in it: only whether there is one); why the last call failed in `language`. */
+  deciderState(language: Language = 'zh'): Record<string, unknown> {
     const c = this.deciderCfg();
+    const last = this.decider.last;
     return {
       mode: this.mode, enabled: c.enabled, model: c.model, timeoutMs: c.timeoutMs, keySet: this.keyKnown,
-      lent: !!this.opts.deciderKey, open: this.decider.open, last: this.decider.last, calls: this.decider.calls,
+      lent: !!this.opts.deciderKey, open: this.decider.open, last: last && !last.ok ? { ...last, reason: this.deciderFailure(language) } : last, calls: this.decider.calls,
       cost: Math.round(this.decider.cost * 1e6) / 1e6, overridden: this.mode === 'decider' && this.overridden(),
     };
   }
@@ -2531,108 +2573,125 @@ export class DesktopPetWorld implements World {
   /* ---------- console ---------- */
 
   console(language: Language = 'zh'): WorldConsoleDecl {
+    const t = petText(language).console;
     const w = this.windowHost?.state();
     const v = this.backendState();
     const lamps: WorldLamp[] = [
       {
-        label: '桌宠窗口',
+        label: t.window,
         state: this.server.petConnected ? 'online' : w?.phase === 'running' ? 'loading' : w?.phase === 'missing' || w?.phase === 'error' ? 'error' : 'offline',
-        hint: this.server.petConnected ? '页面已连接' : w?.detail ?? '未打开',
+        hint: this.server.petConnected ? t.connected : w?.detail ?? t.notOpen,
       },
       {
-        label: '语音识别',
+        label: t.voice,
         state: !this.cfg.asr.enabled ? 'offline' : v?.phase === 'running' ? 'online' : v?.phase === 'starting' ? 'loading' : v?.phase === 'error' ? 'error' : 'offline',
-        hint: v?.detail ?? v?.phase ?? '未启动',
+        hint: v?.detail ?? v?.phase ?? t.notStarted,
       },
-      this.deciderLamp(),
+      this.deciderLamp(language),
     ];
     return {
-      label: language === 'en' ? 'Desktop pet' : '桌宠',
+      label: t.label,
       lamps,
-      panels: [...DESKTOP_PET_PANEL_DECLS],
-      invoke: (panel, method, args) => this.invoke(panel, method, args),
+      panels: desktopPetPanelDecls(language),
+      // a panel's calls answer in the language of the console page that made them
+      invoke: (panel, method, args) => this.invoke(panel, method, args, language),
       stream: (panel, socket) => {
         if (panel === 'chat') { this.chat.add(socket, (msg, s) => void this.onChat(msg, s)); return; }
         if (panel !== 'voice') { socket.close('no stream'); return; }
         this.voiceSockets.add(socket);
         socket.onClose(() => this.voiceSockets.delete(socket));
       },
-      links: this.server.port ? [{ label: '在浏览器里看桌宠', href: this.petUrl }, { label: '装扮', href: `${this.server.origin}/dress` }] : [],
-      config: [DESKTOP_PET_CONFIG_GROUP, DESKTOP_PET_SOUND_CONFIG_GROUP, DESKTOP_PET_ASR_CONFIG_GROUP, DESKTOP_PET_DECIDER_CONFIG_GROUP],
+      links: this.server.port ? [{ label: t.viewInBrowser, href: this.petUrl }, { label: t.dress, href: `${this.server.origin}/dress` }] : [],
+      config: desktopPetConfigGroups(language),
       // one template per mode, only the one in force declared (Cortico keeps one override file per World, read in either mode)
       promptDocs: [this.mode === 'decider' ? {
         key: `worlds.${DESKTOP_PET_ID}.envPromptDecider`,
-        title: '桌宠环境(表情决策)',
-        description: '描述桌宠的身体、工具与输入事件;表情动作交给决策模型时用这一份。',
+        title: t.envPromptDecider.title,
+        description: t.envPromptDecider.description,
         path: ENV_PROMPT_DECIDER_FILE,
         role: 'envPrompt',
-        vars: PROMPT_VARS.filter((v) => v.name !== 'pet.vocab'),
+        vars: promptVars(language).filter((v) => v.name !== 'pet.vocab'),
       } : {
         key: `worlds.${DESKTOP_PET_ID}.envPrompt`,
-        title: '桌宠环境',
-        description: '描述桌宠的身体、工具与输入事件。',
+        title: t.envPrompt.title,
+        description: t.envPrompt.description,
         path: ENV_PROMPT_FILE,
         role: 'envPrompt',
-        vars: PROMPT_VARS.filter((v) => v.name !== 'pet.parts'),
+        vars: promptVars(language).filter((v) => v.name !== 'pet.parts'),
       }],
     };
   }
 
-  private deciderLamp(): WorldLamp {
-    const c = this.deciderCfg();
-    if (this.mode === 'classic') {
-      return { label: '表情决策', state: 'offline', hint: !c.enabled ? '已关:bot 自己写表情动作标记' : '没有 OpenRouter 密钥:bot 自己写表情动作标记' };
+  /** Why the last decision failed, in `language`. */
+  private deciderFailure(language: Language): string | undefined {
+    const f = this.decider.last?.failure;
+    if (!f) return this.decider.last?.reason;
+    const t = petText(language).deciderFailure;
+    switch (f.reason) {
+      case 'http': return t.http(f.detail);
+      case 'network': return t.network(f.detail);
+      default: return t[f.reason];
     }
-    const last = this.decider.last;
-    const used = this.decider.calls ? `;本次运行 ${this.decider.calls} 次${this.decider.cost ? `,约 $${this.decider.cost.toFixed(5)}` : ''}` : '';
-    if (this.decider.open) return { label: '表情决策', state: 'error', hint: `连续出错,暂停一会儿${last?.reason ? `:${last.reason}` : ''}` };
-    if (!last) return { label: '表情决策', state: 'loading', hint: `${c.model},还没用过` };
-    return { label: '表情决策', state: 'online', hint: last.ok ? `${c.model},上次 ${last.ms} ms${used}` : `上次没成:${last.reason ?? ''}${used}` };
   }
 
-  private async invoke(panel: string, method: string, args: unknown[]): Promise<unknown> {
+  private deciderLamp(language: Language): WorldLamp {
+    const c = this.deciderCfg();
+    const t = petText(language).console.decider;
+    if (this.mode === 'classic') {
+      return { label: t.label, state: 'offline', hint: !c.enabled ? t.off : t.noKey };
+    }
+    const last = this.decider.last;
+    const reason = this.deciderFailure(language);
+    const used = this.decider.calls ? t.used(this.decider.calls, this.decider.cost) : '';
+    if (this.decider.open) return { label: t.label, state: 'error', hint: t.paused(reason ?? '') };
+    if (!last) return { label: t.label, state: 'loading', hint: t.unused(c.model) };
+    return { label: t.label, state: 'online', hint: last.ok ? t.ok(c.model, last.ms, used) : t.bad(reason ?? '', used) };
+  }
+
+  private async invoke(panel: string, method: string, args: unknown[], language: Language = 'zh'): Promise<unknown> {
+    const t = petText(language).console;
     if (panel === 'chat' && method === 'blob') {
       const handle = typeof args[0] === 'string' && args[0].startsWith('log:') ? args[0] : null;
       const blob = handle ? this.host?.blob(handle) : null;
-      if (!blob) throw new Error('没有这张图');
+      if (!blob) throw new Error(t.noImage);
       return { $binary: { mime: blob.mime, base64: Buffer.from(blob.bytes).toString('base64') } };
     }
     if (panel === 'pet') {
       switch (method) {
-        case 'state': return this.petState();
-        case 'openWindow': this.openWindow(); return this.petState();
-        case 'closeWindow': await this.windowHost?.stop(); return this.petState();
-        case 'installElectron': void this.store.electron.install(); return this.petState();
+        case 'state': return this.petState(language);
+        case 'openWindow': this.openWindow(); return this.petState(language);
+        case 'closeWindow': await this.windowHost?.stop(); return this.petState(language);
+        case 'installElectron': void this.store.electron.install(); return this.petState(language);
         // the decision models OpenRouter lists, for the console's model picker (public: no key is sent)
         case 'deciders': return this.deciderModels(args[0] === true);
         case 'guide': {
-          if (!this.opts.controls?.guide) throw new Error('这个应用没有引导');
+          if (!this.opts.controls?.guide) throw new Error(t.noGuide);
           this.opts.controls.guide();
-          return this.petState();
+          return this.petState(language);
         }
       }
     }
     if (panel === 'voice') {
       switch (method) {
-        case 'state': return this.voiceState();
-        case 'install': void this.installVoice(); return this.voiceState();
-        case 'start': await this.startVoiceBackend(); return this.voiceState();
-        case 'stop': await this.stopVoiceBackend(); return this.voiceState();
+        case 'state': return this.voiceState(language);
+        case 'install': void this.installVoice(); return this.voiceState(language);
+        case 'start': await this.startVoiceBackend(); return this.voiceState(language);
+        case 'stop': await this.stopVoiceBackend(); return this.voiceState(language);
         case 'setEngine': {
           const engine = args[0];
           if (engine === 'funasr' || engine === 'system') this.opts.persist({ asr: { engine } });
           if (this.cfg.asr.enabled) await this.startVoiceBackend();
-          return this.voiceState();
+          return this.voiceState(language);
         }
-        case 'setEnabled': this.savePrefs({ mic: args[0] === true }); return this.voiceState();
+        case 'setEnabled': this.savePrefs({ mic: args[0] === true }); return this.voiceState(language);
         case 'setMic': {
           this.savePrefs({ micSettings: args[0] });
           await this.syncHotkey();
-          return this.voiceState();
+          return this.voiceState(language);
         }
       }
     }
-    throw new Error(`未知方法 ${panel}.${method}`);
+    throw new Error(t.unknownMethod(`${panel}.${method}`));
   }
 
   /** Downloads the FunASR model, chooses FunASR, and starts it when voice input is on. */
@@ -2645,7 +2704,8 @@ export class DesktopPetWorld implements World {
     else this.syncPrefs();
   }
 
-  petState(): Record<string, unknown> {
+  /** The Desktop pet panel's state; its words in `language`, the console request's. */
+  petState(language: Language = 'zh'): Record<string, unknown> {
     return {
       connected: this.server.petConnected,
       url: this.server.port ? this.petUrl : null,
@@ -2654,12 +2714,13 @@ export class DesktopPetWorld implements World {
       window: this.windowHost?.state() ?? null,
       electron: { ...this.store.electron.state(), supported: this.store.electron.supported },
       screen: this.screen,
-      decider: this.deciderState(),
+      decider: this.deciderState(language),
       smallTalk: this.smallTalkState(),
     };
   }
 
-  voiceState(): Record<string, unknown> {
+  /** The Voice input panel's state; its words in `language`, the console request's. */
+  voiceState(language: Language = 'zh'): Record<string, unknown> {
     return {
       enabled: this.cfg.asr.enabled,
       engine: this.engine(),
@@ -2670,11 +2731,11 @@ export class DesktopPetWorld implements World {
       mic: this.micState,
       input: {
         ...this.cfg.asr.mic,
-        hotkeyLabel: hotkeyLabel(this.cfg.asr.mic.hotkey),
+        hotkeyLabel: hotkeyLabel(this.cfg.asr.mic.hotkey, process.platform, language),
         /** The keys alone, and how many presses (the last one held): for a key cap that shows the taps. */
-        keyLabel: comboLabel(this.cfg.asr.mic.hotkey),
+        keyLabel: comboLabel(this.cfg.asr.mic.hotkey, process.platform, language),
         taps: splitTaps(this.cfg.asr.mic.hotkey).taps,
-        hint: this.talkHint(),
+        hint: this.talkHint(language),
         hotkeyProblem: this.hotkeyProblem,
         open: this.gateOpen(),
         devices: this.devices,

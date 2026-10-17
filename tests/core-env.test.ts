@@ -4,11 +4,22 @@ import { createServer } from 'node:http';
 import { connect } from 'node:net';
 import { spawn } from 'node:child_process';
 const require = createRequire(import.meta.url);
-const { coreEnvironment, systemProxyEnvironment, PROXY_LOOKUP_MS } = require('../app/core-env.cjs') as {
+const { coreEnvironment, systemProxyEnvironment, systemLanguageEnvironment, PROXY_LOOKUP_MS } = require('../app/core-env.cjs') as {
   coreEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
+  systemLanguageEnvironment(language: string): Record<string, string>;
   systemProxyEnvironment(env: NodeJS.ProcessEnv, resolveProxy: (url: string) => Promise<string>): Promise<{ vars: Record<string, string>, note: string }>;
   PROXY_LOOKUP_MS: number;
 };
+
+describe('Core language environment', () => {
+  it('names the system language for the seed, and nothing for a value that is not an app language', () => {
+    expect(systemLanguageEnvironment('en')).toEqual({ COOPANION_SYSTEM_LANGUAGE: 'en' });
+    expect(systemLanguageEnvironment('zh-Hant')).toEqual({ COOPANION_SYSTEM_LANGUAGE: 'zh-Hant' });
+    expect(systemLanguageEnvironment('en-US')).toEqual({});
+    expect(systemLanguageEnvironment('')).toEqual({});
+    expect(coreEnvironment({ ...systemLanguageEnvironment('ja') }).COOPANION_SYSTEM_LANGUAGE).toBe('ja');
+  });
+});
 
 describe('Core proxy environment', () => {
   it('takes HTTP and HTTPS system proxies, keeps the environment\'s own, and leaves DIRECT, SOCKS and a failed or unanswered lookup direct', async () => {

@@ -23,7 +23,7 @@ type Level = (typeof LEVELS)[number];
 const GRANT_MIN = 1;
 const GRANT_MAX = 1440;
 
-const S = pick({
+export const TEXT = {
   zh: {
     nav: '电脑操作',
     title: '电脑操作',
@@ -66,13 +66,14 @@ const S = pick({
     grant: 'A yes lasts',
     grantSuffix: 'minutes',
     grantBad: `Enter a whole number from ${GRANT_MIN} to ${GRANT_MAX}`,
-    more: 'Yielding to you, screenshot sizes and the other settings are on the Computer use World page in the advanced mode.',
+    more: 'Yielding to you, screenshot sizes and the other settings are on the Computer use World page in advanced mode.',
     saved: 'Saved',
     turnedOn: 'Computer use is on',
     turnedOff: 'Computer use is off',
     saveFailed: (why: string) => `Not saved: ${why}`,
   },
-});
+};
+const S = pick(TEXT);
 
 interface ConfigEntry { group: { id: string }; values?: Record<string, unknown> }
 interface WorldEntry { id: string; status: 'active' | 'inactive' | 'missing' }

@@ -5,6 +5,7 @@
  * Environment: `CORTICO_HOME` (deployments root) and `CORTICO_EXTENSIONS_DIR` (npm-installed
  * Worlds and providers, kept in the data directory so they survive app reinstalls and never write
  * into the program, which is read-only in a macOS .app) are set by the Electron main process.
+ * `CORTICO_LANGUAGE` is always `zh` here (see below).
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,6 +18,9 @@ if (!existsSync(join(CORTICO, 'src', 'core'))) {
   process.exit(2);
 }
 process.env.CORTICO_HOME ??= join(APP, 'build', 'home');
+// a config without a language (an install from before there was a choice) is Chinese, in Cortico's console
+// as in the app (core/language.ts): Cortico falls back to CORTICO_LANGUAGE before the system locale
+process.env.CORTICO_LANGUAGE = 'zh';
 process.env.CORTICO_EXTENSIONS_DIR ??= join(APP, 'build', 'data', 'extensions');
 
 await import(pathToFileURL(join(CORTICO, 'src', 'extensions', 'runtime.ts')).href);

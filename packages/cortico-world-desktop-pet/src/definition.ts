@@ -1,11 +1,13 @@
 import { join } from 'node:path';
 import { runtimesRoot, modelsRoot } from 'cortico/paths.ts';
 import { envPromptOverridePath } from 'cortico/core/prefix.ts';
+import type { Language } from 'cortico/core/language.ts';
 import type { WorldDefinition } from 'cortico/world.ts';
 import { DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, type DesktopPetConfigSection, type PetSkin } from './config.ts';
 import { DesktopPetWorld, modelsDirFor, type PetBotControls, type PetMode } from './world.ts';
 import type { DecisionRecord } from './decider.ts';
 import type { Presence } from './smalltalk.ts';
+import { petText } from './i18n/index.ts';
 
 /** The console keeps the bot's avatar here, in the deployment directory. */
 const AVATAR_FILE = 'avatar.png';
@@ -42,13 +44,22 @@ export interface DesktopPetAssembly {
   presence?(): (Presence & { at: number }) | null;
   /** When the next wake-up the bot set for itself is due (epoch ms), or null. */
   nextAlarmAt?(): number | null;
+  /** The app language, read at each use (see `DesktopPetWorldOptions.language`); without it, Chinese. */
+  language?(): Language;
+  /**
+   * The language of the definition's `label`, read at each use; without it, Chinese. Cortico shows that name for a
+   * World it could not build (the console's World list), and also keeps the name it read while assembling the bot
+   * for the notices it gives the bot about the World, so an app keeping the bot's text Chinese answers Chinese until
+   * the bot is assembled.
+   */
+  labelLanguage?(): Language;
 }
 
 /** The definition, with what an embedding app lends the World. */
 export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDefinition<DesktopPetConfigSection> {
   return {
     id: DESKTOP_PET_ID,
-    label: '桌宠',
+    get label() { return petText(assembly.labelLanguage?.() ?? 'zh').console.label; },
     defaults: () => structuredClone(DESKTOP_PET_DEFAULTS),
     // ctx.cfg is the live `worlds.desktop-pet` section: hot keys are read at use
     create: (ctx) => {
@@ -77,6 +88,7 @@ export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDe
         envOverrideFile: () => envPromptOverridePath(ctx.botDir, DESKTOP_PET_ID),
         ...(assembly.presence ? { presence: () => assembly.presence!() } : {}),
         ...(assembly.nextAlarmAt ? { nextAlarmAt: () => assembly.nextAlarmAt!() } : {}),
+        ...(assembly.language ? { language: () => assembly.language!() } : {}),
       });
       assembly.onCreate?.(world);
       return world;

@@ -623,8 +623,8 @@ export class DeciderClient {
   private openUntil = 0;
   private warned = false;
   private readonly controllers = new Set<AbortController>();
-  /** The last call: when, how long, and how it ended; for the console's lamp. */
-  last: { at: number; ms: number; ok: boolean; reason?: string } | null = null;
+  /** The last call: when, how long, and how it ended (`reason` in Chinese, `failure` for the console to say in its language); for the console's lamp. */
+  last: { at: number; ms: number; ok: boolean; reason?: string; failure?: { reason: DecideFailure; detail: string } } | null = null;
   calls = 0;
   cost = 0;
   /** The most input tokens one request took this run (the console hides models with less context). */
@@ -647,7 +647,7 @@ export class DeciderClient {
     const fail = (reason: DecideFailure, detail = ''): DecideResult => {
       const ms = this.now() - t0;
       if (reason !== 'breaker' && reason !== 'nokey' && reason !== 'aborted') this.failed(reason, detail);
-      this.last = { at: t0, ms, ok: false, reason: failureText(reason, detail) };
+      this.last = { at: t0, ms, ok: false, reason: failureText(reason, detail), failure: { reason, detail } };
       return { ok: false, reason, detail, ms };
     };
     if (this.open) return fail('breaker');

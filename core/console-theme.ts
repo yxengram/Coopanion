@@ -7,10 +7,12 @@
  *
  * The window follows the pet while its scheme is `mint` or one of these. A scheme the person picked
  * on the appearance page, another built-in one or one of their own, stays until they pick one of
- * these again.
+ * these again. The schemes are named in the app language when written (`companion.ts` writes them again when the
+ * language changes); a name a pack gives in Chinese only stays Chinese.
  */
 import { readDeploymentTheme, writeDeploymentTheme } from 'cortico/web/theme-store.ts';
 import { defaultStoredTheme, normalizeStoredTheme, type ThemePalette, type ThemeScheme } from 'cortico/web/shared/theme.ts';
+import { baseLanguage, pick, type Language } from 'cortico/core/language.ts';
 import { figureOf, type FigurePack } from 'cortico-world-desktop-pet';
 
 /** The scheme Coo wears: the app's default (`web.theme` in companion.ts). */
@@ -55,22 +57,37 @@ const palette = (neutral: ThemePalette, h: Hues): ThemePalette => ({
   'chart-output': h.a, 'chart-1': h.a, 'chart-2': h.a2, 'chart-3': h.c3, 'chart-4': h.c4,
 });
 
-const nameZh = (n: Record<string, string> | undefined, fallback: string) => n?.zh ?? (n ? Object.values(n)[0] : undefined) ?? fallback;
+/** A pack's name in `language`, else in its base language (zh or en), else the first one given, else `fallback`. */
+const nameIn = (n: Record<string, string> | undefined, fallback: string, language: Language) =>
+  n?.[language] ?? n?.[baseLanguage(language)] ?? (n ? Object.values(n)[0] : undefined) ?? fallback;
+
+/** A figure scheme's name and its note on the appearance page. */
+const SCHEME_TEXT = {
+  zh: {
+    name: (figure: string, preset: string) => `${figure} · ${preset}`,
+    note: (figure: string, preset: string) => `桌宠换成${figure}的「${preset}」时自动换上`,
+  },
+  en: {
+    name: (figure: string, preset: string) => `${figure} · ${preset}`,
+    note: (figure: string, preset: string) => `Put on when the pet changes to ${figure}'s "${preset}"`,
+  },
+};
 
 /** The whale's ids from before packs (`coo-whale-<scheme>`) stay, so a theme.json written then still matches. */
 const schemeId = (figure: string, preset: string) => (figure === 'whale' ? `coo-whale-${preset}` : `coo-fig-${figure}-${preset}`);
 const isFigureScheme = (id: string) => id.startsWith('coo-whale-') || id.startsWith('coo-fig-');
 
 /** A console scheme for each preset of each pack that gives settings-window colours (`presets[].console`). */
-export function figureSchemes(packs: readonly FigurePack[]): ThemeScheme[] {
+export function figureSchemes(packs: readonly FigurePack[], language: Language = 'zh'): ThemeScheme[] {
+  const t = pick(language, SCHEME_TEXT);
   return packs.flatMap((pack) => {
-    const figure = nameZh(pack.manifest.name, pack.id);
+    const figure = nameIn(pack.manifest.name, pack.id, language);
     return pack.manifest.presets.filter((p) => p.console).map((p) => {
-      const preset = nameZh(p.name, p.id);
+      const preset = nameIn(p.name, p.id, language);
       return {
         id: schemeId(pack.id, p.id),
-        name: `${figure} · ${preset}`,
-        note: `桌宠换成${figure}的「${preset}」时自动换上`,
+        name: t.name(figure, preset),
+        note: t.note(figure, preset),
         palettes: { light: palette(NEUTRAL_LIGHT, p.console!.light), dark: palette(NEUTRAL_DARK, p.console!.dark) },
         custom: true,
       };
@@ -96,15 +113,15 @@ export function schemeForSkin(skin: { figure?: string; scheme?: string } | undef
 
 /**
  * Brings `<deployDir>/theme.json` in line with the pet's look: the packs' schemes as they are now,
- * and the selection per the rule at the top. Writes only when something changed.
+ * named in `language`, and the selection per the rule at the top. Writes only when something changed.
  */
-export function followPetLook(deployDir: string, skin: { figure?: string; scheme?: string } | undefined, packs: readonly FigurePack[]): void {
+export function followPetLook(deployDir: string, skin: { figure?: string; scheme?: string } | undefined, packs: readonly FigurePack[], language: Language = 'zh'): void {
   const state = readDeploymentTheme(deployDir).state ?? { ...defaultStoredTheme(), selectedId: COO_SCHEME };
   const follows = state.selectedId === COO_SCHEME || isFigureScheme(state.selectedId);
   const next = normalizeStoredTheme({
     ...state,
     selectedId: follows ? schemeForSkin(skin, packs) : state.selectedId,
-    custom: [...state.custom.filter((s) => !isFigureScheme(s.id)), ...figureSchemes(packs)],
+    custom: [...state.custom.filter((s) => !isFigureScheme(s.id)), ...figureSchemes(packs, language)],
   });
   if (JSON.stringify(next) !== JSON.stringify(state)) writeDeploymentTheme(deployDir, next);
 }

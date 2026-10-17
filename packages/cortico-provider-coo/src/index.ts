@@ -149,5 +149,5 @@ export const COO = {
 
 export default COO;
 export { anthropicPrices, deepseekPrices, geminiPrices, openaiPrices, vendorPrices, xaiPrices, OFF_PEAK } from './pricing.ts';
-export { VENDORS, effortOf, protocolOf, vendorById, vendorEntry, vendorOf, type Vendor } from './vendors.ts';
+export { VENDORS, effortOf, protocolOf, vendorById, vendorEntry, vendorKeyHint, vendorName, vendorOf, type Vendor } from './vendors.ts';
 export { VENDOR_ICONS } from './icons.ts';

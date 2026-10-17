@@ -56,10 +56,17 @@ mac:
   artifactName: Coopanion-${version}-mac-${arch}.${ext}
   hardenedRuntime: false
   gatekeeperAssess: false
+  # the permission texts macOS shows: English here, Chinese from InfoPlist.strings in the Chinese localizations
+  # (the folder names Electron's own bundle uses)
   extendInfo:
     LSUIElement: true
-    NSMicrophoneUsageDescription: Coo 用麦克风听你说话,语音在本机识别,录音不会上传。
-    NSAppleEventsUsageDescription: 操作电脑时,Coo 用它把你指定的应用切到前面。
+    NSMicrophoneUsageDescription: Coo uses the microphone to hear you. Speech is recognized on this Mac, and recordings are never uploaded.
+    NSAppleEventsUsageDescription: When operating the computer, Coo uses this to bring the app you named to the front.
+  extraResources:
+    - from: ../../installer/mac/InfoPlist.strings
+      to: zh_CN.lproj/InfoPlist.strings
+    - from: ../../installer/mac/InfoPlist.strings
+      to: zh_TW.lproj/InfoPlist.strings
 dmg:
   writeUpdateInfo: false
 # x64 only. Data goes to ~/.config/Coopanion. The app runs on X11 (XWayland under Wayland, see app/main.cjs);
@@ -73,7 +80,7 @@ linux:
   icon: app/icons/icon.png
   category: Utility
   executableName: coopanion
-  synopsis: 桌面上的 AI 陪伴桌宠
+  synopsis: An AI companion pet for your desktop
   maintainer: yxengram <21293076+yxengram@users.noreply.github.com>
   # ${arch} would read x86_64 for the AppImage and amd64 for the deb
   artifactName: Coopanion-${version}-linux-x64.${ext}

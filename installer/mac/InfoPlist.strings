@@ -1,0 +1,5 @@
+/* The Chinese permission texts macOS shows (electron-builder.yml mac.extraResources copies this file into zh_CN.lproj
+   and zh_TW.lproj: Traditional Chinese reads the Simplified text, as the app's own tables do). Info.plist has the
+   English ones, for every other language. */
+"NSMicrophoneUsageDescription" = "Coo 用麦克风听你说话,语音在本机识别,录音不会上传。";
+"NSAppleEventsUsageDescription" = "操作电脑时,Coo 用它把你指定的应用切到前面。";

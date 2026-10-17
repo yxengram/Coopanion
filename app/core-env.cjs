@@ -49,4 +49,18 @@ async function systemProxyEnvironment(env, resolveProxy) {
   return { vars: {}, note: 'proxy: none' };
 }
 
-module.exports = { coreEnvironment, systemProxyEnvironment, PROXY_LOOKUP_MS };
+/** The app languages (`LANGUAGES` in `cortico/core/language.ts`, as app/i18n lists them). */
+const { LANGUAGES } = require('./i18n/index.cjs');
+
+/**
+ * The variable that tells the Core the system's language (app/i18n `systemLanguage`), which a new
+ * install starts in (core/seed.ts); nothing for a value that is not an app language, so the Core
+ * seeds Chinese.
+ * @param {string} language
+ * @returns {Record<string, string>}
+ */
+function systemLanguageEnvironment(language) {
+  return LANGUAGES.includes(language) ? { COOPANION_SYSTEM_LANGUAGE: language } : {};
+}
+
+module.exports = { coreEnvironment, systemProxyEnvironment, systemLanguageEnvironment, PROXY_LOOKUP_MS };

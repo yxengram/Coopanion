@@ -13,13 +13,17 @@
  * (`saveVendorKey`: the endpoint is created or updated, not made active).
  * The 「主动闲聊」 card writes `smallTalk` (src/smalltalk.ts in the World; off by default): the switch, how often
  * (少/中/多 = at least 2 h / 1 h / 30 min apart) and the quiet hours.
+ * The first row is the app language (`language` in the Core's `companion` group, features/language.ts): 中文 or
+ * English, and any other language the config holds; a change saves it and reloads the window in it.
  */
 import { ICONS } from 'cortico-world-desktop-pet/web/ui.js';
 import { saveVendorKey } from 'cortico-provider-coo/src/connect.ts';
 import { vendorById } from 'cortico-provider-coo/src/vendors.ts';
 import { get, post, setConfig } from '../../core/api.ts';
 import { consoleCall } from '../home/model.ts';
-import { pick } from '../../core/language.ts';
+import { LANGUAGE, pick } from '../../core/language.ts';
+import { LANGUAGE_NAMES, languageTag, type Language } from '../../../../core/language.ts';
+import { APP_LANGUAGES, setAppLanguage, storedLanguage } from '../language.ts';
 import type { FeatureContext, FrameworkFeature } from '../feature.ts';
 
 const GROUP = 'world:desktop-pet';
@@ -73,11 +77,14 @@ const SOUND_KINDS = ['move', 'touch', 'face', 'snore', 'talk', 'ui'] as const;
 /** Most hover buttons (the World's MAX_HOVER_BUTTONS). */
 const MAX_HOVER = 6;
 
-const S = pick({
+export const TEXT = {
   zh: {
     nav: '习惯',
     settingsTitle: '习惯',
+    language: '语言',
+    languageHint: '设置窗口、菜单和桌宠气泡里的文字用这种语言;不是中文时,Coo 也用它和你说话。切换后窗口会刷新。',
     user: '怎么称呼你',
+    userPlaceholder: '伙伴',
     userHint: 'Coo 会用这个名字叫你。',
     roam: '走动',
     roamFree: '常走动',
@@ -159,13 +166,16 @@ const S = pick({
   en: {
     nav: 'Habits',
     settingsTitle: 'Habits',
+    language: 'Language',
+    languageHint: "The settings window, menus and the pet's bubbles use this language, and so does Coo when it talks to you. The window reloads after a change.",
     user: 'What to call you',
+    userPlaceholder: 'Pal',
     userHint: 'Coo calls you by this name.',
     roam: 'Walking',
     roamFree: 'Often',
     roamCalm: 'Now and then',
     roamOff: 'Stay put',
-    theme: 'Colors',
+    theme: 'Night mode',
     themeDark: 'Night (light body)',
     themeLight: 'Day (dark body)',
     scale: 'Size',
@@ -201,8 +211,8 @@ const S = pick({
     smallTalk: 'Let Coo start a chat now and then',
     smallTalkHint: "Off by default. On: when you are at the computer but haven't talked to Coo for a while, or have just come back, Coo may say a line or two — a hello, something about the time of day, a follow-up on what you said earlier, a nudge to drink water or take a break — or keep quiet if it has nothing to say. Each attempt is one model call, even one where Coo stays quiet. Never while Coo is hidden or paused, keeping quiet or asleep, a window is full screen (only Windows can tell; on macOS and Linux it may speak over a full-screen presentation or game), you are typing or have just talked, or in quiet hours.",
     smallTalkFreq: 'How often',
-    freqLow: 'Rarely', freqMid: 'Sometimes', freqHigh: 'Often',
-    smallTalkFreqHint: 'Rarely: at least 2 hours apart; sometimes: 1 hour; often: 30 minutes. Also at least that long since you last talked, except for a hello when you come back.',
+    freqLow: 'Low', freqMid: 'Medium', freqHigh: 'High',
+    smallTalkFreqHint: 'Low: at least 2 hours apart; medium: 1 hour; high: 30 minutes. Also at least that long since you last talked, except for a hello when you come back.',
     quietHours: 'Quiet hours',
     quietTo: 'to',
     quietHint: 'No small talk in this window, which may wrap past midnight; the same time twice means none.',
@@ -236,9 +246,10 @@ const S = pick({
     lastOk: (ms: number, n: number, cost: number) => `Last decision ${ms} ms; ${n} this run${cost ? `, about $${cost.toFixed(5)}` : ''}.`,
     lastBad: (why: string) => `Last one failed: ${why}.`,
     breaker: 'Failing repeatedly; pausing a moment.',
-    overridden: 'You edited the pet environment prompt (the classic version); it still applies in decider mode. Restore it on the Prompts page to use the new one.',
+    overridden: 'You edited the pet environment prompt (the classic version); it still applies in decider mode. Restore it on the System prompt page to use the new one.',
   },
-});
+};
+const S = pick(TEXT);
 
 interface ConfigEntry { group: { id: string }; values?: Record<string, unknown> }
 
@@ -256,7 +267,33 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const habits = ui.sheet({ title: S.settingsTitle });
   const msg = ui.msgline('');
 
-  const user = ui.input({ placeholder: '伙伴' });
+  // the app language: a change reloads the window, so the select only follows the config until then
+  const language = ui.select({ options: APP_LANGUAGES.map((l) => ({ value: l.value, label: l.label })) });
+  language.setAttribute('aria-label', S.language);
+  // each choice is named in itself, and tagged so (the page around it may be in another language)
+  for (const opt of language.options) opt.lang = languageTag(opt.value as Language);
+  /** Adds the option of a language the config holds but the two choices are not (a hand edit, Cortico's own buttons). */
+  const languageOption = (l: Language) => {
+    if ([...language.options].some((o) => o.value === l)) return;
+    const opt = ui.h('option', null, LANGUAGE_NAMES[l]);
+    opt.value = l;
+    opt.lang = languageTag(l);
+    language.append(opt);
+  };
+  language.addEventListener('change', () => {
+    const next = language.value as Language;
+    if (next === language.dataset.saved) return;
+    language.disabled = true;
+    void setAppLanguage(next, opts).catch((err) => {
+      if (signal.aborted) return;
+      language.value = language.dataset.saved ?? 'zh';
+      language.disabled = false;
+      msg.textContent = S.saveFailed(errText(err));
+      msg.classList.add('bad');
+    });
+  }, opts);
+
+  const user = ui.input({ placeholder: S.userPlaceholder });
   const roam = ui.segmented([
     { value: 'free', label: S.roamFree }, { value: 'calm', label: S.roamCalm }, { value: 'off', label: S.roamOff },
   ], { size: 'sm', onSelect: (v) => void save(KEYS.roam, v) });
@@ -317,6 +354,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const hideFullscreenRow = row('', hideFullscreen.el, S.hideFullscreenHint);
   hideFullscreenRow.hidden = true;
   habits.body.append(
+    row(S.language, language, S.languageHint),
     row(S.user, user, S.userHint),
     row(S.roam, roam.el),
     row(S.theme, theme.el),
@@ -443,7 +481,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     const key = deciderKey.value.trim();
     if (!vendor || !key) return;
     saveKey.disabled = true;
-    void saveVendorKey(consoleCall(signal), vendor, key).then((r) => {
+    void saveVendorKey(consoleCall(signal), vendor, key, LANGUAGE).then((r) => {
       if (signal.aborted) return;
       deciderKey.value = '';
       deciderMsg.textContent = r.ok ? S.deciderKeySaved : S.saveFailed(r.why ?? '');
@@ -525,8 +563,10 @@ async function mount(ctx: FeatureContext): Promise<void> {
     let values: Record<string, unknown> = {};
     let soundValues: Record<string, unknown> = {};
     let deciderValues: Record<string, unknown> = {};
+    let appLanguage: Language = 'zh';
     try {
       const d = await get<{ groups?: ConfigEntry[] }>('/api/config', opts);
+      appLanguage = storedLanguage(d.groups);
       values = d.groups?.find((g) => g.group.id === GROUP)?.values ?? {};
       soundValues = d.groups?.find((g) => g.group.id === SOUND_GROUP)?.values ?? {};
       deciderValues = d.groups?.find((g) => g.group.id === DECIDER_GROUP)?.values ?? {};
@@ -543,6 +583,11 @@ async function mount(ctx: FeatureContext): Promise<void> {
     }
     void post<{ decider?: DeciderState; smallTalk?: SmallTalkState }>(panelPath('state'), { args: [] }, opts).then((st) => { renderDecider(st?.decider); renderTalkState(st?.smallTalk); }).catch(() => {});
     const active = document.activeElement;
+    if (active !== language && !language.disabled) {
+      languageOption(appLanguage);
+      language.value = appLanguage;
+      language.dataset.saved = appLanguage;
+    }
     if (typeof values[KEYS.user] === 'string' && active !== user) {
       user.value = values[KEYS.user] as string;
       user.dataset.saved = user.value;

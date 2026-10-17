@@ -15,7 +15,7 @@ const PET_PAGE = 'world:desktop-pet';
 /** How often the open page reads the theme record, one local request each time. */
 const THEME_POLL_MS = 1000;
 
-const S = pick({
+export const TEXT = {
   zh: {
     nav: '装扮',
     note: '换配色、帽子、耳饰、眼镜、颈饰,改动立刻生效。',
@@ -26,7 +26,8 @@ const S = pick({
     note: 'Colors, hats, earrings, glasses and neckwear; changes apply at once.',
     noPet: 'The pet is not ready yet; come back in a moment.',
   },
-});
+};
+const S = pick(TEXT);
 
 const panelPath = (method: string) => `/api/console/providers/${encodeURIComponent(PET_PAGE)}/panels/pet/${method}`;
 

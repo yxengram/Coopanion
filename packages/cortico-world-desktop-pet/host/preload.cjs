@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('petHost', {
   /** Whether the window hides itself while a fullscreen window covers its display. */
   hideWhenFullscreen: (on) => ipcRenderer.send('pet:hideWhenFullscreen', !!on),
   openDress: () => ipcRenderer.send('pet:openDress'),
+  /** The app language the page shows (from the World): the window process's own text (the tray's menu) follows it. */
+  setLanguage: (code) => ipcRenderer.send('pet:language', String(code)),
   /**
    * Where the cursor is, in page pixels, or null off the window: called every tenth of a second while the window is shown.
    * The second argument is its x in page pixels while it is on the window's display (over the Dock or the taskbar too,

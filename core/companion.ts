@@ -24,8 +24,15 @@
  * that the persona, the names and the rest are now its to settle with the person, and the prompt
  * page is where both of them edit it.
  *
- * The parent (Electron main) gets `{ type: 'companion:ready', port, dataDir, keyMissing }` once the
- * console listens, `{ type: 'companion:open', path }` to show the settings window at a console
+ * The app language (`config.language`, `language.ts`) is lent to the Worlds and the introduction as a getter read at
+ * each use; a new install takes the system's (`COOPANION_SYSTEM_LANGUAGE`). A change, written by the 「习惯」 page
+ * through the console's config API (`language` in the `companion` group), is caught by `watchLanguage` the moment
+ * the live config changes: the parent hears it, the prefix is rebuilt (the reply-language line), and the pet pages
+ * get it with their next `prefs`.
+ *
+ * The parent (Electron main) gets `{ type: 'companion:ready', port, dataDir, keyMissing, language }` once the
+ * console listens, `{ type: 'companion:language', language }` after the app language changes,
+ * `{ type: 'companion:open', path }` to show the settings window at a console
  * route, `{ type: 'companion:hide' }` to put it away (the introduction runs again on the desktop)
  * and `{ type: 'companion:quit' }` to quit the whole app; it asks for a clean stop with
  * `{ type: 'companion:shutdown' }`.
@@ -38,9 +45,10 @@ import type { BotDefinition } from 'cortico/bot.ts';
 import { createBot } from 'cortico/bot.ts';
 import { announceDataDir, consumeBootFlags } from 'cortico/boot.ts';
 import type { WakeBus } from 'cortico/core/bus.ts';
-import { getByPath, type ConfigGroup } from 'cortico/core/config-schema.ts';
+import { getByPath, setByPath, type ConfigGroup } from 'cortico/core/config-schema.ts';
+import { updateJsonObject } from 'cortico/config-file.ts';
 import { GenerationError } from 'cortico/core/generation.ts';
-import { pick } from 'cortico/core/language.ts';
+import { LANGUAGES, LANGUAGE_NAMES, pick, type Language } from 'cortico/core/language.ts';
 import { secretReader } from 'cortico/core/secrets.ts';
 import type { Core } from 'cortico/core/core.ts';
 import type { CoreConfig, UsageRecord } from 'cortico/core/types.ts';
@@ -52,13 +60,14 @@ import { InstanceLockedError } from 'cortico/core/instance-lock.ts';
 import { withWorlds, type WorldDefinition, type WorldSection } from 'cortico/world.ts';
 import { TERMINAL } from 'cortico/worlds/terminal/definition.ts';
 import { desktopPetDefinition, figureOf, figurePacks, type DesktopPetWorld } from 'cortico-world-desktop-pet';
-import { cuaDefinition } from 'cortico-world-cua';
+import { cuaDefinition, cuaText } from 'cortico-world-cua';
 import COO, { vendorOf } from 'cortico-provider-coo';
 import { bundledConsoleAssets } from './bundled-panels.ts';
 import { followPetLook } from './console-theme.ts';
 import { askForKey, guideDone, markDone, runGuide, type GuideDeps } from './guide.ts';
 import { noticeDefinition, type NoticeWorld } from './notice.ts';
-import { CONSOLE_PORT, DEPLOYMENT, DISPLAY_NAME, SEED_DIR, seed } from './seed.ts';
+import { appLanguage, newInstallLanguage, replyLanguage } from './language.ts';
+import { CONSOLE_PORT, DEFAULT_USERS, DEPLOYMENT, DISPLAY_NAME, languageSwitchPatch, SEED_DIR, seed, type LanguagePetValues } from './seed.ts';
 import { openRouterKey } from './decider-key.ts';
 import { presenceFrom, type PresenceReport } from './presence.ts';
 import { crashFields, describeEndpoint, publicExtensionName, reportedLook, Telemetry, type Counter } from './telemetry.ts';
@@ -99,33 +108,118 @@ function watchTalk(bus: WakeBus): () => boolean {
 
 /** The switch for anonymous usage statistics; it only matters when COOPANION_TELEMETRY_URL names a server, so no page shows it. */
 const TELEMETRY_KEY = 'companion.telemetry';
-const COMPANION_GROUP: ConfigGroup = {
-  id: 'companion',
-  owner: 'persona',
-  schema: {
-    type: 'object',
-    title: 'Coopanion',
-    properties: {
-      // Cormini copies `rounds` when the bot is built, so a change applies from the next start
-      'rounds.soft': {
-        type: 'integer',
-        title: '收尾提醒',
-        minimum: 1,
-        'x-suffix': '次',
-        'x-hot': false,
-        description: '一次唤醒里请求模型到这么多次,提醒 Coo 做完手上的事就结束这一轮。',
-      },
-      'rounds.hard': {
-        type: 'integer',
-        title: '单次唤醒上限',
-        minimum: 1,
-        'x-suffix': '次',
-        'x-hot': false,
-        description: '一次唤醒里最多请求模型这么多次,到了就结束这一轮。',
-      },
-    },
+/** The `x-options` kind of the app language: Cortico's languages, each named in itself. */
+const LANGUAGE_OPTIONS = 'coopanion.language';
+/** Coopanion's own settings, as the 「习惯」 page and the advanced settings title them. */
+export const SETTINGS_TEXT = {
+  zh: {
+    language: { title: '界面语言', description: '设置窗口、托盘菜单和桌宠气泡里应用自己的文字用这种语言;不是中文时,Coo 也用它和你说话。' },
+    roundsSoft: { title: '收尾提醒', suffix: '次', description: '一次唤醒里请求模型到这么多次,提醒 Coo 做完手上的事就结束这一轮。' },
+    roundsHard: { title: '单次唤醒上限', suffix: '次', description: '一次唤醒里最多请求模型这么多次,到了就结束这一轮。' },
+  },
+  en: {
+    language: { title: 'Language', description: 'The app\'s own text in the settings window, the tray menu and the pet\'s bubble is in this language; when it is not Chinese, Coo talks to you in it too.' },
+    roundsSoft: { title: 'Wrap-up reminder', suffix: 'requests', description: 'After this many model requests in one wake-up, Coo is reminded to finish what it is doing and end the turn.' },
+    roundsHard: { title: 'Requests per wake-up', suffix: 'requests', description: 'The most model requests in one wake-up; the turn ends when it is reached.' },
   },
 };
+
+/**
+ * Coopanion's config group, titled in `language`. A Persona's config group is not asked for per request, so the
+ * console reads one object (`COMPANION_GROUP`), which `main` retitles in place when the app language changes.
+ */
+export function companionGroup(language: Language): ConfigGroup {
+  const s = pick(language, SETTINGS_TEXT);
+  return {
+    id: 'companion',
+    owner: 'persona',
+    schema: {
+      type: 'object',
+      title: 'Coopanion',
+      properties: {
+        // the app language (language.ts); the 「习惯」 page writes it here, and watchLanguage tells the rest at once
+        language: {
+          type: 'string',
+          title: s.language.title,
+          enum: [...LANGUAGES],
+          'x-options': LANGUAGE_OPTIONS,
+          'x-hot': true,
+          description: s.language.description,
+        },
+        // Cormini copies `rounds` when the bot is built, so a change applies from the next start
+        'rounds.soft': {
+          type: 'integer',
+          title: s.roundsSoft.title,
+          minimum: 1,
+          'x-suffix': s.roundsSoft.suffix,
+          'x-hot': false,
+          description: s.roundsSoft.description,
+        },
+        'rounds.hard': {
+          type: 'integer',
+          title: s.roundsHard.title,
+          minimum: 1,
+          'x-suffix': s.roundsHard.suffix,
+          'x-hot': false,
+          description: s.roundsHard.description,
+        },
+      },
+    },
+  };
+}
+const COMPANION_GROUP: ConfigGroup = companionGroup('zh');
+
+/**
+ * Makes `config.language` an accessor on the live config object, so a change of the app language is followed right
+ * after any write that changes it: the console's config API and a World's persist both set it there. First the pet
+ * World's values still at the old language's defaults take the new one's (`followLanguageDefaults`, written to
+ * `cfgFile`), then `onChange` runs. `language` itself reaches `config.json` by those paths from their own values, so
+ * the accessor only watches it.
+ */
+export function watchLanguage(config: CoreConfig, cfgFile: string, onChange: (language: Language) => void): void {
+  let value: unknown = config.language;
+  Object.defineProperty(config, 'language', {
+    enumerable: true,
+    configurable: true,
+    get: () => value,
+    set: (next: unknown) => {
+      const was = appLanguage(value);
+      value = next;
+      if (appLanguage(next) === was) return;
+      try {
+        followLanguageDefaults(config, cfgFile, was, appLanguage(next));
+      } catch (err) {
+        // config.json unreadable: the console's own write of `language` fails the same way and says so
+        console.warn('language defaults not followed:', err instanceof Error ? err.message : err);
+      }
+      onChange(appLanguage(next));
+    },
+  });
+}
+
+/**
+ * Moves the pet World's values that are still the defaults of language `from` to those of `to`
+ * (`languageSwitchPatch` in seed.ts): in the live section, which the pet World holds and reads at each use (the name
+ * reaches the pages with their next `prefs`, a new speech language restarts the recognizer), and in `config.json`.
+ * Called from the language setter, before the console's config API writes `language` itself, which reads the file
+ * again; so the write here is synchronous and only touches its own keys.
+ */
+export function followLanguageDefaults(config: CoreConfig, cfgFile: string, from: Language, to: Language): Record<string, string | boolean> {
+  const pet = (config as unknown as { worlds?: Record<string, Record<string, unknown>> }).worlds?.[PET_WORLD];
+  if (!pet) return {};
+  const patch = languageSwitchPatch(pet as LanguagePetValues, from, to);
+  const keys = Object.entries(patch);
+  if (!keys.length) return patch;
+  updateJsonObject(cfgFile, (raw) => {
+    const worlds = (raw.worlds ??= {}) as Record<string, Record<string, unknown>>;
+    const section = (worlds[PET_WORLD] ??= {});
+    for (const [path, v] of keys) setByPath(section, path, v);
+  });
+  // only once the file has them: a failed write changes nothing
+  for (const [path, v] of keys) setByPath(pet, path, v);
+  return patch;
+}
+const PET_WORLD = 'desktop-pet';
 
 /** Pet events counted for statistics, and whether they are a message to Coo. */
 const EVENT_COUNTERS: Record<string, [Counter, boolean]> = {
@@ -166,7 +260,7 @@ const FAILURES_BEFORE_HINT = 5;
 /** The upstream's reason is cut to this many characters: a gateway's error page is a whole HTML document. */
 const REASON_MAX = 200;
 
-const FAILURE_HINT = {
+export const FAILURE_HINT = {
   zh: {
     text: (n: number, status: number, reason: string) => `我连着 ${n} 次没能从模型那里拿到回复。错误${status ? ` ${status}` : ''}:${reason}。请在设置的「开始」页检查模型名和 API Key,那里可以测试连接。`,
     open: '打开设置',
@@ -217,7 +311,7 @@ function hintFailures(core: Core<CoreConfig>, config: CoreConfig, pet: () => Des
       if (!options?.signal?.aborted && ++failures >= FAILURES_BEFORE_HINT && !shown) {
         const p = pet();
         if (p?.petState().connected) {
-          const S = pick(config.language ?? 'zh', FAILURE_HINT);
+          const S = pick(appLanguage(config.language), FAILURE_HINT);
           const { status, reason } = failureOf(err);
           shown = true;
           void p.dialog({
@@ -235,7 +329,13 @@ function hintFailures(core: Core<CoreConfig>, config: CoreConfig, pet: () => Des
   };
 }
 
-const UPDATE_TEXT = {
+/** Words the app lends the Worlds: the power button in the pet menu's header (computer use's answers are its own, `cuaText`). */
+export const LENT_TEXT = {
+  zh: { quit: '退出应用' },
+  en: { quit: 'Quit app' },
+};
+
+export const UPDATE_TEXT = {
   zh: {
     downloading: (v: string) => `发现新版本 ${v},正在后台下载,下好了我再告诉你。下载卡住的话,也可以去 GitHub 手动下载安装。`,
     ready: (v: string) => `新版本 ${v} 下载好了。现在重启更新吗?不急的话,下次退出应用时会自动装上。`,
@@ -259,7 +359,7 @@ interface UpdateStep { phase: 'downloading' | 'ready' | 'failed'; version: strin
 function sayUpdates(config: CoreConfig, pet: () => DesktopPetWorld | null, guiding: () => boolean): (step: UpdateStep) => void {
   let pending: UpdateStep | null = null;
   const said = new Set<string>();
-  const S = () => pick(config.language ?? 'zh', UPDATE_TEXT);
+  const S = () => pick(appLanguage(config.language), UPDATE_TEXT);
   setInterval(() => {
     const p = pet();
     if (!pending || guiding() || !p?.petState().connected) return;
@@ -334,7 +434,7 @@ function snapshotOf(config: CoreConfig, workspace: string): Record<string, unkno
     hoverButtons: at('worlds.desktop-pet.hoverButtons'),
     doubleClickChat: at('worlds.desktop-pet.doubleClickChat'),
     rememberPosition: at('worlds.desktop-pet.rememberPosition'),
-    userNamed: !['伙伴', '主人'].includes(String(at('worlds.desktop-pet.user'))),
+    userNamed: !DEFAULT_USERS.includes(String(at('worlds.desktop-pet.user'))),
     cuaEnabled: at('worlds.cua.enabled'),
     cuaLevel: at('worlds.cua.permission'),
     personaChanged: sha256(join(workspace, 'CONSTITUTION.md')) !== sha256(join(SEED_DIR, 'CONSTITUTION.md')),
@@ -393,6 +493,15 @@ export async function main(): Promise<void> {
   let presence: PresenceReport | null = null;
   /** Rebuilds the system prefix once the bot has started (the pet's decider mode switched on or off). */
   let reloadPrefix: (() => Promise<void>) | null = null;
+  /** The app language as the live config has it; Chinese before the config is loaded. */
+  const language = () => appLanguage(config?.language);
+  /**
+   * Set once `createBot` has assembled the Worlds. Cortico keeps each World's name as read then for its notices to
+   * the bot (「World 「桌宠」…」), which stay Chinese; the names read afterwards (a World that could not be built, in the
+   * console's list) follow the app language.
+   */
+  let assembled = false;
+  const labelLanguage = (): Language => (assembled ? language() : 'zh');
   const guideRun = async (deps: GuideDeps) => {
     guiding = true;
     try { await runGuide(deps); } finally { guiding = false; }
@@ -406,7 +515,8 @@ export async function main(): Promise<void> {
       openChat: () => process.send?.({ type: 'companion:open', path: '#/chat' }),
       openDress: () => process.send?.({ type: 'companion:open', path: '#/dress' }),
       quit: () => process.send?.({ type: 'companion:quit' }),
-      quitLabel: '退出应用',
+      // read each time the menu header is sent, so it follows a language change
+      get quitLabel() { return pick(language(), LENT_TEXT).quit; },
       guide: () => {
         if (!guide) return;
         process.send?.({ type: 'companion:hide' });
@@ -418,21 +528,27 @@ export async function main(): Promise<void> {
     deciderKey: () => (config ? openRouterKey(config.providers, providersRoot()) : ''),
     onModeChange: () => { void reloadPrefix?.(); },
     onBotChange: () => (notice as NoticeWorld | null)?.acceptCurrent(),
-    onSkin: (skin) => followPetLook(join(deploymentRoot(), DEPLOYMENT), skin, (pet as DesktopPetWorld | null)?.packs() ?? []),
+    onSkin: (skin) => followPetLook(join(deploymentRoot(), DEPLOYMENT), skin, (pet as DesktopPetWorld | null)?.packs() ?? [], language()),
     // small talk: the app's report of the person at the computer, and the next wake-up Coo set for itself
     presence: () => presence,
     nextAlarmAt: () => (notice as NoticeWorld | null)?.nextAlarmAt() ?? null,
+    language,
+    labelLanguage,
   });
   const CUA = cuaDefinition({
     askPermission: async (question) => {
-      const answer = await pet?.confirm(question, ['可以', '这次不行']) ?? 'unavailable';
+      const S = cuaText(language()).ask.bubble;
+      const answer = await pet?.confirm(question, [S.yes, S.no]) ?? 'unavailable';
       if (answer !== 'unavailable') telemetry?.count('cuaAsked');
       if (answer === 'yes') telemetry?.count('cuaGranted');
       return answer === 'unavailable' ? null : answer === 'yes' || answer === 'timeout' ? answer : 'no';
     },
+    language,
+    labelLanguage,
   });
   const home = deploymentRoot();
-  seed(home);
+  // the system's language for a new install, as the Electron main process read it
+  seed(home, newInstallLanguage(process.env));
   const deployDir = join(home, DEPLOYMENT);
   const NOTICE = noticeDefinition({
     version: process.env.COOPANION_VERSION ?? 'dev',
@@ -444,6 +560,9 @@ export async function main(): Promise<void> {
     petConnected: () => (pet as DesktopPetWorld | null)?.petState().connected === true,
     guiding: () => guiding,
     onCreate: (world) => { notice = world; },
+    // the one prefix line naming the language to talk in; none in Chinese
+    replyLanguage: () => replyLanguage(config?.language),
+    labelLanguage,
   });
   const cormini = await corminiDefinition();
   const base: BotDefinition<CoreConfig> = {
@@ -460,7 +579,16 @@ export async function main(): Promise<void> {
     }),
     build: (loaded, worlds) => {
       const parts = cormini.build(loaded, worlds);
-      return { ...parts, console: { ...parts.console, configGroups: [...parts.console?.configGroups ?? [], COMPANION_GROUP] } };
+      return {
+        ...parts,
+        console: {
+          ...parts.console,
+          configGroups: [...parts.console?.configGroups ?? [], COMPANION_GROUP],
+          configOptions: (kind, lang) => (kind === LANGUAGE_OPTIONS
+            ? LANGUAGES.map((value) => ({ value, label: LANGUAGE_NAMES[value] }))
+            : parts.console?.configOptions?.(kind, lang) ?? []),
+        },
+      };
     },
   };
   const bundled = [TERMINAL, DESKTOP_PET, CUA, NOTICE] as WorldDefinition<WorldSection>[];
@@ -479,12 +607,23 @@ export async function main(): Promise<void> {
 
   const loaded = loadDeployment(definition, deployDir, repoRoot(), join(repoRoot(), 'bots', 'cormini'), providersRoot());
   config = loaded.config;
+  const petSkin = () => getByPath(loaded.config as unknown as Record<string, unknown>, 'worlds.desktop-pet.skin') as { figure?: string; scheme?: string } | undefined;
+  Object.assign(COMPANION_GROUP, companionGroup(language()));
+  // the name and speech settings still at the old language's defaults follow first (followLanguageDefaults)
+  watchLanguage(loaded.config, join(deployDir, 'config.json'), (next) => {
+    Object.assign(COMPANION_GROUP, companionGroup(next));
+    process.send?.({ type: 'companion:language', language: next });
+    // the reply-language line comes or goes; the pet pages follow by themselves (their `prefs`)
+    void reloadPrefix?.();
+    // the figure schemes on the appearance page are renamed
+    followPetLook(deployDir, petSkin(), (pet as DesktopPetWorld | null)?.packs() ?? figurePacks([join(loaded.dataDir, 'figures')]).packs, next);
+  });
   announceDataDir(loaded.dataDir);
-  followPetLook(deployDir, getByPath(loaded.config as unknown as Record<string, unknown>, 'worlds.desktop-pet.skin') as { figure?: string; scheme?: string } | undefined,
-    figurePacks([join(loaded.dataDir, 'figures')]).packs);
+  followPetLook(deployDir, petSkin(), figurePacks([join(loaded.dataDir, 'figures')]).packs, language());
   consumeBootFlags(loaded.dataDir);
 
   const bot = createBot(loaded, definition, { extensions });
+  assembled = true;
   bus = bot.core.bus;
   // usage statistics only go to a server named here (a local telemetry-server in development); this build has none,
   // so by default nothing is counted, written or sent
@@ -519,7 +658,7 @@ export async function main(): Promise<void> {
     bot.core.runlog.logger('process').emit('warn', '桌宠换模式后重建前缀失败', { event: 'pet-mode-reload', err });
   });
   stats?.start();
-  process.send?.({ type: 'companion:ready', port, dataDir: loaded.dataDir, keyMissing });
+  process.send?.({ type: 'companion:ready', port, dataDir: loaded.dataDir, keyMissing, language: language() });
   const guideDeps: GuideDeps = {
     pet: () => pet,
     console: `http://127.0.0.1:${port}`,
@@ -527,6 +666,7 @@ export async function main(): Promise<void> {
     openDress: () => process.send?.({ type: 'companion:open', path: '#/dress' }),
     onEnd: (end) => (notice as NoticeWorld | null)?.guideEnded(end),
     track: (type, fields) => stats?.event(type, fields),
+    language,
   };
   guide = guideDeps;
   void introduce(guideDeps, guideRun, () => hasKey(loaded.config), keyMissing ? watchTalk(bot.core.bus) : null).catch((err) => {

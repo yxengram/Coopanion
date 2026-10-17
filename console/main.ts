@@ -9,6 +9,8 @@
  * - 空路由打开「开始」;
  * - 左上角是 Coopanion 字标,下面是版本与项目地址,有新 Release 时再加一行下载链接(features/release.ts);
  * - 左栏各组按「桌宠五页 · 对话 → World → 设置 → Persona & Memory → 高级」重排。
+ * - The Settings page's language buttons write the app language (config.language), not only this
+ *   browser's preference (features/language.ts).
  * 其余逐字沿用上游。
  */
 
@@ -44,6 +46,7 @@ import { chatFeature } from './features/chat/index.ts';
 import { promptsWithClearFeature } from './features/clear-session.ts';
 import { mountRelease } from './features/release.ts';
 import { onModeRequest, readMode, writeMode, type ConsoleMode } from './features/mode.ts';
+import { routeLanguageButtons } from './features/language.ts';
 import { icon } from './ui/icons.ts';
 import { coopanionWordmark } from './branding.ts';
 import type { ConsoleMemo } from '../shared/client-panel.ts';
@@ -54,7 +57,7 @@ import type { ConsoleMemo } from '../shared/client-panel.ts';
  * 顺序即左栏顺序。`hidden` 的页面(外观)不进左栏,
  * 但仍要在这张表里:路由分派只认这张表,设置页里嵌着它的同时,直达链接也要能开。
  */
-const L = pick({
+export const TEXT = {
   zh: {
     trace: '运行轨迹', model: '模型', settings: '设置', advanced: '高级',
     toAdvanced: '高级模式', toAdvancedHint: '显示 Cortico 的全部设置:模型、扩展、World、记忆与运行诊断',
@@ -65,7 +68,8 @@ const L = pick({
     toAdvanced: 'Advanced mode', toAdvancedHint: 'Show all of Cortico: models, extensions, Worlds, memory and diagnostics',
     toNormal: 'Back to normal mode', toNormalHint: 'Show only the pages about the pet',
   },
-});
+};
+const L = pick(TEXT);
 
 /**
  * 普通模式的全部页面:关于桌宠的五页、系统提示词(人设在里面,带清空重开)、花了多少钱,和对话页(以使用者身份
@@ -83,7 +87,15 @@ export const FEATURES: readonly FrameworkFeature[] = [
   { ...extensionsFeature, navMode: 'group', navGroup: L.settings },
   { ...liveFeature, label: L.trace, navMode: 'group', navGroup: L.advanced },
   { ...coreFeature, navMode: 'group', navGroup: L.advanced },
-  worldsFeature, appearanceFeature, settingsFeature,
+  worldsFeature, appearanceFeature,
+  {
+    ...settingsFeature,
+    mount: async (ctx) => {
+      const out = await settingsFeature.mount(ctx);
+      routeLanguageButtons(ctx);
+      return out;
+    },
+  },
 ];
 
 /** 左栏分组的显示顺序;上游 shell 按类型固定追加,这里在它画完之后挪位置。 */

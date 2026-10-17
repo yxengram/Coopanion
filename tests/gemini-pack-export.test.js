@@ -171,7 +171,7 @@ describe('exported Gemini-chan pack', () => {
       expect(f.to.startsWith('/') || f.to.split('/').includes('..')).toBe(false);
     }
     const mods = modules();
-    expect(new Set(mods)).toEqual(new Set(['gemini-chan/figure.js', 'gemini-chan/motion.js', 'gemini-chan/face.js', 'gemini-chan/fx.js', 'kit/body.js', 'kit/rig.js']));
+    expect(new Set(mods)).toEqual(new Set(['gemini-chan/figure.js', 'gemini-chan/motion.js', 'gemini-chan/face.js', 'gemini-chan/fx.js', 'kit/body.js', 'kit/rig.js', 'kit/outfit.js']));
     for (const p of [...mods, 'model.json', 'LICENSE']) expect(to).toContain(p);
     // every copied module imports only copied modules, by relative paths
     for (const mod of mods) {
@@ -197,6 +197,12 @@ describe('exported Gemini-chan pack', () => {
     // every pose drawing too
     for (const pose of Object.values(model.poses ?? {})) for (const p of [...(pose.required ?? []), ...(pose.overlays ?? []), ...(pose.face?.parts ?? [])]) expect(to).toContain(`tex/${p.tex}.png`);
     expect(to).toContain('tex/kneel_low.png');
+    // her winter outfit (the pack's second axis, 服装): every file of its own parts and pose drawings, and both outfits' thumbs
+    const winter = model.outfits.find((o) => o.id === 'winter');
+    const own = [...winter.parts, ...Object.values(winter.poses).flatMap((P) => [...(P.required ?? []), ...(P.overlays ?? []), ...(P.face?.parts ?? [])])].filter((p) => p.src);
+    expect(own.length).toBeGreaterThan(40);
+    for (const p of own) expect(to, p.src).toContain(p.src);
+    for (const t of ['thumbs/classic.png', 'thumbs/winter.png']) expect(to).toContain(t);
     // the live faces on the kneeling and lying drawings: their blank faces and the hair over them
     for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`tex/${n}.png`);
     // what she loads before her first frame, well inside upstream's 20 s READY_MS from a local server

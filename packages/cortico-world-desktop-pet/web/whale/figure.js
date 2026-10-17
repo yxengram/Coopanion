@@ -1196,9 +1196,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
    * over, the clock being the frames' `t` from `o.at` (the pet's time now) or else from the next frame drawn;
    * another outfit is another set of parts, so the rig is built again and the change is a cut (one frame).
    */
+  let asked = 0;  // the latest switch asked for: one whose textures load after a later one's was overtaken by it
   function setScheme(id, o = {}) {
-    const next = pickOf(model, id), key = `${next.scheme}-${next.outfit}`;
+    const next = pickOf(model, id), key = `${next.scheme}-${next.outfit}`, my = ++asked;
     const apply = set => {
+      if (my !== asked) return;
       endFade();
       if (scheme === next.scheme && outfit === next.outfit && tex === set.tex) return;
       scheme = next.scheme;

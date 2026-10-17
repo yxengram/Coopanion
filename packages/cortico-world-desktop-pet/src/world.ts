@@ -36,7 +36,7 @@ import { Packer, Segmenter, rmsDb, type SegmentConfig, type SegmentSink, type Ut
 import { comboLabel, hotkeyBadge, hotkeyLabel, parseHotkey, splitTaps, watchHotkey, type KeyWatcher } from './asr/hotkey.ts';
 import { joinSpeech, looksHallucinated } from './asr/result.ts';
 import { toSimplified } from './asr/simplify.ts';
-import { APPENDAGES, KNEEL_LEANS, channelsOf, estimateSeconds, firstName, lastingNote, membersOf, parseActions, parseScript, vocabChange, vocabTable, type Pairs, type Told, type VocabWord } from './script.ts';
+import { APPENDAGES, KNEEL_LEANS, channelsOf, estimateSeconds, firstName, lastingNote, membersOf, parseActions, parseScript, partsNote, vocabChange, vocabTable, type Pairs, type Told, type VocabWord } from './script.ts';
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import {
@@ -308,12 +308,13 @@ interface PendingConfirm {
   timer: NodeJS.Timeout;
 }
 
-/** The environment prompt's variables (decider mode's template has no `pet.vocab`). */
+/** The environment prompt's variables (decider mode's template has no `pet.vocab`, the classic one no `pet.parts`). */
 const PROMPT_VARS = [
   { name: 'pet.user', description: '对使用者的称呼' },
   { name: 'pet.vocab', description: '当前形象的表情与动作词表(开头一句用这些词写的例子)', multiline: true },
   { name: 'pet.voice', description: '语音输入开着还是关着' },
   { name: 'pet.body', description: '当前形象的样子' },
+  { name: 'pet.parts', description: '当前形象还会动的尾巴、耳朵、翅膀(如「,还会摇尾巴、扇翅膀」),没有的尾巴、翅膀也写明' },
   { name: 'pet.dress', description: 'pet_set 能选的形象与打扮', multiline: true },
   { name: 'pet.self', description: '「允许自己调整」开着还是关着' },
   { name: 'pet.chat', description: '应用提供对话页时,对它的说明;没有时为空' },
@@ -520,6 +521,8 @@ export class DesktopPetWorld implements World {
    * said to be gone).
    */
   private toldVocab: Told = { vocab: [] };
+  /** (decider) The `{{pet.parts}}` the bot was last given (the prompt's, then a switch's note), as `toldVocab`. */
+  private toldParts = '';
   /** `pet_quiet` in force: what it overrides, until when, and the settings it found (a change to them ends it). */
   private quiet: { sound: boolean; roam: RoamMode; until: number; base: { sound: boolean; roam: RoamMode }; timer: NodeJS.Timeout } | null = null;
 
@@ -566,9 +569,27 @@ export class DesktopPetWorld implements World {
    */
   private vocabNote(): string {
     const now: Told = { vocab: this.vocab(), pairs: this.pairs() };
-    const note = this.mode === 'decider' ? '' : vocabChange(this.toldVocab, now);
+    // (decider: no words are shown, but the prompt's {{pet.parts}} was the body before)
+    const note = this.mode === 'decider' ? this.partsNoteNow() : vocabChange(this.toldVocab, now);
     this.toldVocab = now;
     return note;
+  }
+
+  /** (decider, `{{pet.parts}}`) The tail, ears and wings the body on screen moves, and for a built-in one those it has none of. */
+  private partsText(): string {
+    return partsNote(this.vocab(), this.currentPack()?.builtin ?? true);
+  }
+
+  /**
+   * (decider) What a switch of figure tells the bot besides its looks: the prompt's `{{pet.parts}}` was the body before,
+   * so the new body's line goes with the news, when it differs from the last one told (the prompt's, at first).
+   */
+  private partsNoteNow(): string {
+    if (this.mode !== 'decider') return '';
+    const now = this.partsText();
+    if (now === this.toldParts) return '';
+    this.toldParts = now;
+    return `身体能做的是表情、手势和坐、跪、趴、睡这些姿势${now}。`;
   }
 
   /** What the body looks like now, with its picked options. */
@@ -639,6 +660,7 @@ export class DesktopPetWorld implements World {
     this.log = host.log;
     // the words the prompt is rendered with, until the bot is told otherwise
     this.toldVocab = { vocab: this.vocab(), pairs: this.pairs() };
+    this.toldParts = this.partsText();
     await this.server.start();
     this.windowHost = new WindowHost(host.log);
     if (this.cfg.window.enabled) this.openWindow();
@@ -2173,8 +2195,9 @@ export class DesktopPetWorld implements World {
     const want = this.wantedMode();
     if (want === this.mode) return;
     this.mode = want;
-    // the prefix is rebuilt with the words of now (decider mode's shows none)
+    // the prefix is rebuilt with the words of now (decider mode's shows none, only the parts)
     this.toldVocab = { vocab: this.vocab(), pairs: this.pairs() };
+    this.toldParts = this.partsText();
     this.log?.info(want === 'decider'
       ? `表情动作改由决策模型挑(${this.deciderCfg().model}),重建前缀`
       : `表情动作改回由 bot 自己写标记(${this.deciderCfg().enabled ? '没有 OpenRouter 密钥' : '表情决策已关'}),重建前缀`);
@@ -2494,6 +2517,9 @@ export class DesktopPetWorld implements World {
       'pet.vocab': this.mode === 'decider' ? '' : vocabTable(this.vocab(), 'zh', this.pairs()),
       'pet.voice': this.cfg.asr.enabled ? '开着' : '关着',
       'pet.body': this.bodyText(this.currentPack()),
+      // (decider) the tail, ears and wings the figure moves, and the tail or wings it has none of; the classic
+      // vocabulary table names them itself
+      'pet.parts': this.partsText(),
       'pet.dress': dressTable(this.packs()),
       'pet.self': this.cfg.selfAdjust ? '开着' : '关着',
       'pet.chat': this.opts.controls?.openChat
@@ -2547,7 +2573,7 @@ export class DesktopPetWorld implements World {
         description: '描述桌宠的身体、工具与输入事件。',
         path: ENV_PROMPT_FILE,
         role: 'envPrompt',
-        vars: PROMPT_VARS,
+        vars: PROMPT_VARS.filter((v) => v.name !== 'pet.parts'),
       }],
     };
   }

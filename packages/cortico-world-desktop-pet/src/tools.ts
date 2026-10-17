@@ -31,7 +31,7 @@ export const DESKTOP_PET_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_walk_to',
     tags: ['act'],
-    description: '沿屏幕底边走(或跑)到某个位置,走到或被打断后返回(按路程等,远的等得久)。cursor、away 会先看鼠标在哪,回执里说鼠标在哪、你停在哪。',
+    description: '沿屏幕底边走(或跑)到某个位置,走到或被打断后返回(按路程等,远的等得久)。cursor、away 会先看鼠标在哪,回执里说鼠标在哪、你停在哪,所以找鼠标、走到鼠标那里都不用先截图。',
     parameters: {
       type: 'object',
       properties: {
@@ -125,7 +125,7 @@ export const DECIDER_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_walk',
     tags: ['act'],
-    description: '沿屏幕底边朝左或朝右走(或跑)一段,或朝鼠标走过去、背着鼠标走开,走到或被打断后返回(按路程等,远的等得久)。到屏幕边会停下,回执里说。你现在在哪、离两边多远,见每批事件和桌宠工具回执里的 [位置] 行;鼠标在哪,cursor、away 的回执里说。',
+    description: '沿屏幕底边朝左或朝右走(或跑)一段,或朝鼠标走过去、背着鼠标走开,走到或被打断后返回(按路程等,远的等得久)。到屏幕边会停下,回执里说。你现在在哪、离两边多远,见每批事件和桌宠工具回执里的 [位置] 行;鼠标在哪,cursor、away 的回执里说,找鼠标、走到鼠标那里都不用先截图。',
     parameters: {
       type: 'object',
       properties: {

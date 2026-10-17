@@ -17,11 +17,11 @@ export const VENDOR_ICONS: Record<string, string> = {
 };
 
 /**
- * OpenAI, Gemini and xAI have no mark here: they get a plain outlined tile with text from their name
+ * OpenAI, Anthropic, Gemini and xAI have no mark here: they get a plain outlined tile with text from their name
  * in the system font and the page's text color (xAI's whole name, so no lone X), so the picker and the
  * guide's choices show a box like the others.
  */
 const textTile = (label: string, size: number) =>
   `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="1.5" y="1.5" width="21" height="21" rx="5" fill="none" stroke="currentColor" stroke-width="1.5"/>`
   + `<text x="12" y="${12 + size * 0.35}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${size}" font-weight="600" fill="currentColor">${label}</text></svg>`;
-for (const [id, label, size] of [['openai', 'O', 13], ['gemini', 'G', 13], ['xai', 'xAI', 8.5]] as const) VENDOR_ICONS[id] = textTile(label, size);
+for (const [id, label, size] of [['openai', 'O', 13], ['anthropic', 'A', 13], ['gemini', 'G', 13], ['xai', 'xAI', 8.5]] as const) VENDOR_ICONS[id] = textTile(label, size);

@@ -25,7 +25,7 @@ import { inflateRawSync } from 'node:zlib';
 import { MANIFEST_FILE, PACK_ALIASES, inside, readManifest, type FigurePack, type Names } from './packs.ts';
 
 export const PACK_DEPTH = 3;
-/** The most an import may hold, packed or unpacked (the largest pack shipped, the whale, is about 12 MB). */
+/** The most an import may hold, packed or unpacked (the largest pack shipped, the whale, is about 56 MB; GPT-chan with her winter outfit about 39 MB). */
 export const IMPORT_MAX = 128 * 1024 * 1024;
 /** The most files an import may hold. */
 const FILES_MAX = 20_000;

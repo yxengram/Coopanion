@@ -321,6 +321,8 @@ export const FLOOR: Record<QuestionId, number> = { face: .20, head: .30, arm: .3
 const FLOOR_WORD: Record<string, number> = { sleep: .70, lie: .70 };
 /** On `pet_feel` the bot asks for a body itself (to go to sleep, to lie down): a posture needs only this. */
 const FEEL_FLOOR_WORD: Record<string, number> = { sleep: .50, lie: .50, sit: .50, kneel: .50 };
+/** The questions of a tail, ears and wings (`PickParams.appendagesFree`). */
+const APPENDAGE_QUESTIONS: ReadonlySet<QuestionId> = new Set(['tail', 'ears', 'wings']);
 /** The postures she stays in, which win over a face they clash with (`postureOverFace`); on `pet_feel` over any part. */
 const LASTING_POSTURES = new Set(['sleep', 'lie', 'sit', 'kneel']);
 
@@ -328,7 +330,8 @@ const LASTING_POSTURES = new Set(['sleep', 'lie', 'sit', 'kneel']);
  * The knobs of `pickGroup` (scratch/decider/tune/tune.ts runs it over a grid of them): the floor per question and per
  * lasting posture; a repeated winner (the same word in this question in each of the last `repeatWindow` decisions)
  * gives way to the second when that is a word, above its floor and at least `repeatRatio` of the winner
- * (`repeatWindow` 0: never); at most `budget` parts besides the face; a face's second choice joins it as a pair (when
+ * (`repeatWindow` 0: never); at most `budget` parts besides the face (with `appendagesFree`, a tail, ears and wings
+ * do not count: the head, arm and body questions share the budget); a face's second choice joins it as a pair (when
  * the figure composes the two) above `pairMin` and `pairRatio` of the winner, unless `pairs` is off. On a `pet_feel`
  * call (`PickContext.feel`) a word of `feelFloorWord` needs that instead of its question's and `floorWord`'s floor.
  * With `postureOverFace`, a body winner that is a posture she stays in (sleep, lie, sit, kneel) and clashes with the
@@ -343,6 +346,7 @@ export interface PickParams {
   feelFloorWord: Record<string, number>;
   postureOverFace: boolean;
   budget: number;
+  appendagesFree: boolean;
   repeatWindow: number;
   repeatRatio: number;
   pairs: boolean;
@@ -350,7 +354,7 @@ export interface PickParams {
   pairRatio: number;
 }
 export const PICK_DEFAULTS: Readonly<PickParams> = {
-  floor: FLOOR, floorWord: FLOOR_WORD, feelFloorWord: FEEL_FLOOR_WORD, postureOverFace: true, budget: 2, repeatWindow: 2, repeatRatio: .6, pairs: true, pairMin: .08, pairRatio: .2,
+  floor: FLOOR, floorWord: FLOOR_WORD, feelFloorWord: FEEL_FLOOR_WORD, postureOverFace: true, budget: 2, appendagesFree: true, repeatWindow: 2, repeatRatio: .6, pairs: true, pairMin: .08, pairRatio: .2,
 };
 
 export interface PickContext {
@@ -443,8 +447,10 @@ export function pickGroup(questions: readonly Question[], answers: Readonly<Reco
       }
       if (clash && clash === first && ctx.feel) { why[c.q.id] = `${c.key} 和 ${clash.key} 不能同时做,留下姿势`; continue; }
       if (clash) { why[c.q.id] = `${c.key} 和 ${clash.key} 不能同时做,没做`; continue; }
-      if (c.q.id !== 'face' && parts >= P.budget) { why[c.q.id] = `${c.key} 超出一次最多动 ${P.budget} 个部位,没做`; continue; }
-      if (c.q.id !== 'face') parts++;
+      // (a tail, ears and wings beside the budget with appendagesFree)
+      const counted = c.q.id !== 'face' && !(P.appendagesFree && APPENDAGE_QUESTIONS.has(c.q.id));
+      if (counted && parts >= P.budget) { why[c.q.id] = `${c.key} 超出一次最多动 ${P.budget} 个部位,没做`; continue; }
+      if (counted) parts++;
       kept.push(c);
       chosen[c.q.id] = c.key;
     }

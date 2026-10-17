@@ -50,33 +50,41 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 ## Claude 娘形象
 
-`web/claude-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Claude 同人角色「Claude 娘」。
+`web/claude-chan/` 的贴图(`tex/`、`feat/`、`outfits/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Claude 同人角色「Claude 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
+
+冬装(`outfits/winter/`,51 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
 ## GPT 娘形象
 
-`web/gpt-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 GPT 同人角色「GPT 娘」。
+`web/gpt-chan/` 的贴图(`tex/`、`feat/`、`outfits/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 GPT 同人角色「GPT 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
+
+冬装(`outfits/winter/`,48 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
 ## Gemini 娘形象
 
-`web/gemini-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Gemini 同人角色「Gemini 娘」。
+`web/gemini-chan/` 的贴图(`tex/`、`feat/`、`outfits/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Gemini 同人角色「Gemini 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
+
+冬装(`outfits/winter/`,47 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
 ## Grok 娘形象
 
-`web/grok-chan/` 的贴图(`tex/`、`feat/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Grok 同人角色「Grok 娘」。
+`web/grok-chan/` 的贴图(`tex/`、`feat/`、`outfits/`、`thumbs/`)用的是 ZipZipPipe（Bilibili）设计的 Grok 同人角色「Grok 娘」。
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
+
+冬装(`outfits/winter/`,48 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 

@@ -8,8 +8,8 @@
     "en": "GPT-chan"
   },
   "about": {
-    "zh": "一个 Q 版动漫少女,一只白色的小龙,二头半身,正面站着;带一点淡紫的白色波浪长发垂到膝盖,头顶一根呆毛,两只带棱纹的白色大龙角,尖尖的精灵耳,头一侧别着白色绳结编的花饰、垂着流苏;淡紫色眼睛;穿白色无袖连衣裙,配一对分开的白色荷叶边长袖(袖口宽大,垂过双手),身上点缀着绳结和流苏,白色鞋子;背后一对淡紫色的蝙蝠样龙翼,一条粗粗的白色鳞片龙尾从身后弯到一侧;平时双手自然垂着,话少,神情清冷",
-    "en": "a chibi anime girl, a little white dragon, two and a half heads tall, standing facing front; very long wavy white hair with a faint lavender tint falling to her knees, an ahoge, two large ribbed white dragon horns, pointed elf ears, a white knotted-cord flower ornament with a hanging tassel on one side of her head; lavender eyes; a white sleeveless dress with long detached white frilled sleeves, wide and hanging past her hands, knotted ornaments and tassels, and white shoes; two pale lavender bat-like dragon wings behind her and a thick white scaled dragon tail curling out to one side; her arms usually just hang; cool, quiet and terse"
+    "zh": "一个 Q 版动漫少女,一只白色的小龙,二头半身,正面站着;带一点淡紫的白色波浪长发垂到膝盖,头顶一根呆毛,两只带棱纹的白色大龙角,尖尖的精灵耳,头一侧别着白色绳结编的花饰、垂着流苏;淡紫色眼睛;服装是括号里选的那套:常服是白色无袖连衣裙配一对分开的白色荷叶边长袖(袖口宽大,垂过双手)、绳结和流苏点缀、白色鞋子,冬装是淡紫白色的夹棉旗袍式长裙(菱格绗缝、白色毛边立领、银白色盘扣,腰间照样挂着绳结流苏)、盖过肩膀的淡紫色夹棉宽袖配白色毛边袖口、白色针织长袜和挂着银色绳结的白色毛边短靴;背后一对淡紫色的蝙蝠样龙翼,一条粗粗的白色鳞片龙尾从身后弯到一侧;平时双手自然垂着,话少,神情清冷",
+    "en": "a chibi anime girl, a little white dragon, two and a half heads tall, standing facing front; very long wavy white hair with a faint lavender tint falling to her knees, an ahoge, two large ribbed white dragon horns, pointed elf ears, a white knotted-cord flower ornament with a hanging tassel on one side of her head; lavender eyes; she wears the outfit picked in brackets: the classic one is a white sleeveless dress with long detached white frilled sleeves, wide and hanging past her hands, knotted ornaments and tassels, and white shoes, and the winter outfit a pale lavender-white padded qipao-style long dress (quilted diamond stitching, a high collar edged in white fur, silver-white frog buttons, the knotted tassels still at her hips), quilted lavender wide sleeves over her shoulders with white fur cuffs, white knit stockings and white fur-trimmed boots with a silver knot charm; two pale lavender bat-like dragon wings behind her and a thick white scaled dragon tail curling out to one side; her arms usually just hang; cool, quiet and terse"
   },
   "author": "Coopanion",
   "credits": [
@@ -39,13 +39,39 @@
           "accent": "#7A8FA8"
         }
       ]
+    },
+    {
+      "id": "outfit",
+      "name": {
+        "zh": "服装",
+        "en": "Outfit"
+      },
+      "options": [
+        {
+          "id": "classic",
+          "name": {
+            "zh": "常服",
+            "en": "Classic"
+          },
+          "thumb": "thumbs/classic.png"
+        },
+        {
+          "id": "winter",
+          "name": {
+            "zh": "冬装",
+            "en": "Winter outfit"
+          },
+          "thumb": "thumbs/winter.png"
+        }
+      ]
     }
   ],
   "presets": [
     {
       "id": "original",
       "pick": {
-        "scheme": "original"
+        "scheme": "original",
+        "outfit": "classic"
       },
       "name": {
         "zh": "原版"

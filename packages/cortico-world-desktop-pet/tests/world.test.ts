@@ -8,6 +8,7 @@ import { DESKTOP_PET } from '../src/definition.ts';
 import { DESKTOP_PET_DEFAULTS, type DesktopPetConfigSection } from '../src/config.ts';
 import { DesktopPetWorld, type DesktopPetWorldOptions, type PetBotControls } from '../src/world.ts';
 import { INLINE_TAG_MAX } from '../src/script.ts';
+import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from '../src/tools.ts';
 import { FakeHost } from './helpers/fake-host.ts';
 import { FakePage } from './helpers/page.ts';
 
@@ -406,6 +407,19 @@ describe('with a pet page', () => {
     expect(vocab).toContain('- bashful 腼腆/不好意思(=开心+害羞):');
     expect(vocab).toContain('如【开心+嘟嘴】是开心的眼睛配嘟嘴的嘴):开心+嘟嘴、眨眼+嘟嘴、');
     expect(vocab).not.toMatch(/开心\+惊讶|惊讶\+开心/);
+  });
+
+  it('tells the classic bot that only a posture word wakes her (talking, a stretch or a sleepy face do not)', () => {
+    const env = readFileSync(fileURLToPath(new URL('../src/ENV_PROMPT.md', import.meta.url)), 'utf8');
+    expect(env).toContain('睡着时说话、伸懒腰、犯困都不会醒,要醒就带【站起】或【坐下】。');
+  });
+
+  it('tells the bot a walk to the pointer needs no screenshot first: its receipt says where the pointer is', async () => {
+    for (const decls of [DESKTOP_PET_TOOL_DECLS, DECIDER_TOOL_DECLS]) {
+      const walk = decls.find((d) => d.name === 'pet_walk_to' || d.name === 'pet_walk')!;
+      expect(walk.description, walk.name).toContain('回执里说');
+      expect(walk.description, walk.name).toContain('找鼠标、走到鼠标那里都不用先截图');
+    }
   });
 
   it('tells the bot a face in a group lasts until the group\'s gestures are done', () => {

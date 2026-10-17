@@ -8,8 +8,8 @@
     "en": "Grok-chan"
   },
   "about": {
-    "zh": "一个 Q 版动漫吸血鬼小公主,二头半身,正面站着,俏皮又有点小骄傲,笑起来露出一颗小虎牙;淡金色的波浪长发扎成两条垂到膝盖的双马尾,头顶一根卷卷的呆毛;头戴一顶镶金边、顶上一枚金色齿轮的黑色小皇冠,两边马尾根各系一个黑色蝴蝶结,蝴蝶结后面各伸出一只小蝙蝠翅膀;蓝宝石色的大眼睛,尖尖的精灵耳朵;高高的黑色立领(里面是深红色),领口一个别着金色齿轮胸针的黑蝴蝶结;黑色哥特连衣裙,胸前一道白色荷叶边和金色饰线,露肩,腰间垂着细细的金链;分开的黑色大喇叭袖,白色荷叶袖口;层层叠叠的黑色短裙绣着金色藤蔓,前面露出深红色里衬;一条腿上一个带金齿轮的黑色腿环,黑色及膝袜,亮黑色带金齿轮的玛丽珍鞋",
-    "en": "a chibi anime vampire princess, two and a half heads tall, standing facing front, playful and a little proud, with a small fang showing when she smiles; pale golden wavy hair in two long twin-tails falling to her knees and a curling ahoge; a small black crown with gold edges and a round gold gear on top, a black bow at each twin-tail root with a little bat wing sticking out behind it; big sapphire-blue eyes and pointed elf ears; a high black stand-up collar lined in deep red, with a black bow and a gold gear brooch at the throat; a black gothic dress with a white frill across the chest, gold trim, bare shoulders and thin gold chains at the waist; detached wide black bell sleeves with white frilled cuffs; a layered black skirt with gold vine embroidery and a deep red lining at the front; a black garter band with a gold gear on one thigh, black knee socks and glossy black Mary-Jane shoes with gold gears"
+    "zh": "一个 Q 版动漫吸血鬼小公主,二头半身,正面站着,俏皮又有点小骄傲,笑起来露出一颗小虎牙;淡金色的波浪长发扎成两条垂到膝盖的双马尾,头顶一根卷卷的呆毛;头戴一顶镶金边、顶上一枚金色齿轮的黑色小皇冠,两边马尾根各系一个黑色蝴蝶结,蝴蝶结后面各伸出一只小蝙蝠翅膀;蓝宝石色的大眼睛,尖尖的精灵耳朵;服装是括号里选的那套:常服是高高的黑色立领(里面是深红色)、领口别着金色齿轮胸针的黑蝴蝶结、露肩的黑色哥特连衣裙(胸前一道白色荷叶边和金色饰线,腰间垂着细细的金链)、分开的黑色大喇叭袖配白色荷叶袖口、层层叠叠绣着金色藤蔓的黑色短裙(前面露出深红色里衬)、一条腿上带金齿轮的黑色腿环、黑色及膝袜和亮黑色带金齿轮的玛丽珍鞋,冬装是黑色天鹅绒的哥特冬季连衣裙(合拢的上身、金色饰边和金色齿轮扣子)、同样形状的高立领镶着深红色毛边(领口照样是蝴蝶结和齿轮胸针)、盖过肩膀的黑色天鹅绒喇叭袖配金边和深红色毛边袖口、腰间的金链、绣金色藤蔓的黑裙镶一圈深红色毛边、黑色裤袜和带金齿轮扣、深红色毛边的黑色中筒高跟靴",
+    "en": "a chibi anime vampire princess, two and a half heads tall, standing facing front, playful and a little proud, with a small fang showing when she smiles; pale golden wavy hair in two long twin-tails falling to her knees and a curling ahoge; a small black crown with gold edges and a round gold gear on top, a black bow at each twin-tail root with a little bat wing sticking out behind it; big sapphire-blue eyes and pointed elf ears; she wears the outfit picked in brackets: the classic one is a high black stand-up collar lined in deep red, with a black bow and a gold gear brooch at the throat, a black gothic dress with a white frill across the chest, gold trim, bare shoulders and thin gold chains at the waist, detached wide black bell sleeves with white frilled cuffs, a layered black skirt with gold vine embroidery and a deep red lining at the front, a black garter band with a gold gear on one thigh, black knee socks and glossy black Mary-Jane shoes with gold gears, and the winter outfit a black velvet gothic winter dress (a closed bodice with gold trim and gold gear buttons), the same high collar edged in deep crimson fur (the bow and gear brooch still at the throat), black velvet bell sleeves over her shoulders with gold trim and crimson fur cuffs, the gold waist chains, the black skirt with gold vines and a crimson fur hem, black tights and black heeled mid-calf boots with crimson fur cuffs and a gold gear buckle"
   },
   "author": "Coopanion",
   "credits": [
@@ -39,13 +39,39 @@
           "accent": "#A3304A"
         }
       ]
+    },
+    {
+      "id": "outfit",
+      "name": {
+        "zh": "服装",
+        "en": "Outfit"
+      },
+      "options": [
+        {
+          "id": "classic",
+          "name": {
+            "zh": "常服",
+            "en": "Classic"
+          },
+          "thumb": "thumbs/classic.png"
+        },
+        {
+          "id": "winter",
+          "name": {
+            "zh": "冬装",
+            "en": "Winter outfit"
+          },
+          "thumb": "thumbs/winter.png"
+        }
+      ]
     }
   ],
   "presets": [
     {
       "id": "original",
       "pick": {
-        "scheme": "original"
+        "scheme": "original",
+        "outfit": "classic"
       },
       "name": {
         "zh": "原版"

@@ -8,8 +8,8 @@
     "en": "Gemini-chan"
   },
   "about": {
-    "zh": "一个 Q 版动漫猫娘,二头半身,正面站着,活泼开朗,说话爱带「喵」;蓝紫色渐变到粉紫色的波浪长发垂到膝盖,两侧各一个小发髻,头顶一根呆毛,一对蓝紫色猫耳(耳朵里是粉色的),头一侧别着一颗闪着彩虹光的四角星发饰、下面垂着几颗小星星;一只眼睛粉色、一只琥珀色;穿深蓝色短上衣(胸前一颗星星),白色露肩袖子配深蓝袖口,深蓝短裙镶着白色荷叶边、挂着星星吊坠,白色毛绒袜套,厚底的深蓝紫色鞋子;身后一条毛茸茸的蓝紫色猫尾巴从一侧弯出来,尾巴尖颜色浅浅的",
-    "en": "a chibi anime cat girl, two and a half heads tall, standing facing front, lively and cheerful, fond of ending her sentences with \"nya\" (喵); very long wavy hair shading from blue-violet to pink-lilac and falling to her knees, two small side buns and an ahoge, blue-violet cat ears with pink insides, an iridescent four-pointed star ornament with little hanging stars on one side of her head; one pink eye and one amber eye; a navy cropped top with a star on the chest, white off-shoulder sleeves with navy cuffs, a navy skirt with a white frill and hanging star charms, white fluffy leg warmers and chunky navy-violet shoes; a fluffy blue-violet cat tail with a pale tip curling out to one side"
+    "zh": "一个 Q 版动漫猫娘,二头半身,正面站着,活泼开朗,说话爱带「喵」;蓝紫色渐变到粉紫色的波浪长发垂到膝盖,两侧各一个小发髻,头顶一根呆毛,一对蓝紫色猫耳(耳朵里是粉色的),头一侧别着一颗闪着彩虹光的四角星发饰、下面垂着几颗小星星;一只眼睛粉色、一只琥珀色;服装是括号里选的那套:常服是深蓝色短上衣(胸前一颗星星)、白色露肩袖子配深蓝袖口、镶白色荷叶边挂星星吊坠的深蓝短裙、白色毛绒袜套和厚底的深蓝紫色鞋子,冬装是合拢的深蓝色长袖上衣(胸前闪着彩光的星星徽章、星星扣子)、盖过肩膀的白色泡泡袖配白色毛边的深蓝袖口、一条点缀着白色小星星的淡紫色短针织围巾、同样的深蓝短裙、深蓝色裤袜、白色毛绒袜套和厚底鞋;身后一条毛茸茸的蓝紫色猫尾巴从一侧弯出来,尾巴尖颜色浅浅的",
+    "en": "a chibi anime cat girl, two and a half heads tall, standing facing front, lively and cheerful, fond of ending her sentences with \"nya\" (喵); very long wavy hair shading from blue-violet to pink-lilac and falling to her knees, two small side buns and an ahoge, blue-violet cat ears with pink insides, an iridescent four-pointed star ornament with little hanging stars on one side of her head; one pink eye and one amber eye; she wears the outfit picked in brackets: the classic one is a navy cropped top with a star on the chest, white off-shoulder sleeves with navy cuffs, a navy skirt with a white frill and hanging star charms, white fluffy leg warmers and chunky navy-violet shoes, and the winter outfit a closed long-sleeved navy top with an iridescent star emblem and star buttons, white puffy sleeves over her shoulders with fur-edged navy cuffs, a short lilac knitted scarf with tiny white stars, the same navy skirt, dark navy tights, the white leg warmers and chunky shoes; a fluffy blue-violet cat tail with a pale tip curling out to one side"
   },
   "author": "Coopanion",
   "credits": [
@@ -39,13 +39,39 @@
           "accent": "#7B5CD6"
         }
       ]
+    },
+    {
+      "id": "outfit",
+      "name": {
+        "zh": "服装",
+        "en": "Outfit"
+      },
+      "options": [
+        {
+          "id": "classic",
+          "name": {
+            "zh": "常服",
+            "en": "Classic"
+          },
+          "thumb": "thumbs/classic.png"
+        },
+        {
+          "id": "winter",
+          "name": {
+            "zh": "冬装",
+            "en": "Winter outfit"
+          },
+          "thumb": "thumbs/winter.png"
+        }
+      ]
     }
   ],
   "presets": [
     {
       "id": "original",
       "pick": {
-        "scheme": "original"
+        "scheme": "original",
+        "outfit": "classic"
       },
       "name": {
         "zh": "原版"

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
 import { parseActions, vocabId, type VocabWord } from '../src/script.ts';
 import {
-  buildQuestions, buildRequest, buildState, DECIDER_FALLBACK_MODELS, DECIDER_MIN_CONTEXT, DeciderClient, errorGist, failureText, LOCAL_FALLBACK, localPick, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
+  PICK_DEFAULTS, buildQuestions, buildRequest, buildState, DECIDER_FALLBACK_MODELS, DECIDER_MIN_CONTEXT, DeciderClient, errorGist, failureText, LOCAL_FALLBACK, localPick, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
   QUESTION_IDS, stripMarkers, type Answer, type Question, type QuestionId,
 } from '../src/decider.ts';
 
@@ -162,6 +162,23 @@ describe('pickGroup', () => {
     // lying needs more than another body word
     expect(pickGroup(qs, ans([['body', k('body', 'lie'), .65]]), { vocab, pairs }).ids).toEqual([]);
     expect(pickGroup(qs, ans([['body', k('body', 'sit'), .65]]), { vocab, pairs }).ids).toEqual(['sit']);
+  });
+
+  it('a tail, ears and wings move beside the two parts a group moves at most (appendagesFree)', () => {
+    const gv = packOf('gpt-chan').manifest.vocab;
+    const gq = buildQuestions(gv, { forSay: true });
+    const g = (q: QuestionId, id: string) => keyOf(gq, q, id);
+    // head and arm fill the budget; the tail (.74) and wings (.64) the old budget left out still go
+    const a = ans([['face', g('face', 'happy'), .9], ['head', g('head', 'nod'), .8], ['arm', g('arm', 'wave'), .78], ['tail', g('tail', 'wag'), .74], ['wings', g('wings', 'wingbeat'), .64]]);
+    expect(PICK_DEFAULTS.appendagesFree).toBe(true);
+    expect(pickGroup(gq, a, { vocab: gv }).ids.sort()).toEqual(['happy', 'nod', 'wag', 'wave', 'wingbeat']);
+    // as before: the tail and wings counted, at most two parts
+    const old = pickGroup(gq, a, { vocab: gv, params: { appendagesFree: false } });
+    expect(old.ids.sort()).toEqual(['happy', 'nod', 'wave']);
+    expect(old.why.tail).toContain('超出一次最多动 2 个部位');
+    // the budget still holds for the head, arm and body: a sit (.6) beside the nod and wave stays out
+    const b = ans([['head', g('head', 'nod'), .8], ['arm', g('arm', 'wave'), .78], ['body', g('body', 'sit'), .6], ['tail', g('tail', 'wag'), .74]]);
+    expect(pickGroup(gq, b, { vocab: gv }).ids.sort()).toEqual(['nod', 'wag', 'wave']);
   });
 
   it('takes other knobs for tuning: the defaults are the shipped ones', () => {

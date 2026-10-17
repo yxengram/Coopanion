@@ -1,14 +1,16 @@
 /**
  * The model services Coo Pet Provider offers, DeepSeek first. The Chinese services and OpenRouter,
- * OpenAI and xAI are OpenAI-compatible Responses endpoints; Gemini is the Gemini API (`protocol`).
+ * OpenAI and xAI are OpenAI-compatible Responses endpoints; Anthropic is the Messages API and Gemini
+ * the Gemini API (`protocol`).
  * `id` doubles as the name of the service's endpoint in the app, and `secret` as the name its key is
  * stored under. Cortico reads a secret from the process environment before the endpoint's `.env`, so
- * OpenAI, Gemini and xAI take `COO_`-prefixed names: a developer's own `OPENAI_API_KEY` (or
- * `GEMINI_API_KEY`, `XAI_API_KEY`) in the shell Coopanion starts from would otherwise replace the key
- * pasted in the app. Base URLs, starting models, key pages, image input, context windows and thinking
- * levels are from each service's own documentation (the Chinese services and OpenRouter read
- * 2026-09-24; OpenAI, Gemini and xAI as upstream Coopanion read them, 2026-10-08/09); none of the
- * services but DeepSeek has been tried with a key.
+ * OpenAI, Anthropic, Gemini and xAI take `COO_`-prefixed names: a developer's own `OPENAI_API_KEY` (or
+ * `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `XAI_API_KEY`) in the shell Coopanion starts from would
+ * otherwise replace the key pasted in the app. Base URLs, starting models, key pages, image input,
+ * context windows and thinking levels are from each service's own documentation (the Chinese services
+ * and OpenRouter read 2026-09-24; OpenAI, Anthropic, Gemini and xAI as upstream Coopanion read them,
+ * 2026-10-08/09); none of the services but DeepSeek has been tried with a key here (upstream has
+ * tried Anthropic).
  *
  * This file imports nothing, so the browser console and the app's first-run seed can use it.
  */
@@ -20,10 +22,11 @@ export type Effort = 'none' | 'low' | 'high' | 'max';
 export type EffortMap = Partial<Record<Effort, string | null>>;
 
 /**
- * How requests are sent: `responses` is `POST <baseUrl>/responses`, `gemini` is the Gemini API at
+ * How requests are sent: `responses` is `POST <baseUrl>/responses`, `anthropic` is the Messages API
+ * at `<baseUrl>/v1/messages` (through `@anthropic-ai/sdk`), `gemini` is the Gemini API at
  * `<baseUrl>/models/<model>:generateContent`.
  */
-export type Protocol = 'responses' | 'gemini';
+export type Protocol = 'responses' | 'anthropic' | 'gemini';
 
 export interface Vendor {
   id: string;
@@ -52,7 +55,10 @@ export interface Vendor {
   effort?: EffortMap;
   /** Replaces `effort` for these models. */
   modelEffort?: Readonly<Record<string, EffortMap>>;
-  /** Unset: Responses. The Gemini API gets the levels in its own form (`thinkingConfig` in gemini/wire.ts). */
+  /**
+   * Unset: Responses. The Messages and Gemini APIs get the levels in their own form (`thinkingParams`
+   * in anthropic/wire.ts, `thinkingConfig` in gemini/wire.ts).
+   */
   protocol?: Protocol;
   /** Responses: past reasoning goes back as the signed blocks the service returned, not as text. */
   encryptedReasoning?: true;
@@ -137,6 +143,15 @@ export const VENDORS: readonly Vendor[] = [
     encryptedReasoning: true,
   },
   {
+    // thinking and effort are sent in the Messages API's own form (`thinkingParams` in anthropic/wire.ts);
+    // Opus 5.5 always thinks, so no thinking sends it the lowest effort
+    id: 'anthropic', name: 'Anthropic', nameEn: 'Anthropic',
+    baseUrl: 'https://api.anthropic.com', keyUrl: 'https://platform.claude.com/settings/keys', keyHint: 'sk-ant-…',
+    secret: 'COO_ANTHROPIC_API_KEY', model: 'claude-haiku-5-5', models: ['claude-sonnet-5-5', 'claude-opus-5-5'],
+    vision: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'],
+    protocol: 'anthropic',
+  },
+  {
     // thinking is sent in the Gemini API's own form (`thinkingConfig` in gemini/wire.ts); the Pro model is a preview
     id: 'gemini', name: 'Gemini', nameEn: 'Gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta', keyUrl: 'https://aistudio.google.com/apikey', keyHint: '粘贴 API Key',
@@ -177,12 +192,15 @@ export function vendorOf(baseUrl: string | undefined): Vendor | null {
 
 /**
  * How an endpoint at `baseUrl` is sent. A service's own protocol applies only at its base URL
- * itself: Gemini's OpenAI-compatible path (`<baseUrl>/openai`) is not the Gemini API, so it goes out
+ * itself (Anthropic's also at `<baseUrl>/v1`): Gemini's OpenAI-compatible path (`<baseUrl>/openai`) is not the Gemini API, so it goes out
  * as Responses, as any other URL does.
  */
 export function protocolOf(baseUrl: string | undefined): Protocol {
   const v = vendorOf(baseUrl);
-  return v?.protocol && trimSlash(baseUrl!.trim()) === v.baseUrl ? v.protocol : 'responses';
+  if (!v?.protocol) return 'responses';
+  const url = trimSlash(baseUrl!.trim());
+  // the familiar `https://api.anthropic.com/v1` is the same API root (the SDK adds `/v1/messages` itself)
+  return url === v.baseUrl || (v.protocol === 'anthropic' && url === `${v.baseUrl}/v1`) ? v.protocol : 'responses';
 }
 
 /** A new endpoint's config for `v` (`kind: 'coo'`) on `model`; the key goes into its `.env` under `v.secret`. */

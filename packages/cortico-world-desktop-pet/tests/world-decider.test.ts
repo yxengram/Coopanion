@@ -151,6 +151,38 @@ describe('which mode', () => {
     expect(m.logs.some((l) => l.includes('表情动作交给决策模型挑'))).toBe(true);
   });
 
+  it('the decider prompt names the tail, ears and wings the figure moves, and the tail or wings it has none of', async () => {
+    const want: Record<string, string> = {
+      'gpt-chan': '姿势,还会摇尾巴、扇翅膀;',
+      'gemini-chan': '姿势,还会摇尾巴、抖耳朵、竖耳朵、耳朵耷拉(没有翅膀);',
+      'grok-chan': '姿势,还会扇翅膀(没有尾巴);',
+      whale: '姿势,还会摇尾巴(没有翅膀);',
+      'claude-chan': '姿势(没有尾巴、翅膀);',
+    };
+    for (const [figure, text] of Object.entries(want)) {
+      const m = await mounted({ patch: (c) => { c.skin.figure = figure; c.skin.scheme = ''; } });
+      const env = await renderWorldEnvPrompt(m.world);
+      expect(env.text, figure).toContain(text);
+      expect(env.text, figure).not.toContain('如果有的话');
+    }
+    // switched (pet_set): the next prompt follows the new body
+    const m = await mounted({ patch: (c) => { c.skin.figure = 'claude-chan'; c.skin.scheme = ''; } });
+    await page(m);
+    expect(m.world.envPromptVars()['pet.parts']).toBe('(没有尾巴、翅膀)');
+    // the prompt is not rebuilt for a switch: the receipt tells the new body's parts, once
+    const out = textOf(await tool(m.world, 'pet_set').handler({ figure: 'gpt-chan' }, ctx));
+    expect(out).toContain('身体能做的是表情、手势和坐、跪、趴、睡这些姿势,还会摇尾巴、扇翅膀。');
+    expect(m.world.envPromptVars()['pet.parts']).toBe(',还会摇尾巴、扇翅膀');
+    expect(textOf(await tool(m.world, 'pet_set').handler({ figure: 'claude-chan' }, ctx))).toContain('姿势(没有尾巴、翅膀)。');
+    // to a body with the same parts (Coo has no tail or wings either), nothing to tell
+    expect(textOf(await tool(m.world, 'pet_set').handler({ figure: 'coo' }, ctx))).not.toContain('身体能做的是');
+    // the classic prompt has no such line (its vocabulary table names the parts) and does not declare the variable
+    const c = await mounted({ key: '', patch: (x) => { x.skin.figure = 'gpt-chan'; x.skin.scheme = ''; } });
+    expect((await renderWorldEnvPrompt(c.world)).text).not.toContain(',还会摇尾巴');
+    expect(c.world.console().promptDocs![0]!.vars!.map((v) => v.name)).not.toContain('pet.parts');
+    expect(m.world.console().promptDocs![0]!.vars!.map((v) => v.name)).toContain('pet.parts');
+  });
+
   it('a deployment override of the classic prompt is warned of in decider mode', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'pet-override-'));
     const file = join(dir, 'worlds', 'desktop-pet', 'ENV_PROMPT.md');

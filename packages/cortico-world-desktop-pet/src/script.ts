@@ -142,6 +142,22 @@ const KNEEL_WITH_ARMS: readonly Channel[] = ['body', 'stance'];
 const KNEEL_SINGS: ReadonlySet<string> = new Set(['song']);
 /** (keepsLeans) The leans of the body seated still that the kit keeps a kneel through (its KNEEL_LEANS, web/kit/body.js). */
 export const KNEEL_LEANS: ReadonlySet<string> = new Set(['closer', 'leanback', 'sway']);
+/**
+ * (decider prompt, `{{pet.parts}}`) What a figure moves besides face, arms and posture: the zh names of its tail's,
+ * ears' and wings' words (the motions that take one of APPENDAGES alone), and the tail or wings it has none of, so the
+ * bot neither says it cannot beat its wings nor writes 「尾巴(如果有的话)」 (ears are not named as missing: every
+ * figure has some, only a cat's move). Gemini-chan: `,还会摇尾巴、抖耳朵、竖耳朵、耳朵耷拉(没有翅膀)`; Claude-chan:
+ * `(没有尾巴、翅膀)`. `known`: the figure's looks are known to match its words (the built-in packs); a third-party
+ * pack may draw a tail it has no word for, so it is told only what it moves.
+ */
+export function partsNote(vocab: readonly VocabWord[], known = true): string {
+  const moves = vocab.filter((w) => w.kind === 'motion' && channelsOf(w).length === 1 && APPENDAGES.includes(channelsOf(w)[0]!));
+  const has = new Set(moves.map((w) => channelsOf(w)[0]!));
+  const none = known ? (['tail', 'wings'] as const).filter((c) => !has.has(c)).map((c) => APPENDAGE_NAMES[c]) : [];
+  const names = moves.map((w) => firstName(w, 'zh'));
+  const lacks = none.length ? `(没有${none.join('、')})` : '';
+  return names.length ? `,还会${names.join('、')}${lacks}` : lacks;
+}
 /** The parts word `v` takes: a pack's own expression the face, a pack's own motion all but the face. */
 export function channelsOf(v: VocabWord): readonly Channel[] {
   if (v.id === 'kneel' && v.keepsArms) return KNEEL_WITH_ARMS;

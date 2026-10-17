@@ -138,10 +138,10 @@ describe('Coo Pet Provider', () => {
     expect(outputs[1].output).toContainEqual(expect.objectContaining({ type: 'input_image' }));
   });
 
-  it('prices the default model of DeepSeek, OpenAI, Gemini and xAI, and no other service', () => {
+  it('prices the default model of DeepSeek, OpenAI, Anthropic, Gemini and xAI, and no other service', () => {
     for (const v of VENDORS) {
       const quotes = COO.prices(entry({ baseUrl: v.baseUrl }), { model: v.model } as Request, AT);
-      expect(quotes.some((q) => q.models.includes(v.model)), v.id).toBe(['deepseek', 'openai', 'gemini', 'xai'].includes(v.id));
+      expect(quotes.some((q) => q.models.includes(v.model)), v.id).toBe(['deepseek', 'openai', 'anthropic', 'gemini', 'xai'].includes(v.id));
     }
   });
 
@@ -201,6 +201,7 @@ describe('Coo Pet Provider', () => {
     expect(vendorOf('https://api.openai.com/v1')?.id).toBe('openai');
     expect(vendorOf('https://generativelanguage.googleapis.com/v1beta')?.id).toBe('gemini');
     expect(vendorOf('https://api.x.ai/v1')?.id).toBe('xai');
+    expect(vendorOf('https://api.anthropic.com')?.id).toBe('anthropic');
     // Zhipu's Responses endpoint is not under its chat path
     expect(vendorOf('https://open.bigmodel.cn/api/paas/v4')).toBeNull();
     expect(vendorOf('http://127.0.0.1:1234/v1')).toBeNull();
@@ -231,9 +232,9 @@ describe('Coo Pet Provider', () => {
     expect(seen).toEqual([`${gemini.baseUrl}/openai/responses`]);
   });
 
-  it('keeps the keys of OpenAI, Gemini and xAI under names a shell environment does not already set', () => {
+  it('keeps the keys of OpenAI, Anthropic, Gemini and xAI under names a shell environment does not already set', () => {
     // Cortico reads the process environment before an endpoint's .env, so OPENAI_API_KEY in the shell would win
-    for (const id of ['openai', 'gemini', 'xai']) expect(VENDORS.find((v) => v.id === id)!.secret).toBe(`COO_${id.toUpperCase()}_API_KEY`);
+    for (const id of ['openai', 'anthropic', 'gemini', 'xai']) expect(VENDORS.find((v) => v.id === id)!.secret).toBe(`COO_${id.toUpperCase()}_API_KEY`);
     expect(new Set(VENDORS.map((v) => v.secret)).size).toBe(VENDORS.length);
   });
 });

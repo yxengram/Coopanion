@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
-import { CHANNELS, channelsOf, clashes, estimateSeconds, lastingNote, type Channel, pairKey, parseActions as actionsIn, parseScript as scriptIn, vocabId, vocabTable, INLINE_TAG_MAX, type Pairs, type VocabWord } from '../src/script.ts';
+import { CHANNELS, channelsOf, clashes, estimateSeconds, lastingNote, type Channel, pairKey, partsNote, parseActions as actionsIn, parseScript as scriptIn, vocabId, vocabTable, INLINE_TAG_MAX, type Pairs, type VocabWord } from '../src/script.ts';
 
 // Coo's words, as the body on screen gives them
 const VOCAB = figurePacks([]).packs.find((p) => p.id === 'coo')!.manifest.vocab;
@@ -615,5 +615,22 @@ describe('kneeling for a figure that leans kneeling (keepsLeans)', () => {
   it('says in the kneel note that the leans keep it, for her only (the girls\' note is unchanged)', () => {
     expect(lastingNote(word(WHALE, 'kneel'), WHALE)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴的动作、只占「手」的手势、唱歌和凑近、后仰、晃来晃去都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
     expect(lastingNote(word(GIRL, 'kneel'), GIRL)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+  });
+});
+
+describe('partsNote (the decider prompt\'s {{pet.parts}})', () => {
+  const vocabOf = (id: string) => figurePacks([]).packs.find((p) => p.id === id)!.manifest.vocab;
+  it('names the tail, ears and wings words a figure has, and the tail or wings it has none of (never ears)', () => {
+    expect(partsNote(vocabOf('gpt-chan'))).toBe(',还会摇尾巴、扇翅膀');
+    expect(partsNote(vocabOf('gemini-chan'))).toBe(',还会摇尾巴、抖耳朵、竖耳朵、耳朵耷拉(没有翅膀)');
+    expect(partsNote(vocabOf('grok-chan'))).toBe(',还会扇翅膀(没有尾巴)');
+    expect(partsNote(vocabOf('whale'))).toBe(',还会摇尾巴(没有翅膀)');
+    expect(partsNote(vocabOf('claude-chan'))).toBe('(没有尾巴、翅膀)');
+    expect(partsNote(vocabOf('coo'))).toBe('(没有尾巴、翅膀)');
+    // only the words the body on screen does (a page that does not know wingbeat)
+    expect(partsNote(vocabOf('gpt-chan').filter((w) => w.id !== 'wingbeat'))).toBe(',还会摇尾巴(没有翅膀)');
+    // a third-party pack may draw a tail it has no word for: told only what it moves
+    expect(partsNote(vocabOf('grok-chan'), false)).toBe(',还会扇翅膀');
+    expect(partsNote(vocabOf('claude-chan'), false)).toBe('');
   });
 });

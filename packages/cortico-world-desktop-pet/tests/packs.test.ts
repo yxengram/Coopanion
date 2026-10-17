@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { PACK_ALIASES, figureOf, figurePacks, lookOf, lookPatch, packFor, readManifest, unaliasSkin } from '../src/packs.ts';
+import { PACK_ALIASES, figureOf, figurePacks, lookOf, lookPatch, nameIn, packFor, readManifest, unaliasSkin } from '../src/packs.ts';
 import { PackImporter, filesFromBundle, filesFromZip, segments, type ImportFile } from '../src/pack-import.ts';
 import { PetServer } from '../src/server.ts';
 
@@ -38,12 +38,13 @@ describe('figure packs', () => {
     for (const p of m.presets) expect(p.pick).toEqual({ scheme: p.id, outfit: 'maid' });
   });
 
-  it('Claude-chan has one scheme, original, with settings-window colours, credited to the character\'s designer, and no alias', () => {
+  it('Claude-chan has one scheme, original, two outfits (常服, 冬装), with settings-window colours, credited to the character\'s designer, and no alias', () => {
     const { packs } = figurePacks([]);
     const m = packs.find((p) => p.id === 'claude-chan')!.manifest;
-    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']]]);
+    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']], ['outfit', ['classic', 'winter']]]);
+    expect(m.axes[1]!.options.map((o) => [nameIn(o.name), o.thumb])).toEqual([['常服', 'thumbs/classic.png'], ['冬装', 'thumbs/winter.png']]);
     expect(m.presets).toHaveLength(1);
-    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original' }, accent: '#D97757' });
+    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original', outfit: 'classic' }, accent: '#D97757' });
     expect(Object.keys(m.presets[0]!.console!)).toEqual(['light', 'dark']);
     expect(m.credits).toEqual([{ role: '角色设定', name: 'ZipZipPipe（Bilibili）' }]);
     expect(packFor(packs, 'claude-chan')).toMatchObject({ id: 'claude-chan', builtin: true });
@@ -51,13 +52,14 @@ describe('figure packs', () => {
     expect(unaliasSkin(skin)).toBe(skin);
   });
 
-  it('GPT-chan has one scheme, original, with settings-window colours, credited to the character\'s designer', () => {
+  it('GPT-chan has one scheme, original, two outfits (常服, 冬装), with settings-window colours, credited to the character\'s designer', () => {
     const { packs } = figurePacks([]);
     const m = packs.find((p) => p.id === 'gpt-chan')!.manifest;
     expect(m.name).toEqual({ zh: 'GPT 娘', en: 'GPT-chan' });
-    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']]]);
+    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']], ['outfit', ['classic', 'winter']]]);
+    expect(m.axes[1]!.options.map((o) => [nameIn(o.name), o.thumb])).toEqual([['常服', 'thumbs/classic.png'], ['冬装', 'thumbs/winter.png']]);
     expect(m.presets).toHaveLength(1);
-    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original' }, accent: '#7A8FA8' });
+    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original', outfit: 'classic' }, accent: '#7A8FA8' });
     expect(Object.keys(m.presets[0]!.console!)).toEqual(['light', 'dark']);
     expect(m.credits).toEqual([{ role: '角色设定', name: 'ZipZipPipe（Bilibili）' }]);
     expect(packFor(packs, 'gpt-chan')).toMatchObject({ id: 'gpt-chan', builtin: true });
@@ -65,13 +67,14 @@ describe('figure packs', () => {
     expect(unaliasSkin(skin)).toBe(skin);
   });
 
-  it('Gemini-chan has one scheme, original, with settings-window colours, credited to the character\'s designer', () => {
+  it('Gemini-chan has one scheme, original, two outfits (常服, 冬装), with settings-window colours, credited to the character\'s designer', () => {
     const { packs } = figurePacks([]);
     const m = packs.find((p) => p.id === 'gemini-chan')!.manifest;
     expect(m.name).toEqual({ zh: 'Gemini 娘', en: 'Gemini-chan' });
-    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']]]);
+    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']], ['outfit', ['classic', 'winter']]]);
+    expect(m.axes[1]!.options.map((o) => [nameIn(o.name), o.thumb])).toEqual([['常服', 'thumbs/classic.png'], ['冬装', 'thumbs/winter.png']]);
     expect(m.presets).toHaveLength(1);
-    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original' }, accent: '#7B5CD6' });
+    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original', outfit: 'classic' }, accent: '#7B5CD6' });
     expect(Object.keys(m.presets[0]!.console!)).toEqual(['light', 'dark']);
     expect(m.credits).toEqual([{ role: '角色设定', name: 'ZipZipPipe（Bilibili）' }]);
     expect(packFor(packs, 'gemini-chan')).toMatchObject({ id: 'gemini-chan', builtin: true });
@@ -79,13 +82,14 @@ describe('figure packs', () => {
     expect(unaliasSkin(skin)).toBe(skin);
   });
 
-  it('Grok-chan has one scheme, original, with settings-window colours, credited to the character\'s designer', () => {
+  it('Grok-chan has one scheme, original, two outfits (常服, 冬装), with settings-window colours, credited to the character\'s designer', () => {
     const { packs } = figurePacks([]);
     const m = packs.find((p) => p.id === 'grok-chan')!.manifest;
     expect(m.name).toEqual({ zh: 'Grok 娘', en: 'Grok-chan' });
-    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']]]);
+    expect(m.axes.map((a) => [a.id, a.options.map((o) => o.id)])).toEqual([['scheme', ['original']], ['outfit', ['classic', 'winter']]]);
+    expect(m.axes[1]!.options.map((o) => [nameIn(o.name), o.thumb])).toEqual([['常服', 'thumbs/classic.png'], ['冬装', 'thumbs/winter.png']]);
     expect(m.presets).toHaveLength(1);
-    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original' }, accent: '#A3304A' });
+    expect(m.presets[0]).toMatchObject({ id: 'original', pick: { scheme: 'original', outfit: 'classic' }, accent: '#A3304A' });
     expect(Object.keys(m.presets[0]!.console!)).toEqual(['light', 'dark']);
     expect(m.credits).toEqual([{ role: '角色设定', name: 'ZipZipPipe（Bilibili）' }]);
     expect(packFor(packs, 'grok-chan')).toMatchObject({ id: 'grok-chan', builtin: true });

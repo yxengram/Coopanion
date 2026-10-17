@@ -2822,5 +2822,2216 @@
    ],
    "cut": 161.79
   }
- }
+ },
+ "outfits": [
+  {
+   "id": "classic"
+  },
+  {
+   "id": "winter",
+   "parts": [
+    {
+     "id": "wing_l",
+     "tex": "wing_l",
+     "z": 0.3,
+     "parent": "wingL",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      36.0,
+      116.6,
+      92.4,
+      57.4
+     ]
+    },
+    {
+     "id": "wing_r",
+     "tex": "wing_r",
+     "z": 0.35,
+     "parent": "wingR",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      127.6,
+      116.4,
+      98.8,
+      57.2
+     ]
+    },
+    {
+     "id": "horns",
+     "tex": "horns",
+     "z": 0.6,
+     "parent": "headBack",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      78.2,
+      18.6,
+      106.0,
+      51.2
+     ]
+    },
+    {
+     "id": "hair_back",
+     "tex": "hair_back",
+     "z": 1,
+     "parent": "hairSway",
+     "grid": [
+      10,
+      14
+     ],
+     "box": [
+      53.8,
+      20.2,
+      160.2,
+      228.0
+     ]
+    },
+    {
+     "id": "tail",
+     "tex": "tail",
+     "z": 1.5,
+     "parent": "tail",
+     "grid": [
+      6,
+      8
+     ],
+     "box": [
+      148.6,
+      128.8,
+      76.8,
+      114.4
+     ]
+    },
+    {
+     "id": "shoe_l",
+     "tex": "winter_shoe_l",
+     "src": "outfits/winter/tex/shoe_l.png",
+     "z": 2,
+     "parent": "footL",
+     "grid": [
+      3,
+      4
+     ],
+     "box": [
+      109.2,
+      226.4,
+      19.2,
+      30.2
+     ]
+    },
+    {
+     "id": "shoe_r",
+     "tex": "winter_shoe_r",
+     "src": "outfits/winter/tex/shoe_r.png",
+     "z": 2.05,
+     "parent": "footR",
+     "grid": [
+      3,
+      4
+     ],
+     "box": [
+      127.6,
+      226.4,
+      21.0,
+      30.2
+     ]
+    },
+    {
+     "id": "skirt",
+     "tex": "winter_skirt",
+     "src": "outfits/winter/tex/skirt.png",
+     "z": 3,
+     "parent": "skirt",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      67.0,
+      155.2,
+      125.2,
+      101.4
+     ]
+    },
+    {
+     "id": "torso",
+     "tex": "winter_torso",
+     "src": "outfits/winter/tex/torso.png",
+     "z": 4,
+     "parent": "waist",
+     "grid": [
+      6,
+      4
+     ],
+     "box": [
+      101.6,
+      116.8,
+      55.0,
+      48.0
+     ]
+    },
+    {
+     "id": "arm_l",
+     "tex": "winter_arm_l",
+     "src": "outfits/winter/tex/arm_l.png",
+     "z": 5,
+     "parent": "armL",
+     "grid": [
+      4,
+      8
+     ],
+     "box": [
+      60.4,
+      120.4,
+      56.8,
+      84.4
+     ]
+    },
+    {
+     "id": "arm_r",
+     "tex": "winter_arm_r",
+     "src": "outfits/winter/tex/arm_r.png",
+     "z": 5.05,
+     "parent": "armR",
+     "grid": [
+      4,
+      8
+     ],
+     "box": [
+      140.2,
+      120.4,
+      56.8,
+      84.0
+     ]
+    },
+    {
+     "id": "face",
+     "tex": "face",
+     "z": 8,
+     "parent": "headMid",
+     "grid": [
+      6,
+      6
+     ],
+     "box": [
+      78.4,
+      32.8,
+      103.4,
+      87.0
+     ]
+    },
+    {
+     "id": "brows",
+     "tex": "brows",
+     "z": 8.6,
+     "parent": "headFeat",
+     "grid": [
+      12,
+      2
+     ],
+     "box": [
+      104.6,
+      78.6,
+      45.8,
+      4.6
+     ]
+    },
+    {
+     "id": "bangs",
+     "tex": "bangs",
+     "z": 13,
+     "parent": "bangsSway",
+     "grid": [
+      8,
+      10
+     ],
+     "box": [
+      94.2,
+      32.8,
+      67.0,
+      68.4
+     ]
+    },
+    {
+     "id": "ornament",
+     "tex": "ornament",
+     "z": 14,
+     "parent": "ornament",
+     "grid": [
+      4,
+      8
+     ],
+     "box": [
+      155.0,
+      54.4,
+      28.6,
+      61.0
+     ]
+    }
+   ],
+   "rects": {
+    "skirt": [
+     63.6,
+     155.2,
+     195.6,
+     256.6
+    ]
+   },
+   "poses": {
+    "sit": {
+     "required": [
+      {
+       "id": "sit_skirt",
+       "tex": "winter_sit_skirt",
+       "z": 3.1,
+       "parent": "sitBase",
+       "grid": [
+        10,
+        6
+       ],
+       "box": [
+        32.0,
+        168.8,
+        198.8,
+        88.0
+       ],
+       "src": "outfits/winter/tex/sit_skirt.png"
+      },
+      {
+       "id": "sit_top",
+       "tex": "winter_sit_top",
+       "z": 6.5,
+       "parent": "sitTop",
+       "grid": [
+        8,
+        8
+       ],
+       "box": [
+        91.8,
+        116.2,
+        71.2,
+        87.8
+       ],
+       "src": "outfits/winter/tex/sit_top.png"
+      }
+     ],
+     "pivots": {
+      "sitBase": [
+       128,
+       256
+      ],
+      "sitTop": [
+       128,
+       161.4
+      ]
+     },
+     "headDrop": 23.7,
+     "hides": [
+      "tail"
+     ]
+    },
+    "read": {
+     "required": [
+      {
+       "id": "pose_read",
+       "tex": "winter_pose_read",
+       "z": 15.5,
+       "parent": "poseRead",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        120.0,
+        131.0,
+        108.6
+       ],
+       "src": "outfits/winter/poses/pose_read.png"
+      }
+     ],
+     "pivots": {
+      "poseRead": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      127.94,
+      122.32
+     ],
+     "kind": "both"
+    },
+    "write": {
+     "required": [
+      {
+       "id": "pose_write",
+       "tex": "winter_pose_write",
+       "z": 15.5,
+       "parent": "poseWrite",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        119.2,
+        131.0,
+        105.6
+       ],
+       "src": "outfits/winter/poses/pose_write.png"
+      }
+     ],
+     "pivots": {
+      "poseWrite": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      126.35,
+      136.06
+     ],
+     "kind": "both"
+    },
+    "search": {
+     "required": [
+      {
+       "id": "pose_search",
+       "tex": "winter_pose_search",
+       "z": 15.5,
+       "parent": "poseSearch",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        86.4,
+        131.2,
+        142.4
+       ],
+       "src": "outfits/winter/poses/pose_search.png"
+      }
+     ],
+     "pivots": {
+      "poseSearch": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      98.6,
+      120.0
+     ],
+     "kind": "both"
+    },
+    "cheer": {
+     "required": [
+      {
+       "id": "pose_cheer",
+       "tex": "winter_pose_cheer",
+       "z": 15.5,
+       "parent": "poseCheer",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        57.8,
+        68.4,
+        147.4,
+        96.4
+       ],
+       "src": "outfits/winter/poses/pose_cheer.png"
+      }
+     ],
+     "pivots": {
+      "poseCheer": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      124.22,
+      90.97
+     ],
+     "kind": "both"
+    },
+    "heart": {
+     "required": [
+      {
+       "id": "pose_heart",
+       "tex": "winter_pose_heart",
+       "z": 15.5,
+       "parent": "poseHeart",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        120.0,
+        131.2,
+        109.4
+       ],
+       "src": "outfits/winter/poses/pose_heart.png"
+      }
+     ],
+     "pivots": {
+      "poseHeart": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.17,
+      123.14
+     ],
+     "kind": "both"
+    },
+    "cup": {
+     "required": [
+      {
+       "id": "pose_cup",
+       "tex": "winter_pose_cup",
+       "z": 15.5,
+       "parent": "poseCup",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        120.2,
+        131.2,
+        109.6
+       ],
+       "src": "outfits/winter/poses/pose_cup.png"
+      }
+     ],
+     "pivots": {
+      "poseCup": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.8,
+      141.4
+     ],
+     "kind": "both"
+    },
+    "pray": {
+     "required": [
+      {
+       "id": "pose_pray",
+       "tex": "winter_pose_pray",
+       "z": 15.5,
+       "parent": "posePray",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        120.0,
+        131.2,
+        108.0
+       ],
+       "src": "outfits/winter/poses/pose_pray.png"
+      }
+     ],
+     "pivots": {
+      "posePray": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      131.69,
+      131.16
+     ],
+     "kind": "both"
+    },
+    "hips": {
+     "required": [
+      {
+       "id": "pose_hips",
+       "tex": "winter_pose_hips",
+       "z": 15.5,
+       "parent": "poseHips",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        120.0,
+        131.2,
+        109.4
+       ],
+       "src": "outfits/winter/poses/pose_hips.png"
+      }
+     ],
+     "pivots": {
+      "poseHips": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.31,
+      122.71
+     ],
+     "kind": "both"
+    },
+    "hug": {
+     "required": [
+      {
+       "id": "pose_hug",
+       "tex": "winter_pose_hug",
+       "z": 15.5,
+       "parent": "poseHug",
+       "grid": [
+        12,
+        9
+       ],
+       "box": [
+        64.2,
+        118.6,
+        128.8,
+        67.0
+       ],
+       "src": "outfits/winter/poses/pose_hug.png"
+      }
+     ],
+     "pivots": {
+      "poseHug": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.65,
+      140.57
+     ],
+     "kind": "both"
+    },
+    "cross": {
+     "required": [
+      {
+       "id": "pose_cross",
+       "tex": "winter_pose_cross",
+       "z": 15.5,
+       "parent": "poseCross",
+       "grid": [
+        8,
+        8
+       ],
+       "box": [
+        100.8,
+        118.0,
+        55.8,
+        57.8
+       ],
+       "src": "outfits/winter/poses/pose_cross.png"
+      }
+     ],
+     "pivots": {
+      "poseCross": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.03,
+      122.6
+     ],
+     "kind": "both"
+    },
+    "stretch": {
+     "required": [
+      {
+       "id": "pose_stretch",
+       "tex": "winter_pose_stretch",
+       "z": 15.5,
+       "parent": "poseStretch",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        82.8,
+        28.2,
+        96.0,
+        144.8
+       ],
+       "src": "outfits/winter/poses/pose_stretch.png"
+      }
+     ],
+     "pivots": {
+      "poseStretch": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.33,
+      35.34
+     ],
+     "kind": "both"
+    },
+    "curtsy": {
+     "required": [
+      {
+       "id": "pose_curtsy",
+       "tex": "winter_pose_curtsy",
+       "z": 15.5,
+       "parent": "poseCurtsy",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.4,
+        120.0,
+        131.2,
+        109.0
+       ],
+       "src": "outfits/winter/poses/pose_curtsy.png"
+      }
+     ],
+     "pivots": {
+      "poseCurtsy": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      127.54,
+      159.72
+     ],
+     "kind": "both"
+    },
+    "oops": {
+     "required": [
+      {
+       "id": "pose_oops",
+       "tex": "winter_pose_oops",
+       "z": 15.5,
+       "parent": "poseOops",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        117.0,
+        131.2,
+        113.0
+       ],
+       "src": "outfits/winter/poses/pose_oops.png"
+      }
+     ],
+     "pivots": {
+      "poseOops": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.01,
+      121.94
+     ],
+     "kind": "both"
+    },
+    "shy": {
+     "required": [
+      {
+       "id": "pose_shy",
+       "tex": "winter_pose_shy",
+       "z": 15.5,
+       "parent": "poseShy",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        119.4,
+        131.2,
+        110.0
+       ],
+       "src": "outfits/winter/poses/pose_shy.png"
+      }
+     ],
+     "pivots": {
+      "poseShy": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.2,
+      123.07
+     ],
+     "kind": "both"
+    },
+    "clap": {
+     "required": [
+      {
+       "id": "pose_clap",
+       "tex": "winter_pose_clap",
+       "z": 15.5,
+       "parent": "poseClap",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        119.6,
+        131.0,
+        109.4
+       ],
+       "src": "outfits/winter/poses/pose_clap.png"
+      }
+     ],
+     "pivots": {
+      "poseClap": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.2,
+      147.4
+     ],
+     "kind": "both"
+    },
+    "clapo": {
+     "required": [
+      {
+       "id": "pose_clapo",
+       "tex": "winter_pose_clapo",
+       "z": 15.5,
+       "parent": "poseClapo",
+       "grid": [
+        11,
+        9
+       ],
+       "box": [
+        90.8,
+        120.0,
+        76.8,
+        63.8
+       ],
+       "src": "outfits/winter/poses/pose_clapo.png"
+      }
+     ],
+     "pivots": {
+      "poseClapo": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.2,
+      149.4
+     ],
+     "kind": "both"
+    },
+    "shrug": {
+     "required": [
+      {
+       "id": "pose_shrug",
+       "tex": "winter_pose_shrug",
+       "z": 15.5,
+       "parent": "poseShrug",
+       "grid": [
+        12,
+        8
+       ],
+       "box": [
+        78.2,
+        118.0,
+        103.4,
+        55.4
+       ],
+       "src": "outfits/winter/poses/pose_shrug.png"
+      }
+     ],
+     "pivots": {
+      "poseShrug": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.8,
+      141.4
+     ],
+     "kind": "both"
+    },
+    "headhold": {
+     "required": [
+      {
+       "id": "pose_headhold",
+       "tex": "winter_pose_headhold",
+       "z": 15.5,
+       "parent": "poseHeadhold",
+       "grid": [
+        12,
+        12
+       ],
+       "box": [
+        64.2,
+        53.8,
+        134.8,
+        129.4
+       ],
+       "src": "outfits/winter/poses/pose_headhold.png"
+      }
+     ],
+     "pivots": {
+      "poseHeadhold": [
+       128.0,
+       134.6
+      ]
+     },
+     "wrist": [
+      128.8,
+      54.4
+     ],
+     "kind": "both"
+    },
+    "wave": {
+     "required": [
+      {
+       "id": "pose_wave",
+       "tex": "winter_pose_wave",
+       "z": 15.8,
+       "parent": "poseWave",
+       "grid": [
+        8,
+        11
+       ],
+       "box": [
+        65.2,
+        101.8,
+        55.6,
+        78.8
+       ],
+       "src": "outfits/winter/poses/pose_wave.png"
+      }
+     ],
+     "pivots": {
+      "poseWave": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      81.56,
+      115.49
+     ],
+     "kind": "armL",
+     "rest": 125
+    },
+    "chin": {
+     "required": [
+      {
+       "id": "pose_chin",
+       "tex": "winter_pose_chin",
+       "z": 15.8,
+       "parent": "poseChin",
+       "grid": [
+        8,
+        12
+       ],
+       "box": [
+        64.2,
+        115.2,
+        59.4,
+        114.4
+       ],
+       "src": "outfits/winter/poses/pose_chin.png"
+      }
+     ],
+     "pivots": {
+      "poseChin": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      112.89,
+      142.88
+     ],
+     "kind": "armL",
+     "rest": -28
+    },
+    "scratch": {
+     "required": [
+      {
+       "id": "pose_scratch",
+       "tex": "winter_pose_scratch",
+       "z": 15.8,
+       "parent": "poseScratch",
+       "grid": [
+        7,
+        12
+       ],
+       "box": [
+        71.6,
+        94.2,
+        49.2,
+        84.0
+       ],
+       "src": "outfits/winter/poses/pose_scratch.png"
+      }
+     ],
+     "pivots": {
+      "poseScratch": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      93.14,
+      100.2
+     ],
+     "kind": "armL",
+     "rest": 156
+    },
+    "idea": {
+     "required": [
+      {
+       "id": "pose_idea",
+       "tex": "winter_pose_idea",
+       "z": 15.8,
+       "parent": "poseIdea",
+       "grid": [
+        8,
+        12
+       ],
+       "box": [
+        64.2,
+        111.8,
+        56.6,
+        118.4
+       ],
+       "src": "outfits/winter/poses/pose_idea.png"
+      }
+     ],
+     "pivots": {
+      "poseIdea": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      116.55,
+      122.61
+     ],
+     "kind": "armL",
+     "rest": -146
+    },
+    "salute": {
+     "required": [
+      {
+       "id": "pose_salute",
+       "tex": "winter_pose_salute",
+       "z": 15.8,
+       "parent": "poseSalute",
+       "grid": [
+        9,
+        12
+       ],
+       "box": [
+        60.8,
+        78.6,
+        59.8,
+        82.4
+       ],
+       "src": "outfits/winter/poses/pose_salute.png"
+      }
+     ],
+     "pivots": {
+      "poseSalute": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      90.33,
+      101.5
+     ],
+     "kind": "armL",
+     "rest": 151
+    },
+    "vsign": {
+     "required": [
+      {
+       "id": "pose_vsign",
+       "tex": "winter_pose_vsign",
+       "z": 15.8,
+       "parent": "poseVsign",
+       "grid": [
+        7,
+        12
+       ],
+       "box": [
+        74.8,
+        99.6,
+        46.0,
+        81.6
+       ],
+       "src": "outfits/winter/poses/pose_vsign.png"
+      }
+     ],
+     "pivots": {
+      "poseVsign": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      116.42,
+      123.1
+     ],
+     "kind": "armL",
+     "rest": -145
+    },
+    "point": {
+     "required": [
+      {
+       "id": "pose_point",
+       "tex": "winter_pose_point",
+       "z": 15.8,
+       "parent": "posePoint",
+       "grid": [
+        11,
+        10
+       ],
+       "box": [
+        44.6,
+        120.0,
+        76.2,
+        69.6
+       ],
+       "src": "outfits/winter/poses/pose_point.png"
+      }
+     ],
+     "pivots": {
+      "posePoint": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      49.88,
+      134.0
+     ],
+     "kind": "armL",
+     "rest": 91
+    },
+    "cover": {
+     "required": [
+      {
+       "id": "pose_cover",
+       "tex": "winter_pose_cover",
+       "z": 15.8,
+       "parent": "poseCover",
+       "grid": [
+        9,
+        12
+       ],
+       "box": [
+        64.2,
+        107.6,
+        65.0,
+        122.0
+       ],
+       "src": "outfits/winter/poses/pose_cover.png"
+      }
+     ],
+     "pivots": {
+      "poseCover": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      122.73,
+      112.08
+     ],
+     "kind": "armL",
+     "rest": -148
+    },
+    "fist": {
+     "required": [
+      {
+       "id": "pose_fist",
+       "tex": "winter_pose_fist",
+       "z": 15.8,
+       "parent": "poseFist",
+       "grid": [
+        6,
+        8
+       ],
+       "box": [
+        78.4,
+        113.0,
+        42.2,
+        57.0
+       ],
+       "src": "outfits/winter/poses/pose_fist.png"
+      }
+     ],
+     "pivots": {
+      "poseFist": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      116.7,
+      123.12
+     ],
+     "kind": "armL",
+     "rest": -144
+    },
+    "raise": {
+     "required": [
+      {
+       "id": "pose_raise",
+       "tex": "winter_pose_raise",
+       "z": 15.8,
+       "parent": "poseRaise",
+       "grid": [
+        7,
+        12
+       ],
+       "box": [
+        68.8,
+        -2.4,
+        52.2,
+        170.8
+       ],
+       "src": "outfits/winter/poses/pose_raise.png"
+      }
+     ],
+     "pivots": {
+      "poseRaise": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      92.4,
+      14.4
+     ],
+     "kind": "armL",
+     "rest": 172
+    },
+    "thumbs": {
+     "required": [
+      {
+       "id": "pose_thumbs",
+       "tex": "winter_pose_thumbs",
+       "z": 15.8,
+       "parent": "poseThumbs",
+       "grid": [
+        6,
+        11
+       ],
+       "box": [
+        76.0,
+        99.8,
+        44.8,
+        75.8
+       ],
+       "src": "outfits/winter/poses/pose_thumbs.png"
+      }
+     ],
+     "pivots": {
+      "poseThumbs": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      94.8,
+      117.4
+     ],
+     "kind": "armL",
+     "rest": 142
+    },
+    "shush": {
+     "required": [
+      {
+       "id": "pose_shush",
+       "tex": "winter_pose_shush",
+       "z": 15.8,
+       "parent": "poseShush",
+       "grid": [
+        9,
+        12
+       ],
+       "box": [
+        64.4,
+        111.4,
+        66.4,
+        117.2
+       ],
+       "src": "outfits/winter/poses/pose_shush.png"
+      }
+     ],
+     "pivots": {
+      "poseShush": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      125.8,
+      122.4
+     ],
+     "kind": "armL",
+     "rest": -125
+    },
+    "wipe": {
+     "required": [
+      {
+       "id": "pose_wipe",
+       "tex": "winter_pose_wipe",
+       "z": 15.8,
+       "parent": "poseWipe",
+       "grid": [
+        8,
+        12
+       ],
+       "box": [
+        68.6,
+        69.0,
+        53.6,
+        96.4
+       ],
+       "src": "outfits/winter/poses/pose_wipe.png"
+      }
+     ],
+     "pivots": {
+      "poseWipe": [
+       108.4,
+       134.6
+      ]
+     },
+     "wrist": [
+      108.8,
+      73.4
+     ],
+     "kind": "armL",
+     "rest": -180
+    },
+    "back": {
+     "required": [
+      {
+       "id": "back_body",
+       "tex": "winter_back_body",
+       "z": 21.2,
+       "parent": "backFlip",
+       "grid": [
+        2,
+        2
+       ],
+       "box": [
+        48.18,
+        21.76,
+        159.45,
+        234.24
+       ],
+       "src": "outfits/winter/poses/back_body.png"
+      },
+      {
+       "id": "back_hair",
+       "tex": "back_hair",
+       "z": 21.21,
+       "parent": "backHair",
+       "grid": [
+        16,
+        20
+       ],
+       "box": [
+        48.18,
+        21.76,
+        159.45,
+        205.82
+       ]
+      },
+      {
+       "id": "back_top",
+       "tex": "back_top",
+       "z": 21.22,
+       "parent": "backFlip",
+       "grid": [
+        2,
+        2
+       ],
+       "box": [
+        35.55,
+        19.0,
+        184.71,
+        230.09
+       ]
+      }
+     ],
+     "pivots": {
+      "backFlip": [
+       128,
+       256
+      ]
+     },
+     "rects": {
+      "hair": [
+       48.18,
+       99.51,
+       207.62,
+       227.58
+      ]
+     }
+    },
+    "lie": {
+     "required": [
+      {
+       "id": "lie_body",
+       "tex": "winter_lie_body",
+       "z": 21,
+       "parent": "lieLegs",
+       "grid": [
+        44,
+        28
+       ],
+       "box": [
+        18.81,
+        95.3,
+        218.38,
+        160.7
+       ],
+       "src": "outfits/winter/poses/lie_body.png"
+      }
+     ],
+     "overlays": [
+      {
+       "id": "lie_shut",
+       "tex": "lie_shut",
+       "z": 21.110000000000003,
+       "parent": "lieLegs",
+       "grid": [
+        8,
+        6
+       ],
+       "box": [
+        151.22,
+        163.55,
+        47.74,
+        19.87
+       ],
+       "use": "shut"
+      },
+      {
+       "id": "lie_smile",
+       "tex": "lie_smile",
+       "z": 21.12,
+       "parent": "lieLegs",
+       "grid": [
+        8,
+        6
+       ],
+       "box": [
+        171.96,
+        182.56,
+        7.99,
+        6.91
+       ],
+       "use": "smile"
+      },
+      {
+       "id": "lie_talk",
+       "tex": "lie_talk",
+       "z": 21.12,
+       "parent": "lieLegs",
+       "grid": [
+        8,
+        6
+       ],
+       "box": [
+        173.04,
+        184.29,
+        9.94,
+        7.78
+       ],
+       "use": "talk"
+      }
+     ],
+     "pivots": {
+      "lie": [
+       110.72,
+       256.0
+      ],
+      "lieChin": [
+       179.78,
+       196.05
+      ]
+     },
+     "rects": {
+      "head": [
+       105.3,
+       107.31,
+       236.98,
+       213.15
+      ],
+      "back": [
+       90.52,
+       191.55,
+       152.82,
+       256.0
+      ],
+      "legs": [
+       36.09,
+       127.26,
+       90.52,
+       213.02
+      ]
+     },
+     "legAxis": {
+      "knee": [
+       66.2,
+       201.35
+      ],
+      "shoe": [
+       60.1,
+       139.79
+      ],
+      "far": -23.76,
+      "gap": -10.8
+     },
+     "anchors": {
+      "gaze": [
+       175.46,
+       176.61
+      ],
+      "tear": [
+       161.46,
+       187.23
+      ],
+      "z": [
+       224.02,
+       115.95
+      ],
+      "bubble": [
+       177.62,
+       111.63
+      ],
+      "glints": [
+       [
+        96.66,
+        128.91
+       ],
+       [
+        241.3,
+        141.87
+       ]
+      ],
+      "hearts": [
+       105.3,
+       236.98,
+       120.27
+      ],
+      "hit": [
+       128.0,
+       175.65,
+       105.19,
+       80.35
+      ],
+      "halfW": 111.19
+     },
+     "fx": {
+      "from": [
+       127.9,
+       100.7
+      ],
+      "to": [
+       175.46,
+       176.61
+      ],
+      "s": 1.08
+     },
+     "face": {
+      "box": [
+       140.07,
+       153.95,
+       72.11,
+       44.93
+      ],
+      "place": {
+       "eyeL": [
+        0.93129,
+        -0.10179,
+        0.09058,
+        0.82877,
+        10.01,
+        47.64
+       ],
+       "eyeR": [
+        0.88126,
+        -0.09632,
+        0.09747,
+        0.89175,
+        18.47,
+        43.41
+       ],
+       "mouth": [
+        0.90429,
+        -0.09884,
+        0.08708,
+        0.7967,
+        13.2,
+        49.44
+       ]
+      },
+      "parts": [
+       {
+        "id": "lie_blank",
+        "tex": "winter_lie_blank",
+        "z": 21.002,
+        "parent": "lieLegs",
+        "grid": [
+         12,
+         8
+        ],
+        "box": [
+         150.8,
+         163.06,
+         47.8,
+         31.38
+        ],
+        "use": "face",
+        "src": "outfits/winter/poses/lie_blank.png"
+       },
+       {
+        "id": "lie_fringe",
+        "tex": "winter_lie_fringe",
+        "z": 21.006,
+        "parent": "lieLegs",
+        "grid": [
+         12,
+         8
+        ],
+        "box": [
+         139.8,
+         154.06,
+         72.39,
+         44.17
+        ],
+        "use": "face",
+        "src": "outfits/winter/poses/lie_fringe.png"
+       }
+      ],
+      "z": 21.004
+     }
+    },
+    "kneel": {
+     "required": [
+      {
+       "id": "kneel_body",
+       "tex": "winter_kneel_body",
+       "z": 21.3,
+       "parent": "kneel",
+       "grid": [
+        12,
+        16
+       ],
+       "box": [
+        36.73,
+        24.93,
+        189.68,
+        231.07
+       ],
+       "src": "outfits/winter/poses/kneel_body.png"
+      }
+     ],
+     "overlays": [
+      {
+       "id": "kneel_shut",
+       "tex": "kneel_shut",
+       "z": 21.310000000000002,
+       "parent": "kneel",
+       "grid": [
+        6,
+        4
+       ],
+       "box": [
+        96.92,
+        95.03,
+        61.78,
+        20.39
+       ],
+       "use": "shut"
+      },
+      {
+       "id": "kneel_smile",
+       "tex": "kneel_smile",
+       "z": 21.32,
+       "parent": "kneel",
+       "grid": [
+        6,
+        4
+       ],
+       "box": [
+        123.65,
+        114.63,
+        8.91,
+        6.34
+       ],
+       "use": "smile"
+      },
+      {
+       "id": "kneel_talk",
+       "tex": "kneel_talk",
+       "z": 21.32,
+       "parent": "kneel",
+       "grid": [
+        6,
+        4
+       ],
+       "box": [
+        124.25,
+        114.83,
+        8.12,
+        6.73
+       ],
+       "use": "talk"
+      }
+     ],
+     "pivots": {
+      "kneel": [
+       128,
+       256
+      ]
+     },
+     "headDrop": 6.04,
+     "head": [
+      59.7,
+      25.13,
+      204.24,
+      133.24
+     ],
+     "face": {
+      "box": [
+       89.76,
+       85.69,
+       73.41,
+       43.0
+      ],
+      "place": {
+       "eyeL": [
+        0.95586,
+        0.00134,
+        -0.00132,
+        0.9408,
+        13.92,
+        14.45
+       ],
+       "eyeR": [
+        0.97105,
+        0.00137,
+        -0.00125,
+        0.88726,
+        18.87,
+        17.3
+       ],
+       "mouth": [
+        0.99929,
+        0.00141,
+        -0.00143,
+        1.01312,
+        10.27,
+        10.02
+       ]
+      },
+      "parts": [
+       {
+        "id": "kneel_blank",
+        "tex": "winter_kneel_blank",
+        "z": 21.302,
+        "parent": "kneelHead",
+        "grid": [
+         4,
+         4
+        ],
+        "box": [
+         98.16,
+         94.55,
+         59.63,
+         33.01
+        ],
+        "use": "face",
+        "src": "outfits/winter/poses/kneel_blank.png"
+       },
+       {
+        "id": "kneel_fringe",
+        "tex": "winter_kneel_fringe",
+        "z": 21.306,
+        "parent": "kneelHead",
+        "grid": [
+         4,
+         4
+        ],
+        "box": [
+         89.95,
+         85.75,
+         73.23,
+         42.61
+        ],
+        "use": "face",
+        "src": "outfits/winter/poses/kneel_fringe.png"
+       }
+      ],
+      "z": 21.304
+     }
+    },
+    "roll": {
+     "required": [
+      {
+       "id": "roll_ball",
+       "tex": "winter_roll_ball",
+       "z": 30,
+       "parent": "rollBall",
+       "grid": [
+        2,
+        2
+       ],
+       "box": [
+        50.04,
+        79.33,
+        155.17,
+        176.83
+       ],
+       "src": "outfits/winter/poses/roll_ball.png"
+      }
+     ],
+     "pivots": {
+      "rollBall": [
+       128.0,
+       176.87
+      ]
+     },
+     "around": 513.96,
+     "support": [
+      78.99,
+      79.29,
+      79.56,
+      79.81,
+      80.03,
+      80.23,
+      80.41,
+      80.56,
+      80.69,
+      80.8,
+      80.92,
+      81.02,
+      81.1,
+      81.15,
+      81.17,
+      81.19,
+      81.24,
+      81.44,
+      81.61,
+      81.76,
+      81.9,
+      82.01,
+      82.15,
+      82.31,
+      82.45,
+      82.56,
+      82.65,
+      82.72,
+      82.76,
+      82.78,
+      82.78,
+      82.75,
+      82.71,
+      82.65,
+      82.57,
+      82.49,
+      82.6,
+      82.71,
+      82.79,
+      82.85,
+      82.88,
+      82.89,
+      82.87,
+      82.83,
+      82.76,
+      82.66,
+      82.6,
+      82.52,
+      82.4,
+      82.27,
+      82.11,
+      81.92,
+      81.87,
+      81.92,
+      81.94,
+      81.94,
+      81.92,
+      81.88,
+      81.83,
+      81.76,
+      81.66,
+      81.53,
+      81.39,
+      81.21,
+      81.02,
+      80.81,
+      80.58,
+      80.32,
+      80.04,
+      79.74,
+      79.41,
+      79.05,
+      78.69,
+      78.51,
+      78.61,
+      78.68,
+      78.73,
+      78.76,
+      78.76,
+      78.74,
+      78.69,
+      78.62,
+      78.52,
+      78.41,
+      78.26,
+      78.1,
+      77.91,
+      77.69,
+      77.46,
+      77.19,
+      76.91,
+      76.66,
+      76.38,
+      76.08,
+      75.76,
+      75.42,
+      75.05,
+      74.66,
+      74.24,
+      73.82,
+      73.62,
+      73.59,
+      73.54,
+      73.46,
+      73.36,
+      73.26,
+      73.13,
+      72.98,
+      72.8,
+      72.61,
+      72.41,
+      72.18,
+      72.49,
+      72.78,
+      73.05,
+      73.29,
+      73.52,
+      73.74,
+      73.96,
+      74.15,
+      74.33,
+      74.48,
+      74.61,
+      74.71,
+      74.8,
+      74.87,
+      74.92,
+      74.95,
+      74.96,
+      74.94,
+      74.9,
+      74.83,
+      74.75,
+      74.64,
+      74.5,
+      74.35,
+      74.25,
+      74.13,
+      74.9,
+      75.98,
+      77.04,
+      78.07,
+      79.08,
+      80.06,
+      81.02,
+      81.95,
+      82.86,
+      83.75,
+      84.61,
+      85.44,
+      86.25,
+      87.03,
+      87.78,
+      88.51,
+      89.21,
+      89.88,
+      90.53,
+      91.15,
+      91.74,
+      92.3,
+      92.84,
+      93.34,
+      93.82,
+      94.27,
+      94.69,
+      95.08,
+      95.45,
+      95.78,
+      96.08,
+      96.36,
+      96.61,
+      96.82,
+      97.01,
+      97.17,
+      97.3,
+      97.39,
+      97.46,
+      97.5,
+      97.51,
+      97.49,
+      97.44,
+      97.36,
+      97.26,
+      97.12,
+      96.96,
+      96.76,
+      96.54,
+      96.28,
+      96,
+      95.69,
+      95.35,
+      94.98,
+      94.58,
+      94.15,
+      93.69,
+      93.21,
+      92.69,
+      92.15,
+      91.58,
+      90.98,
+      90.36,
+      89.71,
+      89.08,
+      89.07,
+      89.02,
+      88.95,
+      88.86,
+      88.75,
+      88.64,
+      88.77,
+      89,
+      89.22,
+      89.4,
+      89.56,
+      89.69,
+      89.79,
+      89.86,
+      89.91,
+      89.93,
+      89.92,
+      89.89,
+      89.83,
+      89.74,
+      89.62,
+      89.48,
+      89.31,
+      89.12,
+      88.9,
+      88.66,
+      88.39,
+      88.09,
+      87.77,
+      87.42,
+      87.04,
+      86.64,
+      86.21,
+      85.75,
+      85.27,
+      84.76,
+      84.23,
+      83.67,
+      83.09,
+      82.48,
+      81.84,
+      81.18,
+      80.49,
+      79.78,
+      79.05,
+      78.29,
+      77.51,
+      76.71,
+      75.88,
+      75.02,
+      75.04,
+      75.12,
+      75.17,
+      75.2,
+      75.23,
+      75.23,
+      75.36,
+      75.69,
+      76,
+      76.3,
+      76.58,
+      76.83,
+      77.06,
+      77.27,
+      77.45,
+      77.61,
+      77.75,
+      77.86,
+      77.97,
+      78.05,
+      78.11,
+      78.14,
+      78.15,
+      78.14,
+      78.11,
+      78.05,
+      78.05,
+      78.33,
+      78.58,
+      78.82,
+      79.03,
+      79.21,
+      79.39,
+      79.54,
+      79.66,
+      79.77,
+      79.85,
+      79.92,
+      79.96,
+      79.97,
+      79.97,
+      79.93,
+      79.88,
+      79.8,
+      79.7,
+      79.58,
+      79.45,
+      79.28,
+      79.1,
+      78.89,
+      78.65,
+      78.49,
+      78.51,
+      78.5,
+      78.48,
+      78.42,
+      78.35,
+      78.25,
+      78.12,
+      77.98,
+      77.8,
+      77.61,
+      77.39,
+      77.18,
+      76.99,
+      77.04,
+      77.06,
+      77.06,
+      77.04,
+      76.99,
+      76.94,
+      77.05,
+      77.15,
+      77.22,
+      77.29,
+      77.34,
+      77.37,
+      77.37,
+      77.35,
+      77.31,
+      77.24,
+      77.17,
+      77.09,
+      76.98,
+      76.85,
+      76.7,
+      76.72,
+      76.87,
+      77.07,
+      77.27,
+      77.46,
+      77.64,
+      77.79,
+      77.92,
+      78.05,
+      78.15,
+      78.24,
+      78.3,
+      78.35,
+      78.38,
+      78.39,
+      78.37,
+      78.36,
+      78.34,
+      78.28,
+      78.5,
+      78.76
+     ]
+    },
+    "kneelLow": {
+     "required": [
+      {
+       "id": "kneel_low",
+       "tex": "winter_kneel_low",
+       "z": 3.05,
+       "parent": "kneelLow",
+       "grid": [
+        10,
+        8
+       ],
+       "box": [
+        36.73,
+        24.93,
+        189.68,
+        231.07
+       ],
+       "src": "outfits/winter/poses/kneel_low.png"
+      }
+     ],
+     "pivots": {
+      "kneelLow": [
+       128,
+       256
+      ]
+     },
+     "hides": [
+      "tail"
+     ],
+     "cut": 161.79
+    }
+   }
+  }
+ ]
 }

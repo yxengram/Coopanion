@@ -66,6 +66,30 @@ B 站 DeepSeek 二创里的蓝发鲸鱼女仆，做成 Coo 的另一个身体。
 - 翻滚：球的轮廓多了喷水和远侧兜帽鳍、少了呆毛，`rollSupport` 是按冬装球的贴图算的每 1° 质心高度（360 个，替换 `poses.roll.support`；喷水和鳍尖是尖角，每 5° 一个点时两点之间的直线会让球在翻到约 208° 时浮起 2-3 像素），周长 `around` 仍是 628。
 滚动时兜帽系带的毛球只跟 kit 一半的摆动（球里看不见时也一样），弹出来时不会甩到脸上。每个词都照常做（`doWord` 都返回真），穿冬装和穿女仆装时每个词用到的整身图一样。
 
+### 四位娘的服装
+
+Claude 娘、GPT 娘、Gemini 娘和 Grok 娘也有第二维「服装」：`classic`（常服，`model.json` 的 `parts` 和 `poses`）和 `winter`（冬装）。
+`figure.json` 的 `axes[1]` 带两张全身缩略图 `thumbs/classic.png`、`thumbs/winter.png`（144×144，同一比例），唯一的预设 `original` 选常服（`pick` 为 `{ scheme: original, outfit: classic }`）；
+`skin.scheme` 是 `original-winter` 时穿冬装，只写 `original` 是常服。`about` 写的是两套的样子，bot 从括号里的选择知道她穿哪套。
+
+| 娘 | 冬装 |
+|---|---|
+| Claude 娘 | 绣橙色小花的奶白色毛呢长裙、白色毛边的短披肩和小毛领、毛边袖口的针织泡泡袖、带橙色流苏的黑色腰封、奶白色裤袜、毛边深棕色短靴 |
+| GPT 娘 | 淡紫白色的夹棉旗袍式长裙（菱格绗缝、毛边立领、盘扣）、盖过肩膀的夹棉宽袖配毛边袖口、白色针织长袜、毛边短靴；龙翼和尾巴露在外面 |
+| Gemini 娘 | 合拢的深蓝长袖上衣（星星徽章和扣子）、毛边袖口、点缀白色小星星的淡紫色短围巾、深蓝色裤袜，裙子、袜套和鞋照旧 |
+| Grok 娘 | 黑色天鹅绒的哥特冬裙（合拢的上身、金色齿轮扣子）、立领和袖口镶深红色毛边、裙摆一圈深红色毛边、黑色裤袜、深红色毛边的中筒高跟靴 |
+
+和大肥鱼不同，娘的一套服装就是一副自己的骨架：`kit/outfit.js` 的 `outfitModel(model, outfit)` 给出这套服装的模型
+（`outfits[1]` 的整份部件表、`pivots`、`rects` 和整份 `poses`），`figure.js` 照常 `buildRig`、`createMotion`。所以冬装的姿势图可以有自己的框：
+袖口的毛边伸出常服轮廓的手臂画，框就放大一点（枢轴、手腕和静止角度不变），坐姿、跪坐和趴着的空白脸、刘海也各有自己的框。
+冬装自己画的贴图都有 `src`（`outfits/winter/tex/` 是站姿部件和坐姿上下身，`outfits/winter/poses/` 是手臂和整身姿势图），这些贴图名都带 `winter_` 前缀；
+没有 `src` 的是和常服共用的 `tex/` 里的同名贴图，都不是衣服：站姿的头发、脸、五官、耳朵、角、翅膀、尾巴，背面的头发和头顶那层
+（`back_hair`、`back_hair_under`、`back_top`：角、翅膀、尾巴、猫耳、发冠和蝴蝶结），GPT 娘和 Gemini 娘跪坐、趴着的闭眼和嘴贴片。
+冬装 `poses` 里没列的姿势在冬装里就没有，照缺图的办法做，不会露出常服的画：现在只有 Gemini 娘的「有了」（`idea`）没有冬装的画，穿冬装时用冬装的手臂举起来做。
+换服装重建骨架和动作状态：新的动作先按 kit 当前这一帧走 `OUTFIT_WARM`（2 秒）的追帧（和隐藏后重新显示的 `catchUp` 一样），再画第一帧，
+所以坐着、跪着、趴着、做手势时换服装都是一帧切换，不会先站起来再坐下去；新画布在挂上的那一帧就按屏幕定好尺寸（不会有一两帧模糊）。
+同时点了两次时以后点的为准（先点的那套贴图后载完也不会盖过来）。贴图由 `scratch/outfits/tools/install_outfit.py` 从 `scratch/outfits/<girl>/out/` 装进来。
+
 ## 构成
 
 - `web/kit/rig.js`：一个小型的 Live2D 式渲染器。每个部件是一张贴图铺在一个网格上，网格点逐帧经过变形器链：
@@ -275,6 +299,7 @@ Gemini 娘同理：`pnpm run export:gemini [输出目录]`（`scripts/export-gem
 贴图只限非商业使用；`coopanion-gemini-chan` 是内置 Gemini 娘的别名，`tests/gemini-pack-export.test.js` 做同样的检查。
 Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pack.mjs`）写出 `coopanion-grok-chan/`，名字「Grok 娘」，
 贴图只限非商业使用；`coopanion-grok-chan` 是内置 Grok 娘的别名，`tests/grok-pack-export.test.js` 做同样的检查。
+四个娘的包也带着冬装：`kit/outfit.js`、`outfits/winter/` 下她冬装的全部贴图和两张服装缩略图，原版的装扮页照样有「服装」一行（各自的 `tests/*-pack-export.test.js` 检查这些文件都在，`tests/girl-outfit.test.js` 只用包里的文件在原版 v0.1.17 的 kit 上画冬装）。
 五个脚本只是各自的描述（id、名字、许可、README），导出的活都在 `scripts/export-pack.mjs` 里。
 
 ## 贴图来源
@@ -328,7 +353,7 @@ Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pa
 
 - 「形象」：大肥鱼、Claude 娘、GPT 娘、Gemini 娘、Grok 娘、Coo，点了带着 `?figure=<id>` 重新载入（大肥鱼不带参数）；页面标题跟着换。
 - 「配色」：只在有不止一套配色的形象上出现，切换后网址带上 `?scheme=<id>`（大肥鱼是 `<配色>-<服装>`），刷新还是这套；换形象时去掉。换配色保留当前服装，渐变。
-- 「服装」：只在有不止一套服装的形象上出现（大肥鱼：女仆装、冬装），保留当前配色，一帧切换。
+- 「服装」：只在有不止一套服装的形象上出现（大肥鱼：女仆装、冬装；四位娘：常服、冬装），保留当前配色，一帧切换；网址的 `?scheme=` 跟着变成 `<配色>-<服装>`。
 - 「交互」：说话、倾听、思考、自由活动、抛起来（kit 的被拎起的脸，不算词表里的词）、大小、切换深浅。
 - 「组合」：输入几个词用 `+` 连起来（中文名或 id，如 `开心+招手+点头`），回车或「一起做」当一组做（`ctl.doGroup`）。
   组里的顺序和 World 发来的一样（身体、站姿在前，然后手、头，表情最后）；两个表情在 `pairs` 里时眼睛那个在前，或换成它对应的那个词；

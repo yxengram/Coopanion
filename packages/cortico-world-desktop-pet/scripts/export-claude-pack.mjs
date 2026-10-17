@@ -19,9 +19,10 @@ export function packReadme(manifest, sounds) {
   return `# ${manifest.name.zh}
 
 Coopanion 的桌宠形象「Claude 娘」导出成的形象包(id \`${manifest.id}\`,版本 ${manifest.version}),可以装进别的 Coopanion
-(包括原版 v0.1.17 及以后)。她带着自己的 kit(\`kit/body.js\`、\`kit/rig.js\`),所以在原版里也会全部 ${manifest.vocab.length} 个表情和动作:
+(包括原版 v0.1.17 及以后)。她带着自己的 kit(\`kit/body.js\`、\`kit/rig.js\`、\`kit/outfit.js\`),所以在原版里也会全部 ${manifest.vocab.length} 个表情和动作:
 捧着书看、坐在铺开的裙摆上、趴着看书、跪坐、翻滚、唱歌、喝茶、屈膝礼、比耶……(和内置的她一样,没有喷水)。
 原版没有的 ${sounds.length} 个音效事先渲染成了 \`sounds/*.wav\`。
+她有两套服装:常服和冬装,在装扮页的「服装」一行里选(原版也有这一行),换服装是一帧切换。
 
 ${installSection(manifest)}
 然后重启 Coopanion,在装扮页最上面一行「形象」里选「${manifest.name.zh}」。
@@ -40,8 +41,9 @@ ${soundSection(sounds)}
 
 - 代码(${code})是 AGPL-3.0-or-later,全文见 \`LICENSE\`;
   源码在 ${SOURCE_URL}(\`${PKG_REL}/web/\`),导出脚本是 \`${PKG_REL}/scripts/export-claude-pack.mjs\`。
-- 贴图(\`tex/\`、\`feat/\`、\`thumbs/\`)不在 AGPL 授权范围内,**只限非商业使用**:角色设定是 ZipZipPipe（Bilibili）
+- 贴图(\`tex/\`、\`feat/\`、\`outfits/\`、\`thumbs/\`)不在 AGPL 授权范围内,**只限非商业使用**:角色设定是 ZipZipPipe（Bilibili）
   画的 Claude 同人形象;图由 GPT 的图像模型按这个设定生成,再由 Coopanion 拆件。
+  冬装(\`outfits/winter/\`)是 Coopanion 用 GPT 的图像模型对她的这些图做的换装编辑,同样按这个设定画。
   原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们随 Coopanion 分发。
 - 音效由上面的代码合成,和代码同一许可。
 `;

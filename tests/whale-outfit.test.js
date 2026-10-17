@@ -426,6 +426,29 @@ describe('the whale\'s outfits: `<scheme>-<outfit>`', () => {
     } finally { done(); }
   });
 
+  it('keeps the last outfit asked for when an earlier one\'s textures load after it (a quick click back on the dress page)', async () => {
+    let release;
+    const slow = new Promise(r => { release = r; });
+    const load = async u => { if (String(u).startsWith('outfits/')) await slow; return loadImage(u); };
+    const { run, fig, done } = await onKit('deepseek', createPet, load);
+    try {
+      run(.2);
+      const toCape = fig.setScheme('deepseek-cape');
+      await fig.setScheme('deepseek-maid');
+      release();
+      await toCape;
+      run(.2);
+      expect(fig.scheme).toBe('deepseek-maid');
+      expect(rigSeen.tree.parts.map(p => p.id)).toContain('torso_up');
+      expect(rigSeen.tree.parts.map(p => p.id)).not.toContain('hood_front');
+      // and asked again, it goes
+      await fig.setScheme('deepseek-cape');
+      run(1 / 60);
+      expect(fig.scheme).toBe('deepseek-cape');
+      expect(rigSeen.tree.parts.map(p => p.id)).toContain('hood_front');
+    } finally { done(); }
+  });
+
   it('swings the hood ties\' pompoms and the scarf\'s ends as pendulums, finite and settling, walking, held and turning', async () => {
     const { pet, run, done } = await onKit('deepseek-cape');
     try {

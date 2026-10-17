@@ -3,15 +3,16 @@
  * DeepSeek first. Which service an endpoint is comes from its base URL (`vendorOf`), and the service
  * decides the protocol (`Vendor.protocol`): OpenAI-compatible Responses (`POST <baseUrl>/responses`,
  * stateless, past reasoning replayed as plain text the way DeepSeek wants it, or as the signed blocks
- * for `encryptedReasoning` services such as OpenAI and xAI), or the Gemini API. An endpoint is plain
- * Cortico config and nothing else is stored; any other URL uses Responses.
+ * for `encryptedReasoning` services such as OpenAI and xAI), Anthropic's Messages API (through
+ * `@anthropic-ai/sdk`, `anthropic/`), or the Gemini API. An endpoint is plain Cortico config and
+ * nothing else is stored; any other URL uses Responses.
  *
  * Thinking is a four-step choice: off sends `reasoning.effort = none`, the others low / high /
  * max, each rewritten to the value a service documents for the model where it takes other ones
- * (`effortOf`); the Gemini API gets the levels in its own form. Images are sent only when the
+ * (`effortOf`); the Messages and Gemini APIs get the levels in their own form. Images are sent only when the
  * endpoint is marked multimodal and the service lists the model as reading them; tool results may
  * carry images too. Images go out only from the newest delivered batch of events on
- * (`sinceLastDelivery`). Prices are built in for DeepSeek, OpenAI, Gemini and xAI.
+ * (`sinceLastDelivery`). Prices are built in for DeepSeek, OpenAI, Anthropic, Gemini and xAI.
  */
 import type { ProviderModule, ProviderInstance } from 'cortico/providers/base.ts';
 import type { LLMProviderEntry, ReasoningTier } from 'cortico/core/types.ts';
@@ -20,6 +21,7 @@ import { isContextOverflow } from 'cortico/providers/transport/errors.ts';
 import { ModelCatalog, ResponsesProvider, type ResponsesProviderOptions } from 'cortico/providers/openai-responses-compat/native.ts';
 import type { GenerateOptions } from 'cortico/core/generation.ts';
 import type { Request } from 'cortico/protocol/open-responses/index.ts';
+import { ClaudeProvider } from './anthropic/client.ts';
 import { sinceLastDelivery } from './context.ts';
 import { GeminiProvider, listGeminiModels } from './gemini/client.ts';
 import { vendorPrices } from './pricing.ts';
@@ -64,15 +66,16 @@ class VendorResponses extends ResponsesProvider {
   }
 }
 
-/** The Gemini API states an oversized prompt as a token count over the maximum. */
+/** The Messages API states an oversized prompt as `prompt is too long`, the Gemini API as a token count over the maximum. */
 function contextOverflow(error: { status: number; body: string }): boolean {
-  return isContextOverflow(error) || (error.status === 400 && /input token count.*exceeds the maximum/i.test(error.body));
+  return isContextOverflow(error)
+    || (error.status === 400 && /prompt is too long|exceeds? the (model's )?context|input token count.*exceeds the maximum/i.test(error.body));
 }
 
 export const COO = {
   id: 'coo',
   title: 'Coo Pet Provider',
-  description: 'DeepSeek, Qwen, Kimi, GLM, Doubao, Baidu Qianfan, MiniMax, StepFun, OpenRouter, OpenAI, Gemini and xAI through their Responses endpoints or the Gemini API.',
+  description: 'DeepSeek, Qwen, Kimi, GLM, Doubao, Baidu Qianfan, MiniMax, StepFun, OpenRouter, OpenAI, Anthropic, Gemini and xAI through their Responses endpoints, the Messages API or the Gemini API.',
   // the tiers and description have zh and en text; zh-Hant reads zh, every other language en
   localize: (language) => ({
     description: baseLanguage(language) === 'zh'
@@ -94,6 +97,26 @@ export const COO = {
     const vendor = vendorOf(entry.baseUrl);
     const media = { enabled: () => current().multimodal === true && readsImages(current(), current().spec?.model), read: host.readBlob };
     const stated = (model: string) => vendor?.contextWindows?.[model];
+    if (vendor && protocolOf(entry.baseUrl) === 'anthropic') {
+      const client = new ClaudeProvider({ baseUrl: entry.baseUrl, apiKey, media, keepThinking: host.keepThinking, log: host.log });
+      const windows = new Map<string, number | undefined>();
+      return {
+        client,
+        compatibilityKey: () => [vendor.id, name, 'anthropic'],
+        contextWindow: (model) => stated(model) ?? windows.get(model),
+        // the SDK pages `GET /v1/models`; the window and output limit are read where the API states them
+        listModels: async () => {
+          const models = [];
+          for await (const model of client.client().models.list()) {
+            const row = model as typeof model & { max_input_tokens?: number; max_tokens?: number };
+            windows.set(model.id, row.max_input_tokens);
+            models.push({ id: model.id, displayName: model.display_name,
+              ...(row.max_input_tokens ? { contextWindow: row.max_input_tokens } : {}), ...(row.max_tokens ? { maxOutputTokens: row.max_tokens } : {}) });
+          }
+          return models;
+        },
+      };
+    }
     if (vendor && protocolOf(entry.baseUrl) === 'gemini') {
       const windows = new Map<string, number | undefined>();
       return {
@@ -125,6 +148,6 @@ export const COO = {
 } satisfies ProviderModule;
 
 export default COO;
-export { deepseekPrices, geminiPrices, openaiPrices, vendorPrices, xaiPrices, OFF_PEAK } from './pricing.ts';
+export { anthropicPrices, deepseekPrices, geminiPrices, openaiPrices, vendorPrices, xaiPrices, OFF_PEAK } from './pricing.ts';
 export { VENDORS, effortOf, protocolOf, vendorById, vendorEntry, vendorOf, type Vendor } from './vendors.ts';
 export { VENDOR_ICONS } from './icons.ts';

@@ -104,12 +104,13 @@ CI 在 Windows、macOS、Linux 上各跑一遍上面五项检查,另外:
 
 ## Cortico 版本
 
-`vendor/cortico` 钉在 Cortico 的 `v0.1.15` 标签。升级时逐个标签走(`git -C vendor/cortico checkout <tag>`),每一步跑 `build:cortico`、三个 typecheck、两套测试，再用空数据目录启动一次看 `core.log`;原版每次升级的做法见 `git log upstream/main -- vendor/cortico`。
+`vendor/cortico` 钉在 Cortico 的 `472694f`:`v0.1.16` 之后、0.2.0 改名之前 0.1.x 的最后一个提交。升级时逐个标签走(`git -C vendor/cortico checkout <tag>`),每一步跑 `build:cortico`、三个 typecheck、两套测试，再用空数据目录启动一次看 `core.log`;原版每次升级的做法见 `git log upstream/main -- vendor/cortico`。
 
 - 0.1.11 起 `timezone` 缺省取本机时区，不再是 `Asia/Shanghai`;`core/seed.ts` 不写 `timezone`,所以时间、唤醒器和时间戳都跟电脑的时区走(`tests/seed.test.ts` 锁住);每天的唤醒器按设定时的墙钟时间(`Alarm.clock`)排到下一天(`nextDay`),夏令时切换前后不偏一小时;拨快那天不存在的时刻(如 02:30)顺延到跳过之后(03:30),第二天回到 02:30;拨慢那天重复的时刻取前一次(`tests/alarms.test.ts`)。
 - 0.1.9 起语言扩到 11 种:`Language` 不只 `zh` / `en`,只有中英两份文字的表按 `baseLanguage()` 取(如 `cortico-provider-coo` 的思考档位)。
 - 0.1.13 起实例锁冲突抛 `InstanceLockedError`:`core/companion.ts` 发 `companion:locked`,`app/core-host.cjs` 不再重启 Core,直接说明占锁的进程。
-- 0.1.16 的控制台提示词页要 `@codemirror/commands`(原版锁定 6.11.1)。根 `package.json` 加上这个依赖并重新 `pnpm install` 之前，不能升到 0.1.16 及之后(包括 0.1.16 之后、0.2.0 改名之前修工具回执卡死和跨端点 400 的 #245、#246、#249)。0.1.16 的 `worlds/index.ts` 按 id 动态导入 World,原版 cc2b1de 从那时起不再从打包产物里删它和 `src/launcher.ts`;`scripts/stage.ts` 的 DROP 照旧删也不影响运行。
+- 0.1.16 的控制台提示词页要 `@codemirror/commands`(原版锁定 6.11.1),根 `package.json` 已加上这个依赖。提示词页改版(就地编辑、撤销、折叠、底部完整提示词预览，#235、#241)后按钮在 `.prompt-actions` 里、状态行是 `.prompt-status`,「重载当前 session」改名「重载系统前缀」;`console/features/clear-session.ts` 把「清空重开」放进 `.prompt-actions`,状态行沿用 `.prompt-status`。0.1.16 的 `worlds/index.ts` 按 id 动态导入 World,原版 cc2b1de 从那时起不再从打包产物里删它和 `src/launcher.ts`;`scripts/stage.ts` 的 DROP 照旧删也不影响运行。同版起扩展页可填 npm 源(写 `extensions/.npmrc`,#239),明文回传可关掉合成推理填充(#236)。
+- 472694f 带进三处会让 Coo 不再出声的修复，由 `tests/cortico-hang-fixes.test.ts` 经本应用的装配方式锁住(在 v0.1.15 上三条都失败):#245 工具返回值既不是字符串也不是 `{ text }`(未经类型检查的扩展)时记失败回执，主循环不再退出;#246 重启读回 `session-main.jsonl` 时删去找不到调用的工具回执(原来每次请求都被上游拒绝);#249 别的端点记下的项出线时不带 `id`(来源按端点名和 base URL 区分),在走 Responses 协议的服务之间(如 DeepSeek 与 OpenAI、xAI)换模型不再 400;Gemini、Anthropic 走 provider-coo 自己的线路，不经这里。Cortico 自己的测试在 `vendor/cortico/tests/core/loop.test.ts`(要 minecraft World 的依赖，只能在 Cortico 仓库里跑)和 `tests/providers/transport/responses-input.test.ts`。
 
 ## 代理、主题与字标
 

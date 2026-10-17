@@ -8,8 +8,8 @@
     "en": "Claude-chan"
   },
   "about": {
-    "zh": "一个 Q 版动漫少女,二头半身,正面站着;橙色波浪长发披在身后、垂到膝盖,头一侧别着一朵橙色花饰、垂着黑白两色的发带;穿奶白色衬衫,配一件短披肩和长长的泡泡袖,一条长及脚踝的奶白、黑、橙三色多层长裙,黑色鞋子;平时双手捧着一本封面有朵花的棕色书",
-    "en": "a chibi anime girl, two and a half heads tall, standing facing front; wavy orange hair falling behind her to the knees, an orange flower ornament with black-and-white ribbons on one side of her head; a cream blouse with a short capelet and long puffy sleeves, an ankle-long layered skirt in cream, black and orange, and black shoes; she usually holds a brown book with a flower on its cover"
+    "zh": "一个 Q 版动漫少女,二头半身,正面站着;橙色波浪长发披在身后、垂到膝盖,头一侧别着一朵橙色花饰、垂着黑白两色的发带;服装是括号里选的那套:常服是奶白色衬衫配一件短披肩和长长的泡泡袖、一条长及脚踝的奶白、黑、橙三色多层长裙和黑色鞋子,冬装是绣着橙色小花的奶白色毛呢长裙、白色毛边的短披肩和小毛领(领口别着花胸针、系着黑缎带)、毛边袖口的针织泡泡袖、带橙色流苏的黑色腰封、奶白色裤袜和毛边深棕色短靴;平时双手捧着一本封面有朵花的棕色书",
+    "en": "a chibi anime girl, two and a half heads tall, standing facing front; wavy orange hair falling behind her to the knees, an orange flower ornament with black-and-white ribbons on one side of her head; she wears the outfit picked in brackets: the classic one is a cream blouse with a short capelet and long puffy sleeves, an ankle-long layered skirt in cream, black and orange, and black shoes, and the winter outfit a cream wool dress with little orange flowers, a short capelet and a small collar edged in white fur (the flower brooch and a black ribbon at the throat), knit puffy sleeves with fur cuffs, a black corset sash with orange tassels, cream tights and fur-trimmed dark-brown boots; she usually holds a brown book with a flower on its cover"
   },
   "author": "Coopanion",
   "credits": [
@@ -39,13 +39,39 @@
           "accent": "#D97757"
         }
       ]
+    },
+    {
+      "id": "outfit",
+      "name": {
+        "zh": "服装",
+        "en": "Outfit"
+      },
+      "options": [
+        {
+          "id": "classic",
+          "name": {
+            "zh": "常服",
+            "en": "Classic"
+          },
+          "thumb": "thumbs/classic.png"
+        },
+        {
+          "id": "winter",
+          "name": {
+            "zh": "冬装",
+            "en": "Winter outfit"
+          },
+          "thumb": "thumbs/winter.png"
+        }
+      ]
     }
   ],
   "presets": [
     {
       "id": "original",
       "pick": {
-        "scheme": "original"
+        "scheme": "original",
+        "outfit": "classic"
       },
       "name": {
         "zh": "原版"

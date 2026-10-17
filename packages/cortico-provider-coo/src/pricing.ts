@@ -1,7 +1,7 @@
 /**
  * List prices in USD per million tokens for the services whose price pages state them per model:
- * DeepSeek, OpenAI, Gemini (paid tier) and xAI; the OpenAI, Gemini and xAI tables are upstream
- * Coopanion's. Each table names its page and the day it was read. Services not here have no
+ * DeepSeek, OpenAI, Anthropic, Gemini (paid tier) and xAI; the OpenAI, Anthropic, Gemini and xAI
+ * tables are upstream Coopanion's. Each table names its page and the day it was read. Services not here have no
  * built-in prices.
  */
 import type { PriceDefinition } from 'cortico/providers/pricebook.ts';
@@ -90,11 +90,37 @@ export function geminiPrices(startedAt: string): PriceDefinition[] {
   ];
 }
 
+/**
+ * Anthropic: [input, 5-minute cache write, cache read, output]. Fresh input is what came after the last
+ * cache breakpoint (`detail:fresh_input`, `detail:cache_write` in anthropic/wire.ts's `claudeMeters`).
+ */
+const ANTHROPIC_SOURCE = 'https://platform.claude.com/docs/en/about-claude/pricing (2026-10-08)';
+const anthropicRules = ([input, write, read, output]: readonly [number, number, number, number]): PriceRule[] => [
+  { meter: 'detail:fresh_input', perMillion: input },
+  { meter: 'detail:cache_write', perMillion: write },
+  { meter: 'cachedInput', perMillion: read },
+  { meter: 'output', perMillion: output },
+];
+
+/** Claude Haiku 5.5 bills a request whose prompt, cache reads and writes included, is over 100,000 tokens at its second rate card. */
+const HAIKU_LONG_PROMPT_FROM = 100_001;
+
+export function anthropicPrices(): PriceDefinition[] {
+  const row = (models: string[], card: readonly [number, number, number, number]): PriceDefinition =>
+    ({ models, currency: 'USD', basis: 'marginal', rules: anthropicRules(card), source: ANTHROPIC_SOURCE });
+  return [
+    { ...row(['claude-haiku-5-5'], [0.10, 0.125, 0.01, 0.50]), inputBands: [{ from: HAIKU_LONG_PROMPT_FROM, rules: anthropicRules([0.50, 0.625, 0.05, 2.50]) }] },
+    row(['claude-sonnet-5-5'], [2, 2.50, 0.10, 10]),
+    row(['claude-opus-5-5'], [4, 5, 0.20, 20]),
+  ];
+}
+
 /** The built-in prices of the service `id` for a request started at `startedAt`. */
 export function vendorPrices(id: string | undefined, startedAt: string): PriceDefinition[] {
   switch (id) {
     case 'deepseek': return deepseekPrices();
     case 'openai': return openaiPrices();
+    case 'anthropic': return anthropicPrices();
     case 'gemini': return geminiPrices(startedAt);
     case 'xai': return xaiPrices();
     default: return [];

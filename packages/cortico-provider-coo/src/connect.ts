@@ -4,7 +4,7 @@
  * and forth keeps each key. `call` is the caller's way to reach the console (fetch in the Core, the
  * console's own api in the browser); nothing here imports Node or the DOM.
  */
-import { vendorEntry, vendorOf, type Vendor } from './vendors.ts';
+import { vendorById, vendorEntry, vendorOf, type Vendor } from './vendors.ts';
 
 /** GET when `body` is left out, POST otherwise; throws on an error status. */
 export type ConsoleCall = <T>(path: string, body?: unknown) => Promise<T>;
@@ -30,12 +30,20 @@ export async function currentConnection(call: ConsoleCall): Promise<Connection> 
   return { ready: !!mc?.ready, vendor: mc?.baseUrl ? vendorOf(mc.baseUrl) : null, model: mc?.model ?? '' };
 }
 
+/**
+ * The Gemini API answers a wrong key with 400 (API_KEY_INVALID), not 401, so the console's test gives
+ * no hint for it; at the service's own endpoint a 400 to the test's one-word request is most likely the key.
+ */
+function geminiHint(name: string, r: TestReply | undefined): string | undefined {
+  return r?.status === 400 && vendorById(name)?.protocol === 'gemini' ? 'Gemini 回了 HTTP 400,多半是 Key 不对(也可能是模型名不对)' : undefined;
+}
+
 /** Tests the endpoint `name` as it is saved. */
 export async function testEndpoint(call: ConsoleCall, name: string): Promise<ConnectResult> {
   try {
     const r = await call<TestReply>(`/api/providers/${encodeURIComponent(name)}/test`, {});
     const ok = r?.ok !== false && !r?.error;
-    return { ok, ms: typeof r?.elapsedMs === 'number' ? Math.round(r.elapsedMs) : null, why: ok ? null : r?.hint ?? r?.error ?? `HTTP ${r?.status ?? '?'}` };
+    return { ok, ms: typeof r?.elapsedMs === 'number' ? Math.round(r.elapsedMs) : null, why: ok ? null : r?.hint ?? geminiHint(name, r) ?? r?.error ?? `HTTP ${r?.status ?? '?'}` };
   } catch (err) {
     return { ok: false, ms: null, why: errText(err) };
   }

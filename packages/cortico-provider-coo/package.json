@@ -2,7 +2,7 @@
   "name": "cortico-provider-coo",
   "version": "0.2.0",
   "type": "module",
-  "description": "Coo Pet Provider: DeepSeek, Qwen, Kimi, GLM, Doubao, Baidu Qianfan, MiniMax, StepFun and OpenRouter for Cortico through their Responses endpoints",
+  "description": "Coo Pet Provider: DeepSeek, Qwen, Kimi, GLM, Doubao, Baidu Qianfan, MiniMax, StepFun, OpenRouter, OpenAI, Gemini and xAI for Cortico, through their Responses endpoints or the Gemini API",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -16,6 +16,9 @@
     "qwen",
     "kimi",
     "glm",
+    "openai",
+    "gemini",
+    "grok",
     "llm"
   ],
   "engines": {

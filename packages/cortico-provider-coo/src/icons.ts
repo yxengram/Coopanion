@@ -15,3 +15,13 @@ export const VENDOR_ICONS: Record<string, string> = {
   stepfun: "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M22.012 0h1.032v.927H24v.968h-.956V3.78h-1.032V1.896h-1.878v-.97h1.878V0zM2.6 12.371V1.87h.969v10.502h-.97zm10.423.66h10.95v.918h-6.208v9.579h-4.742V13.03zM5.629 3.333v12.356H0v4.51h10.386V8L20.859 8l-.003-4.668-15.227.001z\" fill=\"url(#lobe-icons-stepfun-_R_0_)\" fill-rule=\"evenodd\"></path><defs><linearGradient gradientUnits=\"userSpaceOnUse\" id=\"lobe-icons-stepfun-_R_0_\" x1=\"1.646\" x2=\"18.342\" y1=\"1.916\" y2=\"22.091\"><stop stop-color=\"#01A9FF\"></stop><stop offset=\"1\" stop-color=\"#0160FF\"></stop></linearGradient></defs></svg>",
   openrouter: "<svg fill=\"currentColor\" fill-rule=\"evenodd\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M18.654 3.87a5.087 5.087 0 110 10.174L23.7 19.09c.64.641.187 1.737-.72 1.737H8.48a8.479 8.479 0 010-16.958h10.175zM8.479 7.26a5.087 5.087 0 100 10.176 5.087 5.087 0 000-10.175z\"></path></svg>",
 };
+
+/**
+ * OpenAI, Gemini and xAI have no mark here: they get a plain outlined tile with text from their name
+ * in the system font and the page's text color (xAI's whole name, so no lone X), so the picker and the
+ * guide's choices show a box like the others.
+ */
+const textTile = (label: string, size: number) =>
+  `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="1.5" y="1.5" width="21" height="21" rx="5" fill="none" stroke="currentColor" stroke-width="1.5"/>`
+  + `<text x="12" y="${12 + size * 0.35}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${size}" font-weight="600" fill="currentColor">${label}</text></svg>`;
+for (const [id, label, size] of [['openai', 'O', 13], ['gemini', 'G', 13], ['xai', 'xAI', 8.5]] as const) VENDOR_ICONS[id] = textTile(label, size);

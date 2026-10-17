@@ -16,6 +16,8 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { slimTree } from './png-slim.ts';
+import { stripMapComments } from './map-strip.ts';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const OUT = join(ROOT, 'build', 'app');
@@ -38,7 +40,9 @@ const skip = (base: string) => (src: string) => {
   const rel = relative(base, src).split(sep);
   // the top-level extensions/ of the staged Cortico is a junction to the developer's own data
   if (rel[0] === 'extensions') return false;
-  return !rel.some((p) => ['node_modules', '.git', 'tests', 'scratch'].includes(p));
+  if (rel.some((p) => ['node_modules', '.git', 'tests', 'scratch'].includes(p))) return false;
+  // source maps of the console bundles (build/cortico/dist, the pet's dist/): nothing loads them but DevTools
+  return !src.endsWith('.map');
 };
 
 rmSync(OUT, { recursive: true, force: true });
@@ -62,6 +66,17 @@ for (const name of WORKSPACE) {
   manifest.dependencies[name] = (JSON.parse(readFileSync(join(from, 'package.json'), 'utf8')) as { version: string }).version;
 }
 writeFileSync(join(OUT, 'package.json'), JSON.stringify(manifest, null, 2));
+// the bundles whose .map was left out above no longer point at it (no missing-map warning in DevTools)
+stripMapComments(join(OUT, 'build', 'cortico'));
+for (const name of WORKSPACE) stripMapComments(join(OUT, 'node_modules', name));
+// the figure textures, in the staged copy only (the repository's art stays byte for byte what scratch/ builds):
+// colour under fully transparent pixels zeroed and recompressed, every visible pixel unchanged (scripts/png-slim.ts).
+// PACK_PNG_SLIM=0 skips it for a quicker local build.
+if (process.env.PACK_PNG_SLIM !== '0') {
+  const t = Date.now(), s = await slimTree(join(OUT, 'node_modules', 'cortico-world-desktop-pet', 'web'));
+  const mb = (n: number) => (n / 1e6).toFixed(1);
+  console.log(`figure PNGs: ${s.changed}/${s.files} smaller, ${mb(s.before)} MB → ${mb(s.after)} MB (${((Date.now() - t) / 1000).toFixed(0)} s)`);
+}
 console.log(`app directory ready: ${relative(ROOT, OUT)}`);
 
 const target = process.platform === 'darwin' ? '--mac' : process.platform === 'linux' ? '--linux' : '--win';

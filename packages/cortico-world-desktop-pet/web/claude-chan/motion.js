@@ -103,9 +103,14 @@ export function ballAngle(k, around = ROLL_D, travel = ROLL_D) {
   const turns = way / Math.max(1, around), frac = turns - Math.round(turns);
   return 360 * turns * rollTurn(k) - 180 * frac;
 }
-/** The curled-up drawing's share of a roll: almost a cut in the crouch, and out again as she springs up. */
-export const ballMix = k => smooth(.13, .165, k) * (1 - smooth(.835, .87, k));
-/** How far the ball's middle sits above the floor turned by `deg` (poses.roll.support, every 5°). */
+/** Where in a roll the ball cuts in (in the crouch) and out again (as she springs up). */
+export const BALL_IN = .1475, BALL_OUT = .8525;
+/**
+ * The curled-up drawing's share of a roll: 0 or 1, a one-frame cut each way (where the old fade was half way), as
+ * every hand-over between bodies is: a fade showed the ball and her standing rig both half see-through for frames.
+ */
+export const ballMix = k => (k >= BALL_IN && k < BALL_OUT ? 1 : 0);
+/** How far the ball's middle sits above the floor turned by `deg` (poses.roll.support, every 1°). */
 export function ballLift(support, deg) {
   const n = support.length, x = (((deg % 360) + 360) % 360) / 360 * n, i = Math.floor(x) % n;
   return lerp(support[i], support[(i + 1) % n], x - Math.floor(x));

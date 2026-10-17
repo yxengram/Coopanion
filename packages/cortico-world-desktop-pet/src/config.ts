@@ -227,7 +227,7 @@ export const DESKTOP_PET_DECIDER_CONFIG_GROUP: ConfigGroup = {
     properties: {
       [`${K}.decider.enabled`]: { type: 'boolean', title: '交给决策模型挑表情动作', description: '默认关。打开并且有 OpenRouter 密钥时,bot 只写一句心情,表情、动作和姿势由 OpenRouter 的决策模型照它挑,走动由 bot 自己按像素决定;没有密钥或关掉时照旧由 bot 自己写表情动作标记。切换后重建前缀。', 'x-hot': true },
       [`${K}.decider.model`]: { type: 'string', title: '决策模型', description: `OpenRouter 上的决策模型 id,默认 ${DECIDER_DEFAULT_MODEL}。`, 'x-hot': true },
-      [`${K}.decider.timeoutMs`]: { type: 'integer', title: '最多等多久', minimum: 500, maximum: 10000, 'x-suffix': 'ms', description: '一次决策超过这个时间,这个气泡就只说话、不做表情动作。', 'x-hot': true },
+      [`${K}.decider.timeoutMs`]: { type: 'integer', title: '最多等多久', minimum: 500, maximum: 10000, 'x-suffix': 'ms', description: '一次决策超过这个时间,这个气泡只按心情里直接写出的词做表情或头部动作,没写就只说话。', 'x-hot': true },
     },
   },
 };

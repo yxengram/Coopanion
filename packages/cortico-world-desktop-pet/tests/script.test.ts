@@ -170,9 +170,8 @@ describe('vocabulary', () => {
       歪头: 'tilt', 歪脑袋: 'tilt', 偏头: 'tilt', 好奇: 'tilt',
     };
     for (const p of figurePacks([]).packs) {
-      // (握拳 is the girls' fist of their own, 加油, now; Coo and the whale, with no fist drawn, keep it for 认真)
-      const girl = ['claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'].includes(p.id);
-      for (const [name, id] of Object.entries({ ...MEANT, 握拳: girl ? 'fist' : 'determined' })) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(id);
+      // (握拳 is the girls' and the whale's fist of their own, 加油, now; Coo, with no fist drawn, keeps it for 认真)
+      for (const [name, id] of Object.entries({ ...MEANT, 握拳: p.id === 'coo' ? 'determined' : 'fist' })) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(id);
       // (拍手 is the clap drawn for the girls and the whale; Coo, with no hands, still has no word for it)
       expect(vocabId('拍手', p.manifest.vocab), p.id).toBe(p.id === 'coo' ? null : 'clap');
       // (still none for these: no word of hers means them)
@@ -454,13 +453,17 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
       expect(got.notes, s).toEqual([]);
     }
     expect(girlScript('【加油+招手】').beats[0].actions).toEqual(['fist', 'wave']);
-    // the table puts them with the arm words; the whale has her chin on her hand only, Coo none of them
+    // the table puts them with the arm words; the whale has them all (her fist, notebook and fingertips drawn for her), Coo none of them
     const arms = vocabTable(GIRL).split('\n手:\n')[1]!.split('\n手,')[0]!;
     for (const id of ['muse', 'fist', 'jot', 'twiddle']) expect(arms, id).toContain(`\n- ${id} `);
     expect(row('fist', GIRL)).toBe('- fist 加油/握拳/打气/握拳加油:举起小拳头给你加油,另一只手还抱着书,配当时的表情');
     expect(row('muse', WHALE)).toBe('- muse 托腮/撑下巴/托下巴/琢磨:远侧的手托着腮琢磨,配当时的表情');
     expect(scriptIn('【开心+托腮】', WHALE).beats[0].actions).toEqual(['muse+happy']);
-    expect(scriptIn('【加油】', WHALE).dropped).toEqual(['加油']);
+    expect(row('fist', WHALE)).toBe('- fist 加油/握拳/打气/握拳加油:举起小拳头给你加油,配当时的表情');
+    for (const id of ['muse', 'fist', 'jot', 'twiddle']) expect(vocabTable(WHALE).split('\n手:\n')[1]!.split('\n手,')[0]!, `whale ${id}`).toContain(`\n- ${id} `);
+    expect(scriptIn('【加油】', WHALE).beats[0].actions).toEqual(['fist']);
+    expect(scriptIn('【跪坐+记笔记】', WHALE).beats[0].actions).toEqual(['kneel+jot']);
+    expect(scriptIn('【难过+对手指】', WHALE).beats[0].actions).toEqual(['twiddle+sad']);
     expect(parseScript('【托腮】').dropped).toEqual(['托腮']);
   });
 

@@ -35,11 +35,11 @@ import { Packer, Segmenter, rmsDb, type SegmentConfig, type SegmentSink, type Ut
 import { comboLabel, hotkeyBadge, hotkeyLabel, parseHotkey, splitTaps, watchHotkey, type KeyWatcher } from './asr/hotkey.ts';
 import { joinSpeech, looksHallucinated } from './asr/result.ts';
 import { toSimplified } from './asr/simplify.ts';
-import { APPENDAGES, channelsOf, estimateSeconds, firstName, lastingNote, membersOf, parseActions, parseScript, vocabTable, type Pairs, type VocabWord } from './script.ts';
+import { APPENDAGES, channelsOf, estimateSeconds, firstName, lastingNote, membersOf, parseActions, parseScript, vocabChange, vocabTable, type Pairs, type Told, type VocabWord } from './script.ts';
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import {
-  DECIDER_FALLBACK_MODELS, DECIDER_HOLD_MS, DECIDER_MIN_CONTEXT, DECIDER_MODELS_URL, DECIDER_URL, DeciderClient, FEELING_MAX, listDeciders, POSTURE_NAMES, buildQuestions, buildRequest, buildState, failureText, pickGroup, stripMarkers, topAnswers,
+  DECIDER_FALLBACK_MODELS, DECIDER_HOLD_MS, DECIDER_MIN_CONTEXT, DECIDER_MODELS_URL, DECIDER_URL, DeciderClient, FEELING_MAX, LOCAL_FALLBACK, listDeciders, localPick, POSTURE_NAMES, buildQuestions, buildRequest, buildState, failureText, pickGroup, stripMarkers, topAnswers,
   type DecideFailure, type DeciderModel, type DecisionRecord, type Posture, type QuestionId,
 } from './decider.ts';
 import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack } from './packs.ts';
@@ -235,8 +235,20 @@ export interface DesktopPetWorldOptions {
   envOverrideFile?: () => string | null;
 }
 
-/** One decision as the tools use it: the entries to send (and notes for the receipt), or why there are none. */
-type Decided = { ok: true; actions: string[]; notes: string[] } | { ok: false; reason: DecideFailure; why: string };
+/**
+ * One decision as the tools use it: the entries to send (and notes for the receipt), or why the decision model gave
+ * none, with the words the World picked itself from the feeling then (`localPick`; empty when none matched or there is
+ * no fallback for the failure).
+ */
+type Decided =
+  | { ok: true; actions: string[]; notes: string[] }
+  | { ok: false; reason: DecideFailure; why: string; actions: string[]; notes: string[] };
+/** What a decision is asked for. */
+type DecisionAsk = { tool: DecisionRecord['tool']; feeling: string; text?: string; forSay: boolean };
+/** What a decision's inputs were (`prepareDecision`): the body, its questions and the state. */
+type Prepared = { vocab: VocabWord[]; pairs: Pairs; questions: ReturnType<typeof buildQuestions>; state: string; model: string; now: number };
+/** The receipt's words for a fallback: why the decision model gave none, and that the feeling's words were used. */
+const LOCAL_NOTE = '按心情里的词挑的';
 
 /** How a walk ended: the page's report (`x` a share of the screen), no report in time, or the World or page gone. */
 type WalkEnd =
@@ -396,7 +408,8 @@ export class DesktopPetWorld implements World {
   /** What the person said last (typed, spoken, answered), for the decision model. */
   private lastHeard: { text: string; via: string; at: number } | null = null;
   /** The last decisions, most recent first. */
-  private readonly recentPicks: Array<{ at: number; words: string[]; chosen: Partial<Record<QuestionId, string | null>> }> = [];
+  /** The last decisions' words, most recent first; `local`: words the World picked from the feeling (told in the state, not in the repeat rule). */
+  private readonly recentPicks: Array<{ at: number; words: string[]; chosen: Partial<Record<QuestionId, string | null>>; local?: true }> = [];
   /** The one position event waiting to ride on the next batch: when it was armed, and its token (an older one renders nothing). */
   private poseArmedAt: number | null = null;
   private poseToken = 0;
@@ -456,6 +469,17 @@ export class DesktopPetWorld implements World {
   private figureFailed: string | null = null;
   /** A look the bot put on itself: the pet page's report of it is not told back (the receipt said it). */
   private botLook: string | null = null;
+  /** The words each pack's body said it knows when the page last loaded it; a body that did not say is taken at its manifest's word. */
+  private readonly bodyWords = new Map<string, ReadonlySet<string>>();
+  /**
+   * The words (and pairs) the bot was last told it may use: its prompt's at start and whenever the prefix is rebuilt
+   * for a change of mode, then a `[形象]` event's or a `pet_set` receipt's. A known limit (as upstream): Cortico also
+   * rebuilds the prefix on a handoff, clear or mount without telling the World, and `envPromptVars()` cannot record it
+   * here because the console's preview renders through it too; a figure changed while no page is connected, with such
+   * a rebuild in between, leaves the next note counted from the older table (words of the middle figure only are not
+   * said to be gone).
+   */
+  private toldVocab: Told = { vocab: [] };
   /** `pet_quiet` in force: what it overrides, until when, and the settings it found (a change to them ends it). */
   private quiet: { sound: boolean; roam: RoamMode; until: number; base: { sound: boolean; roam: RoamMode }; timer: NodeJS.Timeout } | null = null;
 
@@ -476,16 +500,37 @@ export class DesktopPetWorld implements World {
     const figure = this.skin.figure ?? COO;
     return packFor(this.packs(), figure === this.figureFailed ? COO : figure);
   }
-  /** The words the body on screen does. */
-  private vocab() {
-    return this.currentPack()?.manifest.vocab ?? [];
+  /** The words the body on screen does: its pack's vocabulary, less the words its body said it does not know. */
+  private vocab(): VocabWord[] {
+    const pack = this.currentPack();
+    if (!pack) return [];
+    const known = this.bodyWords.get(pack.id);
+    return known ? pack.manifest.vocab.filter((w) => known.has(w.id)) : pack.manifest.vocab;
   }
-  /** The pairs of expressions the body on screen shows as one face when both are in one group (its pack's `pairs`). */
+  /**
+   * The pairs of expressions the body on screen shows as one face when both are in one group (its pack's `pairs`),
+   * less those naming a word its body said it does not know.
+   */
   private pairs(): Pairs {
-    return this.currentPack()?.manifest.pairs ?? {};
+    const pack = this.currentPack();
+    const pairs = pack?.manifest.pairs ?? {};
+    const known = pack && this.bodyWords.get(pack.id);
+    if (!known) return pairs;
+    return Object.fromEntries(Object.entries(pairs).filter(([k, p]) => k.split('~').every((id) => known.has(id)) && (!('as' in p) || known.has(p.as))));
   }
 
-  /** What the body looks like now, with its picked options and the words it does not do. */
+  /**
+   * How the words the bot may use changed since it was last told, or ''; from here the bot counts as told the words of
+   * now. Decider mode shows the bot no words (the decision model picks from the words of now), so it is told nothing.
+   */
+  private vocabNote(): string {
+    const now: Told = { vocab: this.vocab(), pairs: this.pairs() };
+    const note = this.mode === 'decider' ? '' : vocabChange(this.toldVocab, now);
+    this.toldVocab = now;
+    return note;
+  }
+
+  /** What the body looks like now, with its picked options. */
   private bodyText(pack: FigurePack | null): string {
     if (!pack) return '';
     const m = pack.manifest;
@@ -502,29 +547,47 @@ export class DesktopPetWorld implements World {
   /**
    * The pet page's report of the figure it shows: a switch the bot did not see in its prompt is told
    * after the debounce (changes in a row come as one batch); a pack that would not load (the page then
-   * shows Coo) is told at once.
+   * shows Coo) is told at once. Either way the bot hears how the words it may use changed since it was
+   * last told (`vocabNote`), the words a newly loaded body says it does not know among them (`words`:
+   * the ids of its vocabulary the body knows; a page that does not send it leaves the manifest's word).
+   * The page sends them for every body it loads (body-host.js knownWords): the kit's plus bodies list all they
+   * know (`opts.plus` and the pack's own words included), so a built-in pack's are its whole vocabulary;
+   * a third-party body that lists none is taken at its manifest's word.
    */
   private onFigure(msg: PageMessage): void {
     const id = typeof msg.id === 'string' ? msg.id : COO;
     const before = this.figureShown;
     const packs = this.packs();
+    const pack = packs.find((p) => p.id === id) ?? null;
     if (msg.ok !== true) {
       this.figureShown = COO;
       this.figureFailed = id;
-      const pack = packs.find((p) => p.id === id);
       const reason = typeof msg.reason === 'string' ? msg.reason.slice(0, 200) : '原因不明';
       // the page shows Coo instead, whose words then hold too
       const coo = packs.find((p) => p.id === COO) ?? null;
-      void this.push('desktop-pet.figure', 'desktop-pet.figure', `[形象] ${pack ? nameIn(pack.manifest.name) : id}没能显示出来(${reason}),你现在是${this.bodyText(coo)}。表情和动作按 Coo 的词表。`, 'flush');
+      const note = this.vocabNote();
+      void this.push('desktop-pet.figure', 'desktop-pet.figure', `[形象] ${pack ? nameIn(pack.manifest.name) : id}没能显示出来(${reason}),你现在是${this.bodyText(coo)}。${note ? `\n${note}` : ''}`, 'flush');
       return;
     }
+    if ('words' in msg) {
+      if (Array.isArray(msg.words)) this.bodyWords.set(id, new Set(msg.words.filter((w): w is string => typeof w === 'string')));
+      else this.bodyWords.delete(id);
+    }
+    const known = this.bodyWords.get(id);
+    const unknown = pack && known ? pack.manifest.vocab.filter((w) => !known.has(w.id)).map((w) => w.id) : [];
+    const problem = `形象包 ${id} 的词表里有身体不认得的词,没给 bot 用:${unknown.join('、')}`;
+    if (unknown.length && !this.packProblems.has(problem)) { this.packProblems.add(problem); this.log?.warn(problem); }
     if (id === this.skin.figure) this.figureFailed = null;
     const shown = id === COO ? COO : `${id}:${typeof msg.scheme === 'string' ? msg.scheme : ''}`;
     this.figureShown = shown;
-    if (before === null || before === shown) return;
-    if (shown === this.botLook) { this.botLook = null; return; }
-    const pack = packs.find((p) => p.id === id) ?? null;
-    void this.push('desktop-pet.figure', 'desktop-pet.figure', `[形象] 你现在的样子:${this.bodyText(pack)}。`, 'debounce');
+    let look: string | null = null;
+    if (before !== null && before !== shown) {
+      if (shown === this.botLook) this.botLook = null;
+      else look = `[形象] 你现在的样子:${this.bodyText(pack)}。`;
+    }
+    const note = this.vocabNote();
+    const text = look && note ? `${look}\n${note}` : look ?? (note ? `[形象] ${note}` : null);
+    if (text) void this.push('desktop-pet.figure', 'desktop-pet.figure', text, 'debounce');
   }
 
   /* ---------- lifecycle ---------- */
@@ -533,6 +596,8 @@ export class DesktopPetWorld implements World {
     this.stopped = false;
     this.host = host;
     this.log = host.log;
+    // the words the prompt is rendered with, until the bot is told otherwise
+    this.toldVocab = { vocab: this.vocab(), pairs: this.pairs() };
     await this.server.start();
     this.windowHost = new WindowHost(host.log);
     if (this.cfg.window.enabled) this.openWindow();
@@ -1476,8 +1541,9 @@ export class DesktopPetWorld implements World {
 
   /**
    * Decider mode's `pet_say`: the bubble goes to the page at once, held for its words (`acts: 'pending'`) while the
-   * decision model picks them from the feeling; the words follow by id (`say-acts`, empty when the decision fails or
-   * times out). The receipt does not wait for the decision (the chat model goes on at once): it says the body follows
+   * decision model picks them from the feeling; the words follow by id (`say-acts`; when the decision fails or times
+   * out, the face and head words the feeling names, `localPick`, or none). With the breaker open the bubble is not
+   * held: those words start it. The receipt does not wait for the decision (the chat model goes on at once): it says the body follows
    * the feeling, and what was picked is told once with the next position line (`[表情动作]`, see `withPosition`).
    */
   private async sayFeeling(args: Record<string, unknown>): Promise<ToolOutcome> {
@@ -1491,7 +1557,11 @@ export class DesktopPetWorld implements World {
     // known now: no key, or the breaker open (a decision would fail at once; the bubble is not held for it)
     const unable = !feeling ? null : this.deciderKey() === '' ? failureText('nokey') : this.decider.open ? failureText('breaker') : null;
     const deciding = feeling !== '' && unable === null;
+    // the breaker open: the words come from the feeling itself, at once, and start the bubble
+    const local = feeling && !deciding && this.deciderKey() !== '' ? this.localNow({ tool: 'pet_say', feeling, text, forSay: true }) : null;
+    if (local) beats[0]!.actions = local.actions;
     if (!this.server.sendPet({ t: 'say', id, beats, ...(deciding ? { acts: 'pending', holdMs: DECIDER_HOLD_MS } : {}) })) return this.notConnected('pet_say');
+    if (local?.actions.length) this.notePosture(local.actions);
     const now = Date.now();
     const selfSec = estimateSeconds(beats);
     const waitSec = Math.max(0, (this.busyUntil - now) / 1000);
@@ -1501,16 +1571,19 @@ export class DesktopPetWorld implements World {
     void this.closeActivity();
     let did: string;
     if (!feeling) did = '这次没带 feeling,只说了话;下次带上 feeling,身体才会有表情。';
+    else if (local?.actions.length) did = `表情动作这次交不给决策模型(${unable}),${LOCAL_NOTE}:${this.namesOf(local.actions)}。`;
     else if (!deciding) did = `表情动作这次做不了(${unable}),只说了话。`;
     else did = '表情动作照 feeling 自动做,不用再调 pet_feel。';
     void this.inTurn(async () => {
-      let actions: string[] = [];
+      let actions: string[] = local?.actions ?? [];
+      local?.record();
       if (deciding) {
         const d = await this.decideFor({ tool: 'pet_say', feeling, text, forSay: true });
         if (this.stopped) return;
-        this.server.sendPet({ t: 'say-acts', id, actions: d.ok ? d.actions : [] });
-        if (d.ok) { actions = d.actions; this.notePosture(actions); }
-        this.noteUnreported(text, d.ok ? (actions.length ? this.namesOf(actions) : '没动') : `没做(${d.why})`);
+        // a failed decision: the words picked from the feeling, if any
+        this.server.sendPet({ t: 'say-acts', id, actions: d.actions });
+        if (d.actions.length) { actions = d.actions; this.notePosture(actions); }
+        this.noteUnreported(text, this.didText(d));
       }
       await this.record({ kind: 'say', beats: [{ text, ...moodOf(actions, this.vocab()) }] }, text);
     });
@@ -1549,7 +1622,13 @@ export class DesktopPetWorld implements World {
     await this.inTurn(async () => { box.d = await this.decideFor({ tool: 'pet_feel', feeling, forSay: false }); });
     const d = box.d;
     if (!d) return { text: '[pet_feel 没执行] World 已停止。', failed: true };
-    if (!d.ok) return { text: d.reason === 'breaker' ? `表情决策暂时用不了(${d.why}),这次身体没做什么。` : `决策模型没回应(${d.why}),这次身体没做什么。` };
+    if (!d.ok) {
+      const head = d.reason === 'breaker' ? `表情决策暂时用不了(${d.why})` : `决策模型没回应(${d.why})`;
+      if (!d.actions.length) return { text: `${head},这次身体没做什么。` };
+      if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) return this.notConnected('pet_feel');
+      this.notePosture(d.actions);
+      return { text: `${head},${LOCAL_NOTE}:${this.namesOf(d.actions)}。${d.notes.join('')}` };
+    }
     if (!d.actions.length) return { text: '这次表情动作没有变化。' };
     if (!this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) return this.notConnected('pet_feel');
     this.notePosture(d.actions);
@@ -1577,15 +1656,26 @@ export class DesktopPetWorld implements World {
     const feeling = decider && typeof args.feeling === 'string' ? args.feeling.trim().slice(0, FEELING_MAX) : '';
     // like pet_say, the receipt does not wait for the decision; the words are done when they come (`act`)
     if (feeling) {
-      const unable = this.deciderKey() === '' ? failureText('nokey') : this.decider.open ? failureText('breaker') : null;
-      if (unable) did = `表情动作这次做不了(${unable})。`;
+      const nokey = this.deciderKey() === '';
+      const unable = nokey ? failureText('nokey') : this.decider.open ? failureText('breaker') : null;
+      if (unable && !nokey) {
+        // the breaker open: the words come from the feeling itself, at once
+        const local = this.localNow({ tool: 'pet_ask', feeling, text: question, forSay: true });
+        did = local.actions.length ? `表情动作这次交不给决策模型(${unable}),${LOCAL_NOTE}:${this.namesOf(local.actions)}。` : `表情动作这次做不了(${unable})。`;
+        // in its turn, after the words of the bubbles asked for before it; recorded as done only if the page took them
+        void this.inTurn(async () => {
+          const sent = local.actions.length > 0 && this.server.sendPet({ t: 'act', id: nextId('c'), actions: local.actions });
+          if (sent) this.notePosture(local.actions);
+          local.record(sent);
+        });
+      } else if (unable) did = `表情动作这次做不了(${unable})。`;
       else {
         did = '表情动作照 feeling 自动做。';
         void this.inTurn(async () => {
           const d = await this.decideFor({ tool: 'pet_ask', feeling, text: question, forSay: true });
           if (this.stopped) return;
-          if (d.ok && d.actions.length && this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) this.notePosture(d.actions);
-          this.noteUnreported(question, d.ok ? (d.actions.length ? this.namesOf(d.actions) : '没动') : `没做(${d.why})`);
+          if (d.actions.length && this.server.sendPet({ t: 'act', id: nextId('c'), actions: d.actions })) this.notePosture(d.actions);
+          this.noteUnreported(question, this.didText(d));
         });
       }
     }
@@ -1742,7 +1832,11 @@ export class DesktopPetWorld implements World {
       if (answer === 'yes') { apply(asked); lines.push(`${this.cfg.user}同意了,已改:${asked.map((c) => c.say).join(';')}。`); }
       else lines.push(`${answer === 'unavailable' ? '桌宠窗口没有连接,没法问' : answer === 'timeout' ? `${this.cfg.user}没有回答` : `${this.cfg.user}没同意`},这些没改:${asked.map((c) => c.say).join(';')}。`);
     }
-    if (mine.some((c) => c.key === 'figure' || c.key === 'scheme')) lines.push(`你现在的样子:${this.bodyText(this.currentPack())}。`);
+    if (mine.some((c) => c.key === 'figure' || c.key === 'scheme')) {
+      lines.push(`你现在的样子:${this.bodyText(this.currentPack())}。`);
+      const note = this.vocabNote();
+      if (note) lines.push(note);
+    }
     return { text: lines.join('\n') };
   }
 
@@ -1818,6 +1912,8 @@ export class DesktopPetWorld implements World {
     const want = this.wantedMode();
     if (want === this.mode) return;
     this.mode = want;
+    // the prefix is rebuilt with the words of now (decider mode's shows none)
+    this.toldVocab = { vocab: this.vocab(), pairs: this.pairs() };
     this.log?.info(want === 'decider'
       ? `表情动作改由决策模型挑(${this.deciderCfg().model}),重建前缀`
       : `表情动作改回由 bot 自己写标记(${this.deciderCfg().enabled ? '没有 OpenRouter 密钥' : '表情决策已关'}),重建前缀`);
@@ -1977,11 +2073,8 @@ export class DesktopPetWorld implements World {
     return `${wd} ${shortTime(this.opts.timezone, now)}`;
   }
 
-  /**
-   * One decision: the questions for the body on screen and her posture, the state, the call; the answers picked into
-   * a group (`pickGroup`) and parsed as `pet_act` parses one. Failures come back with their reason; the mode stays.
-   */
-  private async decideFor(o: { tool: DecisionRecord['tool']; feeling: string; text?: string; forSay: boolean }): Promise<Decided> {
+  /** A decision's inputs: the body on screen and her posture, its questions, the state, the model. */
+  private prepareDecision(o: DecisionAsk): Prepared {
     const vocab = this.vocab();
     const pairs = this.pairs();
     const posture = this.posture();
@@ -1995,26 +2088,103 @@ export class DesktopPetWorld implements World {
       recent: this.recentPicks.map((r) => ({ words: r.words, agoMs: now - r.at })),
     });
     const model = this.deciderCfg().model || DESKTOP_PET_DEFAULTS.decider.model;
-    const res = await this.decider.decide(buildRequest(model, state, questions));
-    const base = {
-      tool: o.tool, feeling: o.feeling, ...(o.text !== undefined ? { text: o.text } : {}), state, model,
-      questions: questions.map((q) => ({ id: q.id, options: q.options.length })), ms: res.ms,
+    return { vocab, pairs, questions, state, model, now };
+  }
+
+  private recordBase(o: DecisionAsk, p: Prepared, ms: number) {
+    return {
+      tool: o.tool, feeling: o.feeling, ...(o.text !== undefined ? { text: o.text } : {}), state: p.state, model: p.model,
+      questions: p.questions.map((q) => ({ id: q.id, options: q.options.length })), ms,
     };
-    if (!res.ok) {
-      const why = failureText(res.reason, res.detail);
-      this.log?.debug(`表情决策没成:${why}`);
-      this.opts.onDecision?.({ ...base, answers: null, why: {}, actions: [], notes: [], dropped: [], ok: false, failure: why });
-      return { ok: false, reason: res.reason, why };
+  }
+
+  /**
+   * A decision that failed: recorded, and for the failures that have one (LOCAL_FALLBACK) the words picked from the
+   * feeling (`localPick`) for the body on screen now (the figure may have changed while the model was asked), as one
+   * group through `parseActions`. They are told to the next decision as done lately (its state), but not counted in
+   * the repeat rule (that keys on the model's options); `remember` false leaves that to the caller (`localNow`).
+   */
+  private failedDecision(
+    o: DecisionAsk, prep: Prepared, reason: DecideFailure, detail: string, ms: number,
+    emit: (r: DecisionRecord) => void = (r) => this.opts.onDecision?.(r), remember = true,
+  ): Extract<Decided, { ok: false }> {
+    const why = failureText(reason, detail);
+    let actions: string[] = [], notes: string[] = [];
+    let fallback: DecisionRecord['fallback'];
+    if (LOCAL_FALLBACK.has(reason)) {
+      const vocab = this.vocab();
+      const pick = localPick(o.feeling, vocab, this.posture());
+      const parsed = parseActions(pick.ids.length ? [pick.ids.join('+')] : [], vocab, this.pairs());
+      actions = parsed.actions;
+      notes = parsed.notes.filter((n) => !n.includes('不能同时做'));
+      fallback = { by: pick.by, matched: pick.matched };
     }
+    this.log?.debug(`表情决策没成:${why}${fallback ? `;${LOCAL_NOTE}:${actions.join('+') || '没有'}` : ''}`);
+    emit({ ...this.recordBase(o, prep, ms), answers: null, why: {}, actions, notes, dropped: [], ok: false, failure: why, ...(fallback ? { fallback } : {}) });
+    if (remember) this.rememberLocal(actions);
+    return { ok: false, reason, why, actions, notes };
+  }
+
+  /** Words the World picked from a feeling, kept with the decisions' so the next state says she just did them. */
+  private rememberLocal(actions: readonly string[]): void {
+    if (!actions.length) return;
+    this.recentPicks.unshift({ at: Date.now(), words: this.wordsOf(actions, this.vocab()), chosen: {}, local: true });
+    this.recentPicks.splice(RECENT_DECISIONS);
+  }
+
+  /** The first names of the words in `actions`, for the state's 最近做过. */
+  private wordsOf(actions: readonly string[], vocab: readonly VocabWord[]): string[] {
+    return membersOf(actions).map((id) => { const v = vocab.find((w) => w.id === id); return v ? firstName(v) : id; });
+  }
+
+  /**
+   * The breaker is open (a decision would fail at once): the words from the feeling now, for the bubble or question
+   * about to go out, and its record, to be made in its turn after the decisions asked before it (`sent` false: the
+   * page did not take them, recorded as none done).
+   */
+  private localNow(o: DecisionAsk): { actions: string[]; notes: string[]; record: (sent?: boolean) => void } {
+    let rec: DecisionRecord | null = null;
+    const made = this.failedDecision(o, this.prepareDecision(o), 'breaker', '', 0, (r) => { rec = r; }, false);
+    return {
+      actions: made.actions, notes: made.notes,
+      record: (sent = true) => {
+        if (sent) this.rememberLocal(made.actions);
+        const r = rec as DecisionRecord | null;
+        if (r) this.opts.onDecision?.(sent ? r : { ...r, actions: [], notes: [] });
+      },
+    };
+  }
+
+  /** What a bubble's decision did, for the next `[表情动作]` line. */
+  private didText(d: Decided): string {
+    if (d.ok) return d.actions.length ? this.namesOf(d.actions) : '没动';
+    return d.actions.length ? `${this.namesOf(d.actions)}(${d.why},${LOCAL_NOTE})` : `没做(${d.why})`;
+  }
+
+  /**
+   * One decision: the questions for the body on screen and her posture, the state, the call; the answers picked into
+   * a group (`pickGroup`) and parsed as `pet_act` parses one. Failures come back with their reason; the mode stays.
+   */
+  private async decideFor(o: DecisionAsk): Promise<Decided> {
+    const prep = this.prepareDecision(o);
+    const { vocab, pairs, questions, state, model, now } = prep;
+    const res = await this.decider.decide(buildRequest(model, state, questions));
+    if (!res.ok) return this.failedDecision(o, prep, res.reason, res.detail, res.ms);
+    const base = this.recordBase(o, prep, res.ms);
     this.host?.reportUsage({ promptTokens: res.usage.inputTokens, completionTokens: res.usage.outputTokens, cacheHitTokens: 0, cacheMissTokens: res.usage.inputTokens }, { model, label: '桌宠·表情决策' });
-    const pick = pickGroup(questions, res.answers, { vocab, pairs, recent: this.recentPicks.map((r) => r.chosen), feel: o.tool === 'pet_feel' });
-    const parsed = parseActions(pick.ids.length ? [pick.ids.join('+')] : [], vocab, pairs);
+    const pick = pickGroup(questions, res.answers, { vocab, pairs, recent: this.recentPicks.filter((r) => !r.local).map((r) => r.chosen), feel: o.tool === 'pet_feel' });
+    // the figure may have changed while the model answered: the words go to the body on screen now, and its words decide
+    const nowVocab = this.vocab(), switched = nowVocab.map((v) => v.id).join() !== vocab.map((v) => v.id).join();
+    const parsed = parseActions(pick.ids.length ? [pick.ids.join('+')] : [], nowVocab, switched ? this.pairs() : pairs);
     const split = parsed.notes.filter((n) => n.includes('不能同时做'));
     if (split.length) this.log?.warn(`表情决策挑出的一组被拆开了:${split.join('')}`);
-    if (parsed.dropped.length) this.log?.warn(`表情决策挑出了词表没有的词:${parsed.dropped.join('、')}`);
+    if (parsed.dropped.length) {
+      if (switched) this.log?.debug(`表情决策途中换了形象,新身体没有这些词,略过:${parsed.dropped.join('、')}`);
+      else this.log?.warn(`表情决策挑出了词表没有的词:${parsed.dropped.join('、')}`);
+    }
     const top = topAnswers(res.answers);
     this.log?.debug(`表情决策 ${res.ms} ms:${Object.entries(top).map(([q, a]) => `${q}=${a.top.map(([k, p]) => `${k}${p}`).join('/')}`).join(' ')} → ${pick.ids.join('+') || '不动'}`);
-    this.recentPicks.unshift({ at: now, words: membersOf(parsed.actions).map((id) => { const v = vocab.find((w) => w.id === id); return v ? firstName(v) : id; }), chosen: pick.chosen });
+    this.recentPicks.unshift({ at: now, words: this.wordsOf(parsed.actions, nowVocab), chosen: pick.chosen });
     this.recentPicks.splice(RECENT_DECISIONS);
     this.opts.onDecision?.({ ...base, answers: top, why: pick.why, actions: parsed.actions, notes: parsed.notes, dropped: parsed.dropped, ok: true, usage: res.usage });
     return { ok: true, actions: parsed.actions, notes: parsed.notes.filter((n) => !n.includes('不能同时做')) };

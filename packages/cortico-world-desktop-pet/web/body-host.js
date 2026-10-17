@@ -62,6 +62,20 @@ const clipTo = (r, size) => {
   return w > 0 && h > 0 ? { x, y, w, h } : null;
 };
 
+/** The most words of a body's own list (`ready { words }`) the page reads. */
+const WORDS_MAX = 1000;
+/**
+ * The ids of a pack's vocabulary (`vocab`, the manifest's, as /api/figures lists it) its body knows: the ones in the
+ * body's own list (`reported`, figure-frame.js `ready { words }`), in the manifest's order; a body that gives no list
+ * is taken at its manifest's word (all of them). What the World is told (pet-app.js `reportFigure`).
+ */
+export function knownWords(vocab, reported) {
+  const ids = (Array.isArray(vocab) ? vocab : []).map((w) => w?.id).filter((id) => typeof id === 'string');
+  if (!Array.isArray(reported)) return ids;
+  const has = new Set(reported.slice(0, WORDS_MAX).filter((w) => typeof w === 'string'));
+  return ids.filter((id) => has.has(id));
+}
+
 /** A body's layout report as the page takes it (`size`: the stage, { W, H, S }): numbers where numbers belong, and the limits above. */
 export function readLayout(l, size) {
   if (!l || typeof l !== 'object') return null;
@@ -156,7 +170,7 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
     let haloAt = '';
     const trail = haloTrail();
     let ready = false, gone = false, seq = 0, size = bounds;
-    let layout = null, z = null;
+    let layout = null, z = null, words = null;
     const touches = touchGate();
     const waits = new Map();
     const post = (m) => { if (!gone) frame.contentWindow?.postMessage(m, '*'); };
@@ -181,9 +195,12 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
       pack: pack.id,
       get layout() { return layout; },
       get z() { return z; },
+      /** The words of the pack's vocabulary its body knows (knownWords), once it is ready. */
+      get words() { return words; },
       /** Whether stage point `p` is on the body. */
       hit: (p) => onBody(layout, p),
-      tick(dt) { if (ready) post({ t: 'tick', dt }); },
+      /** One frame of `dt` seconds; `o.draw` false while the window is hidden: the body moves on without drawing. */
+      tick(dt, o) { if (ready) post(o?.draw === false ? { t: 'tick', dt, draw: false } : { t: 'tick', dt }); },
       do: (word) => post({ t: 'do', word }),
       /** A group of words done at once (a body without doAll of its own takes them one by one, see figure-frame.js). */
       doAll: (words) => post({ t: 'do-all', words: words.slice(0, 8) }),
@@ -241,6 +258,7 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
         ready = true;
         clearTimeout(timer);
         z = typeof m.z === 'string' ? m.z : null;
+        words = knownWords(pack.vocab, m.words);
         resolve(body);
       } else if (m.t === 'frame' && ready) {
         layout = readLayout(m.layout, size);
@@ -357,4 +375,65 @@ export function walkHold(T, maxS) {
     started(seconds, T) { end = Math.max(end, T + seconds); },
     due(T, queued) { return T >= by || (queued === 0 && T >= end); },
   };
+}
+
+/* ---------- the page's loop: drawn frames while the window is shown, bare steps while it is hidden ---------- */
+/** Milliseconds between the page's steps while its window is hidden. */
+export const HIDDEN_EVERY_MS = 200;
+/** The longest step a hidden tick takes (a machine that slept): time past it is not caught up. */
+export const HIDDEN_STEP_MAX = 2;
+/** The longest step a body takes at once, as a drawn frame's (the page clamps a frame's dt to it). */
+export const STEP_MAX = .05;
+
+/** `dt` seconds as steps no longer than `max`, for a body ticked less often than it is drawn. */
+export function slices(dt, max = STEP_MAX) {
+  const out = [];
+  for (let left = dt > 0 && dt < Infinity ? dt : 0; left > 1e-6; left -= max) out.push(Math.min(max, left));
+  return out;
+}
+
+/**
+ * The pet page's loop. The pet window does not throttle its page (document.hidden stays false, frames keep coming at
+ * the display's rate while it is hidden), so the window process says when it is hidden and the page stops drawing:
+ * - shown, `draw(timestamp)` runs on display frames; it asks for the next with `next()` (the next display frame) or
+ *   `next(ms)` (a display frame after `ms`, for a body at rest);
+ * - hidden (`set(false)`), `step(dt)` runs every `every` ms instead, `dt` the real time since the last one (at most
+ *   `max`): the page's clock, its words and bubbles, World walks and the body's state move on as they would, unseen;
+ * - shown again (`set(true)`), the time since the last hidden step is stepped at once and drawing resumes with the
+ *   next display frame: the hidden steps and that last one add up to the real time hidden.
+ * What only a drawn frame moves (a figure's own draw state: its pose blends and seat / kneel / lie hand-overs, which
+ * clamp each frame's dt) does not move while hidden, so a posture reached unseen plays its hand-over after the show,
+ * starting from the picture before the hide. Catching that up on the first frame back belongs to the figures.
+ * A frame or a tick asked for before a switch is dropped, so only one loop ever runs. `set` returns whether it switched.
+ * `raf`, `after` and `now` are the page's requestAnimationFrame, setTimeout and performance.now (given, for tests).
+ */
+export function pageLoop({ draw, step, raf, after, now, every = HIDDEN_EVERY_MS, max = HIDDEN_STEP_MAX }) {
+  let drawn = true, gen = 0, at = 0;
+  function tick(g) {
+    if (g !== gen) return;
+    const t = now(), dt = Math.max(0, Math.min(max, (t - at) / 1000));
+    at = t;
+    try { step(dt); } finally { after(() => tick(g), every); }
+  }
+  const loop = {
+    get drawn() { return drawn; },
+    next(ms) {
+      const g = gen;
+      const go = () => raf((t) => { if (g === gen) draw(t); });
+      if (ms === undefined) go(); else after(go, ms);
+    },
+    set(on) {
+      on = !!on;
+      if (on === drawn) return false;
+      drawn = on;
+      gen++;
+      if (on) {
+        // the time since the last hidden tick is stepped too, so the page's clock (and a walk under way) is not left
+        // up to `every` ms behind for each hide; the first drawn frame then takes only its own time
+        try { step(Math.max(0, Math.min(max, (now() - at) / 1000))); } finally { loop.next(); }
+      } else { at = now(); const g = gen; after(() => tick(g), every); }
+      return true;
+    },
+  };
+  return loop;
 }

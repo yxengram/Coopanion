@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
 import { parseActions, vocabId, type VocabWord } from '../src/script.ts';
 import {
-  buildQuestions, buildRequest, buildState, DECIDER_FALLBACK_MODELS, DECIDER_MIN_CONTEXT, DeciderClient, errorGist, failureText, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
+  buildQuestions, buildRequest, buildState, DECIDER_FALLBACK_MODELS, DECIDER_MIN_CONTEXT, DeciderClient, errorGist, failureText, LOCAL_FALLBACK, localPick, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
   QUESTION_IDS, stripMarkers, type Answer, type Question, type QuestionId,
 } from '../src/decider.ts';
 
@@ -204,8 +204,14 @@ describe('pickGroup', () => {
     expect(r.dropped).toEqual([]);
     // not composed without the pack's pairs
     expect(pickGroup(qs, ans([['face', happy, .5, [surprised, .3]]]), { vocab, pairs: {} }).ids).toEqual(['happy']);
-    // too unlikely
-    expect(pickGroup(qs, ans([['face', happy, .7, [surprised, .2]]]), { vocab, pairs }).ids).toEqual(['happy']);
+    // the shipped bar (scratch/decider/report-pairs.md): at least .08 and a fifth of the winner
+    expect(pickGroup(qs, ans([['face', happy, .7, [surprised, .2]]]), { vocab, pairs }).ids).toEqual(['happy', 'surprised']);
+    expect(pickGroup(qs, ans([['face', happy, .35, [surprised, .08]]]), { vocab, pairs }).ids).toEqual(['happy', 'surprised']);
+    // too unlikely: under .08, or under a fifth of the winner
+    expect(pickGroup(qs, ans([['face', happy, .3, [surprised, .07]]]), { vocab, pairs }).ids).toEqual(['happy']);
+    expect(pickGroup(qs, ans([['face', happy, .9, [surprised, .17]]]), { vocab, pairs }).ids).toEqual(['happy']);
+    // the old bar (.20 / half) as a knob
+    expect(pickGroup(qs, ans([['face', happy, .7, [surprised, .2]]]), { vocab, pairs, params: { pairMin: .2, pairRatio: .5 } }).ids).toEqual(['happy']);
   });
 
   it('settles clashes by probability', () => {
@@ -416,5 +422,98 @@ describe('stripMarkers (decider mode keeps brackets that are not words)', () => 
     ['【开心+招手】你好＜眨眼＞呀', '你好呀', true],
   ] as const)('%s', (input, out, stripped) => {
     expect(stripMarkers(input, vocab)).toEqual({ text: out, stripped });
+  });
+});
+
+describe('localPick (a decision that fails: the words the feeling names)', () => {
+  const vocab = packOf('claude-chan').manifest.vocab;
+  const ids = (feeling: string, v: readonly VocabWord[] = vocab, posture?: Parameters<typeof localPick>[2]) => localPick(feeling, v, posture).ids;
+
+  it('a face and a head move the feeling names, by any of their names, the longest first', () => {
+    expect(localPick('见到你很高兴', vocab)).toEqual({ ids: ['happy'], matched: ['高兴'], by: 'names' });
+    expect(localPick('有点担心,轻轻点头', vocab)).toEqual({ ids: ['worried', 'nod'], matched: ['担心', '轻轻点头'], by: 'names' });
+    expect(localPick('使劲摇头', vocab).matched).toEqual(['使劲摇头']);
+    // two faces named: the longer name, then the earlier one; only one face
+    expect(ids('开心又惊讶')).toEqual(['happy']);
+    expect(ids('有点惊讶,但伤心欲绝')).toEqual(['heartbroken']);
+    // the group goes through parseActions as one entry
+    expect(parseActions([ids('有点担心,轻轻点头').join('+')], vocab).actions).toHaveLength(1);
+  });
+
+  it('a name turned round by the word before it does not count', () => {
+    expect(ids('不开心')).toEqual([]);
+    expect(ids('一点都不高兴,也没有生气')).toEqual([]);
+    expect(ids('不太担心')).toEqual([]);
+    expect(ids('想让他别难过')).toEqual(['comfort']);
+    expect(ids('不开心,有点难过')).toEqual(['sad']);
+    // a 别 that ends a word (特别, 告别…) is not "don't"; what comes before that word still counts
+    expect(ids('特别开心')).toEqual(['happy']);
+    expect(ids('特别担心他')).toEqual(['worried']);
+    expect(ids('特别同意')).toEqual(['nod']);
+    expect(ids('告别时很难过')).toEqual(['sad']);
+    expect(ids('别担心')).toEqual([]);
+    expect(ids('不特别开心')).toEqual([]);
+    expect(ids('特别不开心')).toEqual([]);
+    // turned round after it: 开心不起来; but 开心不已 and 开心得不得了 are very happy
+    expect(ids('开心不起来')).toEqual([]);
+    expect(ids('高兴不了')).toEqual([]);
+    expect(ids('有点担心不了解的情况')).toEqual(['worried']);
+    expect(ids('开心不已')).toEqual(['happy']);
+    expect(ids('开心得不得了')).toEqual(['happy']);
+  });
+
+  it('no posture, arm or whole-body move; not the plain face or stone; no one-character names', () => {
+    expect(ids('想坐下,招手,趴下,跳舞')).toEqual([]);
+    expect(ids('平静')).toEqual([]);
+    expect(ids('石化了,我裂开了')).toEqual([]);
+    // 困 is a name of 犯困, but 困惑 is not sleepy
+    expect(ids('有点困惑')).toEqual([]);
+    expect(ids('犯困')).toEqual(['sleepy']);
+    expect(ids('嗯')).toEqual([]);
+  });
+
+  it('a feeling that clearly agrees nods when it names no word; otherwise nothing', () => {
+    expect(localPick('同意他的看法', vocab)).toEqual({ ids: ['nod'], matched: ['同意'], by: 'agree' });
+    expect(ids('没错,就是这样')).toEqual(['nod']);
+    expect(ids('不同意')).toEqual([]);
+    expect(ids('真是的')).toEqual([]);
+    expect(ids('随便聊聊')).toEqual([]);
+    // a named face wins over agreeing
+    expect(ids('同意,很开心')).toEqual(['happy']);
+  });
+
+  it('only words the body on screen does; nothing asleep or dizzy', () => {
+    const noHappy = vocab.filter((v) => v.id !== 'happy' && v.id !== 'nod');
+    expect(ids('很开心', noHappy)).toEqual([]);
+    expect(ids('同意', noHappy)).toEqual([]);
+    expect(ids('很开心', vocab, 'sleep')).toEqual([]);
+    expect(ids('很开心', vocab, 'dizzy')).toEqual([]);
+    expect(ids('很开心', vocab, 'lie')).toEqual(['happy']);
+    expect(ids('很开心,点头', vocab, 'kneel')).toEqual(['happy', 'nod']);
+  });
+
+  it('English names and ids as whole words, any case, not after a not', () => {
+    const own: VocabWord[] = [
+      { id: 'grin', kind: 'expression', names: { en: ['grin', 'big smile'] }, about: { en: 'grins' }, seconds: 2 },
+      { id: 'bob', kind: 'motion', names: { en: ['bob'] }, about: { en: 'bobs' }, seconds: 1 },
+    ];
+    expect(ids('A Big Smile for them', own)).toEqual(['grin']);
+    expect(ids('grinning', own)).toEqual([]);
+    expect(ids('not a grin', own)).toEqual([]);
+  });
+
+  it.each(FIGURES)('%s: only face and head words of its vocabulary', (fig) => {
+    const v = packOf(fig).manifest.vocab;
+    for (const f of ['好开心,连连点头', '又惊讶又害怕,歪头', '难过得叹气', '同意', '想睡觉了,坐下歇会儿', '生气地跺脚']) {
+      for (const id of ids(f, v)) {
+        const w = v.find((x) => x.id === id)!;
+        expect(w, id).toBeTruthy();
+        expect(['face', 'head']).toContain(questionOf(w));
+      }
+    }
+  });
+
+  it('runs for the failures that have no answer, not without a key or on a stop', () => {
+    expect([...LOCAL_FALLBACK].sort()).toEqual(['bad', 'breaker', 'http', 'network', 'timeout']);
   });
 });

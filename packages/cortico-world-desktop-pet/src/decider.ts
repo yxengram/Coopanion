@@ -14,6 +14,8 @@
  *   `parseActions` as any other.
  * - `DeciderClient`: the HTTP call with a timeout, a circuit breaker and usage parsing; the key is read at each call
  *   and never kept, logged or put in an error.
+ * - `localPick`: when a decision fails (timeout, an error status, an answer it cannot read, the breaker open), a face
+ *   and a head move the feeling names outright, or a nod for a feeling that clearly agrees, or nothing.
  */
 import {
   APPENDAGES, APPENDAGE_NAMES, INLINE_TAG_MAX, channelsOf, clashes, firstName, moodLabel, pairKey, partOf, vocabId,
@@ -348,7 +350,7 @@ export interface PickParams {
   pairRatio: number;
 }
 export const PICK_DEFAULTS: Readonly<PickParams> = {
-  floor: FLOOR, floorWord: FLOOR_WORD, feelFloorWord: FEEL_FLOOR_WORD, postureOverFace: true, budget: 2, repeatWindow: 2, repeatRatio: .6, pairs: true, pairMin: .20, pairRatio: .5,
+  floor: FLOOR, floorWord: FLOOR_WORD, feelFloorWord: FEEL_FLOOR_WORD, postureOverFace: true, budget: 2, repeatWindow: 2, repeatRatio: .6, pairs: true, pairMin: .08, pairRatio: .2,
 };
 
 export interface PickContext {
@@ -457,6 +459,101 @@ export function pickGroup(questions: readonly Question[], answers: Readonly<Reco
   }
   const ids = kept.flatMap((c) => (c.pair ? [c.v.id, c.pair.id] : [c.v.id]));
   return { ids, why, chosen };
+}
+
+/* ---------------- when the decision model gives no answer ---------------- */
+
+/** Failures after which the World picks the words itself from the feeling (`localPick`); not without a key, not on a stop. */
+export const LOCAL_FALLBACK: ReadonlySet<DecideFailure> = new Set(['timeout', 'http', 'bad', 'network', 'breaker']);
+/** Postures in which she shows no face or head move of her own choosing: asleep, dizzy. */
+const NO_LOCAL: ReadonlySet<Posture> = new Set(['sleep', 'dizzy']);
+/** Words the fallback never picks: the plain face (平静 says nothing), and stone, which takes every part. */
+const LOCAL_SKIP: ReadonlySet<string> = new Set(['neutral', 'petrify']);
+/** Right before a match, a word that turns it round (不开心, 没有生气, 别担心, not happy). */
+const NEGATED_ZH = /(?:不|没|别|未|勿|无|没有|不太|不怎么|不那么|没那么|不是很|不再)$/;
+/** A 别 that is the end of a word, not "don't": 特别开心 is very happy, 告别, 分别, 区别, 级别… */
+const BIE_WORD = /[特分告区级性离派类差识辨个送道永惜久诀判鉴拜话阔]别$/;
+/** Right after a match, a word that turns it round: 开心不起来, 高兴不了 (not 开心不已, 开心得不得了). */
+const NEGATED_AFTER_ZH = /^(?:不起来|不出来|不了(?!解)|不起)/;
+/** Whether the Chinese match at `at`..`end` in `text` is turned round by the words around it. */
+function negatedZh(text: string, at: number, end: number): boolean {
+  const before = text.slice(Math.max(0, at - 4), at);
+  if (NEGATED_AFTER_ZH.test(text.slice(end))) return true;
+  if (!NEGATED_ZH.test(before)) return false;
+  // a 别 that ends a word (特别, 分别…) does not turn it round, but what comes before that word may (不特别开心)
+  if (before.endsWith('别') && BIE_WORD.test(text.slice(Math.max(0, at - 2), at))) return NEGATED_ZH.test(text.slice(Math.max(0, at - 6), at - 2));
+  return true;
+}
+const NEGATED_EN = /\b(?:not|no|never|don't|didn't|isn't|aren't|wasn't|can't|won't)\s+(?:\w+\s+)?$/i;
+/**
+ * A feeling that clearly agrees: a nod when no word is named. Not 是的, 对的, 好的 (真是的, 面对的, 最好的朋友).
+ */
+const AGREE = /同意|赞同|赞成|认同|答应|没错|没问题|\bagree|\byes\b/gi;
+
+export interface LocalPick {
+  /** The words, a face first then a head move (at most one each), for `parseActions` as one group. */
+  ids: string[];
+  /** What was found in the feeling: the names matched, or the agreeing phrase. */
+  matched: string[];
+  /** How: by names in the feeling, by agreement (a nod), or nothing. */
+  by: 'names' | 'agree' | 'none';
+}
+
+const isAscii = (s: string) => /^[\x20-\x7e]+$/.test(s);
+
+/** The places name `n` appears in `text` not turned round by a word before it (ASCII names: whole words, any case). */
+function hits(text: string, n: string): number[] {
+  const out: number[] = [];
+  if (isAscii(n)) {
+    const re = new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    for (let m = re.exec(text); m; m = re.exec(text)) if (!NEGATED_EN.test(text.slice(0, m.index))) out.push(m.index);
+    return out;
+  }
+  for (let i = text.indexOf(n); i >= 0; i = text.indexOf(n, i + 1)) if (!negatedZh(text, i, i + n.length)) out.push(i);
+  return out;
+}
+
+/**
+ * The words the World does itself when a decision fails (LOCAL_FALLBACK): the offline mock's overlap match
+ * (scratch/combo2/eval/lib/mock-decider.ts) cut down to whole names, so one shared character (心 in 担心 and 开心)
+ * never picks a word. Among the face and head words of `vocab` (the body on screen: the words its page said it
+ * knows), a name or id written in the feeling (not right after 不/没/别…, a 别 that ends 特别/分别… aside, nor
+ * right before 不起来/不了) picks that word, the longest name first,
+ * then the earliest; one face and at most one head move, never a posture, an arm or a whole-body move, never 平静 or
+ * 石化, and one-character names (困, 哭, 唉) do not count (困 in 困惑). With no word named, a feeling that clearly
+ * agrees (同意, 没错, 没问题…) gets a nod if the body has one; otherwise nothing. Asleep or dizzy: nothing.
+ */
+export function localPick(feeling: string, vocab: readonly VocabWord[], posture: Posture = 'stand'): LocalPick {
+  const none: LocalPick = { ids: [], matched: [], by: 'none' };
+  const text = feeling.trim();
+  if (!text || NO_LOCAL.has(posture)) return none;
+  type Hit = { v: VocabWord; name: string; len: number; at: number };
+  const best: Partial<Record<'face' | 'head', Hit>> = {};
+  for (const v of vocab) {
+    if (LOCAL_SKIP.has(v.id)) continue;
+    const q = questionOf(v);
+    if (q !== 'face' && q !== 'head') continue;
+    const names = [...new Set([...Object.values(v.names).flat(), v.id])].filter((n) => n.trim() && (isAscii(n) ? n.length >= 3 : [...n].length >= 2));
+    for (const name of names) {
+      const at = hits(text, name)[0];
+      if (at === undefined) continue;
+      const h: Hit = { v, name, len: [...name].length, at };
+      const b = best[q];
+      if (!b || h.len > b.len || (h.len === b.len && h.at < b.at)) best[q] = h;
+    }
+  }
+  const face = best.face, head = best.head && (!best.face || !clashes(best.face.v, best.head.v)) ? best.head : undefined;
+  const got = [face, head].filter((h): h is Hit => !!h);
+  if (got.length) return { ids: got.map((h) => h.v.id), matched: got.map((h) => h.name), by: 'names' };
+  const nod = vocab.find((v) => v.id === 'nod');
+  if (nod) {
+    for (const m of text.matchAll(AGREE)) {
+      if (m.index !== undefined && !(isAscii(m[0]) ? NEGATED_EN.test(text.slice(0, m.index)) : negatedZh(text, m.index, m.index + m[0].length))) {
+        return { ids: ['nod'], matched: [m[0]], by: 'agree' };
+      }
+    }
+  }
+  return none;
 }
 
 /** The channels a question's words take, for tests: every word of a question takes that question's part. */
@@ -693,6 +790,12 @@ export interface DecisionRecord {
   ms: number;
   ok: boolean;
   failure?: string;
+  /**
+   * The decision failed and the World picked the words itself from the feeling (`localPick`): how, and what it found
+   * (`actions` holds what was done; empty when nothing matched). Absent on a decision the model made, and on a
+   * failure without a fallback (no key, a stop).
+   */
+  fallback?: { by: LocalPick['by']; matched: string[] };
   usage?: DecisionUsage;
 }
 

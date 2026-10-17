@@ -20,6 +20,7 @@ import * as FaceModule from '../packages/cortico-world-desktop-pet/web/claude-ch
 import { createClaudeFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/claude-chan/figure.js';
 import { spring } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { upstreamKit } from './helpers/upstream-kit.js';
+import { rollFloat } from './helpers/roll-support.js';
 
 const DIR = new URL('../packages/cortico-world-desktop-pet/web/claude-chan/', import.meta.url);
 const SRC = ['figure.js', 'face.js', 'motion.js', 'fx.js'];
@@ -861,8 +862,8 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
     expect(P.kneel.headDrop).toBeLessThanOrEqual(SIT_LOW);
     expect(A.kneelRaise).toBeCloseTo(SIT_LOW - P.kneel.headDrop, 1);
     expect(P.kneel.overlays.map(o => o.use).sort()).toEqual(['shut', 'smile', 'talk']);
-    // the ball rolls on its edge: a support sample every 5°, all within the ball
-    expect(P.roll.support).toHaveLength(72);
+    // the ball rolls on its edge: a support sample every 1° (measured on the texture), all within the ball
+    expect(P.roll.support).toHaveLength(360);
     const rb = P.roll.required[0].box;
     for (const v of P.roll.support) expect(v > 0 && v <= Math.max(rb[2], rb[3]) * .6).toBe(true);
     expect(inside(P.roll.pivots.rollBall, [rb[0], rb[1], rb[0] + rb[2], rb[1] + rb[3]])).toBe(true);
@@ -897,6 +898,49 @@ describe.skipIf(!real)('Claude-chan: model.json and its files', () => {
     expect(P.sit.headDrop).toBeGreaterThan(10);
     expect(P.sit.headDrop).toBeLessThanOrEqual(SIT_LOW);
     for (const p of P.sit.required) expect(['sitTop', 'sitBase'], p.id).toContain(p.parent);
+  });
+  it('rolls on her ball\'s edge between the samples too: its table every 1°, so the ball never floats off the floor', () => {
+    // (every 5° the lowest point jumped from corner to corner between samples and the straight line across floated the
+    // ball by up to .6 units; the table is measured on the texture as scratch/roll-cut/support_dense.py does)
+    const roll = real.poses.roll, { worst, at, floor } = rollFloat(DIR, roll, KneelMotion.ballLift);
+    expect(worst, `Claude-chan ball at ${at}°`).toBeLessThan(.4);
+    // the table starts on the measured floor line, and wraps: past 360° it is the first sample, before 0° the last
+    expect(roll.pivots.rollBall[1] + roll.support[0]).toBeCloseTo(floor, 1);
+    expect(KneelMotion.ballLift(roll.support, 360)).toBeCloseTo(roll.support[0], 5);
+    expect(KneelMotion.ballLift(roll.support, -1)).toBeCloseTo(roll.support[359], 5);
+  });
+  it('cuts between her and the ball in one frame each way (a step on the roll, never a fade), from standing, sitting, kneeling and lying', () => {
+    // (a hand-over between bodies is a cut: the ball faded in and out over 2-3 frames, both bodies half see-through)
+    const { ballMix, BALL_IN, BALL_OUT } = KneelMotion;
+    for (let k = 0; k <= 1; k += .001) expect([0, 1], `k ${k}`).toContain(ballMix(k));
+    expect([ballMix(BALL_IN - 1e-6), ballMix(BALL_IN), ballMix(BALL_OUT - 1e-6), ballMix(BALL_OUT)]).toEqual([0, 1, 1, 0]);
+    if (!real) return;
+    for (const from of ['stand', 'sit', 'kneel', 'lie']) for (const dt of [1 / 60, 1 / 144]) {
+      const { fig, seen } = stubFigure(real);
+      const pet = barePet(fig);
+      run(pet, .5);
+      if (from !== 'stand') { pet.doWord(from); run(pet, 3); }
+      // (down on the floor, her own drawing shows first)
+      if (from !== 'stand') expect(seen.last.st.alpha[from === 'sit' ? 'sit_skirt' : `${from}_body`], from).toBe(1);
+      pet.doWord('roll');
+      let prev = 0, flips = 0, shown = 0;
+      for (let i = 0; i < Math.round(2.2 / dt); i++) {
+        pet.step(dt); pet.render();
+        const a = seen.last.st.alpha.roll_ball ?? 0;
+        expect([0, 1], `${from} 1/${Math.round(1 / dt)} frame ${i}`).toContain(a);
+        // the ball shows only with the whole standing (and seated) body hidden under it; standing, she shows without it
+        if (a) expect(seen.last.hideFront, `${from} frame ${i}`).toBe(true);
+        // ...and with no floor drawing (seated, kneeling, lying) still showing round it: the cut is from that drawing too
+        if (a) for (const id of ['lie_body', 'lie_tail', 'lie_blank', 'lie_fringe', 'lie_live', 'kneel_body', 'kneel_blank', 'kneel_fringe', 'kneel_live', 'kneel_low', 'sit_skirt', 'sit_top']) expect(seen.last.st.alpha[id] ?? 0, `${from} frame ${i} ${id}`).toBe(0);
+        else if (from === 'stand') expect(seen.last.hideFront, `${from} frame ${i}`).toBe(false);
+        // (from any start, the ball cuts out straight to her standing rig: never a frame with neither the ball nor a body)
+        if (!a && prev) expect(seen.last.hideFront, `${from} 1/${Math.round(1 / dt)} frame ${i}: ball out`).toBe(false);
+        if (a !== prev) flips++;
+        prev = a; shown += a;
+      }
+      expect(flips, `${from} 1/${Math.round(1 / dt)}`).toBe(2);
+      expect(shown * dt, from).toBeGreaterThan(1);
+    }
   });
   it('lies, kneels and rolls with her drawings on the real rig', () => {
     const { fig, motion, R: RR, seen } = stubFigure(real);

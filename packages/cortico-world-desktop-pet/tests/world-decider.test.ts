@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { DESKTOP_PET_DEFAULTS, type DesktopPetConfigSection } from '../src/config.ts';
 import { DesktopPetWorld, type DesktopPetWorldOptions, type PetMode } from '../src/world.ts';
 import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from '../src/tools.ts';
-import type { DecisionRecord } from '../src/decider.ts';
+import { DECIDER_HOLD_MS, type DecisionRecord } from '../src/decider.ts';
 import { figurePacks } from '../src/packs.ts';
 import { firstName } from '../src/script.ts';
 
@@ -660,5 +660,154 @@ describe('breaker and the key', () => {
     expect(out).toContain('没有 OpenRouter 密钥');
     expect(await p.next((x) => x.t === 'say')).not.toHaveProperty('acts');
     expect(m.mock.requests).toHaveLength(0);
+  });
+});
+
+describe('a decision with no answer: the words the feeling names', () => {
+  it('a timeout: the bubble gets the face and head move its feeling names, and the receipt and record say so', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    m.cfg.decider.timeoutMs = 300;
+    m.mock.delayMs = 1500;
+    await tool(m.world, 'pet_say').handler({ text: '好呀', feeling: '好开心,连连点头' }, ctx);
+    const say = await p.next((x) => x.t === 'say');
+    expect(say).toMatchObject({ acts: 'pending' });
+    const acts = await p.next((x) => x.t === 'say-acts');
+    expect(acts.id).toBe(say.id);
+    expect(acts.actions).toEqual(['nod+happy']);
+    await m.world.decisionsIdle();
+    expect(m.records[0]).toMatchObject({
+      ok: false, failure: '决策模型超时', actions: ['nod+happy'], answers: null,
+      fallback: { by: 'names', matched: ['开心', '连连点头'] },
+    });
+    const next = textOf(await tool(m.world, 'pet_set').handler({}, ctx));
+    expect(next).toContain('[表情动作] 刚才的气泡:「好呀」点头+开心(决策模型超时,按心情里的词挑的)。');
+    // the next decision is told she just did them (the repeat rule, which keys on its options, does not count them)
+    m.mock.delayMs = 0;
+    await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+    expect(m.mock.requests.at(-1)!.body.state).toMatch(/最近做过\(从近到远\):点头\+开心\(/);
+  });
+
+  it('a timeout longer than the hold: the bubble starts without them, and the words follow when the decision gives up', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    m.cfg.decider.timeoutMs = DECIDER_HOLD_MS + 600;
+    m.mock.delayMs = DECIDER_HOLD_MS + 1500;
+    const t0 = Date.now();
+    await tool(m.world, 'pet_say').handler({ text: '好呀', feeling: '特别开心' }, ctx);
+    const say = await p.next((x) => x.t === 'say');
+    expect(say).toMatchObject({ acts: 'pending', holdMs: DECIDER_HOLD_MS });
+    const acts = await p.next((x) => x.t === 'say-acts');
+    // past the hold: the page has started the bubble and does them as late words (acts.js attachSayActs 'late')
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(DECIDER_HOLD_MS);
+    expect(acts).toMatchObject({ id: say.id, actions: ['happy'] });
+    await m.world.decisionsIdle();
+    expect(m.records[0]).toMatchObject({ ok: false, failure: '决策模型超时', actions: ['happy'], fallback: { by: 'names', matched: ['开心'] } });
+  });
+
+  it('an error status: the words of the feeling, the mode stays; nothing named, nothing done', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    m.mock.status = 500;
+    await tool(m.world, 'pet_say').handler({ text: '嗯', feeling: '有点担心' }, ctx);
+    expect((await p.next((x) => x.t === 'say-acts')).actions).toEqual(['worried']);
+    await m.world.decisionsIdle();
+    expect(textOf(await tool(m.world, 'pet_set').handler({}, ctx))).toContain('「嗯」担心(决策模型返回错误(HTTP 500 mock failure),按心情里的词挑的)。');
+    const first = (await p.next((x) => x.t === 'say')).id;
+    await tool(m.world, 'pet_say').handler({ text: '嗯嗯', feeling: '平静' }, ctx);
+    expect((await p.next((x) => x.t === 'say-acts' && x.id !== first)).actions).toEqual([]);
+    await m.world.decisionsIdle();
+    expect(textOf(await tool(m.world, 'pet_set').handler({}, ctx))).toContain('「嗯嗯」没做(决策模型返回错误(HTTP 500 mock failure))。');
+    expect(m.records[0]).toMatchObject({ ok: false, failure: '决策模型返回错误(HTTP 500 mock failure)', actions: ['worried'], fallback: { by: 'names', matched: ['担心'] } });
+    expect(m.records[1]).toMatchObject({ ok: false, actions: [], fallback: { by: 'none', matched: [] } });
+    expect(m.world.petMode).toBe('decider');
+  });
+
+  it('an answer it cannot read: pet_feel nods for a feeling that agrees, and says it was not the decision model', async () => {
+    const fakeFetch = (async () => new Response('not json', { status: 200 })) as typeof fetch;
+    const m = await mounted({ extra: { deciderFetch: fakeFetch } });
+    const p = await page(m);
+    const out = await tool(m.world, 'pet_feel').handler({ feeling: '同意他说的' }, ctx);
+    expect((await p.next((x) => x.t === 'act')).actions).toEqual(['nod']);
+    expect(out).not.toMatchObject({ failed: true });
+    expect(textOf(out)).toContain('决策模型没回应(决策模型的回答看不懂),按心情里的词挑的:点头。');
+    expect(m.records[0]).toMatchObject({ ok: false, failure: '决策模型的回答看不懂', actions: ['nod'], fallback: { by: 'agree', matched: ['同意'] } });
+    // no posture, even when the feeling names one
+    const lie = textOf(await tool(m.world, 'pet_feel').handler({ feeling: '想趴下' }, ctx));
+    expect(lie).toContain('这次身体没做什么');
+  });
+
+  it('the breaker open: no call, the bubble starts with the words of its feeling, the question does them; recorded in order', async () => {
+    let now = 1_000_000;
+    let calls = 0;
+    const fakeFetch = (async () => { calls++; return new Response('nope', { status: 503 }); }) as typeof fetch;
+    const m = await mounted({ extra: { deciderFetch: fakeFetch, deciderNow: () => now } });
+    const p = await page(m);
+    for (let i = 0; i < 3; i++) await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+    expect(calls).toBe(3);
+    expect(m.world.console().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'error' });
+    const out = textOf(await tool(m.world, 'pet_say').handler({ text: '太好了', feeling: '好开心' }, ctx));
+    const say = await p.next((x) => x.t === 'say');
+    expect(say).not.toHaveProperty('acts');
+    expect(say.beats).toEqual([{ actions: ['happy'], text: '太好了', anchors: [] }]);
+    expect(out).toContain('表情动作这次交不给决策模型(决策模型连续出错,暂时用不了),按心情里的词挑的:开心。');
+    const ask = textOf(await tool(m.world, 'pet_ask').handler({ question: '要不要一起?', options: ['好', '不'], feeling: '有点期待' }, ctx));
+    expect((await p.next((x) => x.t === 'act')).actions).toEqual(['excited']);
+    expect(ask).toContain('按心情里的词挑的:期待。');
+    const feel = textOf(await tool(m.world, 'pet_feel').handler({ feeling: '有点难过' }, ctx));
+    expect((await p.next((x) => x.t === 'act' && (x.actions as string[])[0] === 'sad')).actions).toEqual(['sad']);
+    expect(feel).toContain('表情决策暂时用不了(决策模型连续出错,暂时用不了),按心情里的词挑的:难过。');
+    await m.world.decisionsIdle();
+    // the breaker is as it was: no call while it is open, the same 60 s
+    expect(calls).toBe(3);
+    expect(m.records.slice(3).map((r) => [r.tool, r.failure, r.actions, r.fallback?.by])).toEqual([
+      ['pet_say', '决策模型连续出错,暂时用不了', ['happy'], 'names'],
+      ['pet_ask', '决策模型连续出错,暂时用不了', ['excited'], 'names'],
+      ['pet_feel', '决策模型连续出错,暂时用不了', ['sad'], 'names'],
+    ]);
+    now += 60_001;
+    await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+    expect(calls).toBe(4);
+  });
+
+  it('the breaker open: a question whose words the page did not take records none done', async () => {
+    const fakeFetch = (async () => new Response('nope', { status: 503 })) as typeof fetch;
+    const m = await mounted({ extra: { deciderFetch: fakeFetch } });
+    await page(m);
+    for (let i = 0; i < 3; i++) await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+    const server = (m.world as unknown as { server: { sendPet(msg: { t: string }): boolean } }).server;
+    const send = server.sendPet.bind(server);
+    server.sendPet = (msg) => (msg.t === 'act' ? false : send(msg));
+    await tool(m.world, 'pet_ask').handler({ question: '要吗?', options: ['好'], feeling: '有点期待' }, ctx);
+    await m.world.decisionsIdle();
+    expect(m.records.at(-1)).toMatchObject({ tool: 'pet_ask', ok: false, actions: [], fallback: { by: 'names', matched: ['期待'] } });
+    // not told to the next decision as done
+    server.sendPet = send;
+    expect((m.world as unknown as { recentPicks: unknown[] }).recentPicks).toEqual([]);
+  });
+
+  it('only words the body on screen does: a word its page said it does not know is left out', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    const coo = COO.vocab.map((v) => v.id).filter((id) => id !== 'happy');
+    p.send({ t: 'figure', id: 'coo', ok: true, words: coo });
+    // the page's messages are handled in order: once this pose shows, the words above are known
+    p.send({ t: 'pose', x: 1000, w: 1920, facing: -1, mode: 'idle' });
+    await expect.poll(() => m.world.positionLine()).toContain('1000/1920');
+    m.mock.status = 500;
+    await tool(m.world, 'pet_say').handler({ text: '好', feeling: '好开心,连连点头' }, ctx);
+    expect((await p.next((x) => x.t === 'say-acts')).actions).toEqual(['nod']);
+    await m.world.decisionsIdle();
+    expect(m.records[0]).toMatchObject({ ok: false, actions: ['nod'], fallback: { by: 'names', matched: ['连连点头'] } });
+  });
+
+  it('without a key: no fallback, the bubble only speaks', async () => {
+    const m = await mounted();
+    const p = await page(m);
+    m.key.value = '';
+    await tool(m.world, 'pet_say').handler({ text: '嗯', feeling: '好开心' }, ctx);
+    expect((await p.next((x) => x.t === 'say')).beats).toEqual([{ actions: [], text: '嗯', anchors: [] }]);
+    await m.world.decisionsIdle();
+    expect(m.records).toHaveLength(0);
   });
 });

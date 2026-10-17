@@ -79,12 +79,15 @@ export function cheerHandover(on, ang, to, rest) {
 
 /** Gestures that pose the far arm themselves: she takes her chin off her hand for them. */
 export const FAR_ARM_GESTURES = ['cheer', 'heart', 'shiver', 'flap', 'flinch', 'peek', 'sip', 'read', 'roll', 'pray', 'hips', 'hug', 'serve', 'cross', 'stretch', 'curtsy', 'point',
-  'clap', 'shrug', 'headhold'];
+  'clap', 'shrug', 'headhold', 'jot', 'twiddle'];
 /** The gestures that put something in her hands, and the pose (model.poses.<pose>) that draws it. */
 export const PROP_GESTURES = { sip: 'cup', read: 'book' };
-/** Every gesture done with one drawing of both forearms (the held things above, and hands pressed together, on the hips, held out). */
+/**
+ * Every gesture done with one drawing of both forearms (the held things above, and hands pressed together, on the hips, held out;
+ * a notebook written in, the fingertips pressed together).
+ */
 export const BOTH_HANDS = { ...PROP_GESTURES, pray: 'pray', hips: 'hips', hug: 'hug', serve: 'tea', cross: 'cross', stretch: 'stretch', curtsy: 'curtsy',
-  clap: 'clap', shrug: 'shrug', headhold: 'headhold' };
+  clap: 'clap', shrug: 'shrug', headhold: 'headhold', jot: 'jot', twiddle: 'twiddle' };
 /**
  * A gesture's second drawing, cut to and from its own in a frame (no crossfade: two pairs of hands half seen at once read
  * as a double exposure): the clap's hands apart, shown between the claps (the kit's clapShut).
@@ -94,13 +97,18 @@ export const ARM_TWIN = { clap: 'clapo' };
 export const NECK_HANDS = ['headhold'];
 /** Gestures that raise the near arm into a drawing of its own, handed over the cheer's way: hand at her head, finger up. */
 export const NEAR_RAISES = { scratch: 'scratch', idea: 'idea', salute: 'salute', vsign: 'vsign', cover: 'cover', point: 'point',
-  raise: 'raise', thumbs: 'thumbs', shush: 'shush', wipe: 'wipe' };
+  raise: 'raise', thumbs: 'thumbs', shush: 'shush', wipe: 'wipe', fist: 'fist' };
 /** Of those, the ones that raise the far arm instead (pointing ahead, where she faces). */
 export const FAR_RAISES = ['point'];
 /** Raised arms that ride the neck, so the hand stays on her face as the head moves (a hand over her mouth). */
 export const NECK_RAISES = ['cover', 'shush', 'wipe'];
 /** Raises whose drawing is a bent arm (much shorter than the fist arm): they come in the heart's way, not by angle. */
-export const BENT_RAISES = ['idea', 'salute', 'vsign', 'cover', 'thumbs', 'shush', 'wipe'];
+export const BENT_RAISES = ['idea', 'salute', 'vsign', 'cover', 'thumbs', 'shush', 'wipe', 'fist'];
+/**
+ * Bent raises that swing the last stretch in from outside (degrees off `rest` at the cut, rising into place): the fist,
+ * held up beside her cheek, would brush it coming in the others' way (+12°, toward her face).
+ */
+export const RAISE_ENTRY = { fist: -12 };
 /** How far up (°) the fist arm goes for a near-arm raise before the drawing takes it on to its own angle. */
 export const RAISE_TO = 80;
 /**
@@ -123,12 +131,15 @@ export function ballAngle(k, around = ROLL_D, travel = ROLL_D) {
   const turns = way / Math.max(1, around), frac = turns - Math.round(turns);
   return 360 * turns * rollTurn(k) - 180 * frac;
 }
+/** Where in a roll the ball cuts in (in the crouch, squashed low and moving) and out again (as she springs up). */
+export const BALL_IN = .1475, BALL_OUT = .8525;
 /**
- * The curled-up drawing's share of a roll: it covers her over the crouch, almost a cut (she is squashed low and
- * moving then), and gives her back as she springs up. 1 hides the standing rig.
+ * The curled-up drawing's share of a roll: 0 or 1, a one-frame cut each way at BALL_IN / BALL_OUT (where the old
+ * fade was half way), as every hand-over between bodies is: a fade showed the ball and her standing rig both
+ * half see-through for two or three frames. 1 hides the standing rig.
  */
-export const ballMix = k => smooth(.13, .165, k) * (1 - smooth(.835, .87, k));
-/** How far the ball's middle sits above the floor turned by `deg` (model.poses.roll.support, n samples round the turn: the maid's every 5°, the cape's `rollSupport` every 1°), so it rolls on its edge. */
+export const ballMix = k => (k >= BALL_IN && k < BALL_OUT ? 1 : 0);
+/** How far the ball's middle sits above the floor turned by `deg` (model.poses.roll.support / an outfit's `rollSupport`, n samples round the turn, both every 1°), so it rolls on its edge. */
 export function ballLift(support, deg) {
   const n = support.length, x = (((deg % 360) + 360) % 360) / 360 * n, i = Math.floor(x) % n;
   return lerp(support[i], support[(i + 1) % n], x - Math.floor(x));
@@ -637,7 +648,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
    * may lay a pose part at another depth (`poseZ`, by part id), give a pose part another box and grid (`poseParts`,
    * by part id: a floor face's blank or fringe cut wider or narrower from the outfit's own drawing; the face's own box
    * and placement stay the pose's), have the kneeling hybrid hide more of its standing parts (`kneelLowHides`) and roll
-   * on its own ball outline (`rollSupport`, as poses.roll.support but sampled every 1°: its spout and far fin make corners that linear steps of 5° cut across, floating the ball).
+   * on its own ball outline (`rollSupport`, as poses.roll.support every 1°: its spout and far fin make corners that linear steps of 5° cut across, floating the ball).
    */
   function layoutOf(of) {
     const info = outfitInfo(of), list = outfitParts(of);
@@ -1319,7 +1330,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const hold = propG ? env(.1, .88) : 0, sip = propG === 'sip' ? sipLift(gk) * hold : 0;
     // (turning away without her back drawing, seated say, she turns her face away and drops her chin a little)
     const awayFace = backable() ? 0 : away;
-    const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3 + sip * 4 + (propG === 'read' ? 5 * hold : 0) - 2 * inh + 6 * exh - (raiseG === 'vsign' ? 6 * raise : 0) + (propG === 'curtsy' ? 6 * hold : 0)
+    const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3 + sip * 4 + (propG === 'read' || propG === 'jot' ? 5 * hold : 0) - 2 * inh + 6 * exh - (raiseG === 'vsign' ? 6 * raise : 0) + (propG === 'curtsy' ? 6 * hold : 0)
       + DROOP.neck * downK + BODY_LEAN.closerNeck * closer - BODY_LEAN.backNeck * leanback + BODY_LEAN.swayNeck * swayG, gYaw = shake * 1.1 - awayFace * 1.3;
     const headA = headTilt + gNeck;
     const tiltVel = (headA - prevTilt) / Math.max(dt, 1e-3); prevTilt = headA;
@@ -1529,8 +1540,19 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       const up = smooth(.1, .5, on), lift = pg === propG ? 11 * sip : 0;
       // (pleading, the pressed hands bob twice a second; held out for a hug, the arms sway a little wider)
       const bob = pg === 'pray' ? 1.5 * Math.abs(Math.sin(t * 6)) : 0, sway = pg === 'hug' ? .02 * Math.sin(t * 2.2) : pg === 'serve' ? .05 * smooth(.2, .45, gk) * on : 0;
-      st[id] = { ty: (pg === 'stretch' ? -8 * up : 7 * (1 - up)) + bob * up, a: (pg === 'sip' ? 1.2 : pg === 'hips' ? 0 : .6) * Math.sin(t * 1.3) * up - .4 * lift, sx: 1 + sway * up, sy: 1 + (pg === 'serve' ? sway * up : 0) };
-      st[id + 'Lift'] = { fn: (u, v) => [0, -lift * (1 - smooth(.5, .95, v))] };
+      // (writing, the pen keeps to the page: less sway; the fingertips' drawing keeps still, or its sleeves' straight tops
+      // would slide over her hair)
+      st[id] = { ty: (pg === 'stretch' ? -8 * up : 7 * (1 - up)) + bob * up, a: (pg === 'sip' ? 1.2 : pg === 'hips' || pg === 'twiddle' ? 0 : pg === 'jot' ? .4 : .6) * Math.sin(t * 1.3) * up - .4 * lift, sx: 1 + sway * up, sy: 1 + (pg === 'serve' ? sway * up : 0) };
+      // (the pen scribbles along the page about its nib, as the girls' does; the two fingertips poke at each other, one up as
+      // the other goes down, the sleeves still)
+      const [qx, qy] = pose.wrist, pen = pg === 'jot' ? up : 0, poke = pg === 'twiddle' ? up : 0;
+      const pd = .9 * Math.sin(t * 23) * pen, pe = .4 * Math.sin(t * 9) * pen, tw = .7 * Math.sin(t * 9) * poke, tc = .25 * Math.sin(t * 9 + 1.2) * poke;
+      st[id + 'Lift'] = {
+        fn: (u, v, x, y) => {
+          const d2 = (x - qx) ** 2 + (y - qy) ** 2, w = pen || poke ? Math.exp(-d2 / (pen ? 120 : 90)) : 0;
+          return [pd * w, -lift * (1 - smooth(.5, .95, v)) + (pe + tc + tw * Math.tanh((x - qx) / 4)) * w];
+        },
+      };
       st.alpha.arm_near *= 1 - swap; st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap; farFree *= 1 - swap;
       for (const p of pose.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
       if (pg === 'sip' || pg === 'serve') if (pg === propG || !steam) { steam = swap * up; steamAt = [id + 'Lift', pose.wrist]; }
@@ -1546,13 +1568,13 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
         ? { swap: (gk < .5 ? gk >= SWAP_AT.salute.in : gk < SWAP_AT.salute.out) ? 1 : 0, lift: 1,
           dir: pose.rest - 25 * (1 - smooth(.03, .12, gk)) + 6 * Math.sin(Math.PI * clamp((gk - .12) / .08, 0, 1)) - 20 * smooth(.86, .93, gk) }
         : BENT_RAISES.includes(rg)
-          ? { swap: handsIn(on, gk), lift: smooth(.1, .5, on), dir: pose.rest + 12 * (1 - smooth(.1, .5, on)) }
+          ? { swap: handsIn(on, gk), lift: smooth(.1, .5, on), dir: pose.rest + (RAISE_ENTRY[rg] ?? 12) * (1 - smooth(.1, .5, on)) }
           : cheerHandover(on, FAR_RAISES.includes(rg) ? armFBase : armBase, RAISE_HIGH[rg] ?? RAISE_TO, pose.rest);
       const wig = rg === 'scratch' ? 3 * Math.sin(t * 16) : rg === 'idea' ? -4 * Math.sin(Math.PI * smooth(.2, .45, gk))
         : rg === 'vsign' ? -3 * Math.sin(Math.PI * smooth(.2, .4, gk)) : rg === 'point' ? 3 * Math.sin(Math.PI * smooth(.3, .45, gk))
           : rg === 'raise' ? 2 * Math.sin(t * 6) : rg === 'wipe' ? 4 * Math.sin(Math.PI * smooth(.25, .6, gk)) : 0;
-      // (the hand over her mouth sits a little nearer it than drawn)
-      st[id] = { a: dir - pose.rest + wig * lift, tx: rg === 'cover' ? 6 * lift : 0 };
+      // (the hand over her mouth sits a little nearer it than drawn; the fist pumps, cheering you on, as the girls' does)
+      st[id] = { a: dir - pose.rest + wig * lift, tx: rg === 'cover' ? 6 * lift : 0, ty: rg === 'fist' ? -2.5 * Math.abs(Math.sin(t * 7)) * lift : 0 };
       for (const p of pose.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
       if (FAR_RAISES.includes(rg)) { st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap; farFree *= 1 - swap; }
       else st.alpha.arm_near *= 1 - swap;
@@ -1886,7 +1908,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
      * them off the body.
      */
     gestures: ['nod', 'shake', 'tilt', 'droop', 'closer', 'leanback', 'sway', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh', 'pray', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'muse',
-      'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'],
+      'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe', 'fist', 'jot', 'twiddle'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**

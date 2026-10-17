@@ -18,6 +18,9 @@
  */
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, session, shell, systemPreferences } = require('electron');
 const { join } = require('node:path');
+const { createCursorSource } = require('./cursor.cjs');
+const { createMouseLease } = require('./mouse-lease.cjs');
+const { createShownReport } = require('./shown.cjs');
 
 /** Milliseconds between the cursor reports the page gets. */
 const CURSOR_EVERY_MS = 100;
@@ -145,9 +148,12 @@ function hwndOf(win) {
 
 /**
  * Whether the foreground window fills the whole monitor the window `own` is on, as a game, a video
- * or a browser in full screen does. A maximized window never counts: it reaches past the monitor's
- * edges when the taskbar hides itself. Nor do the pet window and the desktop. Null off Windows or
- * when koffi does not load.
+ * or a browser in full screen does. A window still carrying a title bar never counts: a maximized
+ * window reaches past the monitor's edges where no taskbar reserves a strip (an auto-hidden one, or
+ * none on that monitor), and what tells it apart from a full screen window is that going full screen
+ * clears that bar (Chromium keeps the maximized state behind when a maximized window goes full
+ * screen, so the state alone cannot separate the two). Nor do the pet window and the desktop. Null
+ * off Windows or when koffi does not load.
  */
 const fullscreen = (() => {
   if (process.platform !== 'win32') return null;
@@ -155,18 +161,22 @@ const fullscreen = (() => {
     const koffi = require('koffi');
     const user32 = koffi.load('user32.dll');
     const GetForegroundWindow = user32.func('intptr_t __stdcall GetForegroundWindow()');
-    const IsZoomed = user32.func('int __stdcall IsZoomed(intptr_t hwnd)');
+    const GetWindowLongW = user32.func('int32_t __stdcall GetWindowLongW(intptr_t hwnd, int index)');
     const GetClassNameW = user32.func('int __stdcall GetClassNameW(intptr_t hwnd, void *buf, int max)');
     const GetWindowRect = user32.func('int __stdcall GetWindowRect(intptr_t hwnd, void *rect)');
     const MonitorFromWindow = user32.func('intptr_t __stdcall MonitorFromWindow(intptr_t hwnd, uint32_t flags)');
     const GetMonitorInfoW = user32.func('int __stdcall GetMonitorInfoW(intptr_t monitor, void *info)');
     // MONITORINFO is its own size, the monitor RECT, the work RECT and flags
     const MONITORINFO_BYTES = 40, MONITOR_DEFAULTTONEAREST = 2;
+    // going full screen clears the title bar a maximized window keeps
+    const GWL_STYLE = -16, WS_CAPTION = 0x00c00000;
     // the desktop's own windows: they cover the monitor but are not an application
     const DESKTOP_CLASSES = new Set(['Progman', 'WorkerW']);
     return (own) => {
       const hwnd = BigInt(GetForegroundWindow());
-      if (hwnd === 0n || hwnd === own || IsZoomed(hwnd)) return false;
+      if (hwnd === 0n || hwnd === own) return false;
+      // a title bar means an ordinary window that happens to reach the monitor's edges, always on top or not
+      if ((GetWindowLongW(hwnd, GWL_STYLE) & WS_CAPTION) !== 0) return false;
       const monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
       if (monitor !== MonitorFromWindow(own, MONITOR_DEFAULTTONEAREST)) return false;
       const name = Buffer.alloc(128);
@@ -256,7 +266,13 @@ function trayIcon() {
 function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   if (!url) throw new Error('pet host needs --pet-url');
   const origin = new URL(url).origin;
-  let win = null, tray = null, dress = null;
+  let win = null, tray = null, dress = null, cursor = null;
+  /**
+   * Who holds the mouse, and when it is given back (host/mouse-lease.cjs): the page's wish is a lease
+   * the preload renews while the page answers the cursor reports (host/preload.cjs), so a page that
+   * hangs or goes away loses the mouse; never while the window is hidden.
+   */
+  const mouse = createMouseLease({ getWindow: () => win });
   /** Id of the display whose work area the window covers. */
   let displayId = null;
   /** The setting, and whether it is what hid the window. */
@@ -278,6 +294,12 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   };
 
   const place = () => { if (win) cover(display()); };
+
+  /**
+   * A hand showed or hid the window, so the fullscreen rule no longer owns it: a manual show while
+   * the rule still believed it had hidden the window would keep the rule from hiding it again.
+   */
+  const releaseAutoHidden = () => { autoHidden = false; };
 
   const create = () => {
     const d = display(), wa = coverArea(d);
@@ -306,17 +328,49 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
       return { action: 'deny' };
     });
     win.once('ready-to-show', () => win.showInactive());
-    // the page learns where the cursor is even when the click-through window misses its moves
-    let last = '';
+    // The page cannot tell for itself that it is hidden (background throttling is off, so it always reads as
+    // visible and keeps drawing): the window tells it, and it stops drawing and keeps its sounds quiet meanwhile.
+    // Never before the window was first shown (host/shown.cjs): a missed or late first `show` must not leave the
+    // pet silent from launch; the events say it at once and the cursor poll below catches up with a missed show.
+    const shown = createShownReport();
+    const tellShown = (v) => { if (v !== null) win?.webContents.send('pet:shown', v); };
+    win.on('show', () => tellShown(shown.update(true)));
+    win.on('hide', () => { tellShown(shown.update(false)); mouse.release(); });
+    // Zoom stays at 1: the cursor below is sent in DIPs and the page hit-tests with them as CSS pixels,
+    // so any zoom flips the window between click-through and interactive. A drawing tablet's shortcut
+    // keys are a keyboard and can send Ctrl+- to the focused pet, and the zoom is saved per host.
+    win.webContents.on('before-input-event', (event, input) => {
+      if ((input.control || input.meta) && (['-', '_', '=', '+', '0'].includes(input.key) || ['NumpadAdd', 'NumpadSubtract', 'Numpad0'].includes(input.code))) event.preventDefault();
+    });
+    win.webContents.on('did-finish-load', () => {
+      if (!win) return;
+      win.webContents.setZoomLevel(0);
+      // a page reloaded while the window is hidden would take itself as shown; one loaded before the first show hears nothing
+      // (and one reloaded while `isVisible()` reads false with no `hide` said hears the last state said, shown)
+      tellShown(shown.loaded(win.isVisible()));
+    });
+    // a page that crashes or hangs no longer holds the mouse it asked for (a reloaded one starts with no wish and its lease runs out)
+    win.webContents.on('render-process-gone', () => mouse.release());
+    win.on('unresponsive', () => mouse.release());
+    // The page learns where the cursor is even when the click-through window misses its moves, and
+    // its answer renews the mouse lease: the report goes out on every tick, not only when the
+    // pointer moved, so a cursor that rests still still gets a verdict.
+    let lastVisible = null;
     const cursorTimer = setInterval(() => {
-      if (!win || !win.isVisible()) return;
-      const pt = screen.getCursorScreenPoint(), b = win.getBounds();
+      if (!win) return;
+      const visible = win.isVisible();
+      // the input shape does not survive the window being mapped: apply the verdict again
+      if (visible !== lastVisible) { lastVisible = visible; mouse.forget(); }
+      // a show whose event did not come (or not yet), the first one above all. Only ever toward shown: hides come
+      // from this process's own win.hide() and their event says them, and a false `isVisible()` must never mute the pet
+      // or stop its drawing by itself (on macOS, Electron 44, it stays true for a window covered by others)
+      if (visible) tellShown(shown.update(true));
+      if (!visible) { mouse.tick(); return; }
+      const pt = cursor.read(), b = win.getBounds();
       const inside = pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height;
       const at = inside ? { x: pt.x - b.x, y: pt.y - b.y } : null;
-      const key = at ? `${at.x},${at.y}` : '';
-      if (key === last) return;
-      last = key;
       win.webContents.send('pet:cursor', at);
+      mouse.tick();
     }, CURSOR_EVERY_MS);
     // hidden while the setting is on and a window fills the pet's monitor; shown again once neither holds
     const fullscreenTimer = fullscreen && setInterval(() => {
@@ -339,7 +393,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     dress.loadURL(target);
   };
 
-  ipcMain.on('pet:interactive', (_e, on) => { if (win) win.setIgnoreMouseEvents(!on, { forward: true }); });
+  ipcMain.on('pet:interactive', (_e, on) => mouse.ask(on));
   ipcMain.on('pet:focus', () => {
     if (!win) return;
     // Explicit text input activates this menu-bar process as well as its window.
@@ -364,7 +418,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     if (foreground) { if (back && foreground.current() === hwndOf(win)) foreground.give(back); }
     else if (win.isFocused()) win.blur();
   });
-  ipcMain.on('pet:hide', () => { if (win) win.hide(); });
+  ipcMain.on('pet:hide', () => { releaseAutoHidden(); if (win) win.hide(); });
   ipcMain.on('pet:hideWhenFullscreen', (_e, on) => { hideWhenFullscreen = !!on; });
   ipcMain.on('pet:openDress', () => openDress());
   ipcMain.handle('pet:sampleBackdrop', (_e, query) => {
@@ -377,7 +431,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
    */
   ipcMain.handle('pet:followCursor', () => {
     if (!win) return null;
-    const pt = screen.getCursorScreenPoint(), d = screen.getDisplayNearestPoint(pt);
+    const pt = cursor.read(), d = screen.getDisplayNearestPoint(pt);
     const fromDisplay = display();
     if (d.id === fromDisplay.id) return null;
     const from = coverArea(fromDisplay), wa = cover(d);
@@ -387,6 +441,9 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   // a pet is not an app to switch to
   if (process.platform === 'darwin') app.dock?.hide();
   app.whenReady().then(async () => {
+    // Linux/X11: Electron's cursor position only moves with pointer events, which a click-through window misses
+    cursor = createCursorSource({ screen });
+    app.once('will-quit', () => cursor.close());
     // macOS asks once, before the page first opens the microphone
     if (process.platform === 'darwin' && systemPreferences.getMediaAccessStatus('microphone') === 'not-determined') {
       await systemPreferences.askForMediaAccess('microphone').catch(() => false);
@@ -403,13 +460,13 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     tray = new Tray(trayIcon());
     tray.setToolTip('Cortico 桌宠');
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: '显示桌宠', click: () => { if (!win) create(); else win.showInactive(); } },
-      { label: '隐藏桌宠', click: () => win && win.hide() },
+      { label: '显示桌宠', click: () => { releaseAutoHidden(); if (!win) create(); else win.showInactive(); } },
+      { label: '隐藏桌宠', click: () => { releaseAutoHidden(); if (win) win.hide(); } },
       { label: '装扮…', click: () => openDress() },
       { type: 'separator' },
       { label: '关闭桌宠窗口', click: () => app.quit() },
     ]));
-    tray.on('click', () => { if (win) (win.isVisible() ? win.hide() : win.showInactive()); });
+    tray.on('click', () => { if (win) { releaseAutoHidden(); (win.isVisible() ? win.hide() : win.showInactive()); } });
   });
   app.on('window-all-closed', () => { if (!tray) app.quit(); });
   // with --parent-pid the window closes once that process is gone

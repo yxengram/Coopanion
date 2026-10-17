@@ -12,7 +12,7 @@
 import { applyTheme, clamp, f, ICONS } from './ui.js';
 import { createSfx, OWN_PACKS } from './sound.js';
 import { COO_CSS, mini, normalizeSkin, skinCss } from './coo/coo.js';
-import { afterBubbles, dropActs, leftActs, loadBody, takeDeferred, walkHold } from './body-host.js';
+import { afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold } from './body-host.js';
 import { attachSayActs, createActs, sayHeld } from './acts.js';
 
 const $ = (s) => document.querySelector(s);
@@ -47,7 +47,7 @@ const floorGap = () => (host ? 2 : 48);
 const bounds = () => ({ W: innerWidth, H: innerHeight, floorY: innerHeight - floorGap(), S: .42 * prefs.scale });
 /**
  * The body on screen (body-host.js), null until the first one is ready, and the words it does (its pack's
- * vocab, by id). `T` is the page's clock, in seconds of frames drawn.
+ * vocab, by id). `T` is the page's clock, in seconds of frames drawn (and of steps while the window is hidden).
  */
 let body = null, words = new Map(), T = 0;
 /** Where the body last said it is (body-host.js `layout`), or null. */
@@ -97,15 +97,22 @@ function connect() {
   };
 }
 connect();
+// the page always reads as visible (its window does not throttle it): the window process says when it is hidden, and
+// meanwhile sounds keep quiet and the body is not drawn (the loop below); until it says, the page is shown
+host?.onShown?.((shown) => { sfx.setShown(shown); setDrawn(shown); });
 
 /*
  * ---------- the body: a figure pack (src/packs.ts; Coo is one) run in a sandboxed frame ----------
  * The World hears which body is on screen (`figure`), so the bot is told of a switch, and of a pack that
  * would not load or broke while running (no usable WebGL, a missing texture, a bug in its code): the page
- * then shows Coo instead.
+ * then shows Coo instead. A body just loaded also says which words of its vocabulary it knows (`words`,
+ * body-host.js knownWords: the kit's plus bodies list theirs, so a built-in pack's are its whole vocab; a body
+ * that lists none is taken at its manifest's word), and the World keeps the others from the bot.
  */
 let skin = normalizeSkin(null), wanted = null;
-function reportFigure(id, ok, reason, scheme) { send({ t: 'figure', id, ok, ...(scheme ? { scheme } : {}), ...(reason ? { reason } : {}) }); }
+function reportFigure(id, ok, reason, scheme, known) {
+  send({ t: 'figure', id, ok, ...(scheme ? { scheme } : {}), ...(reason ? { reason } : {}), ...(Array.isArray(known) ? { words: known } : {}) });
+}
 function bodyFailed(id, err) {
   console.error(err);
   reportFigure(id, false, String(err?.message ?? err));
@@ -123,7 +130,8 @@ async function showFigure(s) {
   if (body?.pack === s.figure) {
     body.set({ skin: s });
     if (s.figure !== 'coo') await body.setScheme(s.scheme, { fade: .45 });
-    reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme);
+    // (its words again: a World started since, the page reconnecting to it, has not heard them)
+    reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme, body.words);
     return;
   }
   loading = s.figure;
@@ -157,7 +165,7 @@ async function swapBody(s) {
   heldWalk = null;
   words = new Map(pack.vocab.map((w) => [w.id, w]));
   sfx.usePack(pack.base, pack.sounds, { plus: OWN_PACKS.includes(pack.id) });
-  reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme);
+  reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme, next.words);
 }
 async function applyFigure(s) {
   try { await showFigure(s); } catch (err) { bodyFailed(s.figure, err); }
@@ -1146,6 +1154,8 @@ document.addEventListener('pointermove', (e) => {
   lastPointer.x = e.clientX; lastPointer.y = e.clientY;
   const p = { x: e.clientX, y: e.clientY };
   cursor.at = p;
+  // a move carries the buttons that are really down: a press whose release was missed ends here
+  if (pressing && e.buttons === 0) pressing = false;
   // while the window moves to another display, moves may come in either display's coordinates; the drag shifts over once it has moved
   if (!shifting) body?.pointer('move', { ...p, t: e.timeStamp });
   const hit = !!body?.hit(p), ui = !!overUi(e);
@@ -1406,9 +1416,50 @@ let frameErr = null;
  * left out: `last` starts at the page's clock, which may be ahead of the first frame's timestamp.
  */
 let stalls = 0, stallLoggedAt = -Infinity, framed = false;
+/**
+ * The loop (body-host.js pageLoop): drawn frames while the window is shown; while the window process says it is hidden
+ * (`onShown`: the page cannot tell for itself, document.hidden stays false and frames keep coming at full rate), the
+ * page's clock, its words and bubbles, World walks (their `arrived` comes when it would have) and the body's state move
+ * on a few times a second, in real time, with nothing drawn or laid out. Shown again, drawing resumes at once.
+ */
+const pageClock = pageLoop({
+  draw: frame,
+  step: (dt) => stepGuarded(() => {
+    stepPage(dt);
+    for (const d of slices(dt)) body?.tick(d, { draw: false });
+  }),
+  raf: (fn) => requestAnimationFrame(fn), after: (fn, ms) => setTimeout(fn, ms), now: () => performance.now(),
+});
+function setDrawn(on) {
+  if (!!on === pageClock.drawn) return;
+  if (on) {
+    // the first frame back takes no time of its own: pageClock.set(true) steps the time since the last hidden step
+    framed = false; dueAt = 0; last = performance.now();
+  } else if (pressing) up(); // a press the window will not hear the end of (it gives the mouse back as it hides)
+  pageClock.set(on);
+}
+/** What a frame and a hidden step both do: everything that moves on with the page's clock. */
+function stepPage(dt) {
+  T += dt;
+  if (T >= poseCheckAt) { poseCheckAt = T + 1; reportPose(); }
+  stepActs();
+  stepDialog(dt);
+  stepTalkRead();
+  stepTalkMotion();
+  stepListen();
+  setBody({ dialogOpen: !!item || !!listen.phase });
+}
+function stepGuarded(fn) {
+  try { fn(); } catch (err) {
+    // a throwing step must not take the loop with it: the next frame is only asked for after it, and
+    // without it the pet freezes for good (a broken figure throws again on every frame it draws)
+    const msg = err?.message ?? String(err);
+    if (msg !== frameErr) { frameErr = msg; console.error(err); }
+  }
+}
 function frame(now) {
   // a display refresh up to a quarter gap early counts as on time, so the rate averages out over refresh rates it does not divide
-  if (now < dueAt - gap / 4) { requestAnimationFrame(frame); return; }
+  if (now < dueAt - gap / 4) { pageClock.next(); return; }
   if (framed && now <= last) {
     stalls++;
     if (performance.now() - stallLoggedAt > 60_000) {
@@ -1418,33 +1469,21 @@ function frame(now) {
   }
   framed = true;
   // a timestamp behind the last one (the first frame's may be) counts as no time: the page's clock never runs back
-  const dt = clamp((now - last) / 1000, 0, .05); last = now;
-  try {
-    T += dt;
-    if (T >= poseCheckAt) { poseCheckAt = T + 1; reportPose(); }
-    stepActs();
-    stepDialog(dt);
-    stepTalkRead();
-    stepTalkMotion();
-    stepListen();
-    setBody({ dialogOpen: !!item || !!listen.phase });
+  const dt = clamp((now - last) / 1000, 0, STEP_MAX); last = now;
+  stepGuarded(() => {
+    stepPage(dt);
     body?.tick(dt);
     stepBackdrop(dt);
     stepTools();
     layout();
-  } catch (err) {
-    // a throwing step must not take the loop with it: the next frame is only asked for below, and
-    // without it the pet freezes for good (a broken figure throws again on every frame it draws)
-    const msg = err?.message ?? String(err);
-    if (msg !== frameErr) { frameErr = msg; console.error(err); }
-  }
+  });
   const full = prefs.lockFrameRate || !!at()?.moving;
   gap = 1000 / (full ? MOVING_FPS : RESTING_FPS);
   // a frame more than a gap late starts the count again instead of drawing the missed ones back to back
   dueAt = now - dueAt > gap ? now + gap : dueAt + gap;
   // moving frames wait on display refreshes: a timer can wake late, which a body at rest hides and a moving one shows as stutter
-  if (full) requestAnimationFrame(frame);
-  else setTimeout(() => requestAnimationFrame(frame), Math.max(0, dueAt - gap / 4 - performance.now()));
+  if (full) pageClock.next();
+  else pageClock.next(Math.max(0, dueAt - gap / 4 - performance.now()));
 }
 addEventListener('pagehide', reportPosition);
-requestAnimationFrame(frame);
+pageClock.next();

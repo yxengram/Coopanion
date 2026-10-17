@@ -80,11 +80,11 @@ const ALL_PART_WORDS = Object.values(PART_WORDS).flat();
 
 describe('the words the model can use', () => {
   it('Coo and the whale do every word of their vocabularies on the kit, and the kit does no word they leave out', () => {
-    // the arm poses only a figure with that drawing shows (ARM_POSE_WORDS): Coo has none of them, the whale her chin;
+    // the arm poses only a figure with that drawing shows (ARM_POSE_WORDS): Coo has none of them, the whale all four;
     // the head's and body's moves of batch B (MORE_WORDS) the whale has, Coo not (her ring would only tip about); of the
     // moves of a tail, ears and wings (PART_WORDS) the whale has the tail's, Coo none
     // (and the arm words drawn anew, NEW_ARM_WORDS: the whale all of them, Coo none)
-    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS, ...ALL_PART_WORDS, ...NEW_ARM_WORDS], whale: [...ARM_POSE_WORDS.filter((w) => w !== 'muse'), ...PART_WORDS.ears, ...PART_WORDS.wings] };
+    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS, ...ALL_PART_WORDS, ...NEW_ARM_WORDS], whale: [...PART_WORDS.ears, ...PART_WORDS.wings] };
     for (const pack of ['coo', 'whale']) {
       const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
       // both know the kit's words and the plus body's

@@ -2012,7 +2012,20 @@ const SVGNS = 'http://www.w3.org/2000/svg';
  * drop(p), shift(dx, dy), place(x, facing), set({ roam, hold, dialogOpen, listening, thinking, skin, theme }),
  * cue(kind), talk(ch?), setScheme(id, o), dispose(), and with `plus` doAll(words) (a group done at once). A word it does
  * not know or cannot take now is `done` at once.
+ * With `plus`, `words` lists every word its do() knows (bodyWords): the page keeps the words of a pack's vocabulary the body
+ * does not know from the bot (a body without the list, as upstream's, is taken at its manifest's word); and
+ * step(dt, { draw: false }) advances the body without drawing it (the pet window is hidden).
  */
+/**
+ * Every word a body made with `opts` knows by name (createPet's doWord): the kit's, the pack's own (`opts.words` with an
+ * expression or a motion) and with `opts.plus` PLUS_EXPRESSIONS and PLUS_MOTIONS, each once. Only a plus body carries the
+ * list (createBody's `words`).
+ */
+export function bodyWords(opts = {}) {
+  const own = Object.keys(opts.words ?? {}).filter((w) => opts.words[w]?.expression || opts.words[w]?.motion);
+  return [...new Set([...KIT_EXPRESSIONS, ...KIT_MOTIONS, ...own, ...(opts.plus ? [...PLUS_EXPRESSIONS, ...PLUS_MOTIONS] : [])])];
+}
+
 export function createBody(host, opts) {
   const doc = host.root.ownerDocument;
   const style = doc.createElement('style');
@@ -2039,9 +2052,11 @@ export function createBody(host, opts) {
   });
   if (start.facing === 1 || start.facing === -1) ctl.pet.facing = ctl.pet.faceVis = start.facing;
   return {
-    step(dt) { ctl.step(dt); ctl.render(); },
+    /** (plus) `o.draw` false: the body moves on, but nothing is drawn (the window is hidden; layout boxes keep the last frame drawn). */
+    step(dt, o) { ctl.step(dt); if (!(opts.plus && o?.draw === false)) ctl.render(); },
     layout: ctl.layout,
     resize: ctl.resize,
+    ...(opts.plus ? { words: bodyWords(opts) } : {}),
     /**
      * Does a word. With `plus`, one it does not know or cannot take now (a song while being talked to) is reported
      * done at once, so the page's queue moves on; other bodies keep upstream's timing (the word's seconds).

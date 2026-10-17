@@ -24,6 +24,8 @@ const upstreamTones = TONES.filter((t) => !t.plus).map((t) => t.name);
 
 /** The arm words drawn anew for the girls and the whale. */
 const NEW_ARM_WORDS = ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
+/** The girls' arm poses as words of their own (加油, 记笔记, 对手指), drawn for the whale since. */
+const POSE_ARM_WORDS = ['fist', 'jot', 'twiddle'];
 
 describe('exported whale pack', () => {
   it('upstream tones at the pinned tag match the tones sound.js marks as upstream', () => {
@@ -36,13 +38,13 @@ describe('exported whale pack', () => {
     const sounds = await packSounds({ upstreamTones });
     const names = sounds.map((s) => s.name);
     const asked = requestedTones();
-    expect(names.length).toBe(33);
+    expect(names.length).toBe(36);
     expect(names).toEqual(expect.arrayContaining(['song', 'spout', 'sip', 'roll', 'sigh', 'soft', 'wry', 'hehe', 'crack']));
     // the sounds of the words added since v0.5.0: the arm words drawn anew, her tail's wag, and the faces with marks of
-    // their own and 安慰; not the girls' fist, notebook and fingertips (no words of hers), nor ears or wings
+    // their own and 安慰, and her fist, notebook and fingertips (加油, 记笔记, 对手指); not the ears' or wings'
     expect(names).toEqual(expect.arrayContaining(['clap', 'shush', 'wipe', 'thumbs', 'raise', 'shrug', 'headhold', 'wag',
-      'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort']));
-    for (const n of ['fist', 'jot', 'twiddle', 'earflick', 'wingbeat']) expect(names, n).not.toContain(n);
+      'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort', ...POSE_ARM_WORDS]));
+    for (const n of ['earflick', 'wingbeat']) expect(names, n).not.toContain(n);
     expect(names).not.toContain('huff');
     for (const n of names) expect(upstreamTones).not.toContain(n);
     for (const n of asked) if (!upstreamTones.includes(n)) expect(names).toContain(n);
@@ -65,17 +67,20 @@ describe('exported whale pack', () => {
     // the 72 words of v0.2.6, the curious tilt (歪头), her chin on her hand (托腮), the head's and body's moves 低头, 眨眨眼,
     // 凑近, 后仰, 晃来晃去, 跺脚, her tail's 摇尾巴 and the faces made of parts (PLUS_MIXES), which the pack's own kit draws
     // and the arm words drawn anew for her (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗), and expr2's faces with her drawn eyes and
-    // drool mouth (翻白眼, 震惊, 死鱼眼, 流口水)
-    expect(m.vocab.length).toBe(92 + Object.keys(PLUS_MIXES).length);
+    // drool mouth (翻白眼, 震惊, 死鱼眼, 流口水), and the girls' fist, notebook and fingertips drawn for her (加油, 记笔记, 对手指)
+    expect(m.vocab.length).toBe(95 + Object.keys(PLUS_MIXES).length);
     for (const id of ['eyeroll', 'shocked', 'deadpan', 'drool']) expect(m.vocab.some((w) => w.id === id), id).toBe(true);
     // (each with a sound of its own the pack ships)
     expect(m.vocab.filter((w) => NEW_ARM_WORDS.includes(w.id)).map((w) => w.names.zh[0])).toEqual(['拍手', '摊手', '抱头', '举手', '点赞', '嘘', '擦汗']);
     for (const t of NEW_ARM_WORDS) { expect(upstreamTones, t).not.toContain(t); expect(Object.keys(m.sounds), t).toContain(t); }
     for (const t of ['tick', 'pop', 'hmm', 'surprised']) { expect(upstreamTones, t).toContain(t); expect(Object.keys(m.sounds), t).not.toContain(t); }
     for (const id of ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp']) expect(m.vocab.some((w) => w.id === id), id).toBe(true);
-    // (托腮's "hm" is upstream's look tone too; the girls' fist, notebook and fingertips have no drawing of hers)
+    // (托腮's "hm" is upstream's look tone too; her fist, notebook and fingertips each ship a sound of their own, and
+    // 握拳 is the fist's now, not 认真's)
     expect(m.vocab.find((w) => w.id === 'muse')).toMatchObject({ kind: 'motion', names: { zh: ['托腮', '撑下巴', '托下巴', '琢磨'] } });
-    for (const id of ['fist', 'jot', 'twiddle']) expect(m.vocab.some((w) => w.id === id), id).toBe(false);
+    expect(m.vocab.filter((w) => POSE_ARM_WORDS.includes(w.id)).map((w) => w.names.zh[0])).toEqual(['加油', '记笔记', '对手指']);
+    for (const t of POSE_ARM_WORDS) { expect(upstreamTones, t).not.toContain(t); expect(Object.keys(m.sounds), t).toContain(t); }
+    expect(m.vocab.find((w) => w.id === 'determined').names.zh).not.toContain('握拳');
     // (the tilt's "hm?" is upstream's own look tone: no sound file for it)
     expect(m.vocab.find((w) => w.id === 'tilt')).toMatchObject({ kind: 'motion', names: { zh: ['歪头', '歪脑袋', '偏头', '好奇'] } });
     expect(upstreamTones).toContain('look');
@@ -172,7 +177,7 @@ describe('exported whale pack', () => {
     for (const p of model.parts) expect(to).toContain(`tex/${p.tex}.png`);
     for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`tex/${n}.png`);
     // her outfits (the pack's second axis): the winter outfit's own parts, the same in every scheme, and both outfits'
-    // thumbnails; only the files there are (the outfit's pose drawings it lists: its 37 arm drawings, one shared file
+    // thumbnails; only the files there are (the outfit's pose drawings it lists: its 41 arm drawings, one shared file
     // each, and its 16 whole-body drawings, one per scheme), no maid drawing under outfits/
     const cape = model.outfits.find((o) => o.id === 'cape');
     const own = cape.parts.filter((p) => p.src).map((p) => p.src);
@@ -180,14 +185,14 @@ describe('exported whale pack', () => {
     for (const f of own) expect(to).toContain(f);
     const poses = Object.entries(cape.poses ?? {});
     const shared = poses.filter(([, w]) => w === 'shared').map(([n]) => n), perScheme = poses.filter(([, w]) => w === 'scheme').map(([n]) => n);
-    expect([shared.length, perScheme.length, poses.length]).toEqual([37, 16, 53]);
+    expect([shared.length, perScheme.length, poses.length]).toEqual([41, 16, 57]);
     expect(shared.filter((n) => !n.startsWith('arm_'))).toEqual([]);
     expect(perScheme.filter((n) => n.startsWith('arm_'))).toEqual([]);
     expect([...to].filter((t) => t.startsWith('outfits/')).sort()).toEqual([
       ...own, ...shared.map((n) => `outfits/cape/poses/${n}.png`),
       ...model.schemes.flatMap((sc) => perScheme.map((n) => `outfits/cape/schemes/${sc.id}/poses/${n}.png`)),
     ].sort());
-    expect([...to].filter((t) => t.startsWith('outfits/')).length).toBe(20 + 37 + 16 * 8);
+    expect([...to].filter((t) => t.startsWith('outfits/')).length).toBe(20 + 41 + 16 * 8);
     for (const t of ['thumbs/maid.png', 'thumbs/cape.png']) expect(to).toContain(t);
     // (the parts the winter outfit keeps from the maid dress, recoloured by the scheme, are each scheme's own)
     for (const p of cape.parts.filter((q) => !q.src)) for (const sc of model.schemes.slice(1)) expect(to).toContain(`schemes/${sc.id}/tex/${p.tex}.png`);

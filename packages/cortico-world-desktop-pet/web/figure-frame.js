@@ -20,13 +20,16 @@
  *   `set(state)`, `cue(kind)`, `talk(ch?)` (`ch`: the character being said; pages that do not send it
  *   leave it undefined), `setScheme(id, { fade })`, `z` (the colour of its sleep z's), `doAll(words)` (a group
  *   of words done at once; a body without it gets them one by one through `do`, each it turns down (returns false
- *   for) tried again every frame for up to RETRY_MAX seconds) and `dispose()`. Only `step`, `layout` and `do` are
- *   required.
+ *   for) tried again every frame for up to RETRY_MAX seconds), `words` (every word `do` knows: the kit's plus bodies list
+ *   theirs, and the page keeps the words of the manifest's vocab not in it from the bot; a body without it is taken at
+ *   its manifest's word) and `dispose()`. Only `step`, `layout` and `do` are required.
+ *   While the pet window is hidden the page ticks less often and asks `step(dt, { draw: false })`: move on without
+ *   drawing (a body that draws anyway just draws less often).
  * - events (`emit`): `arrived` and `interrupted` ({ walkId, x, by }) for `walk`, `done` ({ word }) for a word
  *   that ends on its own, `touch` ({ kind: poke | pet | grab | drop | throw | crash, ... }), `mode` ({ mode }).
  *
- * Messages in: `init { entry, export, base, model, scheme, start, theme, bounds }`, then `tick { dt }`
- * once a frame and the calls above by name (`do-all { words }` for doAll). Out: `loaded`, `ready { z }`, `frame { layout, events: [{ kind,
+ * Messages in: `init { entry, export, base, model, scheme, start, theme, bounds }`, then `tick { dt, draw? }`
+ * once a frame and the calls above by name (`do-all { words }` for doAll). Out: `loaded`, `ready { z, words }`, `frame { layout, events: [{ kind,
  * detail }], sounds: [{ name, kind, args }], z }` after each tick, `scheme { seq, z }`, and `error { message }`
  * once, after which it stops.
  */
@@ -78,11 +81,12 @@ addEventListener('message', async (e) => {
       const base = new URL(m.base);
       body = await make(base, { model: m.model ?? undefined, scheme: m.scheme, kit, loadImage, asset: (p) => new URL(p, base), host: { ...host, start: m.start } });
       for (const fn of ['step', 'layout', 'do']) if (typeof body?.[fn] !== 'function') throw new Error(`形象没有 ${fn}`);
-      post({ t: 'ready', z: body.z ?? null });
+      // (a thousand at most, as body-host.js reads them: it keeps only the manifest's words)
+      post({ t: 'ready', z: body.z ?? null, words: Array.isArray(body.words) ? body.words.filter((w) => typeof w === 'string').slice(0, 1000) : null });
     } else if (!body) {
       // calls that come before the body is ready have nothing to act on
     } else if (m.t === 'tick') {
-      body.step(m.dt);
+      if (m.draw === false) body.step(m.dt, { draw: false }); else body.step(m.dt);
       clock += m.dt;
       // what is taken now or has waited long enough goes (silently: the page's queue moves on by seconds or by done)
       if (retry.length) retry = retry.filter((r) => clock < r.until && body.do(r.w) === false);

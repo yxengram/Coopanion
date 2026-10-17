@@ -164,12 +164,14 @@ describe('the whale\'s outfits: `<scheme>-<outfit>`', () => {
       // every pose's deformers are there as in the maid dress, so a drawing made for the outfit drops in
       for (const k of ['lie', 'lieHead', 'armWave', 'armChin', 'armCheerNear', 'armHeart', 'armCup', 'armCupLift', 'armScratch', 'backFlip', 'backTail', 'rollBall', 'kneel', 'kneelHead', 'kneelLow']) expect(D, k).toHaveProperty(k);
       for (const p of POSE_PARTS) expect(ids, p.id).toContain(p.id);
-      // the pose drawings lie at the maid pose's depths, but for five the outfit lays at its own (poseZ): the hand over
-      // her mouth and the finger at her lips cross the scarf's collar (6.2), so their near arm goes over it; the arm
+      // the pose drawings lie at the maid pose's depths, but for six the outfit lays at its own (poseZ): the hand over
+      // her mouth and the finger at her lips cross the scarf's collar (6.2), so their near arm goes over it, and the fist
+      // raised in front of her shoulder goes over the cape's shoulder fur (6.1), which showed beside its cuff (the sleeve
+      // now covers most of it; a small puff still shows beside the sleeve); the arm
       // scratching her head and the salute go over the hood ties' pompoms (13.35), which would show through the fading
       // edge of the hand's copy over her head; the kneeling hybrid's lower body (its cloak drawn whole from the shoulders
       // down) goes under the far arm's cuff (5.1) and the near arm (6), over the hidden cloak's place
-      expect(CAPE.poseZ).toEqual({ arm_shush: 6.25, arm_cover: 6.25, arm_scratch: 13.4, arm_salute: 13.4, kneel_low: 5.08 });
+      expect(CAPE.poseZ).toEqual({ arm_shush: 6.25, arm_cover: 6.25, arm_fist: 6.25, arm_scratch: 13.4, arm_salute: 13.4, kneel_low: 5.08 });
       const z = Object.fromEntries(rigSeen.tree.parts.map(p => [p.id, p.z])), maidZ = Object.fromEntries(POSE_PARTS.map(p => [p.id, p.z]));
       for (const p of POSE_PARTS) expect(z[p.id], p.id).toBe(CAPE.poseZ[p.id] ?? maidZ[p.id]);
       expect(z.arm_shush).toBeGreaterThan(z.scarf_neck);
@@ -204,7 +206,12 @@ describe('the whale\'s outfits: `<scheme>-<outfit>`', () => {
     // the same in every scheme), the whole-body drawings (lying, kneeling and its hybrid, the back, the ball, the floor
     // faces and the eyes-shut, smile and talk patches) one per scheme (her hair, eyes, skin and tail take its colours)
     expect(CAPE.poses).toEqual(Object.fromEntries([...POSE_TEX].map(t => [t, t.startsWith('arm_') ? 'shared' : 'scheme'])));
-    expect([ARM_TEX.length, BODY_TEX.length]).toEqual([37, 16]);
+    expect([ARM_TEX.length, BODY_TEX.length]).toEqual([41, 16]);
+    // (her fist, notebook and fingertips (加油, 记笔记, 对手指) among them: drawn in the winter sleeves, not the maid's files)
+    for (const t of ['arm_fist', 'arm_fist_top', 'arm_jot', 'arm_twiddle']) {
+      expect(CAPE.poses[t], t).toBe('shared');
+      expect(readFileSync(new URL(`outfits/cape/poses/${t}.png`, WHALE)).equals(readFileSync(new URL(`tex/${t}.png`, WHALE))), t).toBe(false);
+    }
     for (const sc of ['deepseek', 'claude']) {
       const { fig, loads, done } = await figureIn(`${sc}-cape`);
       try {
@@ -499,6 +506,37 @@ describe('the whale\'s outfits: `<scheme>-<outfit>`', () => {
         expect(ball, look).toBe(1);
         expect(frames, look).toBeGreaterThan(30);
         expect(seen, look).toBeLessThan(32);
+      } finally { done(); }
+    }
+  });
+
+  it('cuts between her and the ball in one frame each way, in both outfits, from standing, sitting, kneeling and lying, at any frame rate', async () => {
+    // (a hand-over between bodies is a cut: the ball faded in and out over 2-3 frames, both bodies half see-through)
+    for (const look of ['deepseek', 'deepseek-cape']) for (const from of ['stand', 'sit', 'kneel', 'lie']) for (const dt of [1 / 60, 1 / 144]) {
+      const { pet, run, done } = await onKit(look);
+      try {
+        run(.5);
+        if (from !== 'stand') { pet.doWord(from); run(3); }
+        // (down on the floor, her own drawing shows first)
+        if (from === 'kneel' || from === 'lie') expect(rigSeen.st.alpha[`${from}_body`], `${look} ${from}`).toBe(1);
+        pet.doWord('roll');
+        let prev = 0, flips = 0, shown = 0;
+        for (let i = 0; i < Math.round(2.2 / dt); i++) {
+          pet.step(dt); pet.render();
+          const a = rigSeen.st.alpha.roll_ball ?? 0;
+          expect([0, 1], `${look} ${from} 1/${Math.round(1 / dt)} frame ${i}`).toContain(a);
+          // the ball shows only with the whole standing rig hidden under it, and the rig only without the ball
+          if (a) expect(!!rigSeen.hidden, `${look} ${from} frame ${i}`).toBe(true);
+          else if (from === 'stand') expect(!!rigSeen.hidden, `${look} frame ${i}`).toBe(false);
+          // (from any start, the ball cuts out straight to her standing rig: never a frame with neither the ball nor a body)
+          if (!a && prev) expect(!!rigSeen.hidden, `${look} ${from} 1/${Math.round(1 / dt)} frame ${i}: ball out`).toBe(false);
+          // ...and no floor drawing (kneeling, its hybrid, lying, their live faces) still showing round it
+          if (a) for (const id of ['lie_body', 'lie_tail', 'lie_blank', 'lie_fringe', 'lie_live', 'kneel_body', 'kneel_blank', 'kneel_fringe', 'kneel_live', 'kneel_low', 'sit_skirt', 'sit_top']) expect(rigSeen.st.alpha[id] ?? 0, `${look} ${from} frame ${i} ${id}`).toBe(0);
+          if (a !== prev) flips++;
+          prev = a; shown += a;
+        }
+        expect(flips, `${look} ${from}`).toBe(2);
+        expect(shown * dt, `${look} ${from}`).toBeGreaterThan(1);
       } finally { done(); }
     }
   });

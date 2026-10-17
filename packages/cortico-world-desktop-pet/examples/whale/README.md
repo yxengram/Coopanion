@@ -49,12 +49,12 @@ B 站 DeepSeek 二创里的蓝发鲸鱼女仆，做成 Coo 的另一个身体。
 姿势图（`model.json` 的 `poses`：趴姿、跪坐、背面、团成球、各个手势的手臂）的女仆装那份在配色的 `tex/` 里，冬装不用它们：一套服装只用自己 `poses` 里列出的画
 （`"shared"` 是 `outfits/<id>/poses/<贴图名>.png`，各配色共用，比如只有冬装袖子的手臂；`"scheme"` 是 `outfits/<id>/schemes/<配色>/poses/<贴图名>.png`，
 画里有头发、脸或尾巴的整身图每套配色一张，某套没有就用共用的那张），几何和女仆装那张一样（同一个框、枢轴和锚点）。
-冬装有全部 37 张手臂（`outfits/cape/poses/arm_*.png`，都是 `"shared"`）：招手、托腮、欢呼、比心、杯子、书、合十、叉腰、张开双手、挠头、竖食指、
-茶盘、敬礼、比耶、指、捂嘴、抱臂、屈膝礼、伸懒腰、拍手（合掌和分开）、摊手、抱头、举手、点赞、嘘、擦汗，袖口是带蓝色小蝴蝶结的毛绒袖口，
+冬装有全部 41 张手臂（`outfits/cape/poses/arm_*.png`，都是 `"shared"`）：招手、托腮、欢呼、比心、杯子、书、合十、叉腰、张开双手、挠头、竖食指、
+茶盘、敬礼、比耶、指、捂嘴、抱臂、屈膝礼、伸懒腰、拍手（合掌和分开）、摊手、抱头、举手、点赞、嘘、擦汗、加油、记笔记、对手指，袖口是带蓝色小蝴蝶结的毛绒袖口，
 同一个框和像素尺寸，手的位置不变。女仆装手臂在前臂周围带着的围裙、腰带、围裙蝴蝶结和衬衫都去掉了（那里露出斗篷）；拍手合掌时右边的毛绒袖口收进画框里。
 女仆装的袖子按配色换色，垂到头发上时用渐隐收尾看不出来；冬装的袖子各配色都是深蓝，所以伸懒腰只画到袖口（袖子藏在头发后面），
-举到脸旁的手臂（招手、欢呼、比耶、捂嘴、嘘）上层那份只留手和袖口，袖子留给侧发下面的那份，抱头的两只袖子不渐隐，末端收成描了边的圆头（像手肘往后弯进头发里）。近侧手臂（z 6）像冬装自己的 `arm_near` 一样压在披肩（6.1）和围巾领口（6.2）下面，
-双手的画（9.6）盖在斗篷、披肩和围巾上，和女仆装一样；冬装的 `poseZ` 改了五张：捂嘴和嘘的前臂横过围巾领口，放到 6.25（领口上面、侧发下面），
+举到脸旁的手臂（招手、欢呼、比耶、捂嘴、嘘、加油）上层那份只留手和袖口，袖子留给侧发下面的那份，抱头的两只袖子不渐隐，末端收成描了边的圆头（像手肘往后弯进头发里）。近侧手臂（z 6）像冬装自己的 `arm_near` 一样压在披肩（6.1）和围巾领口（6.2）下面，
+双手的画（9.6）盖在斗篷、披肩和围巾上，和女仆装一样；冬装的 `poseZ` 改了六张：捂嘴和嘘的前臂横过围巾领口，放到 6.25（领口上面、侧发下面），加油举在肩前的小臂也放到 6.25，盖住披肩的大半毛边（放在 6 时毛边从袖口旁边露出一大团，像第二个袖口；现在只在袖子旁边露出一小点），
 挠头和敬礼的手臂放到 13.4，盖住兜帽系带的毛球（13.35），不然毛球会从举过头顶那份手（14.2）渐隐的下沿透出来；跪坐混合的下半身见下。
 冬装的整身姿势图也都有了（`outfits/cape/schemes/<配色>/poses/`，16 张，都是 `"scheme"`，八套配色各一份）：趴姿（`lie_body`、`lie_tail` 和闭眼、笑嘴、说话嘴贴片）、
 跪坐（`kneel_body` 和贴片）、跪坐混合的下半身（`kneel_low`）、背面（`back_body`）、团成球（`roll_ball`），以及跪坐和趴着时实时脸用的空白脸和刘海（`*_blank`、`*_fringe`）。
@@ -109,7 +109,7 @@ kit 为 Coo 设计的整组倾斜（倾听、点头、打瞌睡、晕乎乎时�
 
 **词表**（`vocab`）：这个身体在场时 bot 能用的全部表情和动作，没列的词 bot 用不了。每个词写清 `names`（bot 可以用哪些名字写它）、
 `about`（在这个身体上是什么样子，原样进 bot 的提示词），`seconds`（连着做时等多久再做下一个）。
-用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 30 个组合表情），一共 107 个；大肥鱼在这些之外多一个托腮（`muse`）和六个头部、身体的动作（低头 `droop`、眨眨眼 `blink`、凑近 `closer`、后仰 `leanback`、晃来晃去 `sway`、跺脚 `stamp`），还有摇尾巴（`wag`）和七个新画的手势（拍手 `clap`、摊手 `shrug`、抱头 `headhold`、举手 `raise`、点赞 `thumbs`、嘘 `shush`、擦汗 `wipe`），一共 122 个；四个娘（Claude 娘、GPT 娘、Gemini 娘、Grok 娘）也列了扩展词、这六个动作和七个手势，没有喷水（`spout`），但有托腮和加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），Claude 娘一共 123 个；GPT 娘再多摇尾巴、扇翅膀（`wingbeat`），125 个；Gemini 娘再多摇尾巴、抖耳朵（`earflick`）、竖耳朵（`earsup`）、耳朵耷拉（`earsdown`），127 个；Grok 娘再多扇翅膀，124 个。
+用 kit 的包可以直接列 kit 会做的词（`KIT_EXPRESSIONS`、`KIT_MOTIONS`），也可以只列一部分；Coo 还列了 kit 的扩展词（见下一节，包括 30 个组合表情），一共 107 个；大肥鱼在这些之外多一个托腮（`muse`）和六个头部、身体的动作（低头 `droop`、眨眨眼 `blink`、凑近 `closer`、后仰 `leanback`、晃来晃去 `sway`、跺脚 `stamp`），还有摇尾巴（`wag`）、七个新画的手势（拍手 `clap`、摊手 `shrug`、抱头 `headhold`、举手 `raise`、点赞 `thumbs`、嘘 `shush`、擦汗 `wipe`）和四个娘的加油（`fist`）、记笔记（`jot`）、对手指（`twiddle`），一共 125 个；四个娘（Claude 娘、GPT 娘、Gemini 娘、Grok 娘）也列了扩展词、这六个动作、七个手势、托腮和这三个手势，没有喷水（`spout`），Claude 娘一共 123 个；GPT 娘再多摇尾巴、扇翅膀（`wingbeat`），125 个；Gemini 娘再多摇尾巴、抖耳朵（`earflick`）、竖耳朵（`earsup`）、耳朵耷拉（`earsdown`），127 个；Grok 娘再多扇翅膀，124 个。
 
 **表情对**（`pairs`，可省）：bot 在同一组里写两个表情（`【开心+惊讶】`）时，默认拆成先后两个。想让它们合成一张脸，就在 `pairs` 里列出这一对：
 `"happy+surprised": "surprised+happy"` 是合成，值里给眼的那个在前、给嘴的在后（键里先后无所谓）；`"happy+smug": "smirk"` 是别名，显示成词表里另一个表情。
@@ -228,7 +228,7 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 指（`point`）举起的是远侧手臂（`FAR_RAISES`），朝她面向的方向伸直，按欢呼的方式按角度交接（远侧手臂转角为负），袖根往肩膀方向渐隐（贴图做时的 `fade_root`），压在头发上也不露切口；脸 `pointing` 盯着前方。
 捂嘴笑（`cover`）是弯着的近侧手臂，挂在脖子上（`NECK_RAISES`），头一抖手也跟着，不会离开嘴；脸是偷笑。
 举手（`raise`）是伸直的近侧手臂，按挠头的方式按角度交接，举过头顶的手轻轻晃；点赞（`thumbs`）、嘘（`shush`）、擦汗（`wipe`）是弯着的近侧手臂，按有了的方式进来，
-嘘和擦汗也挂在脖子上（`NECK_RAISES`），擦汗时手腕在额前抹一下；拍手（`clap`）、摊手（`shrug`）、抱头（`headhold`）是两条前臂一起画的图，抱头的那张挂在脖子上（`NECK_HANDS`），
+嘘和擦汗也挂在脖子上（`NECK_RAISES`），擦汗时手腕在额前抹一下；加油（`fist`）也是弯着的近侧手臂，按有了的方式进来，只是最后一段从外侧转进来（`RAISE_ENTRY`，-12°，按 +12° 进来拳头会擦过脸颊），举着时拳头一下一下往上顿（和四个娘一样）；记笔记（`jot`）和对手指（`twiddle`）是两条前臂一起画的图，记笔记一手托着翻开的小本子、一手拿羽毛笔，低头看本子（表情 `reading`），笔尖在本子上来回划（只动笔尖附近，`armJotLift`）；对手指两只手的指尖在胸前一上一下地戳，整张画不转（袖子上沿压在头发上，转了会滑开）；拍手（`clap`）、摊手（`shrug`）、抱头（`headhold`）是两条前臂一起画的图，抱头的那张挂在脖子上（`NECK_HANDS`），
 点头、摇头时手不离开头；拍手有合掌和分开两张画（`ARM_TWIN`），按 kit 的 `clapShut(k)` 一帧切换，绝不两张同时露出来，先分开、合上四次、最后分开放下。
 抱臂（`cross`）、伸懒腰（`stretch`）、屈膝礼（`curtsy`）都是两条前臂一起画的图：抱臂和叉腰一样沿用当时的表情，没有就嘟嘴；
 伸懒腰时握拳手臂先往上举再换成十指相扣举过头顶的那张（袖子盖在刘海上、往下渐隐），身子拉长、仰头、闭眼打哈欠；
@@ -254,9 +254,9 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 `pnpm run export:whale [输出目录]`（即 `node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs`，默认输出到仓库的 `build/packs`）
 把大肥鱼导出成 `coopanion-whale/` 形象包，原版 v0.1.17 起的 Coopanion 也能装：放进数据目录的 `home/companion/data/figures/`。
 
-- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 122 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
+- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 125 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色在每套服装下各载入一遍：每个姿势、五官、冬装自己的 `outfits/cape/`、缩略图），缺一个就报错。原版也认识两维，装扮页照样有「服装」一行，画面由包里的 `figure.js` 画。
-- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 33 个；Claude 娘的包没有 spout 和摇尾巴的 wag、多加油、记笔记、对手指的 fist、jot、twiddle，是 34 个；GPT 娘再多 wag 和扇翅膀的 wingbeat，Gemini 娘再多 wag 和抖耳朵的 earflick，各 36 个；Grok 娘再多扇翅膀的 wingbeat，35 个），用 `node_modules` 里的 Electron
+- 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 36 个；Claude 娘的包没有 spout 和摇尾巴的 wag、多加油、记笔记、对手指的 fist、jot、twiddle，是 34 个；GPT 娘再多 wag 和扇翅膀的 wingbeat，Gemini 娘再多 wag 和抖耳朵的 earflick，各 36 个；Grok 娘再多扇翅膀的 wingbeat，35 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），
   去掉结尾的静音，存成 44.1 kHz 16 位单声道 WAV。文件按峰值 -1 dBFS 存，`volume` 把它调回原来的响度：页面播放时同样经过总音量和压缩器，听起来和内置音色一样。
   渲染出来是静音或超过满幅都会报错。
@@ -290,10 +290,10 @@ Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pa
 围裙上的喷水小鲸鱼是手写的矢量图（`examples/whale/apron-whale.svg`）：围裙抹成空白布面后，按这套裙子的深色印在右下角
 （白色的眼睛和肚皮保持白色，乘上布面的明暗），坐姿的围裙是俯视的，印得扁一些；团成球的那张也一样。
 
-新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、跪坐 `tex/kneel_*.png`、趴着的嘴 `tex/lie_smile.png`、`tex/lie_talk.png`、指、捂嘴笑、抱臂、伸懒腰、屈膝礼 `tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、拍手、摊手、抱头、举手、点赞、嘘、擦汗 `tex/arm_clap*.png`、`tex/arm_shrug.png`、`tex/arm_headhold.png`、`tex/arm_raise.png`、`tex/arm_thumbs.png`、`tex/arm_shush*.png`、`tex/arm_wipe.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
+新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、跪坐 `tex/kneel_*.png`、趴着的嘴 `tex/lie_smile.png`、`tex/lie_talk.png`、指、捂嘴笑、抱臂、伸懒腰、屈膝礼 `tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、拍手、摊手、抱头、举手、点赞、嘘、擦汗 `tex/arm_clap*.png`、`tex/arm_shrug.png`、`tex/arm_headhold.png`、`tex/arm_raise.png`、`tex/arm_thumbs.png`、`tex/arm_shush*.png`、`tex/arm_wipe.png`、加油、记笔记、对手指 `tex/arm_fist*.png`、`tex/arm_jot.png`、`tex/arm_twiddle.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
 `model.json` 的 `poses`）也来自 ChatGPT 的图像模型（gpt-image-2.5，经本地代理用 ChatGPT 订阅调用），和原来的贴图同源：
 把站姿渲染成一张参考图，对它做编辑。先试过本地的 FLUX.2-klein-4B，画风和比例都不如它（手画得太大，趴姿的头发变短）。
-  拍手、摊手、抱头、举手、点赞、嘘、擦汗这七个手势的手臂是后来用 OpenAI 官方 API 的同一模型（`gpt-image-2.5-sunburst`）做的同样的编辑：官方 API 只给固定的 2:3 尺寸，参考图先在底部补白边到 2:3，出图后缩回再去掉补的部分。
+  拍手、摊手、抱头、举手、点赞、嘘、擦汗这七个手势和加油、记笔记、对手指的手臂是后来用 OpenAI 官方 API 的同一模型（`gpt-image-2.5-sunburst`）做的同样的编辑：官方 API 只给固定的 2:3 尺寸，参考图先在底部补白边到 2:3，出图后缩回再去掉补的部分。
 - 手臂：编辑只改手臂（举到头边张开手掌、托着下巴、双手举到头两侧、双手在胸前比心）。输出比参考图大约 1%，缩放回参考图尺寸再配准；
   在手臂的多边形里取皮肤、白袖口和深蓝袖子连同描边抠出来，袖子边缘混进后面头发颜色的像素去掉。举起的手臂画两份、挂在同一个变形上：
   整条手臂在原手臂的层（袖根藏在侧发或上身后面），只留手和小臂的一份在头部之上：招手和欢呼近侧的那份在头部所有部件之上（盖住鳍和发饰），
@@ -316,7 +316,7 @@ Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pa
 「去掉不属于这个部件的部分、补画被挡住的地方」的编辑，保留的部分和母版像素一致。坐姿下半身是把女仆装的坐姿图改成冬装的设计。
 冬装的手臂（`outfits/cape/poses/`）是这里做的：对女仆装手臂（DeepSeek 配色）所用的同一张编辑图只改袖口的局部编辑（gpt-image-2.5-sunburst，蕾丝袖口换成毛绒袖口和蓝色小蝴蝶结），
 再用女仆装手臂的同一套裁切和对齐（`scratch/art/` 的规格）拆出来，所以框、像素尺寸和手的位置不变；
-之后由 `scratch/winter/arms/clean/clean.py` 去掉残留的女仆装、收好拍手的袖口和垂到头发上的袖子（不再生成图像）。
+之后由 `scratch/winter/arms/clean/clean.py` 去掉残留的女仆装、收好拍手的袖口和垂到头发上的袖子（不再生成图像）。加油、记笔记、对手指的冬装手臂是同样做的（`scratch/gestures3/winter/`），袖口以外的手、本子、羽毛笔都是女仆装那张的原像素。
 冬装的整身姿势图（`outfits/cape/schemes/<配色>/poses/`）也是这里做的：对女仆装的跪坐、趴姿、背面和团成球（或它们的来源图）做「换成冬装」的编辑（gpt-image-2.5-sunburst），
 按女仆装那张的框和对齐裁切；跪坐和趴着的空白脸是对冬装图只去掉眼睛和嘴的局部编辑。跪坐混合的下半身、空白脸、刘海、贴片和另外 7 套配色的换色都由
 `scratch/winter/bodies/tools/` 的脚本做（`run_kneel.sh`、`lie_labels.py`、`run_schemes.sh`；冬装的区域不换色，只换头发、眼睛、皮肤和尾巴），不再生成图像。

@@ -401,6 +401,16 @@ const PAIRS_FLAT = 12;
  * per expression, its partners after it.
  */
 export function vocabTable(vocab: readonly VocabWord[], language = 'zh', pairs: Pairs = {}): string {
+  const t = tableOf(vocab, language, pairs);
+  const groups = (gs: readonly TableGroup[]) => gs.map((g) => `${g.label}:\n${g.rows.map((r) => r.line).join('\n')}`).join('\n');
+  return `${t.example ? `例:\`${t.example}\`\n\n` : ''}${t.faceHead}\n\n${groups(t.faces)}\n\n${t.pairText}动作,按部位分组:\n\n${groups(t.motions)}`;
+}
+
+/** One group of the bot's table (a mood, or a part of her) and its words' lines. */
+interface TableGroup { label: string; rows: Array<{ v: VocabWord; line: string }> }
+
+/** The pieces `vocabTable` joins: the example, the expressions' groups, the composed pairs' paragraph ('' for none), the motions' groups. */
+function tableOf(vocab: readonly VocabWord[], language: string, pairs: Pairs): { example: string; faceHead: string; faces: TableGroup[]; pairText: string; motions: TableGroup[] } {
   const pick = <T>(by: Record<string, T>): T | undefined => by[language] ?? by.zh ?? Object.values(by)[0];
   const about = (v: VocabWord) => `${pick(v.about) ?? ''}${v.lasting ? `,${lastingNote(v, vocab)}` : ''}${v.id === 'petrify' ? ',不和别的同时做' : ''}`;
   const names = (v: VocabWord) => (pick(v.names) ?? []).join('/');
@@ -422,16 +432,16 @@ export function vocabTable(vocab: readonly VocabWord[], language = 'zh', pairs: 
     if (!recipes.has(p.as)) recipes.set(p.as, []);
     recipes.get(p.as)!.push(inOrder(k).map(nameOf).join('+'));
   }
-  const faceText = MOODS.map(([label], m) => {
-    const vs = ordered.filter((v) => mood(v) === m);
-    return vs.length ? `${label}:\n${vs.map((v) => line(v, recipes.has(v.id) ? `(=${recipes.get(v.id)!.join('、')})` : '')).join('\n')}` : '';
-  }).filter(Boolean).join('\n');
+  const faceGroups = MOODS.map(([label], m): TableGroup => ({
+    label,
+    rows: ordered.filter((v) => mood(v) === m).map((v) => ({ v, line: line(v, recipes.has(v.id) ? `(=${recipes.get(v.id)!.join('、')})` : '') })),
+  })).filter((g) => g.rows.length);
   const own = APPENDAGES.filter((c) => vocab.some((v) => v.kind === 'motion' && channelsOf(v).length === 1 && channelsOf(v)[0] === c));
   const motions = vocab.filter((v) => v.kind === 'motion').map((v) => ({ v, ...partOf(v, own) }));
-  const motionText = PARTS.map((label, i) => {
+  const motionGroups = PARTS.map((label, i): TableGroup | null => {
     const vs = motions.filter((m) => m.part === i);
-    return vs.length ? `${label || appendageLabel(vs.map((m) => m.v))}:\n${vs.map((m) => line(m.v, m.also)).join('\n')}` : '';
-  }).filter(Boolean).join('\n');
+    return vs.length ? { label: label || appendageLabel(vs.map((m) => m.v)), rows: vs.map((m) => ({ v: m.v, line: line(m.v, m.also) })) } : null;
+  }).filter((g): g is TableGroup => !!g);
   // composed pairs: under whichever of the two comes first above, the eyes' face named in the example
   const composed = entries.filter((e): e is [string, { eyes: string; mouth: string }] => !('as' in e[1]));
   let pairText = '';
@@ -452,6 +462,48 @@ export function vocabTable(vocab: readonly VocabWord[], language = 'zh', pairs: 
     pairText = `表情对(写在同一组里会合成一张脸,先写哪个都行;如【${nameOf(a0)}+${nameOf(b0)}】是${nameOf(p0.eyes)}的眼睛配${nameOf(p0.mouth)}的嘴):${list}\n别的两个表情同组仍先后做。\n\n`;
   }
   const faceHead = recipes.size ? '表情,按心情分组(「=甲+乙」:同一组写甲+乙也是这张脸):' : '表情,按心情分组:';
-  const example = EXAMPLES.find((e) => { const p = parseScript(e, vocab); return !p.dropped.length && !p.notes.length; });
-  return `${example ? `例:\`${example}\`\n\n` : ''}${faceHead}\n\n${faceText}\n\n${pairText}动作,按部位分组:\n\n${motionText}`;
+  const example = EXAMPLES.find((e) => { const p = parseScript(e, vocab); return !p.dropped.length && !p.notes.length; }) ?? '';
+  return { example, faceHead, faces: faceGroups, pairText, motions: motionGroups };
+}
+
+/** A vocabulary and the pairs of expressions its figure shows as one face, as the bot was told them or has them now. */
+export interface Told { vocab: readonly VocabWord[]; pairs?: Pairs }
+
+/**
+ * How the bot's table goes from `before` to `after`, for the bot when the figure changes under it: the words gone,
+ * then the lines of the words new or told differently (their look, names, or group), under their groups as the table
+ * has them, and the composed pairs' paragraph when it changed. Empty when the bot would see the same words. When
+ * that says about as much as the whole new table (a figure with few words in common), the whole table instead.
+ */
+export function vocabChange(before: Told, after: Told, language = 'zh'): string {
+  const diff = vocabDiff(before, after, language);
+  if (!diff) return '';
+  const whole = `词表整个换了,以这张为准,之前的词都不算数了:\n\n${vocabTable(after.vocab, language, after.pairs ?? {})}`;
+  return diff.length < whole.length * WHOLE_TABLE_AT ? diff : whole;
+}
+
+/** A change told word by word only while it is shorter than this share of the whole new table. */
+const WHOLE_TABLE_AT = .8;
+
+function vocabDiff(before: Told, after: Told, language: string): string {
+  const was = tableOf(before.vocab, language, before.pairs ?? {}), now = tableOf(after.vocab, language, after.pairs ?? {});
+  const told = new Map<string, string>();
+  for (const [kind, gs] of [['expression', was.faces], ['motion', was.motions]] as const) for (const g of gs) for (const r of g.rows) told.set(r.v.id, `${kind}\n${g.label}\n${r.line}`);
+  const gone = before.vocab.filter((v) => !after.vocab.some((w) => w.id === v.id));
+  const fresh = (kind: VocabWord['kind'], gs: readonly TableGroup[]) => gs
+    .map((g) => ({ label: g.label, rows: g.rows.filter((r) => told.get(r.v.id) !== `${kind}\n${g.label}\n${r.line}`) }))
+    .filter((g) => g.rows.length);
+  const faces = fresh('expression', now.faces), motions = fresh('motion', now.motions);
+  const pairsChanged = was.pairText !== now.pairText;
+  if (!gone.length && !faces.length && !motions.length && !pairsChanged) return '';
+  const pickIn = (by: Record<string, string[]>) => by[language] ?? by.zh ?? Object.values(by)[0];
+  let head = '词表变了,以这里为准。';
+  if (gone.length) head += `这些词用不了了:${gone.map((v) => `${v.id}(${pickIn(v.names)?.[0] ?? v.id})`).join('、')}。`;
+  if (faces.length || motions.length) head += '新增或样子变了的:';
+  const parts = [head];
+  const groups = (title: string, gs: readonly TableGroup[]) => { if (gs.length) parts.push(`${title}\n\n${gs.map((g) => `${g.label}:\n${g.rows.map((r) => r.line).join('\n')}`).join('\n')}`); };
+  groups('表情:', faces);
+  groups('动作:', motions);
+  if (pairsChanged) parts.push(now.pairText ? now.pairText.trimEnd() : '表情对没有了:同一组里的两个表情先后做。');
+  return parts.join('\n\n');
 }

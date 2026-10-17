@@ -173,8 +173,11 @@ function readVocab(raw: unknown, skipped: string[]): VocabWord[] | string {
     const about = namesOf(w.about);
     if (!about) return `vocab.${id}.about 缺失`;
     if (typeof w.seconds !== 'number' || !(w.seconds > 0) || !Number.isFinite(w.seconds)) return `vocab.${id}.seconds 应为正数`;
-    // (keepsArms: a lasting word, kneeling, that the figure keeps through arm gestures; read only with lasting)
-    const lasting = w.lasting === true ? { lasting: true, ...(w.keepsArms === true ? { keepsArms: true } : {}) } : {};
+    // (keepsArms / keepsLeans: a lasting word, kneeling, that the figure keeps through arm gestures / through leaning in,
+    // leaning back and swaying; read only with lasting)
+    const lasting = w.lasting === true
+      ? { lasting: true, ...(w.keepsArms === true ? { keepsArms: true } : {}), ...(w.keepsLeans === true ? { keepsLeans: true } : {}) }
+      : {};
     out.push({ id, kind: w.kind as VocabWord['kind'], names, about, seconds: w.seconds, ...lasting });
   }
   return out;

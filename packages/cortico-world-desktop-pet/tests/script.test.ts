@@ -589,3 +589,31 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
     expect(lastingNote(cooKneel, VOCAB)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头不影响');
   });
 });
+
+describe('kneeling for a figure that leans kneeling (keepsLeans)', () => {
+  // the whale's words: her `kneel` says keepsArms and keepsLeans (the kit's figure.kneelArms and figure.kneelLeans)
+  const WHALE = figurePacks([]).packs.find((p) => p.id === 'whale')!.manifest.vocab;
+  const GIRL = figurePacks([]).packs.find((p) => p.id === 'claude-chan')!.manifest.vocab;
+  const word = (v: readonly VocabWord[], id: string) => v.find((w) => w.id === id)!;
+
+  it('does a kneel and a lean as one group for her, and still splits them for the girls', () => {
+    expect(word(WHALE, 'kneel').keepsLeans).toBe(true);
+    expect(word(GIRL, 'kneel').keepsLeans).toBeUndefined();
+    for (const id of ['closer', 'leanback', 'sway']) {
+      expect(clashes(word(WHALE, 'kneel'), word(WHALE, id)), id).toBe(false);
+      expect(clashes(word(WHALE, id), word(WHALE, 'kneel')), id).toBe(false);
+      expect(clashes(word(GIRL, 'kneel'), word(GIRL, id)), id).toBe(true);
+    }
+    // the other gestures that need her still still end it (a bow, a cheer), and a stamp stands her up
+    for (const id of ['bow', 'cheer', 'stamp']) expect(clashes(word(WHALE, 'kneel'), word(WHALE, id)), id).toBe(true);
+    const got = scriptIn('【跪坐+凑近】', WHALE);
+    expect(got.beats[0].actions).toEqual(['kneel+closer']);
+    expect(got.notes).toEqual([]);
+    expect(scriptIn('【跪坐+凑近】', GIRL).beats[0].actions).not.toEqual(['kneel+closer']);
+  });
+
+  it('says in the kneel note that the leans keep it, for her only (the girls\' note is unchanged)', () => {
+    expect(lastingNote(word(WHALE, 'kneel'), WHALE)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴的动作、只占「手」的手势、唱歌和凑近、后仰、晃来晃去都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(word(GIRL, 'kneel'), GIRL)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+  });
+});

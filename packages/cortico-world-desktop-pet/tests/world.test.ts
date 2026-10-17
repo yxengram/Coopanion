@@ -439,6 +439,23 @@ describe('with a pet page', () => {
     expect(song.text).not.toContain('不能同时做');
   });
 
+  it('pet_act does a kneel and a lean at once for the whale (keepsLeans), and a lean on its own keeps her kneeling', async () => {
+    const { world } = await mounted((c) => { c.skin.figure = 'whale'; c.skin.scheme = 'deepseek'; });
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const out = await tool(world, 'pet_act').handler({ actions: ['跪坐+凑近'] }, ctx) as { text: string };
+    expect((await page.next((m) => m.t === 'act')).actions).toEqual(['kneel+closer']);
+    expect(out.text).not.toContain('不能同时做');
+    expect(out.text).toContain('唱歌和凑近、后仰、晃来晃去都不影响(她跪着做)');
+    const kneeling = () => (world as unknown as { kneeling: boolean }).kneeling;
+    expect(kneeling()).toBe(true);
+    await tool(world, 'pet_act').handler({ actions: ['晃来晃去'] }, ctx);
+    expect(kneeling()).toBe(true);
+    // a bow still gets her up
+    await tool(world, 'pet_act').handler({ actions: ['鞠躬'] }, ctx);
+    expect(kneeling()).toBe(false);
+  });
+
   it('dresses as the built-in Claude-chan, with her words (no spout)', async () => {
     const { world } = await mounted((c) => { c.skin.figure = 'claude-chan'; c.skin.scheme = 'original'; });
     const page = await FakePage.open(origin(world));

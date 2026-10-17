@@ -344,6 +344,31 @@ describe('Windows: hiding while a window is full screen', () => {
     expect(h.win.visible).toBe(true);
   });
 
+  it('the page hears a full screen window come and go whether or not the setting hides the pet (small talk keeps quiet then)', async () => {
+    const { h, desk } = await start();
+    h.send('pet:hideWhenFullscreen', false);
+    const full = () => h.win.sent.filter(([c]) => c === 'pet:fullscreen').map(([, v]) => v);
+    desk.windows[0x200] = maximized;
+    h.tick(1000);
+    expect(full()).toEqual([]);
+    desk.windows[0x200] = fullscreenFromMax;
+    h.tick(1000);
+    expect(h.win.visible).toBe(true);
+    expect(full()).toEqual([true]);
+    // a page reloaded meanwhile hears it again
+    h.win.webContents.emit('did-finish-load');
+    expect(full()).toEqual([true, true]);
+    desk.windows[0x200] = maximized;
+    h.tick(1000);
+    expect(full()).toEqual([true, true, false]);
+    // the preload hands it to the page
+    const seen = [];
+    h.preload().onFullscreen((on) => seen.push(on));
+    desk.windows[0x200] = fullscreenFromMax;
+    h.tick(200);
+    expect(seen).toEqual([true]);
+  });
+
   it('a hide by hand while full screen hid the pet is the hand\'s: the end of the full screen does not show it', async () => {
     const { h, desk } = await start();
     desk.windows[0x200] = fullscreenFromMax;

@@ -102,6 +102,15 @@ CI 在 Windows、macOS、Linux 上各跑一遍上面五项检查,另外:
 各包原有 Git 历史仍可从对应仓库查看；此后修改直接提交到 Coopanion。包内独立 lockfile 和 workspace 配置已移除，
 依赖统一由仓库根目录管理。`vendor/cortico` 仍是子模块。
 
+## Cortico 版本
+
+`vendor/cortico` 钉在 Cortico 的 `v0.1.15` 标签。升级时逐个标签走(`git -C vendor/cortico checkout <tag>`),每一步跑 `build:cortico`、三个 typecheck、两套测试，再用空数据目录启动一次看 `core.log`;原版每次升级的做法见 `git log upstream/main -- vendor/cortico`。
+
+- 0.1.11 起 `timezone` 缺省取本机时区，不再是 `Asia/Shanghai`;`core/seed.ts` 不写 `timezone`,所以时间、唤醒器和时间戳都跟电脑的时区走(`tests/seed.test.ts` 锁住);每天的唤醒器按设定时的墙钟时间(`Alarm.clock`)排到下一天(`nextDay`),夏令时切换前后不偏一小时;拨快那天不存在的时刻(如 02:30)顺延到跳过之后(03:30),第二天回到 02:30;拨慢那天重复的时刻取前一次(`tests/alarms.test.ts`)。
+- 0.1.9 起语言扩到 11 种:`Language` 不只 `zh` / `en`,只有中英两份文字的表按 `baseLanguage()` 取(如 `cortico-provider-coo` 的思考档位)。
+- 0.1.13 起实例锁冲突抛 `InstanceLockedError`:`core/companion.ts` 发 `companion:locked`,`app/core-host.cjs` 不再重启 Core,直接说明占锁的进程。
+- 0.1.16 的控制台提示词页要 `@codemirror/commands`(原版锁定 6.11.1)。根 `package.json` 加上这个依赖并重新 `pnpm install` 之前，不能升到 0.1.16 及之后(包括 0.1.16 之后、0.2.0 改名之前修工具回执卡死和跨端点 400 的 #245、#246、#249)。0.1.16 的 `worlds/index.ts` 按 id 动态导入 World,原版 cc2b1de 从那时起不再从打包产物里删它和 `src/launcher.ts`;`scripts/stage.ts` 的 DROP 照旧删也不影响运行。
+
 ## 代理、主题与字标
 
 Core 使用内置 Electron 的 Node 环境代理支持，读取 HTTP_PROXY/HTTPS_PROXY 等变量。启动环境里没有这些变量时，主进程在每次启动 Core 前用 `session.resolveProxy` 查询系统代理（5 秒超时），HTTP/HTTPS 代理写成这四个变量，DIRECT、SOCKS 或查询失败时不设；`core.log` 每次启动记一行代理来源（不写地址）。NO_PROXY 与 no_proxy 合并后补齐 localhost、127.0.0.1 和 IPv6 回环地址，避免本机控制台和桌宠通信被代理。Core 还带 `--use-system-ca` 启动，TLS 也信任系统证书库（公司网络、杀毒软件的中间人证书）。

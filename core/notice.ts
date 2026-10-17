@@ -146,6 +146,8 @@ const WATCHED: Watched[] = [
   { path: `${PET}.roam`, name: '你平时走动多少', say: named({ free: '常走动', calm: '多待着', off: '不乱动' }) },
   { path: `${PET}.sound`, name: '音效', say: onOff },
   { path: `${PET}.asr.enabled`, name: '语音输入', say: onOff },
+  { path: `${PET}.smallTalk.enabled`, name: '主动找对方闲聊', say: onOff },
+  { path: `${PET}.smallTalk.frequency`, name: '主动闲聊的频率', say: named({ low: '少(至少隔 2 小时)', mid: '中(至少隔 1 小时)', high: '多(至少隔 30 分钟)' }) },
   { path: `${CUA}.enabled`, name: '让你操作这台电脑', say: onOff },
   { path: `${CUA}.control`, name: '允许你动鼠标键盘', say: onOff },
   {
@@ -216,6 +218,8 @@ export class NoticeWorld implements World {
 
   envPromptVars(): null { return null; }
   tools(): ToolDef[] { return this.alarms.tools(); }
+  /** When the next wake-up Coo set for itself is due, or null: the pet's small talk keeps clear of it. */
+  nextAlarmAt(): number | null { return this.alarms.nextAt(); }
 
   async start(host: WorldHost): Promise<void> {
     this.host = host;

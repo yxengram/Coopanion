@@ -5,7 +5,8 @@
  * (bubble, options, walking, expressions and motions, its own look and habits, a quiet spell). Input arrives as events: speech heard through the pet window's
  * microphone (transcribed by FunASR's SenseVoice in this process, or Windows' own recognizer), typed text, answers to `pet_ask`, and touches
  * (poke, petting, being thrown). The page reports what actually happened; receipts and
- * events state only that.
+ * events state only that. With small talk on (src/smalltalk.ts) the World also wakes the bot now and then with
+ * `[闲聊]`, while the person is at the computer and the two have not talked for a while.
  *
  * Processes owned here: the page server (always, while mounted), the pet window (when
  * `window.enabled`) and the system recognizer's helper (voice input on, engine `system`). FunASR runs
@@ -35,7 +36,7 @@ import { Packer, Segmenter, rmsDb, type SegmentConfig, type SegmentSink, type Ut
 import { comboLabel, hotkeyBadge, hotkeyLabel, parseHotkey, splitTaps, watchHotkey, type KeyWatcher } from './asr/hotkey.ts';
 import { joinSpeech, looksHallucinated } from './asr/result.ts';
 import { toSimplified } from './asr/simplify.ts';
-import { APPENDAGES, channelsOf, estimateSeconds, firstName, lastingNote, membersOf, parseActions, parseScript, vocabChange, vocabTable, type Pairs, type Told, type VocabWord } from './script.ts';
+import { APPENDAGES, KNEEL_LEANS, channelsOf, estimateSeconds, firstName, lastingNote, membersOf, parseActions, parseScript, vocabChange, vocabTable, type Pairs, type Told, type VocabWord } from './script.ts';
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import {
@@ -44,6 +45,7 @@ import {
 } from './decider.ts';
 import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack } from './packs.ts';
 import { dressTable, planSettings, type SettingChange } from './self.ts';
+import { PRESENCE_STALE_MS, SMALLTALK_STALE_MS, SMALLTALK_TICK_MS, SmallTalk, TOPIC_MAX_AGE_MS, localMinutes, parseClock, smallTalkText, type Presence, type SmallTalkSignals, type SmallTalkVerdict } from './smalltalk.ts';
 
 export const DESKTOP_PET_PANEL_DECLS: readonly WorldPanelDecl[] = [
   { id: 'pet', title: '桌宠', description: '窗口、装扮与窗口运行时。', getMethods: ['state'] },
@@ -78,6 +80,8 @@ const POSTURE_OF_WORD: Readonly<Record<string, Posture>> = { sit: 'sit', kneel: 
 /** Which way the bot's prompt and tools go: words and markers (classic), or a feeling the decision model turns into words. */
 export type PetMode = 'classic' | 'decider';
 
+/** A question left unanswered keeps small talk away for this long; after it, it is taken as dropped. */
+const SMALLTALK_ASK_BUSY_MS = 30 * 60_000;
 /** Longest `pet_quiet`: a quiet that outlasts a day is a setting, which `pet_set` changes. */
 const QUIET_MAX_MIN = 24 * 60;
 const FRAME_MS = 20;
@@ -239,6 +243,13 @@ export interface DesktopPetWorldOptions {
    * whichever mode's template is declared): in decider mode its presence is warned of, since it is the classic text.
    */
   envOverrideFile?: () => string | null;
+  /**
+   * Whether the person is at the computer (src/smalltalk.ts `Presence`: the system's idle seconds and screen lock), as
+   * the embedding app last heard it, with when; null when it cannot tell. Small talk never starts without it.
+   */
+  presence?: () => (Presence & { at: number }) | null;
+  /** When the next wake-up the bot set for itself is due (epoch ms), or null: small talk keeps clear of it. */
+  nextAlarmAt?: () => number | null;
 }
 
 /**
@@ -276,6 +287,8 @@ interface PendingAsk {
   id: string;
   question: string;
   options: string[];
+  /** When it was asked. */
+  at: number;
 }
 
 interface TouchBatch {
@@ -437,6 +450,21 @@ export class DesktopPetWorld implements World {
   /** Words picked for bubbles after their receipts went back, told once with the next position line. */
   private unreported: Array<{ text: string; did: string }> = [];
   private stopped = false;
+
+  /* small talk (src/smalltalk.ts) */
+  private smallTalk = new SmallTalk(Date.now());
+  private smallTalkTimer: NodeJS.Timeout | null = null;
+  /** When a `[闲聊]` waiting for delivery was pushed, or null: one at a time. */
+  private smallTalkPushedAt: number | null = null;
+  /** Why the last look held small talk back ('' when it went, null before any look). */
+  private smallTalkWhy: string | null = null;
+  /** The page's report (`focus`): its window is shown, a full screen window covers its display, the typing box is open. */
+  private petShown = true;
+  private fullscreen = false;
+  private typing = false;
+  /** The last event of the person's (typed, spoken, answered, a touch, a new look), and the last time the bot ran. */
+  private lastPersonAt = Date.now();
+  private lastRunAt = 0;
 
   constructor(private readonly opts: DesktopPetWorldOptions) {
     this.cfg = opts.cfg;
@@ -631,6 +659,11 @@ export class DesktopPetWorld implements World {
     await this.syncHotkey();
     this.prefsKey = this.prefsSignature();
     this.prefsTimer = setInterval(() => this.syncPrefs(), PREFS_SYNC_MS);
+    // a start is not a lull: the first small talk waits a whole gap
+    this.smallTalk = new SmallTalk(Date.now());
+    this.smallTalkPushedAt = null;
+    this.lastPersonAt = Date.now();
+    this.smallTalkTimer = setInterval(() => this.lookForSmallTalk(), SMALLTALK_TICK_MS);
     if (this.mode === 'decider') {
       host.log.info(`表情动作交给决策模型挑(${this.deciderCfg().model})`);
       this.warnOverride();
@@ -647,6 +680,8 @@ export class DesktopPetWorld implements World {
     this.quiet = null;
     if (this.prefsTimer) clearInterval(this.prefsTimer);
     this.prefsTimer = null;
+    if (this.smallTalkTimer) clearInterval(this.smallTalkTimer);
+    this.smallTalkTimer = null;
     this.savePosition();
     if (this.packTimer) clearTimeout(this.packTimer);
     this.packTimer = null;
@@ -674,6 +709,7 @@ export class DesktopPetWorld implements World {
   }
 
   onTurnEnded(): void {
+    this.lastRunAt = Date.now();
     this.touchWoke = false;
     this.setThinking(false);
   }
@@ -691,6 +727,7 @@ export class DesktopPetWorld implements World {
 
   onRunPhase(phase: RunPhase): void {
     this.phase = phase;
+    if (phase.state !== 'idle') this.lastRunAt = Date.now();
     if (this.activity.observe(phase, Date.now())) this.chat.broadcast({ t: 'activity', steps: this.activity.steps, startedAt: this.activity.startedAt });
     if (phase.state === 'idle') void this.closeActivity();
     this.chat.broadcast({ t: 'phase', phase });
@@ -987,6 +1024,13 @@ export class DesktopPetWorld implements World {
         return;
       }
       case 'touch': return this.onTouch(msg);
+      case 'focus': {
+        // what small talk keeps clear of: the window hidden, a full screen window over it, the typing box open
+        if (typeof msg.shown === 'boolean') this.petShown = msg.shown;
+        if (typeof msg.fullscreen === 'boolean') this.fullscreen = msg.fullscreen;
+        if (typeof msg.typing === 'boolean') { if (this.typing && !msg.typing) this.lastPersonAt = Date.now(); this.typing = msg.typing; }
+        return;
+      }
       case 'mic': {
         this.micState = { state: String(msg.state), detail: typeof msg.detail === 'string' ? msg.detail : null };
         return;
@@ -1088,6 +1132,10 @@ export class DesktopPetWorld implements World {
     for (const [id, c] of this.confirms) { clearTimeout(c.timer); c.resolve('unavailable'); this.confirms.delete(id); }
     this.segmenter.flush();
     if (this.wasSpeaking) this.wasSpeaking = false;
+    // a page that comes back says these again
+    this.petShown = true;
+    this.fullscreen = false;
+    this.typing = false;
   }
 
   /** An answer from the pet's bubble or the chat page; an answer from the page closes the bubble. */
@@ -1191,6 +1239,8 @@ export class DesktopPetWorld implements World {
   ): Promise<EventEnvelope | null> {
     const host = this.host;
     if (!host) return null;
+    // every event this World pushes is the person's doing (or a look they gave the pet): no small talk right after
+    this.lastPersonAt = Date.now();
     try {
       const e = await host.pushEvent({ type, source: this.id, senderKey, ts: nowIso(this.opts.timezone), text: this.stamp() + text, ...extra }, { trigger });
       const item = chatItem(e);
@@ -1669,7 +1719,7 @@ export class DesktopPetWorld implements World {
     const id = nextId('a');
     if (!this.server.sendPet({ t: 'ask', id, question, options, own: allowOwn })) return this.notConnected('pet_ask');
     const replaced = this.ask ? `替换了还没回答的上一个提问「${this.ask.question}」。` : '';
-    this.ask = { id, question, options };
+    this.ask = { id, question, options, at: Date.now() };
     void this.closeActivity();
     const rec = () => this.record({ kind: 'ask', askId: id, question, options, own: allowOwn }, question);
     // decider mode: after the bubbles recorded before it (their records wait for their decisions)
@@ -1991,6 +2041,92 @@ export class DesktopPetWorld implements World {
     this.syncPrefs();
   }
 
+  /* ---------- small talk (src/smalltalk.ts) ---------- */
+
+  /** The small-talk settings; a quiet-hour time that does not read as `HH:MM` (edited by hand) is the default one, so a typo never takes the quiet hours away. */
+  private smallTalkCfg(): DesktopPetConfigSection['smallTalk'] {
+    const d = DESKTOP_PET_DEFAULTS.smallTalk;
+    const st = { ...d, ...this.cfg.smallTalk };
+    const clock = (v: unknown, fallback: string) => (typeof v === 'string' && parseClock(v) !== null ? v : fallback);
+    return { ...st, quietFrom: clock(st.quietFrom, d.quietFrom), quietTo: clock(st.quietTo, d.quietTo) };
+  }
+
+  /** The app's presence report, or null when there is none or it is stale. */
+  private presence(now: number): Presence | null {
+    const p = this.opts.presence?.() ?? null;
+    if (!p || now - p.at > PRESENCE_STALE_MS || !Number.isFinite(p.idleSec)) return null;
+    return { idleSec: Math.max(0, p.idleSec), locked: p.locked === true };
+  }
+
+  /** Why the pet is busy with the person, or with something else, right now; null when it is not. */
+  private smallTalkBusy(now: number): string | null {
+    if (this.typing) return 'typing';
+    if (this.talking || this.wasSpeaking || this.transcribing || this.queue.length) return 'listening';
+    if (this.ask && now - this.ask.at < SMALLTALK_ASK_BUSY_MS) return 'question open';
+    if (this.dialogs.size) return 'dialog';
+    if (this.confirms.size) return 'confirm';
+    if (this.pendingChat.size) return 'messages pending';
+    if (this.walks.size) return 'walking';
+    if (this.thinking || (this.phase !== null && this.phase.state !== 'idle')) return 'bot running';
+    return null;
+  }
+
+  /** What one look at small talk weighs, now. */
+  private smallTalkSignals(now: number, presence: Presence | null): SmallTalkSignals {
+    const st = this.smallTalkCfg();
+    return {
+      now, enabled: st.enabled, frequency: st.frequency, quietFrom: st.quietFrom, quietTo: st.quietTo, timezone: this.opts.timezone,
+      presence,
+      shown: this.server.petConnected && this.petShown,
+      fullscreen: this.fullscreen,
+      paused: this.opts.controls?.isPaused?.() ?? false,
+      quiet: this.quiet !== null,
+      asleep: this.pose?.mode === 'sleep',
+      busy: this.smallTalkBusy(now),
+      lastTalkAt: Math.max(this.lastPersonAt, this.lastRunAt),
+      lastAttemptAt: this.smallTalk.lastAttemptAt,
+      nextAlarmAt: this.opts.nextAlarmAt?.() ?? null,
+    };
+  }
+
+  /**
+   * One look (every SMALLTALK_TICK_MS): when every gate lets it, a `[闲聊]` event wakes the bot. It is rendered at
+   * delivery, and says nothing if the person spoke meanwhile, it waited too long (paused, no key) or small talk was
+   * switched off; delivered, it counts as an attempt whether or not the bot speaks.
+   */
+  lookForSmallTalk(now = Date.now()): SmallTalkVerdict {
+    const presence = this.presence(now);
+    this.smallTalk.observe(now, presence);
+    if (this.smallTalkPushedAt !== null && now - this.smallTalkPushedAt < SMALLTALK_STALE_MS) {
+      this.smallTalkWhy = 'waiting';
+      return { go: false, why: 'waiting' };
+    }
+    const v = this.smallTalk.decide(this.smallTalkSignals(now, presence));
+    this.smallTalkWhy = v.go ? '' : v.why;
+    if (!v.go || !this.host) return v;
+    const pushedAt = now;
+    this.smallTalkPushedAt = pushedAt;
+    this.host.pushDeferred({
+      type: 'desktop-pet.smalltalk', senderKey: 'desktop-pet.smalltalk', origin: 'internal',
+      render: () => {
+        if (this.smallTalkPushedAt === pushedAt) this.smallTalkPushedAt = null;
+        const at = Date.now();
+        if (!this.smallTalkCfg().enabled || at - pushedAt > SMALLTALK_STALE_MS || this.lastPersonAt > pushedAt) return null;
+        this.smallTalk.attempted(at);
+        const heard = this.lastHeard && at - this.lastHeard.at <= TOPIC_MAX_AGE_MS
+          ? { text: this.lastHeard.text, agoMin: Math.max(1, Math.round((at - this.lastHeard.at) / 60_000)) } : null;
+        this.log?.info(`主动闲聊:${v.occasion === 'back' ? '刚回到电脑前' : `${v.sinceTalkMin} 分钟没说话`}`);
+        return this.stamp() + smallTalkText(v, this.cfg.user, localMinutes(this.opts.timezone, at), heard);
+      },
+    }, { trigger: 'flush' });
+    return v;
+  }
+
+  private smallTalkState(): Record<string, unknown> {
+    const st = this.smallTalkCfg();
+    return { enabled: st.enabled, frequency: st.frequency, presence: this.presence(Date.now()) !== null, lastAttemptAt: this.smallTalk.lastAttemptAt, why: this.smallTalkWhy };
+  }
+
   private async act(args: Record<string, unknown>): Promise<ToolOutcome> {
     const list = Array.isArray(args.actions) ? args.actions : typeof args.actions === 'string' ? [args.actions] : [];
     const vocab = this.vocab();
@@ -2094,7 +2230,8 @@ export class DesktopPetWorld implements World {
 
   /**
    * Follows a kneel through the words sent: a kneel starts one; a word that ends it (`lastingNote`: anything but a
-   * face, a head gesture, a tail's, ears' or wings' move, and with `keepsArms` an arm-only gesture or a song) ends it.
+   * face, a head gesture, a tail's, ears' or wings' move, with `keepsArms` an arm-only gesture or a song, and with
+   * `keepsLeans` 凑近, 后仰 or 晃来晃去) ends it.
    */
   private notePosture(entries: readonly string[]): void {
     const vocab = this.vocab();
@@ -2110,7 +2247,8 @@ export class DesktopPetWorld implements World {
       if (!this.kneeling || v.kind === 'expression') continue;
       const cs = channelsOf(v);
       const keeps = (cs.length === 1 && (cs[0] === 'head' || APPENDAGES.includes(cs[0])))
-        || (!!kneel?.keepsArms && ((cs.length === 1 && cs[0] === 'arm') || id === 'song'));
+        || (!!kneel?.keepsArms && ((cs.length === 1 && cs[0] === 'arm') || id === 'song'))
+        || (!!kneel?.keepsLeans && KNEEL_LEANS.has(id));
       if (!keeps) this.kneeling = false;
     }
     // told as her posture until the page shows it (the next call's [位置] and body question would say the old one)
@@ -2491,6 +2629,7 @@ export class DesktopPetWorld implements World {
       electron: { ...this.store.electron.state(), supported: this.store.electron.supported },
       screen: this.screen,
       decider: this.deciderState(),
+      smallTalk: this.smallTalkState(),
     };
   }
 

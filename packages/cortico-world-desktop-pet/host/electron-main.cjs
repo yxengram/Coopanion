@@ -333,6 +333,8 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     // Never before the window was first shown (host/shown.cjs): a missed or late first `show` must not leave the
     // pet silent from launch; the events say it at once and the cursor poll below catches up with a missed show.
     const shown = createShownReport();
+    /** What the page was last told of a full screen window over the pet's display (Windows only). */
+    let fullSaid = false;
     const tellShown = (v) => { if (v !== null) win?.webContents.send('pet:shown', v); };
     win.on('show', () => tellShown(shown.update(true)));
     win.on('hide', () => { tellShown(shown.update(false)); mouse.release(); });
@@ -345,6 +347,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     win.webContents.on('did-finish-load', () => {
       if (!win) return;
       win.webContents.setZoomLevel(0);
+      if (fullSaid) win.webContents.send('pet:fullscreen', true);
       // a page reloaded while the window is hidden would take itself as shown; one loaded before the first show hears nothing
       // (and one reloaded while `isVisible()` reads false with no `hide` said hears the last state said, shown)
       tellShown(shown.loaded(win.isVisible()));
@@ -378,10 +381,13 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
       win.webContents.send('pet:cursor', at, across);
       mouse.tick();
     }, CURSOR_EVERY_MS);
-    // hidden while the setting is on and a window fills the pet's monitor; shown again once neither holds
+    // hidden while the setting is on and a window fills the pet's monitor; shown again once neither holds. Whether one
+    // fills it is told to the page either way (`pet:fullscreen`, on each change): the World's small talk keeps quiet then
     const fullscreenTimer = fullscreen && setInterval(() => {
       if (!win) return;
-      const covered = hideWhenFullscreen && fullscreen(hwndOf(win));
+      const full = fullscreen(hwndOf(win));
+      if (full !== fullSaid) { fullSaid = full; win.webContents.send('pet:fullscreen', full); }
+      const covered = hideWhenFullscreen && full;
       if (covered && !autoHidden && win.isVisible()) { autoHidden = true; win.hide(); }
       else if (!covered && autoHidden) { autoHidden = false; win.showInactive(); }
     }, FULLSCREEN_EVERY_MS);

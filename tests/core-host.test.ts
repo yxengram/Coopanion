@@ -104,6 +104,26 @@ describe('Core host', () => {
     expect(states.filter(([s]) => s === 'restarting').every(([, d]) => d === undefined)).toBe(true);
   });
 
+  it('does not restart a Core that said another process holds the data directory, and names that process', async () => {
+    const appRoot = join(scratch, 'locked');
+    mkdirSync(join(appRoot, 'core'), { recursive: true });
+    // what core/companion.ts does when bot.start() throws InstanceLockedError
+    writeFileSync(join(appRoot, 'core', 'boot.ts'), [
+      "process.send({ type: 'companion:locked', pid: 4242, file: '/data/companion/.instance.lock' }, () => process.exit(1));",
+    ].join('\n'));
+    const host = new CoreHost({ appRoot, logDir: join(scratch, 'logs'), execPath: electron, env: { PATH: process.env.PATH }, resolveProxy: async () => 'DIRECT' });
+    const states: [string, string | undefined][] = [];
+    host.on('state', (state: string, detail?: string) => states.push([state, detail]));
+    try {
+      const failed = new Promise<string | undefined>((r) => host.on('state', (state: string, detail?: string) => { if (state === 'failed') r(detail); }));
+      await host.start();
+      expect(await failed).toMatch(/另一个进程\(PID 4242\)正在使用.*「重新启动」.*\/data\/companion\/\.instance\.lock/);
+      expect(states.map(([s]) => s)).toEqual(['starting', 'failed']);
+      expect(host.crashes).toEqual([]);
+      expect(host.child).toBeNull();
+    } finally { await host.stop(); }
+  });
+
   // Windows does not keep the stderr pipe open through a grandchild that inherits it, so no exit is ever held there;
   // the restart path is the same on every platform
   it.skipIf(process.platform === 'win32')('restarts on demand while a child that exited is still held for its last stderr lines', async () => {

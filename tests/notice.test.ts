@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { releaseNotes } from '../core/notice.ts';
+import { releaseNotes, settingChanges } from '../core/notice.ts';
 
 /** A releases directory with one file per version, each `## 下载` section after its body. */
 function releases(versions: string[]): string {
@@ -27,5 +27,17 @@ describe('releaseNotes', () => {
     const [note] = releaseNotes(releases(['0.1.13']), null, '0.1.13');
     expect(note!.text).toContain('本版 0.1.13');
     expect(note!.text).not.toContain('安装包');
+  });
+});
+
+describe('settingChanges', () => {
+  it('tells small talk switched on and its frequency', () => {
+    const P = 'worlds.desktop-pet.smallTalk';
+    const before = { [`${P}.enabled`]: 'false', [`${P}.frequency`]: '"mid"' };
+    const after = { [`${P}.enabled`]: 'true', [`${P}.frequency`]: '"high"' };
+    expect(settingChanges(before, after, { palettes: {}, accessories: {} })).toEqual([
+      '- 主动找对方闲聊:关 → 开',
+      '- 主动闲聊的频率:中(至少隔 1 小时) → 多(至少隔 30 分钟)',
+    ]);
   });
 });

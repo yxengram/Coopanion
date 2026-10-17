@@ -4,6 +4,7 @@ import type { WorldSection } from 'cortico/world.ts';
 import type { SegmentConfig } from './asr/segmenter.ts';
 import { DEFAULT_HOTKEY } from './asr/hotkey.ts';
 import { DECIDER_DEFAULT_MODEL } from './decider.ts';
+import type { SmallTalkFrequency } from './smalltalk.ts';
 
 export const DESKTOP_PET_ID = 'desktop-pet';
 
@@ -111,6 +112,18 @@ export interface DesktopPetConfigSection extends WorldSection {
     /** How long one decision may take before the bubble goes on without it. */
     timeoutMs: number;
   };
+  /**
+   * Small talk (src/smalltalk.ts): while the person is at the computer and has not talked to the pet for a while, or
+   * has just come back, the bot is woken with a `[闲聊]` event and may say something, or nothing. Off by default.
+   */
+  smallTalk: {
+    enabled: boolean;
+    /** low / mid / high: at least 2 h / 1 h / 30 min between attempts, and since the last conversation. */
+    frequency: SmallTalkFrequency;
+    /** Quiet hours, local `HH:MM`, wrapping midnight when `quietFrom` is later; equal times mean none. */
+    quietFrom: string;
+    quietTo: string;
+  };
   touch: {
     /** Clicks, petting and throws become events. */
     enabled: boolean;
@@ -155,6 +168,7 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
     colors: { head: { main: 'body', acc: 'eye' }, side: { main: 'eye', acc: 'eye' }, glasses: { main: 'body', acc: 'eye' }, neck: { main: 'eye', acc: 'eye' } },
   },
   decider: { enabled: false, model: DECIDER_DEFAULT_MODEL, timeoutMs: 2500 },
+  smallTalk: { enabled: false, frequency: 'mid', quietFrom: '23:00', quietTo: '08:00' },
   touch: { enabled: true, wakeOn: 'poke' },
   asr: {
     enabled: true,
@@ -193,6 +207,10 @@ export const DESKTOP_PET_CONFIG_GROUP: ConfigGroup = {
       } : {}),
       [`${K}.window.electronFile`]: { type: 'string', title: 'Electron 程序', description: '留空时依次用 CORTICO_DESKTOP_PET_HOST 和面板里安装的运行时。', 'x-path': { kind: 'file' }, 'x-hot': false },
       [`${K}.port`]: { type: 'integer', title: '页面端口', minimum: 1024, maximum: 65535, description: '被占用时向上顺延。', 'x-hot': false },
+      [`${K}.smallTalk.enabled`]: { type: 'boolean', title: '主动闲聊', description: '默认关。打开后,你在电脑前却有一阵没和桌宠说话,或者离开一会儿刚回来时,它可能主动搭一两句话(打招呼、聊聊时间、接着之前的话题、提醒喝水休息),也可能什么都不说;每次尝试都是一次模型调用,不说话也算。桌宠被隐藏、暂停、安静中、睡着、有全屏窗口(只有 Windows 判得出)、你在打字或刚聊过时都不会。', 'x-hot': true },
+      [`${K}.smallTalk.frequency`]: { type: 'string', title: '闲聊频率', enum: ['low', 'mid', 'high'], description: 'low 少:两次至少隔 2 小时;mid 中:1 小时;high 多:30 分钟。离上次聊天也至少隔这么久(刚回到电脑前的招呼除外)。', 'x-hot': true },
+      [`${K}.smallTalk.quietFrom`]: { type: 'string', title: '免打扰开始', description: '本地时间 HH:MM,到免打扰结束之间不主动闲聊;可以跨午夜,两个时间相同就是不设免打扰;不是 HH:MM 时按默认 23:00。', 'x-hot': true },
+      [`${K}.smallTalk.quietTo`]: { type: 'string', title: '免打扰结束', description: '本地时间 HH:MM;不是 HH:MM 时按默认 08:00。', 'x-hot': true },
       [`${K}.touch.enabled`]: { type: 'boolean', title: '互动发成事件', description: '戳、摸、拎起来甩出去。', 'x-hot': true },
       [`${K}.touch.wakeOn`]: { type: 'string', title: '哪些互动单独唤醒', enum: ['poke', 'all', 'none'], description: 'poke 只有点一下唤醒,摸头和拎起来跟着下一次唤醒一起送;all 都唤醒;none 都跟着下一次唤醒送。一次互动唤醒之后、这一轮结束之前的互动,都跟着下一次唤醒送。', 'x-hot': true },
     },

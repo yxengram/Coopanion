@@ -25,6 +25,7 @@ import { createConsoleUi } from './ui/index.ts';
 import { subscribeLamps } from './ui/lamp.ts';
 import { applyStoredTheme } from './theme/studio.ts';
 import { createShell, type ConsoleShell } from './shell/index.ts';
+import { S as SHELL } from './shell/strings.ts';
 import { featureAvailable, type FeatureContext, type FrameworkFeature } from './features/feature.ts';
 import { liveFeature } from './features/live/index.ts';
 import { coreFeature } from './features/core/index.ts';
@@ -102,12 +103,6 @@ function orderNav(nav: Element): void {
   if (sorted.every((g, i) => g === groups[i])) return;
   for (const g of sorted) nav.appendChild(g);
 }
-
-/** feature 挂载抛错时那张错误卡的标题。 */
-const featureLoadFailed = pick({
-  zh: (label: string) => `「${label}」没能加载`,
-  en: (label: string) => `"${label}" failed to load`,
-});
 
 /** localStorage 后端；无痕模式下静默降级成内存，不抛。 */
 export function createMemo(prefix: string): ConsoleMemo {
@@ -314,7 +309,7 @@ export function boot(doc: Document = document): { dispose(): void } {
         onError(err);
         lifecycle.dispose();
         slot.replaceChildren();
-        const card = ui.sheet({ title: featureLoadFailed(feature.label), en: 'feature error' });
+        const card = ui.sheet({ title: SHELL.featureLoadFailed(feature.label), en: 'feature error' });
         card.body.appendChild(ui.msgline(err instanceof Error ? err.message : String(err), true));
         slot.appendChild(card.el);
       }

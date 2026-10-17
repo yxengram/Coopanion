@@ -5,6 +5,7 @@ import type { WorldDefinition } from 'cortico/world.ts';
 import { DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, type DesktopPetConfigSection, type PetSkin } from './config.ts';
 import { DesktopPetWorld, modelsDirFor, type PetBotControls, type PetMode } from './world.ts';
 import type { DecisionRecord } from './decider.ts';
+import type { Presence } from './smalltalk.ts';
 
 /** The console keeps the bot's avatar here, in the deployment directory. */
 const AVATAR_FILE = 'avatar.png';
@@ -34,6 +35,13 @@ export interface DesktopPetAssembly {
   deciderFetch?: typeof fetch;
   /** Where the decision models are listed (default OpenRouter's public list), for evals and tests. */
   deciderModelsUrl?: string;
+  /**
+   * Whether the person is at the computer (the system's idle seconds and screen lock) as last heard, with when; null
+   * when unknown. Small talk (src/smalltalk.ts) never starts without it.
+   */
+  presence?(): (Presence & { at: number }) | null;
+  /** When the next wake-up the bot set for itself is due (epoch ms), or null. */
+  nextAlarmAt?(): number | null;
 }
 
 /** The definition, with what an embedding app lends the World. */
@@ -67,6 +75,8 @@ export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDe
         deciderFetch: assembly.deciderFetch,
         deciderModelsUrl: assembly.deciderModelsUrl,
         envOverrideFile: () => envPromptOverridePath(ctx.botDir, DESKTOP_PET_ID),
+        ...(assembly.presence ? { presence: () => assembly.presence!() } : {}),
+        ...(assembly.nextAlarmAt ? { nextAlarmAt: () => assembly.nextAlarmAt!() } : {}),
       });
       assembly.onCreate?.(world);
       return world;

@@ -64,8 +64,8 @@ describe('exported whale pack', () => {
     expect(m.name).toEqual({ zh: 'Coopanion 大肥鱼', en: 'Coopanion Whale' });
     const whale = builtin('whale');
     expect(m.vocab).toEqual(whale.vocab);
-    // she draws arm gestures kneeling: her kneel says so (keepsArms)
-    expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
+    // she draws arm gestures and leans kneeling: her kneel says so (keepsArms, keepsLeans)
+    expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true, keepsLeans: true });
     // the 72 words of v0.2.6, the curious tilt (歪头), her chin on her hand (托腮), the head's and body's moves 低头, 眨眨眼,
     // 凑近, 后仰, 晃来晃去, 跺脚, her tail's 摇尾巴 and the faces made of parts (PLUS_MIXES), which the pack's own kit draws
     // and the arm words drawn anew for her (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗), and expr2's faces with her drawn eyes and
@@ -137,6 +137,7 @@ describe('exported whale pack', () => {
       expect(typeof r === 'string' ? r : null).toBeNull();
       // (upstream leaves keepsArms out: its World sends the kneel and a wave one by one, and the bundled kit keeps the kneel)
       expect(r.vocab.find((w) => w.id === 'kneel')).not.toHaveProperty('keepsArms');
+      expect(r.vocab.find((w) => w.id === 'kneel')).not.toHaveProperty('keepsLeans');
       expect(gaps).toEqual([]);
       const scan = upstream.scanPacks([], [root]);
       expect(scan.problems).toEqual([]);

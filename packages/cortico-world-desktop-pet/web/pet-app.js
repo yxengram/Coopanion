@@ -78,13 +78,26 @@ function reportPose(force = false) {
   send(msg);
 }
 
+/**
+ * What the World's small talk keeps clear of: the window hidden, a full screen window over its display (Windows), the
+ * typing box open. Sent on connect and whenever one of them changes.
+ */
+const petFocus = { shown: true, fullscreen: false, typing: false };
+let focusSent = '';
+function reportFocus(force = false) {
+  const key = JSON.stringify(petFocus);
+  if (!force && key === focusSent) return;
+  focusSent = key;
+  send({ t: 'focus', ...petFocus });
+}
+
 /* ---------- connection ---------- */
 let ws = null, backoff = 500, watching = false;
 function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 function connect() {
   ws = new WebSocket(`ws://${location.host}/socket?role=pet&host=${host ? 'window' : 'tab'}`);
   ws.binaryType = 'arraybuffer';
-  ws.onopen = () => { backoff = 500; send({ t: 'hello', screen: { w: innerWidth, h: innerHeight }, host: host ? 'window' : 'tab' }); reportPose(true); };
+  ws.onopen = () => { backoff = 500; send({ t: 'hello', screen: { w: innerWidth, h: innerHeight }, host: host ? 'window' : 'tab' }); reportPose(true); reportFocus(true); };
   ws.onmessage = (e) => { try { onOrder(JSON.parse(e.data)); } catch (err) { console.error(err); } };
   ws.onclose = (e) => {
     ws = null;
@@ -99,7 +112,8 @@ function connect() {
 connect();
 // the page always reads as visible (its window does not throttle it): the window process says when it is hidden, and
 // meanwhile sounds keep quiet and the body is not drawn (the loop below); until it says, the page is shown
-host?.onShown?.((shown) => { sfx.setShown(shown); setDrawn(shown); });
+host?.onShown?.((shown) => { sfx.setShown(shown); setDrawn(shown); petFocus.shown = shown; reportFocus(); });
+host?.onFullscreen?.((on) => { petFocus.fullscreen = on; reportFocus(); });
 
 /*
  * ---------- the body: a figure pack (src/packs.ts; Coo is one) run in a sandboxed frame ----------
@@ -1463,6 +1477,7 @@ function stepPage(dt) {
   stepTalkMotion();
   stepListen();
   setBody({ dialogOpen: !!item || !!listen.phase });
+  if (petFocus.typing !== (item?.kind === 'input')) { petFocus.typing = item?.kind === 'input'; reportFocus(); }
 }
 function stepGuarded(fn) {
   try { fn(); } catch (err) {

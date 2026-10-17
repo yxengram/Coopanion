@@ -236,6 +236,14 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 评测和测试另有 `onDecision(rec)`、`deciderUrl`、`deciderFetch`(指向本地假端点)。Coopanion 的 `deciderKey` 依次读环境变量 `OPENROUTER_API_KEY`、
 基址是 OpenRouter 的端点(名字不限)`.env` 里该端点 `secret` 名下的值(`core/decider-key.ts`)。
 
+主动闲聊(`smallTalk`,默认关,`src/smalltalk.ts`)要应用借出 `presence()`:系统多少秒没有键盘鼠标输入、是否锁屏,以及这份信息的时刻
+(Coopanion 由 Electron 主进程的 `powerMonitor` 每 30 秒和锁屏、解锁、睡眠、唤醒时报给 Core);不借或超过 2 分钟没更新就不会开始。
+可选的 `nextAlarmAt()` 给出 bot 自己设的下一个唤醒时刻,15 分钟内要到时不闲聊。World 每 30 秒看一次,人在电脑前(5 分钟内有输入、没锁屏)、
+窗口显示着、没有全屏窗口(页面的 `focus { shown, fullscreen, typing }`;全屏只有 Windows 判得出)、没暂停、没 `pet_quiet`、没睡着、
+不在免打扰时段、没在打字或听话或等回答、bot 没在跑,且离上次尝试和上次聊天都够一个间隔(`frequency` 少 / 中 / 多 = 2 h / 1 h / 30 min;
+离开 15 分钟以上、刚回来时不看后一条;锁屏或睡眠连同锁之前没动的时间也要够 15 分钟)时,推一条 `desktop-pet.smalltalk` 延迟事件(`flush`),投递时渲染成 `[闲聊] …`,
+期间对方说过话、等了 10 分钟以上或开关关了就渲染成空。投递出去就算一次尝试(一次模型调用),bot 不说话也算;World 启动也算一次。详见主仓库的 `docs/notes/small-talk.md`。
+
 ### 对话页
 
 控制台页 `world:desktop-pet` 的 `chat` 面板是一条推送连接(`src/chat.ts`),应用拿它做对话页:

@@ -21,7 +21,7 @@
  * On macOS the app lives in the menu bar (the Info.plist sets LSUIElement): no Dock icon, except
  * while the settings window is open, so it can be reached with Command-Tab.
  */
-const { app, BrowserWindow, Menu, Notification, Tray, dialog, nativeImage, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, dialog, nativeImage, powerMonitor, session, shell } = require('electron');
 const { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
 const { delimiter, dirname, join } = require('node:path');
 
@@ -131,6 +131,7 @@ if (!app.requestSingleInstanceLock()) {
 
 const { CoreHost } = require('./core-host.cjs');
 const { RELEASES_URL, startUpdater } = require('./updater.cjs');
+const { startPresence } = require('./presence.cjs');
 
 const userData = app.getPath('userData');
 const shimDir = join(__dirname, 'shims');
@@ -341,6 +342,8 @@ app.whenReady().then(() => {
   app.setAppUserModelId('ai.pal.coopanion');
   if (askStranded && askRestoreStranded()) return;
   buildTray();
+  // whether the person is at the computer, for the pet's small talk (app/presence.cjs)
+  startPresence({ powerMonitor, send: (msg) => core.send(msg), onReady: (fn) => core.on('ready', fn) });
   noteAutostart();
   void core.start();
   updater = startUpdater({

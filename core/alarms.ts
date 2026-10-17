@@ -16,11 +16,12 @@ export interface Alarm {
   daily: boolean;
   /** When it was set, epoch ms. */
   setAt: number;
+  /** A daily one's asked-for wall-clock time, `HH:MM` (missing in alarms set before this was kept: then `at`'s). */
+  clock?: string;
 }
 
 interface Saved { next: number; alarms: Alarm[] }
 
-const DAY_MS = 86_400_000;
 /** A due alarm this much past its time was missed while the app was closed (the World looks every second). */
 const MISSED_AFTER_MS = 60_000;
 
@@ -33,12 +34,37 @@ function offsetMinutes(timezone: string, d: Date): number {
   return (d.getTime() - d.getMilliseconds() - local) / 60_000;
 }
 
-/** Epoch ms of a wall-clock time in `timezone`. */
+/**
+ * Epoch ms of a wall-clock time in `timezone`. A time that a daylight-saving change skips (02:30 on the morning clocks
+ * jump from 02:00 to 03:00) is the moment the same distance past the jump, 03:30; a time that happens twice is the first.
+ */
 export function localToEpoch(timezone: string, y: number, mo: number, d: number, h: number, mi: number): number {
   const guess = Date.UTC(y, mo - 1, d, h, mi);
-  const first = guess + offsetMinutes(timezone, new Date(guess)) * 60_000;
-  // across a daylight-saving change the offset at the result can differ from the guess's
-  return guess + offsetMinutes(timezone, new Date(first)) * 60_000;
+  // the offsets in force around that day (a change is never more than a day from the guess's moment)
+  const offsets = [...new Set([-1, 0, 1].map((k) => offsetMinutes(timezone, new Date(guess + k * 86_400_000))))];
+  // an offset fits when the moment it gives shows the asked-for wall-clock time
+  const fit = offsets.filter((o) => offsetMinutes(timezone, new Date(guess + o * 60_000)) === o);
+  if (fit.length) return guess + Math.min(...fit) * 60_000;
+  // none fits: the time is in a gap. The offset from before the jump (the larger) lands as far past it
+  return guess + Math.max(...offsets) * 60_000;
+}
+
+/** `HH:MM` of `ms` in `timezone`. */
+export function wallClock(timezone: string, ms: number): string {
+  return localLabel(timezone, ms).slice(6);
+}
+
+/**
+ * `clock` (`HH:MM`; by default the wall-clock time of `ms`) in `timezone` on the day after `ms`. Not 24 hours later:
+ * since Cortico 0.1.11 the time zone is the computer's, and across a daylight-saving change a day is 23 or 25 hours
+ * long. Passing the asked-for time keeps a daily alarm that a jump moved (02:30 → 03:30) at 02:30 the day after.
+ */
+export function nextDay(timezone: string, ms: number, clock = wallClock(timezone, ms)): number {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const [h, mi] = clock.split(':').map(Number);
+  return localToEpoch(timezone, +p.year!, +p.month!, +p.day! + 1, h!, mi!);
 }
 
 /** `MM-DD HH:MM` in `timezone`. */
@@ -69,7 +95,13 @@ export function dueTime(timezone: string, now: number, at: unknown, inMinutes: u
   const today = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' })
     .formatToParts(new Date(now)).map((x) => [x.type, x.value]));
   const ms = localToEpoch(timezone, +today.year!, +today.month!, +today.day!, +clock[1]!, +clock[2]!);
-  return ms > now ? ms : ms + DAY_MS;
+  return ms > now ? ms : nextDay(timezone, ms, `${clock[1]!.padStart(2, '0')}:${clock[2]}`);
+}
+
+/** The `HH:MM` asked for in an `at` that `dueTime` took. */
+function askedClock(at: unknown): string | undefined {
+  const m = typeof at === 'string' ? /(\d{1,2}):(\d{2})$/.exec(at.trim()) : null;
+  return m ? `${m[1]!.padStart(2, '0')}:${m[2]}` : undefined;
 }
 
 export class Alarms {
@@ -83,6 +115,11 @@ export class Alarms {
     writeFileSync(this.file, `${JSON.stringify(this.saved, null, 2)}\n`);
   }
 
+  /** When the next alarm is due (epoch ms), or null when none is set. */
+  nextAt(): number | null {
+    return this.saved.alarms.length ? Math.min(...this.saved.alarms.map((a) => a.at)) : null;
+  }
+
   /** Takes the alarms due at `now` off the list (a daily one is set again for its next day), each with whether it was missed. */
   takeDue(now: number): Array<{ alarm: Alarm; missed: boolean }> {
     const due = this.saved.alarms.filter((a) => a.at <= now);
@@ -91,7 +128,7 @@ export class Alarms {
     for (const a of due) {
       if (!a.daily) continue;
       let at = a.at;
-      while (at <= now) at += DAY_MS;
+      while (at <= now) at = nextDay(this.timezone, at, a.clock);
       this.saved.alarms.push({ ...a, at });
     }
     this.save();
@@ -131,7 +168,8 @@ export class Alarms {
           const t = now();
           const at = dueTime(tz, t, args.at, args.in_minutes);
           if (typeof at === 'string') return { text: `[alarm_set 没执行] ${at}。`, failed: true };
-          const alarm: Alarm = { id: `a${this.saved.next++}`, at, note, daily: args.daily === true, setAt: t };
+          const daily = args.daily === true;
+          const alarm: Alarm = { id: `a${this.saved.next++}`, at, note, daily, setAt: t, ...(daily ? { clock: (typeof args.in_minutes === 'number' ? undefined : askedClock(args.at)) ?? wallClock(tz, at) } : {}) };
           this.saved.alarms.push(alarm);
           this.save();
           return { text: `已设 ${alarm.id}:${localLabel(tz, at)}${alarm.daily ? ',之后每天这个时间' : ''}。` };

@@ -36,6 +36,11 @@ export interface VocabWord {
    * it nor splits from it in a group (`channelsOf`); only read with `lasting`.
    */
   keepsArms?: boolean;
+  /**
+   * (kneel) The figure leans in, leans back and sways kneeling (the kit's `figure.kneelLeans`, KNEEL_LEANS), so those
+   * neither end it nor split from it in a group (`clashes`); only read with `lasting`.
+   */
+  keepsLeans?: boolean;
 }
 
 const lookups = new WeakMap<readonly VocabWord[], Map<string, VocabWord>>();
@@ -135,15 +140,21 @@ const KNEEL_WITH_ARMS: readonly Channel[] = ['body', 'stance'];
  * web/kit/body.js): kneeling is sitting still, so she sings kneeling, and the two go as one group.
  */
 const KNEEL_SINGS: ReadonlySet<string> = new Set(['song']);
+/** (keepsLeans) The leans of the body seated still that the kit keeps a kneel through (its KNEEL_LEANS, web/kit/body.js). */
+export const KNEEL_LEANS: ReadonlySet<string> = new Set(['closer', 'leanback', 'sway']);
 /** The parts word `v` takes: a pack's own expression the face, a pack's own motion all but the face. */
 export function channelsOf(v: VocabWord): readonly Channel[] {
   if (v.id === 'kneel' && v.keepsArms) return KNEEL_WITH_ARMS;
   return CHANNELS[v.id] ?? (v.kind === 'expression' ? ['face'] : ['head', 'arm', 'body', 'stance']);
 }
-/** Whether words `a` and `b` take a part of her in common, so they cannot go at once (a kneel with keepsArms and a song can). */
+/**
+ * Whether words `a` and `b` take a part of her in common, so they cannot go at once (a kneel with keepsArms and a song
+ * can, and a kneel with keepsLeans and a lean).
+ */
 export function clashes(a: VocabWord, b: VocabWord): boolean {
   const sings = (k: VocabWord, w: VocabWord) => k.id === 'kneel' && !!k.keepsArms && KNEEL_SINGS.has(w.id);
-  if (sings(a, b) || sings(b, a)) return false;
+  const leans = (k: VocabWord, w: VocabWord) => k.id === 'kneel' && !!k.keepsLeans && KNEEL_LEANS.has(w.id);
+  if (sings(a, b) || sings(b, a) || leans(a, b) || leans(b, a)) return false;
   const cs = channelsOf(b);
   return channelsOf(a).some((c) => cs.includes(c));
 }
@@ -321,7 +332,8 @@ const KNEEL_KEEPS: ReadonlyArray<readonly [string, string]> = [
  * lying and sleeping stay through gestures and expressions and end on another posture or a move of the whole
  * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh, tilt, droop,
  * blink) and ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
- * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS); the moves of a
+ * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS), and for one that
+ * leans kneeling (`keepsLeans`) so do 凑近, 后仰 and 晃来晃去 (KNEEL_LEANS); the moves of a
  * tail, ears or wings keep it as well. Given the figure's `vocab`, the kneel's note names only the head gestures and the
  * parts it has (a pack without 歪头 is not told it keeps one).
  */
@@ -331,6 +343,9 @@ export function lastingNote(v: VocabWord, vocab?: readonly VocabWord[]): string 
   const parts = APPENDAGES.filter((c) => !vocab || vocab.some((w) => w.kind === 'motion' && channelsOf(w).length === 1 && channelsOf(w)[0] === c));
   const keeps = ['换表情', ...KNEEL_KEEPS.filter(([id]) => !vocab || vocab.some((w) => w.id === id)).map(([, n]) => n),
     ...(parts.length ? [`${parts.map((c) => APPENDAGE_NAMES[c]).join('、')}的动作`] : [])].join('、');
+  if (v.keepsArms && v.keepsLeans) {
+    return `保持到下一个全身动作,然后变回普通坐着;${keeps}、只占「手」的手势、唱歌和凑近、后仰、晃来晃去都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着`;
+  }
   return v.keepsArms
     ? `保持到下一个全身动作,然后变回普通坐着;${keeps}、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着`
     : `保持到下一个手或全身动作,然后变回普通坐着;${keeps}不影响`;

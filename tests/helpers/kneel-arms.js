@@ -101,7 +101,8 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
       expect(M.WHOLE_POSES).toContain('kneelLow');
       expect(R0.ARM.kneelLow).toBeUndefined();
       expect(R0.W.kneelLow.parts.map(q => q.id)).toEqual(['kneel_low']);
-      expect(R0.W.kneelLow.parts.every(q => !R0.STANDING[q.id] && q.parent === 'kneelLow')).toBe(true);
+      // (on its turn, or on a warp of its own inside it for a tail drawn in: a figure's KNEEL_DRAWN)
+      expect(R0.W.kneelLow.parts.every(q => !R0.STANDING[q.id] && (q.parent === 'kneelLow' || R0.deformers[q.parent]?.parent === 'kneelLow'))).toBe(true);
       expect(R0.deformers.kneelLow.parent).toBeUndefined();
     });
 

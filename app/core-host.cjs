@@ -7,7 +7,8 @@
  * started again; an unexpected exit is restarted after 3 s, at most 5 times in 5 minutes, except one
  * before `companion:ready` that could not find a module or package on stderr (what a start meets while an update is
  * still writing the runtime's files), which waits longer each time (MISSING_MODULE_DELAYS_MS) without counting toward
- * that budget. A child that exits unasked before it is ready leaves the app's arguments, its parent PID and whether the
+ * that budget, and one that said another process holds the data directory's instance lock (`companion:locked`), which is
+ * not restarted: starting again would meet the same lock. A child that exits unasked before it is ready leaves the app's arguments, its parent PID and whether the
  * entry and tsx are on disk in the log. A start after the host gave up (`failed`) begins with a full budget. The next
  * child started after an unexpected exit gets its exit code or signal in `COOPANION_CORE_EXIT`, for
  * the usage statistics. Every start looks up the system proxy again (systemProxyEnvironment) and hands
@@ -76,6 +77,8 @@ class CoreHost extends EventEmitter {
     this.missingModuleExits = 0;
     /** Settles once the last child held after its exit while its last stderr lines are read is let go. */
     this.settling = Promise.resolve();
+    /** The child said another process holds the data directory's lock (`companion:locked`): its PID and the lock file. */
+    this.locked = null;
     /** Exit code or signal of the last child that exited unasked, not yet handed to a new one. */
     this.unexpectedExit = null;
     this.state = 'stopped';
@@ -125,6 +128,8 @@ class CoreHost extends EventEmitter {
         this.emit('state', this.state);
       } else if (msg?.type === 'cortico:ready') {
         this.dataDir = msg.dataDir;
+      } else if (msg?.type === 'companion:locked') {
+        this.locked = { pid: Number.isInteger(msg.pid) ? msg.pid : null, file: String(msg.file ?? '') };
       } else if (msg?.type === 'cortico:restart') {
         this.restartAsked = true;
       } else if (msg?.type === 'companion:open') {
@@ -151,6 +156,14 @@ class CoreHost extends EventEmitter {
         this.state = 'restarting';
         this.emit('state', this.state);
         void this.start();
+        return;
+      }
+      if (this.locked) {
+        // starting again would meet the same lock: the person ends that process, then restarts from the tray
+        const { pid, file } = this.locked;
+        this.locked = null;
+        this.state = 'failed';
+        this.emit('state', this.state, `另一个进程${pid ? `(PID ${pid})` : ''}正在使用 Coopanion 的数据,Core 没有启动。等它退出或手动结束它,再从托盘菜单选「重新启动」。锁文件:${file}`);
         return;
       }
       this.unexpectedExit = code ?? signal;

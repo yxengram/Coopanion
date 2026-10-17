@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CORE_DEFAULTS } from 'cortico/core/config.ts';
+import type { CoreConfig } from 'cortico/core/types.ts';
+import { loadDeployment } from 'cortico/deploy.ts';
 import { DEPLOYMENT, ENDPOINT, KEY_NAME, seed } from '../core/seed.ts';
 
 /** The self-description 0.1.1 seeded (0.1.0's after the rename). */
@@ -51,6 +54,20 @@ describe('first-run seed', () => {
     const cfg = read(join(home, DEPLOYMENT, 'config.json'));
     expect(cfg).not.toHaveProperty('worlds');
     expect(JSON.stringify(cfg)).not.toMatch(/figure|skin/);
+  });
+
+  // Cortico 0.1.11 (#205) stopped defaulting to Asia/Shanghai: with no timezone written, times the pet reads,
+  // alarms and timestamps follow the computer's time zone
+  it('pins no time zone, so the deployment follows the computer\'s', () => {
+    const home = mkdtempSync(join(tmpdir(), 'cc-seed-'));
+    seed(home);
+    expect(read(join(home, DEPLOYMENT, 'config.json'))).not.toHaveProperty('timezone');
+    expect(CORE_DEFAULTS.timezone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    // the README's way back to a fixed zone: a timezone written into the deployment's config.json
+    const cfg = join(home, DEPLOYMENT, 'config.json');
+    writeFileSync(cfg, JSON.stringify({ ...read(cfg), timezone: 'Asia/Shanghai' }));
+    const source = { defaults: () => structuredClone(CORE_DEFAULTS) as unknown as CoreConfig };
+    expect(loadDeployment(source, join(home, DEPLOYMENT), home, join(home, DEPLOYMENT), join(home, 'providers')).config.timezone).toBe('Asia/Shanghai');
   });
 
   it('leaves files the operator already has', () => {

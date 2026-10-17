@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('petHost', {
    * the page has loaded; never before the window was first shown (host/shown.cjs), so a page that hears nothing is shown.
    */
   onShown: (cb) => ipcRenderer.on('pet:shown', (_e, shown) => cb(!!shown)),
+  /** Whether a full screen window covers the window's display, each time that changes (Windows only; never said elsewhere). */
+  onFullscreen: (cb) => ipcRenderer.on('pet:fullscreen', (_e, on) => cb(!!on)),
   /** Whether the window hides itself while a fullscreen window covers its display. */
   hideWhenFullscreen: (on) => ipcRenderer.send('pet:hideWhenFullscreen', !!on),
   openDress: () => ipcRenderer.send('pet:openDress'),

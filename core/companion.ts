@@ -48,6 +48,7 @@ import { loadDeployment } from 'cortico/deploy.ts';
 import { loadExtensions, readInstalled, type ExtensionSet } from 'cortico/extensions.ts';
 import { deploymentRoot, providersRoot, repoRoot } from 'cortico/paths.ts';
 import { providerModules, registerProviderModules } from 'cortico/providers/registry.ts';
+import { InstanceLockedError } from 'cortico/core/instance-lock.ts';
 import { withWorlds, type WorldDefinition, type WorldSection } from 'cortico/world.ts';
 import { TERMINAL } from 'cortico/worlds/terminal/definition.ts';
 import { desktopPetDefinition, figureOf, figurePacks, type DesktopPetWorld } from 'cortico-world-desktop-pet';
@@ -59,6 +60,7 @@ import { askForKey, guideDone, markDone, runGuide, type GuideDeps } from './guid
 import { noticeDefinition, type NoticeWorld } from './notice.ts';
 import { CONSOLE_PORT, DEPLOYMENT, DISPLAY_NAME, SEED_DIR, seed } from './seed.ts';
 import { openRouterKey } from './decider-key.ts';
+import { presenceFrom, type PresenceReport } from './presence.ts';
 import { crashFields, describeEndpoint, publicExtensionName, reportedLook, Telemetry, type Counter } from './telemetry.ts';
 
 /** The active endpoint's key is set in the process environment or the endpoint's `.env`. */
@@ -387,6 +389,8 @@ export async function main(): Promise<void> {
   let notice: NoticeWorld | null = null;
   /** The introduction is running: the settings it makes are not told as changes. */
   let guiding = false;
+  /** Whether the person is at the computer, as the app last said (`companion:presence`), for the pet's small talk. */
+  let presence: PresenceReport | null = null;
   /** Rebuilds the system prefix once the bot has started (the pet's decider mode switched on or off). */
   let reloadPrefix: (() => Promise<void>) | null = null;
   const guideRun = async (deps: GuideDeps) => {
@@ -415,6 +419,9 @@ export async function main(): Promise<void> {
     onModeChange: () => { void reloadPrefix?.(); },
     onBotChange: () => (notice as NoticeWorld | null)?.acceptCurrent(),
     onSkin: (skin) => followPetLook(join(deploymentRoot(), DEPLOYMENT), skin, (pet as DesktopPetWorld | null)?.packs() ?? []),
+    // small talk: the app's report of the person at the computer, and the next wake-up Coo set for itself
+    presence: () => presence,
+    nextAlarmAt: () => (notice as NoticeWorld | null)?.nextAlarmAt() ?? null,
   });
   const CUA = cuaDefinition({
     askPermission: async (question) => {
@@ -503,7 +510,11 @@ export async function main(): Promise<void> {
   // without a key every model call fails: hold events until the home page saves one and resumes
   const keyMissing = !hasKey(loaded.config);
   if (keyMissing) bot.core.bus.setPaused(true);
-  const { port } = await bot.start();
+  const { port } = await bot.start().catch(async (err: unknown) => {
+    // another process holds the data directory: the app says which, rather than restarting this Core
+    if (err instanceof InstanceLockedError) await new Promise<void>((done) => { if (!process.send?.({ type: 'companion:locked', pid: err.pid, file: err.file }, () => done())) done(); });
+    throw err;
+  });
   reloadPrefix = () => bot.core.loop.reloadSystemPrefix().catch((err: unknown) => {
     bot.core.runlog.logger('process').emit('warn', '桌宠换模式后重建前缀失败', { event: 'pet-mode-reload', err });
   });
@@ -535,6 +546,7 @@ export async function main(): Promise<void> {
   const update = sayUpdates(loaded.config, () => pet, () => guiding);
   process.on('message', (msg: { type?: string } & Partial<UpdateStep>) => {
     if (msg?.type === 'companion:shutdown') void shutdown('应用退出');
+    else if (msg?.type === 'companion:presence') presence = presenceFrom(msg, Date.now()) ?? presence;
     else if (msg?.type === 'companion:update' && typeof msg.version === 'string' && (msg.phase === 'downloading' || msg.phase === 'ready' || msg.phase === 'failed')) {
       update({ phase: msg.phase, version: msg.version, reason: typeof msg.reason === 'string' ? msg.reason : undefined });
     }

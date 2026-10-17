@@ -11,6 +11,8 @@
  * and the timeout; it shows whether an OpenRouter key
  * is there (never the key) and the lamp's state, and a key typed in is saved as the `openrouter` endpoint's key
  * (`saveVendorKey`: the endpoint is created or updated, not made active).
+ * The 「主动闲聊」 card writes `smallTalk` (src/smalltalk.ts in the World; off by default): the switch, how often
+ * (少/中/多 = at least 2 h / 1 h / 30 min apart) and the quiet hours.
  */
 import { ICONS } from 'cortico-world-desktop-pet/web/ui.js';
 import { saveVendorKey } from 'cortico-provider-coo/src/connect.ts';
@@ -44,7 +46,14 @@ const KEYS = {
   deciderOn: `${K}.decider.enabled`,
   deciderModel: `${K}.decider.model`,
   deciderTimeout: `${K}.decider.timeoutMs`,
+  smallTalk: `${K}.smallTalk.enabled`,
+  smallTalkFreq: `${K}.smallTalk.frequency`,
+  quietFrom: `${K}.smallTalk.quietFrom`,
+  quietTo: `${K}.smallTalk.quietTo`,
 } as const;
+
+/** What the World's `pet.state` says of small talk (`smallTalkState`). */
+interface SmallTalkState { enabled?: boolean; presence?: boolean; why?: string | null }
 
 /** A decision model as the World's `pet.deciders` lists it (src/decider.ts DeciderModel). */
 interface DeciderModel { id: string; name?: string; promptPerM: number | null; context: number | null }
@@ -106,6 +115,16 @@ const S = pick({
     selfAdjust: '允许 Coo 自己调整',
     selfAdjustHint: 'Coo 可以自己换形象和装扮、改走动多少;改音效、大小、黑白模式、悬停按钮和对你的称呼前会先问你。关掉后这些它都改不了。',
     actions: { chat: '打字', voice: '语音输入', roam: '行为模式', theme: '夜间模式', sound: '音效', dress: '装扮', hide: '隐藏桌宠' } as Record<string, string>,
+    smallTalkTitle: '主动闲聊',
+    smallTalk: '让 Coo 主动找你聊几句',
+    smallTalkHint: '默认关。打开后,你在电脑前却有一阵没和 Coo 说话,或者离开一会儿刚回来时,Coo 可能主动搭一两句:打个招呼、聊聊这个时间、接着之前的话题、提醒你喝水休息;也可能觉得没什么好说,就不出声。每次尝试都是一次模型调用,不出声也算。Coo 被隐藏或暂停、在安静或睡着、有全屏窗口(只有 Windows 判得出;macOS 和 Linux 上全屏演示、游戏时它也可能开口)、你正在打字或刚聊过、免打扰时段里都不会。',
+    smallTalkFreq: '多久一次',
+    freqLow: '少', freqMid: '中', freqHigh: '多',
+    smallTalkFreqHint: '少:两次至少隔 2 小时;中:1 小时;多:30 分钟。离上次聊天也至少隔这么久;刚回到电脑前的招呼不受这一条限制。',
+    quietHours: '免打扰',
+    quietTo: '到',
+    quietHint: '这段时间里不主动闲聊,可以跨午夜;两个时间一样就是不设。',
+    noPresence: '没有收到电脑空闲时间的报告(或已经超过 2 分钟没更新),现在不会主动闲聊。',
     saved: '已保存',
     saveFailed: (why: string) => `没保存上:${why}`,
     deciderTitle: '表情决策',
@@ -178,6 +197,16 @@ const S = pick({
     selfAdjust: 'Let Coo adjust itself',
     selfAdjustHint: 'Coo may change its own figure, dress and how much it walks; it asks you before changing sounds, size, night or day look, hover buttons or what it calls you. When off, it can change none of these.',
     actions: { chat: 'Type', voice: 'Voice input', roam: 'Walking', theme: 'Night mode', sound: 'Sounds', dress: 'Dress up', hide: 'Hide pet' } as Record<string, string>,
+    smallTalkTitle: 'Small talk',
+    smallTalk: 'Let Coo start a chat now and then',
+    smallTalkHint: "Off by default. On: when you are at the computer but haven't talked to Coo for a while, or have just come back, Coo may say a line or two — a hello, something about the time of day, a follow-up on what you said earlier, a nudge to drink water or take a break — or keep quiet if it has nothing to say. Each attempt is one model call, even one where Coo stays quiet. Never while Coo is hidden or paused, keeping quiet or asleep, a window is full screen (only Windows can tell; on macOS and Linux it may speak over a full-screen presentation or game), you are typing or have just talked, or in quiet hours.",
+    smallTalkFreq: 'How often',
+    freqLow: 'Rarely', freqMid: 'Sometimes', freqHigh: 'Often',
+    smallTalkFreqHint: 'Rarely: at least 2 hours apart; sometimes: 1 hour; often: 30 minutes. Also at least that long since you last talked, except for a hello when you come back.',
+    quietHours: 'Quiet hours',
+    quietTo: 'to',
+    quietHint: 'No small talk in this window, which may wrap past midnight; the same time twice means none.',
+    noPresence: "No report of how long the computer has been idle has come in (or none for over 2 minutes), so there is no small talk now.",
     saved: 'Saved',
     saveFailed: (why: string) => `Not saved: ${why}`,
     deciderTitle: 'Expression decisions',
@@ -301,6 +330,38 @@ async function mount(ctx: FeatureContext): Promise<void> {
     msg,
   );
   root.append(habits.el);
+
+  /* ---------- small talk ---------- */
+  const talk = ui.sheet({ title: S.smallTalkTitle });
+  const talkMsg = ui.msgline('');
+  const smallTalk = ui.checkbox(S.smallTalk, { onChange: (on) => { void save(KEYS.smallTalk, on, GROUP, talkMsg); renderTalk(); } });
+  const smallTalkFreq = ui.segmented([
+    { value: 'low', label: S.freqLow }, { value: 'mid', label: S.freqMid }, { value: 'high', label: S.freqHigh },
+  ], { size: 'sm', onSelect: (v) => void save(KEYS.smallTalkFreq, v, GROUP, talkMsg) });
+  const quietFrom = ui.input();
+  quietFrom.type = 'time';
+  const quietTo = ui.input();
+  quietTo.type = 'time';
+  const quietBox = ui.h('div', 'companion-rangebox');
+  quietBox.append(quietFrom, ui.h('span', 'companion-rangeval', S.quietTo), quietTo);
+  const talkStatus = ui.h('p', 'home-note', '');
+  for (const [box, key] of [[quietFrom, KEYS.quietFrom], [quietTo, KEYS.quietTo]] as const) {
+    box.addEventListener('change', () => {
+      if (!/^\d{2}:\d{2}$/.test(box.value)) { box.value = box.dataset.saved ?? ''; return; }
+      if (box.value !== box.dataset.saved) { box.dataset.saved = box.value; void save(key, box.value, GROUP, talkMsg); }
+    });
+  }
+  // the quiet hours only matter while it is on
+  const renderTalk = () => { quietFrom.disabled = quietTo.disabled = !smallTalk.checked; };
+  const renderTalkState = (t: SmallTalkState | undefined) => { talkStatus.textContent = t?.enabled && t.presence === false ? S.noPresence : ''; };
+  talk.body.append(
+    row('', smallTalk.el, S.smallTalkHint),
+    row(S.smallTalkFreq, smallTalkFreq.el, S.smallTalkFreqHint),
+    row(S.quietHours, quietBox, S.quietHint),
+    talkStatus,
+    talkMsg,
+  );
+  root.append(talk.el);
 
   /* ---------- sounds ---------- */
   const sounds = ui.sheet({ title: S.soundTitle });
@@ -480,7 +541,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
       deciderTimeout.value = String(deciderValues[KEYS.deciderTimeout]);
       deciderTimeout.dataset.saved = deciderTimeout.value;
     }
-    void post<{ decider?: DeciderState }>(panelPath('state'), { args: [] }, opts).then((st) => renderDecider(st?.decider)).catch(() => {});
+    void post<{ decider?: DeciderState; smallTalk?: SmallTalkState }>(panelPath('state'), { args: [] }, opts).then((st) => { renderDecider(st?.decider); renderTalkState(st?.smallTalk); }).catch(() => {});
     const active = document.activeElement;
     if (typeof values[KEYS.user] === 'string' && active !== user) {
       user.value = values[KEYS.user] as string;
@@ -504,6 +565,13 @@ async function mount(ctx: FeatureContext): Promise<void> {
     if (typeof values[KEYS.remember] === 'boolean') remember.setChecked(values[KEYS.remember] as boolean);
     if (typeof values[KEYS.dblclick] === 'boolean') dblclick.setChecked(values[KEYS.dblclick] as boolean);
     if (typeof values[KEYS.selfAdjust] === 'boolean') selfAdjust.setChecked(values[KEYS.selfAdjust] as boolean);
+    if (typeof values[KEYS.smallTalk] === 'boolean') smallTalk.setChecked(values[KEYS.smallTalk] as boolean);
+    renderTalk();
+    if (typeof values[KEYS.smallTalkFreq] === 'string') smallTalkFreq.setValue(values[KEYS.smallTalkFreq] as string);
+    for (const [box, key] of [[quietFrom, KEYS.quietFrom], [quietTo, KEYS.quietTo]] as const) {
+      const v = values[key];
+      if (typeof v === 'string' && active !== box) { box.value = /^\d:/.test(v) ? `0${v}` : v; box.dataset.saved = box.value; }
+    }
     if (typeof values[KEYS.hover] === 'string') {
       picked = (values[KEYS.hover] as string).split(',').map((x) => x.trim()).filter((x) => ACTIONS.some(([a]) => a === x));
       renderHover();

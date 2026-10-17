@@ -58,6 +58,32 @@ function rgbaOf(url) {
   }
   return { w, h, px };
 }
+/**
+ * A part drawn into a floor drawing (`P`, turned `deg` by drawnTurn) as the rig draws it: the warp is taken at the mesh's
+ * vertices (`part`'s box and grid) and runs linear over its triangles. Over the opaque texels of its texture (`tex`: { w, h, a }
+ * alpha): how deep any that starts outside its `keep` lands inside one (`deep`), how far the furthest moves (`most`),
+ * and how far any inside a keep drifts with a cell it shares with moving vertices (`drift`).
+ */
+function drawnAsDrawn(P, deg, part, { w, h, a }) {
+  const [bx, by, bw, bh] = part.box, [nx, ny] = part.grid, keeps = Array.isArray(P.keep[0]) ? P.keep : [P.keep];
+  const inK = (x, y) => Math.max(0, ...keeps.map(k => Math.min(x - k[0], k[2] - x, y - k[1], k[3] - y)));
+  const D = [];
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) D.push(drawnTurn(P, deg, bx + bw * i / nx, by + bh * j / ny));
+  let deep = 0, most = 0, drift = 0;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    if (a[j * w + i] < 40) continue;
+    const u = (i + .5) / w * nx, v = (j + .5) / h * ny, ci = Math.min(Math.floor(u), nx - 1), cj = Math.min(Math.floor(v), ny - 1);
+    const fu = u - ci, fv = v - cj, n0 = cj * (nx + 1) + ci, A = D[n0], B = D[n0 + 1], C = D[n0 + nx + 1], E = D[n0 + nx + 2];
+    const d = fu + fv <= 1 ? [0, 1].map(q => A[q] + fu * (B[q] - A[q]) + fv * (C[q] - A[q])) : [0, 1].map(q => E[q] + (1 - fu) * (C[q] - E[q]) + (1 - fv) * (B[q] - E[q]));
+    const m = Math.hypot(d[0], d[1]);
+    if (!m) continue;
+    const x = bx + (i + .5) * bw / w, y = by + (j + .5) * bh / h;
+    if (inK(x, y) > 0) { drift = Math.max(drift, m); continue; }
+    most = Math.max(most, m);
+    deep = Math.max(deep, inK(x + d[0], y + d[1]));
+  }
+  return { deep, most, drift };
+}
 const inside = ([x, y], [x0, y0, x1, y1], m = 0) => x >= x0 - m && x <= x1 + m && y >= y0 - m && y <= y1 + m;
 const rectOf = b => [b[0], b[1], b[0] + b[2], b[1] + b[3]];
 const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
@@ -1909,6 +1935,20 @@ describe('Grok-chan: a head gesture beside the arms\' one, kneeling, and faces m
     expect(Math.hypot(...drawnTurn(L, 10, ...tip))).toBeGreaterThan(Math.hypot(...drawnTurn(L, 10, ...L.path[1])));
     expect(LIE_PARTS.beat).toBeGreaterThan(0);
     expect(R0.deformers.lieParts.rect).toEqual(LIE_DRAWN.box.map((v, i) => (i < 2 ? v : v + LIE_DRAWN.box[i - 2])));
+  });
+
+  it('beats the wings drawn into her lying drawing without moving a texel into what lies against them (their `keep`), as drawn', () => {
+    // (the mesh draws a moving wing over its neighbour: a texel crossing into a kept rect covers what lies there)
+    const { w, h, px } = rgbaOf(new URL('tex/lie_body.png', DIR)), a = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) a[i] = px[i * 4 + 3];
+    const part = R0.W.lie.parts.find(p => p.id === 'lie_body'), ends = [LIE_PARTS.lift - LIE_PARTS.beat, LIE_PARTS.lift + LIE_PARTS.beat];
+    // (the right wing turns the other way: wingL at the beat, wingR at minus it)
+    for (const [key, sign] of [['wingL', 1], ['wingR', -1]]) for (const e of ends) {
+      const { deep, most, drift } = drawnAsDrawn(LIE_DRAWN[key], sign * e, part, { w, h, a });
+      expect(deep, `${key} at ${sign * e}°`).toBeLessThan(.25);
+      expect(drift, `${key} at ${sign * e}°`).toBeLessThan(.5);
+      if (Math.abs(e) > 6) expect(most, `${key} at ${sign * e}°`).toBeGreaterThan(3);
+    }
   });
 });
 

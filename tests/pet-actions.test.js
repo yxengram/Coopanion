@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, KNEEL_LEANS, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS, TONES } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
@@ -2481,6 +2481,45 @@ describe('an asked-for face outlives the motions after it (plus)', () => {
     expect(plain.pet.kneel).toBe(false);
   });
 
+  it('a figure that leans kneeling (kneelLeans, the whale) keeps a kneel through closer, leanback and sway; others end it', () => {
+    for (const w of KNEEL_LEANS) {
+      // the girls (kneelArms only) still sit up for a lean, as upstream
+      const girl = barePet();
+      girl.setFigure({ kneelArms: true, draw() {} });
+      run(girl, 1);
+      girl.act('kneel');
+      run(girl, 1);
+      expect(girl.act(w), w).toBe(true);
+      expect(girl.pet.kneel, w).toBe(false);
+      // the whale keeps kneeling and plays the lean (the pulse) on her kneeling upper body
+      const whale = barePet();
+      whale.setFigure({ kneelArms: true, kneelLeans: true, draw() {} });
+      run(whale, 1);
+      whale.act('kneel');
+      run(whale, 1);
+      expect(whale.act(w), w).toBe(true);
+      expect(whale.pet.pulse?.kind, w).toBe(w);
+      run(whale, 3);
+      expect(whale.pet.kneel, w).toBe(true);
+      expect(whale.pet.mode, w).toBe('sit');
+      // and as one group from standing (the World groups 跪坐+凑近 for a kneel word with keepsLeans)
+      const group = barePet();
+      group.setFigure({ kneelArms: true, kneelLeans: true, draw() {} });
+      run(group, 1);
+      expect(group.doGroup(['kneel', w]), w).toEqual([true, true]);
+      run(group, 3);
+      expect(group.pet.kneel, w).toBe(true);
+    }
+    // a bow still gets her up
+    const bow = barePet();
+    bow.setFigure({ kneelArms: true, kneelLeans: true, draw() {} });
+    run(bow, 1);
+    bow.act('kneel');
+    run(bow, 1);
+    bow.act('bow');
+    expect(bow.pet.kneel).toBe(false);
+  });
+
   it('a face no longer cuts a look round short (it still ends one on a body without plus)', () => {
     for (const plus of [true, false]) {
       const pet = barePet(undefined, { plus });
@@ -3157,7 +3196,7 @@ describe('two faces of one group shown as one (plus)', () => {
     expect(maps['grok-chan']).toEqual(maps['claude-chan']);
     // the whitelists as judged: Coo the fewest, the girls the most
     expect(Object.keys(maps.coo).length).toBe(24);
-    expect(Object.keys(maps.whale).length).toBe(106);
+    expect(Object.keys(maps.whale).length).toBe(122);
     expect(Object.keys(maps['claude-chan']).length).toBe(136);
   });
 });

@@ -250,9 +250,9 @@ export function drawnTurn(spec, a, x, y) {
     run += len;
   }
   const s = at / run, half = lerp(spec.r[0], spec.r[1], s * s);
-  // (what lies against it in the drawing, `keep` [x0, y0, x1, y1], stays put, fading in over `band`)
+  // (what lies against it in the drawing, `keep` [x0, y0, x1, y1], stays put, fading in over `keepBand` or else `band`)
   const k = spec.keep, out = k ? Math.max(k[0] - x, x - k[2], k[1] - y, y - k[3]) : Infinity;
-  const w = (1 - smooth(half, half + spec.band, best)) * s ** 1.5 * smooth(0, spec.band, out);
+  const w = (1 - smooth(half, half + spec.band, best)) * s ** 1.5 * smooth(0, spec.keepBand ?? spec.band, out);
   if (!w || !a) return [0, 0];
   const r = a * w * Math.PI / 180, c = Math.cos(r) - 1, sn = Math.sin(r), dx = x - rx, dy = y - ry;
   return [dx * c - dy * sn, dx * sn + dy * c];

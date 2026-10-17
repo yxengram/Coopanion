@@ -10,7 +10,7 @@ import {
   tailField, WHOLE_POSES, WING, wingStates, liveAnchors, ARM_TWIN, armPoseOf, NECK_POSES,
 } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { createFacePainter, DRAWN_SHUT, MOUTHS, planFace, TALK_SHAPES } from '../packages/cortico-world-desktop-pet/web/gpt-chan/face.js';
-import { appendagesOf, drawnTurn, LIE_DRAWN, WINGBEAT, gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
+import { appendagesOf, drawnFits, drawnTail, drawnTurn, KNEEL_DRAWN, LIE_DRAWN, LIE_PARTS, SIT_DRAWN, WINGBEAT, gesturesOf, HEAD_PITCH, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/gpt-chan/fx.js';
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
@@ -56,6 +56,32 @@ function alphaOf(url) {
   }
   for (let i = 0; i < w * h; i++) a[i] = px[i * 4 + 3];
   return { w, h, a };
+}
+/**
+ * A part drawn into a floor drawing (`P`, turned `deg` by drawnTurn) as the rig draws it: the warp is taken at the mesh's
+ * vertices (`part`'s box and grid) and runs linear over its triangles. Over the opaque texels of its texture (`tex`, an
+ * alphaOf): how deep any that starts outside its `keep` lands inside one (`deep`), how far the furthest moves (`most`),
+ * and how far any inside a keep drifts with a cell it shares with moving vertices (`drift`).
+ */
+function drawnAsDrawn(P, deg, part, { w, h, a }) {
+  const [bx, by, bw, bh] = part.box, [nx, ny] = part.grid, keeps = Array.isArray(P.keep[0]) ? P.keep : [P.keep];
+  const inK = (x, y) => Math.max(0, ...keeps.map(k => Math.min(x - k[0], k[2] - x, y - k[1], k[3] - y)));
+  const D = [];
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) D.push(drawnTurn(P, deg, bx + bw * i / nx, by + bh * j / ny));
+  let deep = 0, most = 0, drift = 0;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    if (a[j * w + i] < 40) continue;
+    const u = (i + .5) / w * nx, v = (j + .5) / h * ny, ci = Math.min(Math.floor(u), nx - 1), cj = Math.min(Math.floor(v), ny - 1);
+    const fu = u - ci, fv = v - cj, n0 = cj * (nx + 1) + ci, A = D[n0], B = D[n0 + 1], C = D[n0 + nx + 1], E = D[n0 + nx + 2];
+    const d = fu + fv <= 1 ? [0, 1].map(q => A[q] + fu * (B[q] - A[q]) + fv * (C[q] - A[q])) : [0, 1].map(q => E[q] + (1 - fu) * (C[q] - E[q]) + (1 - fv) * (B[q] - E[q]));
+    const m = Math.hypot(d[0], d[1]);
+    if (!m) continue;
+    const x = bx + (i + .5) * bw / w, y = by + (j + .5) * bh / h;
+    if (inK(x, y) > 0) { drift = Math.max(drift, m); continue; }
+    most = Math.max(most, m);
+    deep = Math.max(deep, inK(x + d[0], y + d[1]));
+  }
+  return { deep, most, drift };
 }
 /** Sizes of the connected regions where `on(i)` holds (8-connected, or 4-), and whether each touches the border. */
 function regions({ w, h }, on, eight = true) {
@@ -1458,7 +1484,8 @@ describe('GPT-chan: a head gesture beside the arms\' one, kneeling, and faces ma
 
   it('nods, shakes and sighs kneeling: the kneeling drawing\'s head moves, its sides and bottom and the knees stay', () => {
     const w = watched(), R = w.R;
-    expect(R.W.kneel.parts.every(p => p.parent === 'kneelHead')).toBe(true);
+    // (on the head's warp, or on the drawn tail's warp inside it: KNEEL_DRAWN)
+    expect(R.W.kneel.parts.every(p => p.parent === 'kneelHead' || R.deformers[p.parent]?.parent === 'kneelHead')).toBe(true);
     const [x0, y0, x1, y1] = R.deformers.kneelHead.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     /** How far the head's warp moves rest point (x, y) this frame. */
     const off = (x, y) => {
@@ -1824,7 +1851,7 @@ describe('GPT-chan: a head gesture beside the arms\' one, kneeling, and faces ma
       // lying: the wing drawn into the lying drawing turns about its root; nothing far from it moves
       w.pet.doWord('lie'); run(w.pet, 3);
       // (a point of the wing off her shin, which stays: LIE_DRAWN.wing.keep)
-      const [wx, wy] = [90, 180];
+      const [wx, wy] = [88, 186];
       expect(drawnTurn(LIE_DRAWN.wing, 10, 66, 180)).toEqual([0, 0]);
       const drawn = (x, y) => { const f = w.seen.last.st.lieParts?.fn; return f ? f(0, 0, x, y) : [0, 0]; };
       expect(drawn(wx, wy)).toEqual([0, 0]);
@@ -1833,6 +1860,113 @@ describe('GPT-chan: a head gesture beside the arms\' one, kneeling, and faces ma
       expect(drawn(200, 150)).toEqual([0, 0]);
       expect(w.seen.bad).toEqual([]);
     } finally { rand.mockRestore(); }
+  });
+
+  it('wags the tail drawn into her seated, kneeling (and the hybrid\'s) and lying drawings (摇尾巴), on a finer mesh; nothing beside it moves', () => {
+    // the warps sit between each drawing and its own deformer, over its box, on the drawings measured
+    const rectOf = b => [b[0], b[1], b[0] + b[2], b[1] + b[3]];
+    const at = (W, id) => R0.W[W].parts.find(p => p.id === id);
+    for (const [W, id, warp, under, spec] of [['sit', 'sit_skirt', 'sitParts', 'sitBase', SIT_DRAWN], ['kneel', 'kneel_body', 'kneelParts', 'kneelHead', KNEEL_DRAWN],
+      ['kneelLow', 'kneel_low', 'kneelLowParts', 'kneelLow', KNEEL_DRAWN], ['lie', 'lie_body', 'lieParts', 'lieLegs', LIE_DRAWN]]) {
+      const p = at(W, id);
+      expect(drawnFits(spec, p.box), id).toBe(true);
+      expect(p.parent, id).toBe(warp);
+      expect(R0.deformers[warp], id).toEqual({ kind: 'warp', parent: under, rect: rectOf(p.box) });
+      if (spec.grid) expect(p.grid.every((n, i) => n >= spec.grid[i]), id).toBe(true);
+    }
+    // (the lying drawing keeps its mesh; a drawing on another box keeps its parent and its mesh)
+    expect(at('lie', 'lie_body').grid).toEqual(real.poses.lie.required.find(p => p.id === 'lie_body').grid);
+    const moved = JSON.parse(JSON.stringify(real));
+    for (const k of ['sit', 'kneel', 'kneelLow']) for (const p of moved.poses[k].required) p.box = [p.box[0] + 3, ...p.box.slice(1)];
+    const R1 = buildRig(moved);
+    expect(['sitParts', 'kneelParts', 'kneelLowParts'].filter(d => R1.deformers[d])).toEqual([]);
+    expect(R1.W.sit.parts.find(p => p.id === 'sit_skirt')).toMatchObject({ parent: 'sitBase', grid: [10, 6] });
+    // (no wag, no turn: the drawing at rest is the drawing)
+    expect(drawnTail(SIT_DRAWN, 0, 1.3)).toBe(0);
+
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    try {
+      const w = watched();
+      const field = warp => (x, y) => { const f = w.seen.last.st[warp]?.fn; return f ? f(0, 0, x, y) : [0, 0]; };
+      /** Over `sec`, the tail tip's widest swing (rig units), and the most any of `still` moved. */
+      const watch = (sec, warp, tip, still, each = () => {}) => {
+        const f = field(warp), xs = [], ys = [];
+        let most = 0;
+        for (let i = 0; i < sec * 60; i++) {
+          run(w.pet, 1 / 60);
+          const d = f(...tip); xs.push(d[0]); ys.push(d[1]);
+          for (const q of still) most = Math.max(most, ...f(...q).map(Math.abs));
+          each(f);
+        }
+        return { swing: Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)), most };
+      };
+      const mid = r => [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2];
+      run(w.pet, 1);
+      // seated: the loop on the floor rocks up off it (never down through it) about where it touches; her skirt and shoes
+      // stay, and so does its pointed tip between them and the floor
+      w.pet.doWord('sit'); run(w.pet, 3);
+      expect(w.seen.last.st.alpha.sit_skirt).toBe(1);
+      expect(w.seen.last.st.sitParts).toEqual({});
+      expect(w.pet.act('wag')).toBe(true);
+      run(w.pet, .3);
+      const T = SIT_DRAWN.tail, lowRight = T.path[1];
+      let down = 0;
+      const sat = watch(1.2, 'sitParts', T.path.at(-1), [mid(T.keep), [80, 240], [128, 200]], f => { down = Math.max(down, f(...lowRight)[1]); });
+      expect(sat.swing).toBeGreaterThan(4);
+      expect(sat.most).toBe(0);
+      expect(down).toBeLessThan(1e-9);
+      expect(watch(1.2, 'sitParts', T.path.at(-1), [[156, 245], [165, 252], [146, 248], [150, 236]]).most).toBe(0);
+      expect(w.o.mode).toBe('sit');
+      run(w.pet, 2.5);
+      expect(w.seen.last.st.sitParts).toEqual({});
+      // kneeling: the curl beside her sways about its foot; her hair, wing and skirt by it stay, and so does her face
+      w.pet.doWord('kneel'); run(w.pet, 3);
+      expect(w.seen.last.st.alpha.kneel_body).toBe(1);
+      expect(w.seen.last.st.kneelParts).toEqual({});
+      w.pet.act('wag'); run(w.pet, .3);
+      const K = KNEEL_DRAWN.tail;
+      const knelt = watch(1.2, 'kneelParts', K.path.at(-1), [mid(K.keep[0]), mid(K.keep[1]), [128, 100], [100, 240]]);
+      expect(knelt.swing).toBeGreaterThan(4);
+      expect(knelt.most).toBe(0);
+      expect(w.o.kneel).toBe(true);
+      expect(w.motion.kneelArmsK).toBe(0);
+      run(w.pet, 2.5);
+      expect(w.seen.last.st.kneelParts).toEqual({});
+      // kneeling as the hybrid (her live upper body, here for a wingbeat, over the drawing's lower body): the tail in that
+      // lower body wags the same
+      w.pet.doWord('kneel'); run(w.pet, 3);
+      w.pet.act('wingbeat'); w.pet.act('wag'); run(w.pet, .3);
+      expect(w.motion.kneelArmsK).toBe(1);
+      expect(watch(.6, 'kneelLowParts', K.path.at(-1), [mid(K.keep[1])]).swing).toBeGreaterThan(4);
+      run(w.pet, 3);
+      // lying: the curl of it behind her legs lifts and drops; her raised shin and her body stay
+      w.pet.doWord('lie'); run(w.pet, 4);
+      w.pet.act('wag'); run(w.pet, .3);
+      const L = LIE_DRAWN.tail, lay = watch(1.2, 'lieParts', L.path.at(-1), [[66, 170], [110, 230], [180, 170]]);
+      expect(lay.swing).toBeGreaterThan(2.5);
+      expect(lay.most).toBe(0);
+      expect(w.seen.bad).toEqual([]);
+    } finally { rand.mockRestore(); }
+  });
+
+  it('never moves a drawn part\'s texels into what lies against it (its `keep`) at either end of its swing, as drawn', () => {
+    // (the mesh draws the moving part over its neighbour: a texel crossing into a kept rect covers what lies there; a kept
+    // one sharing a cell with moving vertices smears; measured as the rig draws it, at its mesh's vertices)
+    const cases = [['sit', SIT_DRAWN, 'tail', ['sit_skirt']], ['kneel', KNEEL_DRAWN, 'tail', ['kneel_body']], ['kneelLow', KNEEL_DRAWN, 'tail', ['kneel_low']],
+      ['lie', LIE_DRAWN, 'tail', ['lie_body']], ['lie', LIE_DRAWN, 'wing', ['lie_body']]];
+    const ends = (spec, key) => key === 'wing' ? [LIE_PARTS.lift - LIE_PARTS.beat, LIE_PARTS.lift + LIE_PARTS.beat] : [spec.tail.lift - spec.tail.swing, spec.tail.lift + spec.tail.swing];
+    for (const [W, spec, key, ids] of cases) {
+      for (const id of ids) {
+        const part = R0.W[W].parts.find(p => p.id === id), tex = alphaOf(new URL(`tex/${id}.png`, DIR));
+        for (const deg of ends(spec, key)) {
+          const { deep, most, drift } = drawnAsDrawn(spec[key], deg, part, tex);
+          expect(deep, `${id} ${key} at ${deg}°`).toBeLessThan(.25);
+          expect(drift, `${id} ${key} at ${deg}°`).toBeLessThan(.5);
+          // (and it still moves, visibly)
+          if (Math.abs(deg) > 3) expect(most, `${id} ${key} at ${deg}°`).toBeGreaterThan(3);
+        }
+      }
+    }
   });
 
   it('takes 摇尾巴 and 扇翅膀 from the gesture when the kit has no slot for them (upstream\'s); a drawn part bends from its root', () => {

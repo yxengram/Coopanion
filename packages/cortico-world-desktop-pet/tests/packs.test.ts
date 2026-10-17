@@ -237,6 +237,9 @@ describe('figure packs', () => {
     // the whale and the four girls draw arm gestures kneeling (keepsArms); Coo does not
     for (const v of [whale!, claude!, gpt!, gemini!, grok!]) expect(v.filter((w) => w.keepsArms).map((w) => w.id)).toEqual(['kneel']);
     expect(coo!.some((w) => w.keepsArms)).toBe(false);
+    // only the whale leans in, leans back and sways kneeling (keepsLeans, the kit's figure.kneelLeans)
+    expect(whale!.filter((w) => w.keepsLeans).map((w) => w.id)).toEqual(['kneel']);
+    for (const v of [coo!, claude!, gpt!, gemini!, grok!]) expect(v.some((w) => w.keepsLeans)).toBe(false);
     expect(coo!.find((w) => w.id === 'petrify')!.seconds).toBe(3.2);
   });
 
@@ -246,6 +249,14 @@ describe('figure packs', () => {
     expect(vocabOf({ lasting: true, keepsArms: 'yes' })).not.toHaveProperty('keepsArms');
     expect(vocabOf({ lasting: true, keepsArms: 1 })).not.toHaveProperty('keepsArms');
     expect(vocabOf({ keepsArms: true })).not.toHaveProperty('keepsArms');
+  });
+
+  it('reads keepsLeans only as true on a lasting word', () => {
+    const vocabOf = (w: Record<string, unknown>) => { const m = readManifest(pack({ ...base, vocab: [{ ...word, ...w }] })); if (typeof m === 'string') throw new Error(m); return m.vocab[0]; };
+    expect(vocabOf({ lasting: true, keepsLeans: true })).toMatchObject({ lasting: true, keepsLeans: true });
+    expect(vocabOf({ lasting: true, keepsArms: true, keepsLeans: true })).toMatchObject({ lasting: true, keepsArms: true, keepsLeans: true });
+    expect(vocabOf({ lasting: true, keepsLeans: 'yes' })).not.toHaveProperty('keepsLeans');
+    expect(vocabOf({ keepsLeans: true })).not.toHaveProperty('keepsLeans');
   });
 
   it('refuses a word name a script could never write: a marker\'s separator in it, longer than an inline marker, or naming two words', () => {
@@ -333,7 +344,7 @@ describe('pairs of expressions shown as one face', () => {
   it('the built-ins read with their judged pairs (the four girls the same, the whale fewer, Coo the fewest)', () => {
     const by = Object.fromEntries(figurePacks([]).packs.map((p) => [p.id, p.manifest.pairs]));
     const n = (id: string) => Object.keys(by[id]).length;
-    expect([n('coo'), n('whale'), n('claude-chan'), n('gpt-chan'), n('gemini-chan'), n('grok-chan')]).toEqual([24, 106, 136, 136, 136, 136]);
+    expect([n('coo'), n('whale'), n('claude-chan'), n('gpt-chan'), n('gemini-chan'), n('grok-chan')]).toEqual([24, 122, 136, 136, 136, 136]);
     expect(by['gpt-chan']).toEqual(by['claude-chan']);
     expect(by['gemini-chan']).toEqual(by['claude-chan']);
     expect(by['grok-chan']).toEqual(by['claude-chan']);

@@ -246,12 +246,19 @@ export function drawnTurn(spec, a, x, y) {
     run += len;
   }
   const s = at / run, half = lerp(spec.r[0], spec.r[1], s * s);
-  // (what lies against it in the drawing, `keep` [x0, y0, x1, y1], stays put, fading in over `band`)
-  const k = spec.keep, out = k ? Math.max(k[0] - x, x - k[2], k[1] - y, y - k[3]) : Infinity;
-  const w = (1 - smooth(half, half + spec.band, best)) * s ** 1.5 * smooth(0, spec.band, out);
+  // (what lies against it in the drawing, `keep` [x0, y0, x1, y1] or a list of them, stays put, fading in over `keepBand` or else `band`)
+  const out = keepOut(spec.keep, x, y);
+  const w = (1 - smooth(half, half + spec.band, best)) * s ** 1.5 * smooth(0, spec.keepBand ?? spec.band, out);
   if (!w || !a) return [0, 0];
   const r = a * w * Math.PI / 180, c = Math.cos(r) - 1, sn = Math.sin(r), dx = x - rx, dy = y - ry;
   return [dx * c - dy * sn, dx * sn + dy * c];
+}
+/** How far (x, y) lies outside the `keep` rect (or the nearest of a list of them): Infinity without one, ≤ 0 inside. */
+function keepOut(k, x, y) {
+  if (!k) return Infinity;
+  let out = Infinity;
+  for (const r of Array.isArray(k[0]) ? k : [k]) out = Math.min(out, Math.max(r[0] - x, x - r[2], r[1] - y, y - r[3]));
+  return out;
 }
 /** The warp over a floor drawing turning its drawn parts: `turns` maps a part of `drawn` to its degrees (+ clockwise). */
 export function drawnField(drawn, turns) {
@@ -264,16 +271,60 @@ export function drawnField(drawn, turns) {
 }
 /**
  * Lying, the parts drawn into the lying drawing that her words move (its lie_body is one texture, so a warp over it,
- * `lieParts`, drawnField): the wing over her back (扇翅膀). Her tail lies along the floor under her legs and stays.
- * Measured on lie_body.png at `box`: a drawing on another box (redrawn, another pack) leaves it still.
+ * `lieParts`, drawnField): the wing over her back (扇翅膀) and the curl of her tail on the floor behind her legs (摇尾巴,
+ * drawnTail). Measured on lie_body.png at `box`: a drawing on another box (redrawn, another pack) leaves them still.
  */
 export const LIE_DRAWN = {
   box: [18.81, 95.3, 218.38, 160.7],
   // (its tip lies against her raised shin: the shin stays)
   wing: { path: [[123, 160], [100, 174], [72, 192]], r: [8, 15], band: 5, keep: [50, 140, 78, 215] },
+  // (from under her hip out to the curl's end, which lifts off the floor; her shin and her body and hair stay)
+  tail: { path: [[92, 224], [62, 222], [36, 214], [24, 200], [30, 188]], r: [16, 18], band: 9, keep: [[54, 140, 80, 215], [78, 190, 140, 256]], lift: 1.5, swing: 4 },
 };
-/** Lying, how far the wing beats (degrees each way about a little raised). */
-export const LIE_PARTS = { beat: 8, lift: 2 };
+/**
+ * Seated and kneeling, her tail drawn into the drawing (poses.sit's sit_skirt; poses.kneel's kneel_body and the hybrid's
+ * kneel_low, one box) moves for 摇尾巴 the same way, on a warp over the drawing (`sitParts`, `kneelParts`,
+ * `kneelLowParts`). Seated the loop of it lying on the floor beside her rocks up off the floor about where it touches
+ * (8°, as far as it clears her skirt's ruffle); its pointed tip running along the floor to her shoes stays (her right
+ * shoe lies on it, her left one at its end, and the floor under it: a turn either way covers a shoe or sinks it into
+ * the floor); kneeling the curl standing up beside her sways about its foot, less toward her hair (4°) than away from
+ * it (7°) (her hair, wing and skirt by it stay). No texel that moves ever crosses into a `keep` (the mesh would draw it
+ * over what lies there; one moving beside a keep fades out over `keepBand`, at least a mesh cell, so the kept texels in
+ * a cell it shares do not smear). A drawing only bends where its mesh does, so one fitted gets a finer `grid` [nx, ny]
+ * (at least). Measured on the textures at `box`, like LIE_DRAWN.
+ */
+export const SIT_DRAWN = {
+  box: [32.0, 168.8, 198.8, 88.0], grid: [50, 22],
+  tail: { path: [[192, 256], [214, 240], [218, 218], [206, 206]], r: [22, 22], band: 6, keep: [120, 160, 176, 238], lift: -4, swing: 4 },
+};
+export const KNEEL_DRAWN = {
+  box: [36.73, 24.93, 189.68, 231.07], grid: [48, 58],
+  tail: { path: [[200, 254], [210, 232], [208, 205], [204, 190]], r: [24, 24], band: 6, keep: [[140, 120, 232, 184], [140, 120, 190, 214]], lift: 1.5, swing: 5.5 },
+};
+/**
+ * The turn (degrees) of a tail drawn into a floor drawing (`spec.tail`: about its `lift`, `swing` each way) at a wag's
+ * share `k` and the tail's clock `ph`: 0 without a wag, so the drawing at rest is the drawing.
+ */
+export const drawnTail = (spec, k, ph) => (spec?.tail && k ? k * ((spec.tail.lift || 0) + spec.tail.swing * Math.sin(ph)) : 0);
+/** Whether a drawing on `box` is the one `spec` was measured on. */
+export const drawnFits = (spec, box) => !!box && spec.box.every((v, i) => Math.abs(v - box[i]) < .5);
+/**
+ * Hangs drawing part `p` on a warp `id` of its own over its box (between it and its parent), for the parts a word moves
+ * in it (`spec`, drawnField), if it is the drawing measured; its mesh at least `spec.grid`. Returns whether it did.
+ */
+function drawnWarp(deformers, p, spec, id) {
+  if (!p || !drawnFits(spec, p.box)) return false;
+  deformers[id] = { kind: 'warp', parent: p.parent, rect: rectOfBox(p.box) };
+  p.parent = id;
+  if (spec.grid) { const g = p.grid || [6, 6]; p.grid = [Math.max(g[0], spec.grid[0]), Math.max(g[1], spec.grid[1])]; }
+  return true;
+}
+/**
+ * Lying, how far the wing beats (degrees each way about `lift`; + raises it): its tip lies against her raised shin
+ * (LIE_DRAWN.wing.keep), so it rises only as far as it clears the shin (6°), and beats down no further than that (the
+ * pinned tip kinks its edge more the further it goes down).
+ */
+export const LIE_PARTS = { beat: 6, lift: 0 };
 /** Lying, those moves of the head about the chin (degrees; a lean in also shifts it toward you, rig units). */
 export const LIE_MORE = { down: 9, closer: 6, back: 5, sway: 6 };
 /**
@@ -774,11 +825,7 @@ export function buildRig(model) {
     Object.assign(deformers, L.deformers);
     W.lie = { pose: P.lie, parts: floorParts(P.lie, L.inner, Object.keys(L.deformers)) };
     // (the drawing's own parts a word moves, LIE_DRAWN: on a warp of their own over it, if it is the drawing measured)
-    const body = W.lie.parts.find(p => p.id === 'lie_body');
-    if (body && LIE_DRAWN.box.every((v, i) => Math.abs(v - body.box[i]) < .5)) {
-      deformers.lieParts = { kind: 'warp', parent: body.parent, rect: rectOfBox(body.box) };
-      body.parent = 'lieParts';
-    }
+    drawnWarp(deformers, W.lie.parts.find(p => p.id === 'lie_body'), LIE_DRAWN, 'lieParts');
     liveFace(W.lie, L.inner, 'lie');
   }
   if (P.back?.required?.length) {
@@ -796,6 +843,8 @@ export function buildRig(model) {
     if (P.kneel.head) deformers.kneelHead = { kind: 'warp', parent: 'kneel', rect: P.kneel.head };
     const inner = P.kneel.head ? 'kneelHead' : 'kneel';
     W.kneel = { pose: P.kneel, parts: floorParts(P.kneel, inner, [inner]) };
+    // (its drawn tail, KNEEL_DRAWN: on a warp of its own inside the head's, if it is the drawing measured)
+    drawnWarp(deformers, W.kneel.parts.find(p => p.id === 'kneel_body'), KNEEL_DRAWN, 'kneelParts');
     liveFace(W.kneel, inner, 'kneel');
   }
   // (kneel) the kneeling drawing's lower body, for her arms posed while she kneels (the hybrid: the live upper body over
@@ -803,9 +852,14 @@ export function buildRig(model) {
   if (P.kneelLow?.required?.length && W.kneel) {
     deformers.kneelLow = { kind: 'rot', pivot: P.kneelLow.pivots?.kneelLow || [128, 256] };
     W.kneelLow = { pose: P.kneelLow, parts: floorParts(P.kneelLow, 'kneelLow', ['kneelLow']), hides: Array.isArray(P.kneelLow.hides) ? P.kneelLow.hides : [] };
+    drawnWarp(deformers, W.kneelLow.parts.find(p => p.id === 'kneel_low'), KNEEL_DRAWN, 'kneelLowParts');
   }
   // (sit) her seated body, under the live head
-  if (P.sit?.required?.length) W.sit = sitRig(P.sit, deformers, parts);
+  if (P.sit?.required?.length) {
+    W.sit = sitRig(P.sit, deformers, parts);
+    // (its drawn tail, SIT_DRAWN)
+    drawnWarp(deformers, W.sit.parts.find(p => p.id === 'sit_skirt'), SIT_DRAWN, 'sitParts');
+  }
   return { S, U, V, deformers, parts, STANDING, HEAD, HAIR, SKIRT, FACE, ARM, HANG, SHOES, W, unknownParents, rectOf, hasBrows: !!brows };
 }
 
@@ -1344,9 +1398,9 @@ export function createMotion(model, R) {
     if (beatK) for (const w of [st.wingL, st.wingR]) w.sx = lerp(w.sx, WING.wide, beatK * (.5 + .5 * Math.sin(beatPh)));
 
     /* whole-body drawings */
-    // (lying: her drawn wing beats, LIE_DRAWN)
+    // (lying: her drawn wing beats and her drawn tail wags, LIE_DRAWN)
     if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK, down: downK, closer, leanback, sway: swayG,
-      drawn: { wing: beatK * (LIE_PARTS.lift + LIE_PARTS.beat * Math.sin(beatPh)) } }, g, gk, caps);
+      drawn: { wing: beatK * (LIE_PARTS.lift + LIE_PARTS.beat * Math.sin(beatPh)), tail: drawnTail(LIE_DRAWN, wagK, tailPh) } }, g, gk, caps);
     const awayBack = is('away') ? smooth(.05, .07, gk) * (1 - smooth(.93, .95, gk)) : 0;
     awayA = awayStep(awayA, awayBack, g, dt);
     const view = backView(o.facing, awayA), backK = BACK && caps.pose('back') ? view.k : 0;
@@ -1374,6 +1428,7 @@ export function createMotion(model, R) {
       const a = kneelA = kneelOK ? bodyA.kneel : 0, shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, FP.mouth, mode);
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
       if (deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(deformers.kneelHead.rect, { nod, shake, inh, exh, tilt: tiltK, down: downK }) };
+      if (deformers.kneelParts) st.kneelParts = drawnState(KNEEL_DRAWN);
       // (with a live face the drawn eyes-shut, smile and talk patches stay off)
       const live = liveOn(KNEEL);
       for (const p of KNEEL.parts) {
@@ -1393,6 +1448,12 @@ export function createMotion(model, R) {
     return { st, hideFront, look, turn, steam, steamAt, puffK, poseShown: poseA, plan, floorFace };
   }
 
+  /** (sit, kneel) The warp over a floor drawing whose drawn tail wags (SIT_DRAWN, KNEEL_DRAWN): none while it does not. */
+  function drawnState(spec) {
+    const a = drawnTail(spec, wagK, tailPh);
+    return a ? { fn: drawnField(spec, { tail: a }) } : {};
+  }
+
   /* ---------- (kneel) the kneeling hybrid's lower body ---------- */
   const LOW_UNDER = LOW ? ['skirt', ...SHOES, ...LOW.hides] : [];
   /**
@@ -1402,6 +1463,7 @@ export function createMotion(model, R) {
    */
   function kneeledLow(st, caps, k) {
     st.kneelLow = { a: st.body.a, ty: st.body.ty, sx: st.body.sx, sy: st.body.sy };
+    if (deformers.kneelLowParts) st.kneelLowParts = drawnState(KNEEL_DRAWN);
     for (const p of LOW.parts) st.alpha[p.id] = caps.tex(p.tex) ? k : 0;
     if (k >= 1) for (const id of LOW_UNDER) st.alpha[id] = 0;
   }
@@ -1422,6 +1484,7 @@ export function createMotion(model, R) {
     const shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, partsOf(fc, o.face).mouth, mode);
     st.sitBase = {};
     st.sitTop = {};
+    if (deformers.sitParts) st.sitParts = drawnState(SIT_DRAWN);
     for (const p of SIT.parts) {
       const use = p.use ? (p.use === 'shut' ? shut : m[p.use] || 0) : 1;
       st.alpha[p.id] = caps.tex(p.tex) ? (p.parent === 'sitTop' ? topA : sitA) * use : 0;

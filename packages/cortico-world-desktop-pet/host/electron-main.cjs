@@ -369,7 +369,13 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
       const pt = cursor.read(), b = win.getBounds();
       const inside = pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height;
       const at = inside ? { x: pt.x - b.x, y: pt.y - b.y } : null;
-      win.webContents.send('pet:cursor', at);
+      // off the window but on its display (the Dock, the menu bar, the taskbar: the window covers the work area only),
+      // the pointer's x in page pixels, clamped to the window, so a walk toward the mouse still knows where it is; null
+      // on another display
+      const db = display().bounds;
+      const onDisplay = pt.x >= db.x && pt.x < db.x + db.width && pt.y >= db.y && pt.y < db.y + db.height;
+      const across = inside ? at.x : onDisplay ? Math.min(b.width, Math.max(0, pt.x - b.x)) : null;
+      win.webContents.send('pet:cursor', at, across);
       mouse.tick();
     }, CURSOR_EVERY_MS);
     // hidden while the setting is on and a window fills the pet's monitor; shown again once neither holds

@@ -1217,7 +1217,7 @@ describe('a gentle smile, an awkward one and a giggle', () => {
 
 describe('rolling her eyes, shocked, dead-fish eyes and drooling (expr2, plus)', () => {
   const P = { exprAt: 0, exprUntil: 9, modeT: 1 };
-  it('are plus faces made only of face fields every figure already reads, each with a tone the other faces play', () => {
+  it('are plus faces made only of face fields every figure already reads, each with a face tone of its own', () => {
     const NEW = ['eyeroll', 'shocked', 'deadpan', 'drool'];
     expect(PLUS_EXPRESSIONS.slice(PLUS_EXPRESSIONS.indexOf('tongue') + 1, PLUS_EXPRESSIONS.indexOf('tongue') + 5)).toEqual(NEW);
     for (const n of NEW) {
@@ -1230,7 +1230,7 @@ describe('rolling her eyes, shocked, dead-fish eyes and drooling (expr2, plus)',
         for (const e of fc.eyes) expect(['ring', 'lid'], n).toContain(e.shape);
       }
     }
-    expect(NEW.map((n) => EXPR_TONES[n])).toEqual(['wry', 'surprised', 'hmm', 'soft']);
+    expect(NEW.map((n) => EXPR_TONES[n])).toEqual(NEW);
     // (lipbite was planned and dropped: no drawing of a bitten lip reads at pet size)
     expect(PLUS_FACES.lipbite).toBeUndefined();
   });
@@ -3158,7 +3158,7 @@ describe('two faces of one group shown as one (plus)', () => {
     // the whitelists as judged: Coo the fewest, the girls the most
     expect(Object.keys(maps.coo).length).toBe(24);
     expect(Object.keys(maps.whale).length).toBe(106);
-    expect(Object.keys(maps['claude-chan']).length).toBe(135);
+    expect(Object.keys(maps['claude-chan']).length).toBe(136);
   });
 });
 

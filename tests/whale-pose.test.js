@@ -8,12 +8,13 @@ import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { chainPoint, meshGap } from './helpers/mesh.js';
 import { upstreamKit } from './helpers/upstream-kit.js';
+import { lieCutCheck } from './helpers/lie-cut.js';
 
 // the whale's own figure.js runs below without WebGL: its rig keeps the last frame's deformer states for the tests
 // (and the names of the textures uploaded since `up` was last cleared)
-const rigSeen = vi.hoisted(() => ({ st: null, tree: null, up: [] }));
+const rigSeen = vi.hoisted(() => ({ st: null, tree: null, up: [], hidden: null }));
 vi.mock('../packages/cortico-world-desktop-pet/web/kit/rig.js', () => ({
-  createRig: (_canvas, tree) => (rigSeen.tree = tree, { upload(n) { rigSeen.up.push(n); }, render(st) { rigSeen.st = st; }, point: (_d, _st, x, y) => [x, y], dispose() {} }),
+  createRig: (_canvas, tree) => (rigSeen.tree = tree, { upload(n) { rigSeen.up.push(n); }, render(st, o) { rigSeen.st = st; rigSeen.hidden = o?.hidden ?? null; }, point: (_d, _st, x, y) => [x, y], dispose() {} }),
 }));
 
 const WHALE = new URL('../packages/cortico-world-desktop-pet/web/whale/', import.meta.url);
@@ -1005,6 +1006,12 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     }
     expect(bad.slice(0, 10)).toEqual([]);
     for (const g of ['wave', 'cheer.near', 'cheer.far', 'heart', 'hug', 'clap', 'clapo', 'stretch', 'salute', 'raise', 'point', 'chin']) expect(seen.has(g), g).toBe(true);
+  });
+  it('lying down and getting up (jump or stand), the lying drawing cuts, never two of her at once (as the girls: tests/helpers/lie-cut.js)', async () => {
+    const { pet, done } = await whaleOnKit();
+    try {
+      lieCutCheck({ pet, frame: () => { pet.step(1 / 60); pet.render(); return { pose: rigSeen.st.alpha.lie_body ?? 0, front: rigSeen.hidden == null }; } });
+    } finally { done(); }
   });
   it('cries small drops (tearDrop): about a quarter of an eye across, from under each eye standing and kneeling, from the lying head lying', async () => {
     const { pet, run, fx, fig, done } = await whaleOnKit();

@@ -45,6 +45,14 @@ describe('first-run seed', () => {
     expect(read(other)).toEqual({ kind: 'openai-compatible', baseUrl: 'http://x' });
   });
 
+  it('names no figure, so a new install starts as the desktop-pet World\'s default, Coo, until the introduction picks one', () => {
+    const home = mkdtempSync(join(tmpdir(), 'cc-seed-'));
+    seed(home);
+    const cfg = read(join(home, DEPLOYMENT, 'config.json'));
+    expect(cfg).not.toHaveProperty('worlds');
+    expect(JSON.stringify(cfg)).not.toMatch(/figure|skin/);
+  });
+
   it('leaves files the operator already has', () => {
     const home = mkdtempSync(join(tmpdir(), 'cc-seed-'));
     seed(home);

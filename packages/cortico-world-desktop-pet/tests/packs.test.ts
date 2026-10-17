@@ -1,8 +1,12 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { PACK_ALIASES, figureOf, figurePacks, lookOf, lookPatch, packFor, readManifest, unaliasSkin } from '../src/packs.ts';
+import { PackImporter, filesFromBundle, filesFromZip, segments, type ImportFile } from '../src/pack-import.ts';
+import { PetServer } from '../src/server.ts';
 
 function pack(manifest: Record<string, unknown>, files: string[] = []): string {
   const dir = mkdtempSync(join(tmpdir(), 'pack-'));
@@ -251,12 +255,63 @@ describe('figure packs', () => {
   });
 
   it('files a pack\'s sound under a body\'s kind only, and leaves out one whose file is not there', () => {
-    expect(readManifest(pack({ ...base, sounds: { boing: { file: 'boing.ogg', kind: 'ui' } } }, ['boing.ogg']))).toMatch(/kind/);
     const missing: string[] = [];
     const m = readManifest(pack({ ...base, sounds: { boing: { file: 'boing.ogg', kind: 'move' }, clunk: { file: 'clunk.wav', kind: 'touch' } } }, ['boing.ogg']), false, missing);
     if (typeof m === 'string') throw new Error(m);
     expect(Object.keys(m.sounds)).toEqual(['boing']);
     expect(missing).toHaveLength(1);
+  });
+
+  it('loads a pack without what this version does not know (a word\'s or sound\'s kind, a sound\'s file type, a value of can), naming each part left out', () => {
+    const skipped: string[] = [];
+    const m = readManifest(pack({
+      ...base,
+      vocab: [word, { ...word, id: 'pose', kind: 'pose', names: { zh: ['摆姿势'] } }],
+      sounds: { boing: { file: 'boing.ogg', kind: 'move' }, chime: { file: 'chime.ogg', kind: 'ui' }, hum: { file: 'hum.flac', kind: 'move' } },
+      can: { walk: 'sometimes', fly: true },
+      someFieldFromLater: { anything: [1, 2] },
+    }, ['boing.ogg', 'chime.ogg', 'hum.flac']), false, skipped);
+    if (typeof m === 'string') throw new Error(m);
+    expect(m.vocab.map((w) => w.id)).toEqual(['beep']);
+    expect(Object.keys(m.sounds)).toEqual(['boing']);
+    expect(m.can).toEqual({ walk: true });
+    expect(m).not.toHaveProperty('someFieldFromLater');
+    expect(skipped).toHaveLength(4);
+    expect(skipped.join('\n')).toMatch(/vocab\.pose\.kind/);
+    expect(skipped.join('\n')).toMatch(/chime/);
+    expect(skipped.join('\n')).toMatch(/hum\.flac/);
+    expect(skipped.join('\n')).toMatch(/can\.walk/);
+  });
+
+  it('a pair naming a word left out is left out with it, and the pack still loads', () => {
+    const face = (id: string, zh: string, kind = 'expression') => ({ id, kind, names: { zh: [zh] }, about: { zh: '一张脸' }, seconds: 1 });
+    const skipped: string[] = [];
+    const m = readManifest(pack({
+      ...base, vocab: [word, face('happy', '开心'), face('surprised', '惊讶'), face('glow', '发光', 'aura')],
+      pairs: { 'happy+surprised': 'surprised+happy', 'happy+glow': 'glow+happy' },
+    }), false, skipped);
+    if (typeof m === 'string') throw new Error(m);
+    expect(m.pairs).toEqual({ 'happy~surprised': { eyes: 'surprised', mouth: 'happy' } });
+    expect(skipped).toHaveLength(2);
+  });
+
+  it('says a pack made for a newer manifest or contract needs the app updated, and reads one made for this one', () => {
+    expect(readManifest(pack({ ...base, manifest: 3 }))).toMatch(/更新应用/);
+    expect(readManifest(pack({ ...base, api: 3 }))).toMatch(/更新应用/);
+    expect(readManifest(pack({ ...base, manifest: 1 }))).toMatch(/manifest/);
+    expect(readManifest(pack({ ...base, api: '2' }))).toMatch(/api/);
+    expect(readManifest(pack({ ...base }))).toMatchObject({ manifest: 2, api: 2 });
+  });
+
+  it('a pack that loads without some of its parts is listed, with the parts named in the notes, not the problems', () => {
+    const root = mkdtempSync(join(tmpdir(), 'packs-'));
+    const dir = join(root, 'robot');
+    mkdirSync(dir);
+    writeFileSync(join(dir, 'figure.json'), JSON.stringify({ ...base, vocab: [word, { ...word, id: 'pose', kind: 'pose', names: { zh: ['摆姿势'] } }] }));
+    const { packs, problems, notes } = figurePacks([root]);
+    expect(packs.map((p) => p.id)).toContain('robot');
+    expect(problems).toEqual([]);
+    expect(notes).toEqual([expect.stringContaining('vocab.pose.kind')]);
   });
 
   it('Coo\'s pick is its skin\'s own fields, a pack\'s is the scheme', () => {
@@ -278,7 +333,7 @@ describe('pairs of expressions shown as one face', () => {
   it('the built-ins read with their judged pairs (the four girls the same, the whale fewer, Coo the fewest)', () => {
     const by = Object.fromEntries(figurePacks([]).packs.map((p) => [p.id, p.manifest.pairs]));
     const n = (id: string) => Object.keys(by[id]).length;
-    expect([n('coo'), n('whale'), n('claude-chan'), n('gpt-chan'), n('gemini-chan'), n('grok-chan')]).toEqual([24, 106, 135, 135, 135, 135]);
+    expect([n('coo'), n('whale'), n('claude-chan'), n('gpt-chan'), n('gemini-chan'), n('grok-chan')]).toEqual([24, 106, 136, 136, 136, 136]);
     expect(by['gpt-chan']).toEqual(by['claude-chan']);
     expect(by['gemini-chan']).toEqual(by['claude-chan']);
     expect(by['grok-chan']).toEqual(by['claude-chan']);
@@ -296,7 +351,7 @@ describe('pairs of expressions shown as one face', () => {
     expect((readManifest(pack({ ...base, vocab: [word, ...faces] })) as Exclude<typeof m, string>).pairs).toEqual({});
   });
 
-  it('refuses pairs that are not two of its expressions, or say the same pair twice, or a value naming anything else', () => {
+  it('leaves out pairs that are not two of its expressions, or say the same pair twice, or a value naming anything else', () => {
     const cases: Array<[unknown, string]> = [
       [['happy+surprised'], 'pairs 应为对象'],
       ['happy+surprised', 'pairs 应为对象'],
@@ -316,6 +371,208 @@ describe('pairs of expressions shown as one face', () => {
       [{ 'happy+surprised': 'petrify' }, 'pairs.happy+surprised 不合法:"petrify"'],
       [{ 'happy+surprised': 3 }, 'pairs.happy+surprised 不合法:3'],
     ];
-    for (const [pairs, msg] of cases) expect(read(pairs), JSON.stringify(pairs)).toBe(msg);
+    for (const [pairs, msg] of cases) {
+      const skipped: string[] = [];
+      const m = readManifest(pack({ ...base, vocab: [word, ...faces], pairs }), false, skipped);
+      if (typeof m === 'string') throw new Error(m);
+      expect(skipped, JSON.stringify(pairs)).toEqual([expect.stringContaining(msg)]);
+      // only the one that holds is kept
+      expect(Object.keys(m.pairs).length, JSON.stringify(pairs)).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe('importing figure packs from the dressing page', () => {
+  const robot = (id = 'robot', extra: Record<string, unknown> = {}) => strToU8(JSON.stringify({ ...base, id, thumb: 'thumb.png', ...extra }));
+  /** A 1×1 PNG. */
+  const PNG = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
+  const robotFiles = (prefix: string, id = 'robot', extra: Record<string, unknown> = {}) => ({
+    [`${prefix}figure.json`]: robot(id, extra), [`${prefix}figure.js`]: strToU8('export function createBody() {}'), [`${prefix}thumb.png`]: PNG,
+  });
+  const importer = () => {
+    const packDir = mkdtempSync(join(tmpdir(), 'figures-'));
+    return { packDir, imp: new PackImporter({ packDir: () => packDir, packs: () => figurePacks([packDir]).packs }) };
+  };
+  const files = (f: ImportFile[] | string): ImportFile[] => { if (typeof f === 'string') throw new Error(f); return f; };
+  /** The dressing page's framing of a folder's files (web/dress.js importFolder). */
+  const bundle = (entries: Record<string, Uint8Array>): Uint8Array => {
+    const parts: Buffer[] = [];
+    for (const [path, bytes] of Object.entries(entries)) {
+      const name = Buffer.from(path);
+      const head = Buffer.alloc(4); head.writeUInt32LE(name.length);
+      const size = Buffer.alloc(4); size.writeUInt32LE(bytes.length);
+      parts.push(head, name, size, Buffer.from(bytes));
+    }
+    return new Uint8Array(Buffer.concat(parts));
+  };
+
+  it('reads stored and deflated zip entries, leaving out directories and the files macOS adds', () => {
+    const zip = zipSync({ 'a/': new Uint8Array(), 'a/b.txt': [strToU8('hello'), { level: 0 }], 'a/c.txt': [strToU8('x'.repeat(5000)), { level: 9 }], '__MACOSX/a/._b.txt': strToU8('junk') });
+    const out = files(filesFromZip(zip));
+    expect(out.map((f) => f.path).sort()).toEqual(['__MACOSX/a/._b.txt', 'a/b.txt', 'a/c.txt']);
+    expect(Buffer.from(out.find((f) => f.path === 'a/c.txt')!.bytes).toString()).toBe('x'.repeat(5000));
+    expect(filesFromZip(strToU8('not a zip at all, just text'))).toMatch(/zip/);
+  });
+
+  it('refuses a zip entry that unpacks to more than it says (a zip bomb\'s trick), or a damaged zip', () => {
+    const zip = Buffer.from(zipSync({ 'big.txt': [strToU8('y'.repeat(100_000)), { level: 9 }] }));
+    // the central directory's uncompressed size, said to be 10 bytes
+    const cd = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    zip.writeUInt32LE(10, cd + 24);
+    expect(filesFromZip(new Uint8Array(zip))).toMatch(/big\.txt/);
+    expect(filesFromZip(new Uint8Array(zip.subarray(0, zip.length - 30)))).toMatch(/zip/);
+  });
+
+  it('a path that leaves what was sent, or that Windows cannot hold, is refused', () => {
+    for (const bad of ['../x', 'a/../../x', '/etc/passwd', 'C:/x', 'c:x', '\\\\server\\share', 'a/b<c', 'a/b:c', 'a/con.', 'a\u0001b', '']) expect(segments(bad), bad).toBeNull();
+    // the names Windows keeps for devices, with an extension or not
+    for (const bad of ['CON', 'a/nul', 'a/Nul.txt', 'prn/x', 'aux.json', 'a/COM1', 'a/lpt9.png', 'a/com\u00b9']) expect(segments(bad), bad).toBeNull();
+    expect(segments('console/connect.png')).toEqual(['console', 'connect.png']);
+    expect(segments('com10/null.txt')).toEqual(['com10', 'null.txt']);
+    expect(segments('repo-main/packs/robot/figure.json')).toEqual(['repo-main', 'packs', 'robot', 'figure.json']);
+    expect(segments('a\\b/./c.png')).toEqual(['a', 'b', 'c.png']);
+  });
+
+  it('finds the packs in a zip some folders down, not a folder inside a pack, and installs the picked one under its id', async () => {
+    const { imp, packDir } = importer();
+    const zip = zipSync({ ...robotFiles('repo-main/packs/robot/'), 'repo-main/packs/robot/extra/figure.json': strToU8('{}'), 'repo-main/README.md': strToU8('#') });
+    const staged = await imp.stage(files(filesFromZip(zip)), false);
+    if ('error' in staged) throw new Error(staged.error);
+    expect(staged.problems).toEqual([]);
+    expect(staged.packs.map((p) => [p.dir, p.id, p.installed, p.words])).toEqual([['repo-main/packs/robot', 'robot', null, 1]]);
+    expect(staged.packs[0]!.thumb).toMatch(/^data:image\/png;base64,/);
+    expect(await imp.install(staged.token, ['repo-main/packs/robot'])).toEqual({ installed: ['robot'] });
+    expect(figurePacks([packDir]).packs.find((p) => p.id === 'robot')).toMatchObject({ dir: join(packDir, 'robot'), builtin: false, base: '/packs/robot/' });
+    // the token is spent
+    expect(await imp.install(staged.token, ['repo-main/packs/robot'])).toMatchObject({ error: expect.stringContaining('过期') });
+  });
+
+  it('refuses a built-in id and a built-in\'s exported copy, and says why a broken pack cannot go in', async () => {
+    const { imp, packDir } = importer();
+    const zip = zipSync({ ...robotFiles('a/', 'whale'), ...robotFiles('b/', 'coopanion-gpt-chan'), 'c/figure.json': strToU8('{"manifest":9}'), ...robotFiles('d/', 'coo') });
+    const staged = await imp.stage(files(filesFromZip(zip)), false);
+    if ('error' in staged) throw new Error(staged.error);
+    expect(staged.packs).toEqual([]);
+    expect(staged.problems.map((p) => p.dir)).toEqual(['a', 'b', 'c', 'd']);
+    expect(staged.problems[0]!.reason).toMatch(/内置/);
+    expect(staged.problems[1]!.reason).toMatch(/gpt-chan/);
+    expect(staged.problems[2]!.reason).toMatch(/更新应用/);
+    expect(readdirSync(packDir)).toEqual([]);
+  });
+
+  it('replaces the installed pack with that id whatever its folder is called, and refuses a path that climbs out before writing anything', async () => {
+    const { imp, packDir } = importer();
+    mkdirSync(join(packDir, 'old-name'));
+    writeFileSync(join(packDir, 'old-name', 'figure.json'), JSON.stringify({ ...base, version: '0.9.0' }));
+    const staged = await imp.stage(files(filesFromBundle(bundle(robotFiles('picked/', 'robot', { version: '1.0.0' })))), true);
+    if ('error' in staged) throw new Error(staged.error);
+    expect(staged.packs.map((p) => [p.dir, p.installed])).toEqual([['picked', '0.9.0']]);
+    await imp.install(staged.token, ['picked']);
+    expect(readdirSync(packDir)).toEqual(['robot']);
+    expect(JSON.parse(readFileSync(join(packDir, 'robot', 'figure.json'), 'utf8')).version).toBe('1.0.0');
+
+    const name = `climbed-${process.pid}.txt`;
+    const out = await imp.stage([{ path: 'picked/figure.json', bytes: robot() }, { path: `../${name}`, bytes: strToU8('x') }], true);
+    expect(out).toMatchObject({ error: expect.stringContaining('路径') });
+    expect(existsSync(join(tmpdir(), name))).toBe(false);
+    // a zip whose entry climbs out is refused the same way
+    const evil = zipSync({ 'ok/figure.json': robot(), [`../../${name}`]: strToU8('x') });
+    expect(await imp.stage(files(filesFromZip(evil)), false)).toMatchObject({ error: expect.stringContaining('路径') });
+  });
+
+  it('a pet server not told where packs go does not take any', async () => {
+    const server = new PetServer({
+      port: () => 0, webDir: join(tmpdir()), snapshot: () => ({}), onPetMessage() {}, onAudio() {}, onPetConnect() {}, onPetDisconnect() {}, onSkin() {}, onPrefs() {},
+      packs: () => figurePacks([]).packs,
+    });
+    const port = await server.start();
+    try {
+      expect(await (await fetch(`http://127.0.0.1:${port}/api/figures/import`)).json()).toMatchObject({ importable: false });
+    } finally {
+      await server.stop();
+    }
+  });
+
+  it('a folder named as the pack\'s id that holds another pack is left alone: the import takes the next free name', async () => {
+    const { imp, packDir } = importer();
+    mkdirSync(join(packDir, 'foo'));
+    writeFileSync(join(packDir, 'foo', 'figure.json'), JSON.stringify({ ...base, id: 'bar' }));
+    mkdirSync(join(packDir, 'foo-2'));
+    writeFileSync(join(packDir, 'foo-2', 'figure.json'), '{ broken');
+    const staged = await imp.stage(files(filesFromZip(zipSync(robotFiles('foo/', 'foo')))), false);
+    if ('error' in staged) throw new Error(staged.error);
+    expect(staged.packs.map((p) => [p.id, p.installed])).toEqual([['foo', null]]);
+    expect(await imp.install(staged.token, ['foo'])).toEqual({ installed: ['foo'] });
+    expect(readdirSync(packDir).sort()).toEqual(['foo', 'foo-2', 'foo-3']);
+    const packs = figurePacks([packDir]).packs;
+    expect(packs.find((p) => p.id === 'bar')).toMatchObject({ dir: join(packDir, 'foo') });
+    expect(packs.find((p) => p.id === 'foo')).toMatchObject({ dir: join(packDir, 'foo-3'), base: '/packs/foo/' });
+
+    // importing foo again replaces it where it is, still leaving bar
+    const again = await imp.stage(files(filesFromZip(zipSync(robotFiles('foo/', 'foo', { version: '2.0.0' })))), false);
+    if ('error' in again) throw new Error(again.error);
+    expect(again.packs[0]!.installed).toBe('0.0.0');
+    await imp.install(again.token, ['foo']);
+    const after = figurePacks([packDir]).packs;
+    expect(after.find((p) => p.id === 'bar')).toBeTruthy();
+    expect(after.find((p) => p.id === 'foo')!.manifest.version).toBe('2.0.0');
+    expect(readdirSync(packDir).filter((e) => e.startsWith('.'))).toEqual([]);
+  });
+
+  it('a copy that fails leaves the installed pack as it was, and a copy left half-made is not read as a pack', async () => {
+    const { imp, packDir } = importer();
+    mkdirSync(join(packDir, 'robot'));
+    writeFileSync(join(packDir, 'robot', 'figure.json'), JSON.stringify({ ...base, version: '0.9.0' }));
+    // what an install stopped midway leaves: not listed, and swept up by the next install
+    mkdirSync(join(packDir, `.robot.tmp-${randomUUID()}`));
+    writeFileSync(join(readdirSync(packDir).map((e) => join(packDir, e)).find((d) => d.includes('.tmp-'))!, 'figure.json'), JSON.stringify({ ...base, id: 'half' }));
+    expect(figurePacks([packDir]).packs.map((p) => p.id)).not.toContain('half');
+    const staged = await imp.stage(files(filesFromZip(zipSync(robotFiles('robot/', 'robot', { version: '1.0.0' })))), false);
+    if ('error' in staged) throw new Error(staged.error);
+    // the staged copy goes away under it: copying fails
+    rmSync((imp as unknown as { staged: { root: string } }).staged.root, { recursive: true, force: true });
+    expect(await imp.install(staged.token, ['robot'])).toMatchObject({ error: expect.stringContaining('robot') });
+    expect(readdirSync(packDir)).toEqual(['robot']);
+    expect(JSON.parse(readFileSync(join(packDir, 'robot', 'figure.json'), 'utf8')).version).toBe('0.9.0');
+  });
+
+  it('of two imports that overlap, only the later one is kept, and a token is installed once', async () => {
+    const { imp, packDir } = importer();
+    const [first, second] = await Promise.all([
+      imp.stage(files(filesFromZip(zipSync(robotFiles('a/', 'alpha')))), false),
+      imp.stage(files(filesFromZip(zipSync(robotFiles('b/', 'beta')))), false),
+    ]);
+    expect(first).toMatchObject({ error: expect.stringContaining('作废') });
+    if ('error' in second) throw new Error(second.error);
+    expect(second.packs.map((p) => p.id)).toEqual(['beta']);
+    const [one, two] = await Promise.all([imp.install(second.token, ['b']), imp.install(second.token, ['b'])]);
+    expect(one).toEqual({ installed: ['beta'] });
+    expect(two).toMatchObject({ error: expect.stringContaining('过期') });
+    expect(readdirSync(packDir)).toEqual(['beta']);
+  });
+
+  it('the pet server takes a zip from its own pages only, and installs it where it is told packs go', async () => {
+    const packDir = mkdtempSync(join(tmpdir(), 'figures-'));
+    const server = new PetServer({
+      port: () => 0, webDir: join(tmpdir()), snapshot: () => ({}), onPetMessage() {}, onAudio() {}, onPetConnect() {}, onPetDisconnect() {}, onSkin() {}, onPrefs() {},
+      packs: () => figurePacks([packDir]).packs, packDir: () => packDir,
+    });
+    const port = await server.start();
+    try {
+      const url = (p: string) => `http://127.0.0.1:${port}${p}`;
+      expect(await (await fetch(url('/api/figures/import'))).json()).toMatchObject({ importable: true });
+      const zip = zipSync(robotFiles('robot/'));
+      // a page of another site cannot post one
+      expect((await fetch(url('/api/figures/import'), { method: 'POST', headers: { 'content-type': 'application/zip', origin: 'https://example.com' }, body: zip })).status).toBe(421);
+      expect((await fetch(url('/api/figures/import'), { method: 'POST', headers: { 'content-type': 'text/plain' }, body: 'x' })).status).toBe(415);
+      const staged = await (await fetch(url('/api/figures/import'), { method: 'POST', headers: { 'content-type': 'application/zip', origin: `http://127.0.0.1:${port}` }, body: zip })).json();
+      expect(staged.packs.map((p: { id: string }) => p.id)).toEqual(['robot']);
+      const done = await (await fetch(url('/api/figures/import/install'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: staged.token, dirs: ['robot'] }) })).json();
+      expect(done).toEqual({ installed: ['robot'] });
+      const listed = await (await fetch(url('/api/figures'))).json() as Array<{ id: string; base: string }>;
+      expect(listed.find((p) => p.id === 'robot')).toMatchObject({ base: '/packs/robot/' });
+    } finally {
+      await server.stop();
+    }
   });
 });

@@ -10,7 +10,7 @@ export const SOUND_KINDS = {
     'clap', 'wipe', 'thumbs', 'raise', 'fist', 'jot', 'twiddle', 'wag', 'earflick', 'wingbeat'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
   face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe', 'crack',
-    'shush', 'shrug', 'headhold', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort'],
+    'shush', 'shrug', 'headhold', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort', 'eyeroll', 'shocked', 'deadpan', 'drool'],
   snore: ['snore'],
   talk: ['babble', 'blub'],
   ui: ['tick', 'pop', 'sparkle', 'select', 'listenStart', 'listenEnd'],
@@ -25,7 +25,7 @@ export const EXPR_TONES = {
   happy: 'happy', wink: 'wink', love: 'love', surprised: 'surprised', angry: 'angry', sad: 'sad', shy: 'shy', sleepy: 'yawn',
   smug: 'wink', worried: 'hmm', determined: 'pop', flustered: 'shy', scared: 'surprised', excited: 'sparkle', cry: 'sad', confused: 'hmm',
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
-  eyeroll: 'wry', shocked: 'surprised', deadpan: 'hmm', drool: 'soft',
+  eyeroll: 'eyeroll', shocked: 'shocked', deadpan: 'deadpan', drool: 'drool',
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
   brave: 'wry', comfort: 'comfort', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
@@ -34,7 +34,7 @@ export const EXPR_TONES = {
 // tones only our bodies ask for (the plus words); a pack made for other apps ships them as files
 const PLUS_TONES = new Set(['flinch', 'peek', 'huff', 'away', 'hips', 'roll', 'sip', 'song', 'clink', 'snap', 'cheese', 'ding', 'sigh',
   'spout', 'page', 'soft', 'wry', 'crack', 'hehe', 'clap', 'shush', 'wipe', 'thumbs', 'raise', 'shrug', 'headhold', 'fist', 'jot',
-  'twiddle', 'wag', 'earflick', 'wingbeat', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort']);
+  'twiddle', 'wag', 'earflick', 'wingbeat', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort', 'eyeroll', 'shocked', 'deadpan', 'drool']);
 // kinds for the helper tones no sound is filed under: 'hmm' is borrowed by faces, 'huff' by away/hips
 const HELPER_KIND = { hmm: 'face', huff: 'move' };
 
@@ -228,6 +228,24 @@ function voices({ tone, noise, R, hold }) {
       tone({ type: 'triangle', f0: 659, f1: 650, dur: .3, vol: .065, attack: .06 });
       tone({ type: 'triangle', f0: 587, f1: 580, dur: .3, vol: .06, attack: .06, at: .28 });
       tone({ type: 'triangle', f0: 523, dur: .55, vol: .06, attack: .08, at: .56 });
+    },
+    // (expr2's faces) rolling her eyes: a dry little "tsk", then a sulky "ugh~" sliding up as the eyes roll up and over
+    eyeroll() {
+      noise({ type: 'highpass', f0: 3800, f1: 3000, dur: .035, vol: .04, attack: .002 });
+      tone({ type: 'triangle', f0: 370, f1: 587, dur: .26, vol: .075, attack: .03, at: .08 });
+      tone({ type: 'triangle', f0: 587, f1: 494, dur: .14, vol: .055, at: .33 });
+    },
+    // shocked: a sudden stop (a sharp, high stab cut off short), then a stiff, trembling note, as she freezes and shakes
+    shocked() {
+      tone({ type: 'square', f0: 1480, f1: 1320, dur: .05, vol: .06, filter: 2600 });
+      for (let i = 0; i < 6; i++) tone({ type: 'triangle', f0: 932, f1: 900, dur: .045, vol: .1 * (1 - i * .12), at: .08 + i * .06 });
+    },
+    // dead-fish eyes: one flat, low "hm." that neither rises nor falls
+    deadpan() { tone({ type: 'triangle', f0: 247, f1: 245, dur: .26, vol: .085, attack: .02, filter: 900 }); },
+    // drooling: a wet little slurp drawn in, then a drop falling off with a soft plip
+    drool() {
+      noise({ f0: 450, f1: 1500, q: 4, dur: .28, vol: .13, attack: .06 });
+      tone({ f0: 1300, f1: 620, dur: .07, vol: .06, at: .42 });
     },
     tick() { tone({ f0: 1200, f1: 1000, dur: .03, vol: .05 }); },
     pop() { tone({ f0: 240, f1: 720, dur: .07, vol: .14 }); },

@@ -28,9 +28,14 @@ import { fileURLToPath } from 'node:url';
 import { INLINE_TAG_MAX, pairKey, type PairFace, type Pairs, type VocabWord } from './script.ts';
 
 export const MANIFEST_FILE = 'figure.json';
-/** The manifest version this World reads, and the figure frame's contract (`web/figure-frame.js`). */
+/**
+ * The manifest version this World reads packs as, and the figure frame's contract (`web/figure-frame.js`). A pack
+ * made for an older one keeps loading (from the oldest on); one made for a newer one says the app needs updating.
+ */
 export const MANIFEST_VERSION = 2;
 export const FIGURE_API = 2;
+export const MANIFEST_OLDEST = 2;
+export const FIGURE_API_OLDEST = 2;
 /** The built-in body, and the one shown when the skin names a pack that is not there. */
 export const COO = 'coo';
 /**
@@ -136,22 +141,22 @@ const namesOf = (v: unknown): Names | null => {
   return Object.keys(out).length ? out : null;
 };
 /** A path inside the pack: relative, no `..`, none of `<>"` or a control character (no Windows file name holds them). */
-const inside = (p: unknown): p is string => typeof p === 'string' && p !== '' && !p.startsWith('/') && !p.split(/[\\/]/).includes('..') && !/^[a-z]+:/i.test(p)
+export const inside = (p: unknown): p is string => typeof p === 'string' && p !== '' && !p.startsWith('/') && !p.split(/[\\/]/).includes('..') && !/^[a-z]+:/i.test(p)
   && !/[<>"\x00-\x1f]/.test(p);
 /** Characters that end a word in a script's markers (script.ts): a name holding one could never be written. */
 const NAME_BREAK = /[,，、\s【】<>＜＞]/;
 const WORD_KINDS = new Set(['expression', 'motion']);
 const SOUND_NAME = /^[a-z][a-zA-Z0-9-]{0,31}$/;
 
-/** The vocabulary in `raw`, checked; a string says what is wrong with it. */
-function readVocab(raw: unknown): VocabWord[] | string {
+/** The vocabulary in `raw`, checked; a string says what is wrong with it. A word of a kind this version does not know is left out and named in `skipped`. */
+function readVocab(raw: unknown, skipped: string[]): VocabWord[] | string {
   if (!Array.isArray(raw)) return 'vocab 应为数组';
   const out: VocabWord[] = [];
   const taken = new Set<string>();
   for (const w of raw as Array<Record<string, unknown>>) {
     const id = w?.id;
     if (typeof id !== 'string' || !ID.test(id)) return `vocab 里有不合法的 id:${JSON.stringify(id)}`;
-    if (!WORD_KINDS.has(w.kind as string)) return `vocab.${id}.kind 应为 expression 或 motion`;
+    if (!WORD_KINDS.has(w.kind as string)) { skipped.push(`vocab.${id}.kind 是 ${JSON.stringify(w.kind)},这一版不认识,这个词不给 bot 用`); continue; }
     const names: Record<string, string[]> = {};
     for (const [lang, list] of Object.entries((w.names ?? {}) as Record<string, unknown>)) {
       if (!Array.isArray(list)) return `vocab.${id}.names.${lang} 应为数组`;
@@ -179,40 +184,46 @@ function readVocab(raw: unknown): VocabWord[] | string {
 const UNPAIRED = new Set(['neutral', 'petrify']);
 /**
  * The pairs in `raw` (figure.json `pairs`: { "a+b": "eyes+mouth" | "<expression id>" }), checked against the
- * vocabulary; a string says what is wrong. `a` and `b` are two different expressions, neither neutral nor petrify;
+ * vocabulary. `a` and `b` are two different expressions, neither neutral nor petrify;
  * the value names them both (which gives the eyes, which the mouth), or another expression the pair is shown as.
+ * A pair that does not hold (one naming a word left out of the vocabulary, say) is left out and named in `skipped`.
  */
-function readPairs(raw: unknown, vocab: readonly VocabWord[]): Record<string, PairFace> | string {
+function readPairs(raw: unknown, vocab: readonly VocabWord[], skipped: string[]): Record<string, PairFace> {
   if (raw === undefined) return {};
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'pairs 应为对象';
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { skipped.push('pairs 应为对象,这一项不用'); return {}; }
   const faces = new Set(vocab.filter((v) => v.kind === 'expression' && !UNPAIRED.has(v.id)).map((v) => v.id));
   const out: Record<string, PairFace> = {};
+  const skip = (why: string) => { skipped.push(`${why},这一对不用`); };
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     const ids = k.split('+');
-    if (ids.length !== 2 || ids[0] === ids[1] || !ids.every((id) => faces.has(id))) return `pairs 里有不合法的一项:${JSON.stringify(k)}`;
+    if (ids.length !== 2 || ids[0] === ids[1] || !ids.every((id) => faces.has(id))) { skip(`pairs 里有不合法的一项:${JSON.stringify(k)}`); continue; }
     const key = pairKey(ids[0], ids[1]);
-    if (Object.hasOwn(out, key)) return `pairs 里 ${k} 写了不止一次`;
+    if (Object.hasOwn(out, key)) { skip(`pairs 里 ${k} 写了不止一次`); continue; }
     const bad = `pairs.${k} 不合法:${JSON.stringify(v)}`;
-    if (typeof v !== 'string') return bad;
+    if (typeof v !== 'string') { skip(bad); continue; }
     const parts = v.split('+');
     if (parts.length === 2 && parts[0] !== parts[1] && parts.every((p) => ids.includes(p))) out[key] = { eyes: parts[0], mouth: parts[1] };
     else if (parts.length === 1 && faces.has(v) && !ids.includes(v)) out[key] = { as: v };
-    else return bad;
+    else skip(bad);
   }
   return out;
 }
 
-/** The sounds in `raw`, checked; a string says what is wrong with them. Files that are not there are left out and named in `missing`. */
-function readSounds(raw: unknown, dir: string, missing: string[]): Record<string, PackSound> | string {
+/**
+ * The sounds in `raw`, checked; a string says what is wrong with them. A sound whose file is not there, or whose
+ * file type or kind this version does not know, is left out and named in `skipped`.
+ */
+function readSounds(raw: unknown, dir: string, skipped: string[]): Record<string, PackSound> | string {
   if (raw === undefined) return {};
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'sounds 应为对象';
   const out: Record<string, PackSound> = {};
   for (const [name, d] of Object.entries(raw as Record<string, Record<string, unknown>>)) {
     if (!SOUND_NAME.test(name)) return `sounds 里的名字不合法:${JSON.stringify(name)}`;
-    if (!inside(d?.file) || !AUDIO.has(extname(d.file).toLowerCase())) return `sounds.${name}.file 应为形象包里的 .ogg、.mp3 或 .wav`;
-    if (!PACK_SOUND_KINDS.includes(d.kind as PackSound['kind'])) return `sounds.${name}.kind 应为 ${PACK_SOUND_KINDS.join('、')} 之一`;
+    if (!inside(d?.file)) return `sounds.${name}.file 应为形象包里的文件`;
     if (d.volume !== undefined && (typeof d.volume !== 'number' || !(d.volume >= 0 && d.volume <= 1))) return `sounds.${name}.volume 应为 0–1`;
-    if (!existsSync(join(dir, d.file))) { missing.push(`sounds.${name} 的 ${d.file} 不存在,这个声音不会响`); continue; }
+    if (!AUDIO.has(extname(d.file).toLowerCase())) { skipped.push(`sounds.${name} 的 ${d.file} 不是这一版放得了的 .ogg、.mp3 或 .wav,这个声音不会响`); continue; }
+    if (!PACK_SOUND_KINDS.includes(d.kind as PackSound['kind'])) { skipped.push(`sounds.${name}.kind 是 ${JSON.stringify(d.kind)},这一版只认 ${PACK_SOUND_KINDS.join('、')},这个声音不会响`); continue; }
+    if (!existsSync(join(dir, d.file))) { skipped.push(`sounds.${name} 的 ${d.file} 不存在,这个声音不会响`); continue; }
     out[name] = { file: d.file, kind: d.kind as PackSound['kind'], volume: (d.volume as number | undefined) ?? 1 };
   }
   return out;
@@ -220,15 +231,22 @@ function readSounds(raw: unknown, dir: string, missing: string[]): Record<string
 
 /**
  * The manifest at `dir`, checked; a string says what is wrong with it. `builtin`: one of the package's own
- * (only those may be `coo`). Sound files that are not there are left out and named in `missing`.
+ * (only those may be `coo`). What a newer version may add and this one does not know (a word's kind, a sound's kind
+ * or file type, a value of `can`, a pair that does not hold) is left out and named in `skipped`, with the sound files
+ * that are not there; the pack loads without it. Fields this version does not know are not read at all.
  */
-export function readManifest(dir: string, builtin = false, missing: string[] = []): FigureManifest | string {
+export function readManifest(dir: string, builtin = false, skipped: string[] = []): FigureManifest | string {
   const file = join(dir, MANIFEST_FILE);
   if (!existsSync(file)) return `没有 ${MANIFEST_FILE}`;
   let raw: Record<string, unknown>;
   try { raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>; } catch (err) { return `${MANIFEST_FILE} 不是合法的 JSON:${(err as Error).message}`; }
-  if (raw.manifest !== MANIFEST_VERSION) return `manifest 应为 ${MANIFEST_VERSION},是 ${JSON.stringify(raw.manifest)}`;
-  if (raw.api !== FIGURE_API) return `api 应为 ${FIGURE_API},是 ${JSON.stringify(raw.api)}`;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return `${MANIFEST_FILE} 应为对象`;
+  for (const [key, oldest, now] of [['manifest', MANIFEST_OLDEST, MANIFEST_VERSION], ['api', FIGURE_API_OLDEST, FIGURE_API]] as const) {
+    const v = raw[key];
+    if (typeof v !== 'number' || !Number.isInteger(v)) return `${key} 应为整数,是 ${JSON.stringify(v)}`;
+    if (v > now) return `${key} 是 ${v},这一版只认到 ${now}:要先更新应用`;
+    if (v < oldest) return `${key} ${v} 是 ${oldest} 之前的测试格式,读不了`;
+  }
   if (typeof raw.id !== 'string' || !ID.test(raw.id) || (raw.id === COO && !builtin)) return `id 不合法:${JSON.stringify(raw.id)}`;
   const name = namesOf(raw.name), about = namesOf(raw.about);
   if (!name) return 'name 缺失';
@@ -261,16 +279,15 @@ export function readManifest(dir: string, builtin = false, missing: string[] = [
       ...(p.console && typeof p.console === 'object' ? { console: p.console as FigurePreset['console'] } : {}),
     });
   }
-  const vocab = readVocab(raw.vocab);
+  const vocab = readVocab(raw.vocab, skipped);
   if (typeof vocab === 'string') return vocab;
-  const pairs = readPairs(raw.pairs, vocab);
-  if (typeof pairs === 'string') return pairs;
-  const sounds = readSounds(raw.sounds, dir, missing);
+  const pairs = readPairs(raw.pairs, vocab, skipped);
+  const sounds = readSounds(raw.sounds, dir, skipped);
   if (typeof sounds === 'string') return sounds;
-  const can = (raw.can ?? {}) as Record<string, unknown>;
-  if (can.walk !== undefined && typeof can.walk !== 'boolean') return 'can.walk 应为 true 或 false';
+  const can = (raw.can && typeof raw.can === 'object' ? raw.can : {}) as Record<string, unknown>;
+  if (can.walk !== undefined && typeof can.walk !== 'boolean') skipped.push(`can.walk 是 ${JSON.stringify(can.walk)},这一版不认识,按会走处理`);
   return {
-    manifest: MANIFEST_VERSION, api: FIGURE_API, id: raw.id, version: typeof raw.version === 'string' ? raw.version : '0.0.0',
+    manifest: MANIFEST_VERSION, api: raw.api as number, id: raw.id, version: typeof raw.version === 'string' ? raw.version : '0.0.0',
     name, about, entry: raw.entry, export: raw.export, axes, presets, vocab, pairs, sounds, can: { walk: can.walk !== false },
     ...(typeof raw.author === 'string' ? { author: raw.author } : {}),
     ...(typeof raw.license === 'string' ? { license: raw.license } : {}),
@@ -280,7 +297,13 @@ export function readManifest(dir: string, builtin = false, missing: string[] = [
   };
 }
 
-export interface PackScan { packs: FigurePack[]; problems: string[] }
+export interface PackScan {
+  packs: FigurePack[];
+  /** Pack directories that did not load, and why. */
+  problems: string[];
+  /** Packs that loaded with some parts left out (packs.ts `readManifest`), one note per part. */
+  notes: string[];
+}
 
 /** The packs that ship with the World: directory and the URL path the pages load it from. */
 export const BUILTIN_PACKS: ReadonlyArray<{ dir: string; base: string }> = [
@@ -301,11 +324,12 @@ export function figurePacks(roots: readonly string[]): PackScan {
 export function scanPacks(builtin: ReadonlyArray<{ dir: string; base: string }>, roots: readonly string[]): PackScan {
   const packs: FigurePack[] = [];
   const problems: string[] = [];
+  const notes: string[] = [];
   const add = (dir: string, base: (id: string) => string, isBuiltin: boolean) => {
     const missing: string[] = [];
     const m = readManifest(dir, isBuiltin, missing);
     if (typeof m === 'string') { problems.push(`${dir}:${m}`); return; }
-    for (const x of missing) problems.push(`${dir}:${x}`);
+    for (const x of missing) notes.push(`${dir}:${x}`);
     // a copy of a built-in pack (see PACK_ALIASES): the built-in one is shown instead
     if (!isBuiltin && Object.hasOwn(PACK_ALIASES, m.id)) return;
     if (packs.some((p) => p.id === m.id)) { problems.push(`${dir}:id ${m.id} 已被${packs.find((p) => p.id === m.id)!.builtin ? '内置形象' : '另一个形象包'}占用`); return; }
@@ -315,10 +339,11 @@ export function scanPacks(builtin: ReadonlyArray<{ dir: string; base: string }>,
   for (const root of roots) {
     if (!existsSync(root)) continue;
     for (const e of readdirSync(root, { withFileTypes: true })) {
-      if (e.isDirectory()) add(join(root, e.name), (id) => `/packs/${id}/`, false);
+      // a dot folder is not a pack: src/pack-import.ts copies an import into one before moving it into place
+      if (e.isDirectory() && !e.name.startsWith('.')) add(join(root, e.name), (id) => `/packs/${id}/`, false);
     }
   }
-  return { packs, problems };
+  return { packs, problems, notes };
 }
 
 /** A file of `pack` by its path inside it, or null when the path leaves the pack. */

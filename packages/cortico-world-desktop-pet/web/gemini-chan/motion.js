@@ -579,6 +579,32 @@ export const BROW = {
 // the head by face: in-plane tilt (degrees, toward +x) and pitch (angleY, down +)
 export const HEAD_TILT = { shy: 6, thinking: -7, smug: -5, pout: -4, confused: -7, worried: 3, cry: 4, disgusted: -6, gentle: 5, awkward: -4, giggle: 4, pleading: 4, coax: 4, tongue: -5 };
 export const HEAD_PITCH = { singing: -.25, sad: .1, cry: .45, worried: .15, disgusted: -.3, nervous: .1, shy: .3, reading: .4, giggle: .2, sipping: .15 };
+/**
+ * The head's resting pitch, by face (HEAD_PITCH) and asleep (.8), and the sleeping neck's sink: a new face or falling
+ * asleep steps them, which drawn as it comes jumps her head in one frame (falling asleep .8 and more, where a nod moves
+ * at most .125 a frame). They ease there instead (`pitchEased`: at PITCH_EASE.rate, never faster than PITCH_EASE.max a
+ * second); `v` null (her first frame, or after reset) takes `to` at once. The gestures' own moves (a nod, a bow, a droop,
+ * a lean, a flinch) and every hand-over between bodies stay as fast as they were. Waking (`E` PITCH_EASE.wake, sleepK
+ * falling) lifts the head quicker, in about a fifth of a second, never faster a frame than a nod: a poke wakes her with a
+ * start, not a slow rise.
+ */
+export const PITCH_EASE = { rate: 8, max: 3, wake: { rate: 20, max: 7 } };
+export const pitchEased = (v, to, dt, E = PITCH_EASE) => (v == null ? to : v + clamp((to - v) * ease(E.rate, dt), -E.max * dt, E.max * dt));
+/**
+ * A drawn frame long after the last one: the pet window was hidden, and the kit moved on unseen (its posture, gestures
+ * and faces) while her own draw state (the hand-overs between bodies, the arm drawings' shares, her springs and eased
+ * moves) moves only on the frames she draws. Before that frame figure.js steps her motion through the time missed, in
+ * steps of `step` and at most `max` seconds in all, so the first frame back shows the posture reached meanwhile with its
+ * hand-over done, instead of the picture from before the hide playing it then. A gap up to `gap` is an ordinary late
+ * frame, clamped to .05 as before. `catchUp(gap)`: the steps to take first (none for an ordinary frame).
+ */
+export const CATCH_UP = { gap: .25, max: 5, step: .05 };
+export function catchUp(gap) {
+  const out = [];
+  if (!(gap > CATCH_UP.gap)) return out;
+  for (let left = Math.min(gap, CATCH_UP.max) - CATCH_UP.step; left > 1e-6; left -= CATCH_UP.step) out.push(Math.min(CATCH_UP.step, left));
+  return out;
+}
 // the head's parallax gains [x, y] per layer, front to back
 export const PARALLAX = { headFront: [5, 3], headFeat: [3.5, 2], headMid: [2, 1.4], headBack: [-2, -1.2] };
 /** Poses whose drawing rides the neck (the hand stays on her face as the head moves). */
@@ -974,6 +1000,7 @@ export function createMotion(model, R) {
   let tiltDir = 1, tiltWas = false;
   let tiltK = 0;  // (kneel, lie) the tilt the drawing's head takes (tiltEased)
   let downK = 0;  // a droop's drop of the head, cut short eased back (tiltEased)
+  let restPitch = null, sleepK = null;  // the head's resting pitch by face, and how far asleep (pitchEased)
   let sitOwnK = 1, raiseNow = 0;  // (sit) the seated arms' share; how far her points rise over the kit's sink
   let armsT = 9, kneelArmsK = 0;  // (kneel) how long her arms have been at rest; the hybrid's share (bodyAlphas)
   let bodyB = { from: 'stand', to: 'stand', x: 1 }, dropNow = null;  // the body hand-over; the head's sink seated (eased)
@@ -1001,6 +1028,9 @@ export function createMotion(model, R) {
     const low = o.low || 0;
     const lowV = (low - prevLow) / Math.max(dt, 1e-3); prevLow = low;
     const breath = Math.sin(t * (mode === 'sleep' ? 1.7 : 2.4));
+    // (a new face or falling asleep pitches her head over a few frames, not in one: pitchEased)
+    sleepK = mode === 'sleep' ? pitchEased(sleepK, 1, dt) : pitchEased(sleepK, 0, dt, PITCH_EASE.wake);
+    restPitch = pitchEased(restPitch, HEAD_PITCH[face] || 0, dt);
     lieK = LIE && caps.pose('lie') ? lerp(lieK, clamp(o.lie ?? 0, 0, 1), ease(14, dt)) : 0;
     if (lieK < 1e-3) lieK = 0;
     // (the drawing cuts in and out: lieStep; the rig still tilts and her arms still hang on the eased lie)
@@ -1141,7 +1171,7 @@ export function createMotion(model, R) {
     const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
     // facing you, the head turns a touch toward +x at rest; angleY + pitches the face down
     const angleX = clamp(clamp(look[0] / 5, -1, 1) * .9 + gYaw + .12, -1.4, 1.4);
-    const angleY = clamp(clamp(look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + P.pitch + PL.pitch + B.pitch
+    const angleY = clamp(clamp(look[1] / 4, -1, 1) * .7 + .8 * sleepK + restPitch + nod * .9 + P.pitch + PL.pitch + B.pitch
       - flinch * .3 - .1 * inh + .3 * exh + awayFace * .35 - .12 * tilt + DROOP.pitch * downK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
 
     /* springs */
@@ -1347,7 +1377,7 @@ export function createMotion(model, R) {
 
     st.neck = {
       a: headA + clamp(tiltRest * .8, -10, 12),
-      ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + B.neckTy + nod * 2 + DROOP.neckTy * downK,
+      ty: 2.5 * sleepK + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + B.neckTy + nod * 2 + DROOP.neckTy * downK,
       sx: B.neckSx, sy: B.neckSy,
     };
     const turn = [angleX, angleY];
@@ -1500,7 +1530,7 @@ export function createMotion(model, R) {
     const flopUp = 1 - smooth(.2, .6, lieK);
     st.lie = { a: -14 * flopUp, sx: 1 + .006 * breath, sy: (1 - .012 * breath) * (1 - .04 * flinch) };
     st.lieBack = { fn: (u, v) => [0, -.8 * (.5 + .5 * breath) * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)] };
-    const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look?.[0] || 0, -6, 6) * .3 + (mode === 'sleep' ? 3 : 0)
+    const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look?.[0] || 0, -6, 6) * .3 + 3 * sleepK
       + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + 4 * exh - 2 * inh + fid('chin') * 6 + tilt * LIE_TILT
       + LIE_MORE.down * down + LIE_MORE.closer * closer - LIE_MORE.back * leanback + LIE_MORE.sway * sway) * Math.PI / 180;
     const hx = shake * 2.5 + peek * 3 + LIE_MORE.closer / 3 * closer, [cx, cy] = pv.lieChin || [L.rects?.head?.[0] ?? 128, L.rects?.head?.[3] ?? 200];
@@ -1522,7 +1552,7 @@ export function createMotion(model, R) {
   function reset() {
     springs();
     prevTilt = prevYaw = prevLow = wTilt = wLean = sitK = danceK = lieK = 0;
-    tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0;
+    tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; restPitch = sleepK = null;
     wagK = tailPh = earUpW = earDownW = 0;
     perk = swish = droop = curl = wagPh = puff = earUp = earFlat = earDroop = browLift = browInner = browSide = backA = awayA = faceArmT = kickPh = 0;
     backOn = 1;

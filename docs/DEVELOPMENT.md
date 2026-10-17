@@ -74,6 +74,26 @@ GitHub Actions 会构建 Windows 安装包和两个 Mac 包(Apple 芯片、Intel
 - 改到用户能看到的行为时,同步更新 [README](../README.md)。
 - 贡献按 AGPL-3.0-or-later 发布,不用签协议,见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
 
+## CI 检查与手动冒烟测试
+
+CI 在 Windows、macOS、Linux 上各跑一遍上面五项检查,另外:
+
+- **导出的形象包**:`tests/*-pack-export.test.js` 用原版 v0.1.17 的读包代码检查五个导出包,`tests/pack-export-upstream.test.js` 再用原版当前发布(v0.2.3,原版发新版时连同 CI 的 fetch 一起改)的 `readManifest` / `scanPacks` 检查一遍(和原版自带形象放在一起，不能撞 id)。本仓库自己的 v0.2.x 标签和原版重名，所以原版的标签取到单独的 ref:`git fetch --no-tags https://github.com/Pal-AI-Lab/Coopanion refs/tags/v0.2.3:refs/upstream-tags/v0.2.3`。本地没有这个 ref(或 v0.1.17 标签)时这些检查跳过,CI 上缺了直接失败。
+- **桌宠窗口的平台分支**:`tests/pet-host-platform.test.js` 把 `host/electron-main.cjs` 连同 Electron、koffi 和 `process.platform` 换成替身来跑，所以在任何系统上都会测到 Windows 的「从最大化进入全屏」判断、桌面窗口/自身/其他显示器不算、自动隐藏任务栏留缝,X11 从 X server 读光标、鼠标租约、映射后重新设置点击穿透和悬停按钮，以及三个平台上「第一次 show 事件没来也会告诉页面已显示、不会先说隐藏」。
+- **真 Electron 冒烟**:`tests/pet-host-smoke.test.js` 用真的 Electron 启动桌宠窗口进程，加载一个测试页，断言启动后页面被告知「已显示」、从没被告知「隐藏」、声音没有被静音(Windows / Mac 上还断言页面的 AudioContext 是 running;Linux 的 xvfb 下可能没有声卡，只把状态打到日志里，等看过 CI 的结果再定要不要断言)、光标报告在走。Windows 上直接跑;Linux 上 CI 用 `xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm run test`,本地没有显示时跳过;Mac 上只在 `PET_HOST_SMOKE=1` 时跑(会在屏幕上放一个透明窗口几秒)。
+
+下面这些自动测不到，发版前在真机上手动过一遍(Windows 和 Linux 各一台):
+
+- [ ] 启动后第一个动作就有声音;托盘「隐藏桌宠」后没声音，再「显示桌宠」声音回来。
+- [ ] Windows:打开「全屏时隐藏」,浏览器从最大化按 F11、视频全屏、游戏全屏时桌宠让开，退出全屏后回来;只是最大化的窗口不让开;隐藏期间手动隐藏的，退出全屏后不自己出来。
+- [ ] Windows:任务栏设成自动隐藏，鼠标移到那条边任务栏能弹出来。
+- [ ] Windows:两块缩放不同的屏幕(如 100% 和 150%),把桌宠拖过去，大小和点击位置都对。
+- [ ] Windows:桌宠问问题时数字键能直接选，答完键盘回到原来的窗口。
+- [ ] 数位板或键盘按 Ctrl+- / Ctrl+= 时桌宠不缩放。
+- [ ] Linux X11(带合成器的 GNOME/KDE):窗口透明，桌宠以外的地方点得到下面的窗口;鼠标移到桌宠上悬停按钮出现，移开后消失、点击又能穿透;200% 缩放下光标位置对。
+- [ ] Linux Wayland(经 XWayland):同上看一遍，记下和 X11 不一样的地方。
+- [ ] Linux:托盘图标出现(GNOME 要装 AppIndicator 扩展),菜单能显示、隐藏桌宠。
+
 ## World 源码来源
 
 两个 World 从子模块转为本仓库的 workspace 包时，保留了原目录和包名;许可随本仓库改为 AGPL-3.0-or-later,原仓库里的历史版本仍是 MIT。源码快照分别取自桌宠

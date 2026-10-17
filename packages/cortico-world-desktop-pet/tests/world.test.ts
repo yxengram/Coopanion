@@ -189,6 +189,81 @@ describe('with a pet page', () => {
     expect(await tool(world, 'pet_walk_to').handler({ to: 'moon' }, ctx)).toMatchObject({ failed: true });
   });
 
+  it('pet_walk_to cursor asks the page where the pointer is, stops beside it and says where both were', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    page.send({ t: 'pose', x: 400, w: 2000, facing: 1, mode: 'idle' });
+    await expect.poll(() => (world as unknown as { pose: { x: number } | null }).pose?.x).toBe(400);
+    const going = tool(world, 'pet_walk_to').handler({ to: 'cursor' }, ctx);
+    const q = await page.next((m) => m.t === 'pointer?');
+    page.send({ t: 'pointer', id: q.id, x: 1500, w: 2000 });
+    const walk = await page.next((m) => m.t === 'walk');
+    // beside the pointer, not under it: half her standing width plus 8 px (the kit's minX(0), 52 px at scale 1) short of it
+    expect(walk.to).toBeCloseTo(1448 / 2000, 6);
+    page.send({ t: 'arrived', walkId: walk.id, x: walk.to });
+    expect(await going).toEqual({ text: '鼠标在屏幕横向 75% 处;往右走,到了它左边,在屏幕横向 72% 处。' });
+
+    // the pointer right beside her: no walk
+    page.send({ t: 'pose', x: 1448, w: 2000, facing: 1, mode: 'idle' });
+    await expect.poll(() => (world as unknown as { pose: { x: number } | null }).pose?.x).toBe(1448);
+    const stay = tool(world, 'pet_walk_to').handler({ to: 'cursor' }, ctx);
+    page.send({ t: 'pointer', id: (await page.next((m) => m.t === 'pointer?')).id, x: 1490, w: 2000 });
+    expect(await stay).toEqual({ text: '鼠标在屏幕横向 75% 处,就在你旁边(你在屏幕横向 72% 处),不用走。' });
+    expect(page.messages.some((m) => m.t === 'walk')).toBe(false);
+
+    // the pointer on another screen: she does not walk to the middle, she says so
+    const off = tool(world, 'pet_walk_to').handler({ to: 'cursor' }, ctx);
+    page.send({ t: 'pointer', id: (await page.next((m) => m.t === 'pointer?')).id, x: null, w: 2000 });
+    expect(await off).toEqual({ text: '[pet_walk_to 没执行] 鼠标不在桌宠所在的这块屏幕上,不知道往哪走。', failed: true });
+  });
+
+  it('pet_walk_to away walks a third of the screen away from the pointer, and stops at the edge', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    page.send({ t: 'pose', x: 1000, w: 1800, facing: 1, mode: 'sit' });
+    await expect.poll(() => (world as unknown as { pose: { x: number } | null }).pose?.x).toBe(1000);
+    const away = tool(world, 'pet_walk_to').handler({ to: 'away', run: true }, ctx);
+    page.send({ t: 'pointer', id: (await page.next((m) => m.t === 'pointer?')).id, x: 1200, w: 1800 });
+    const walk = await page.next((m) => m.t === 'walk');
+    expect(walk).toMatchObject({ to: 400 / 1800, run: true });
+    page.send({ t: 'arrived', walkId: walk.id, x: walk.to });
+    expect(await away).toEqual({ text: '鼠标在屏幕横向 67% 处;先站起来,往左跑躲开它,到了屏幕横向 22% 处。' });
+
+    page.send({ t: 'pose', x: 200, w: 1800, facing: -1, mode: 'idle' });
+    await expect.poll(() => (world as unknown as { pose: { x: number } | null }).pose?.x).toBe(200);
+    const edge = tool(world, 'pet_walk_to').handler({ to: 'away' }, ctx);
+    page.send({ t: 'pointer', id: (await page.next((m) => m.t === 'pointer?')).id, x: 900, w: 1800 });
+    const w2 = await page.next((m) => m.t === 'walk');
+    // the kit's edge: 52 px in at scale 1
+    expect(w2.to).toBeCloseTo(52 / 1800, 6);
+    page.send({ t: 'arrived', walkId: w2.id, x: 52 / 1800 });
+    expect(await edge).toEqual({ text: '鼠标在屏幕横向 50% 处;往左走躲开它,走到屏幕边停下了,在屏幕横向 3% 处。' });
+
+    // cornered: already at the edge on the far side from the pointer (where the kit stops her: x = 52 at scale 1)
+    page.send({ t: 'pose', x: 52, w: 1800, facing: -1, mode: 'idle' });
+    await expect.poll(() => (world as unknown as { pose: { x: number } | null }).pose?.x).toBe(52);
+    const cornered = tool(world, 'pet_walk_to').handler({ to: 'away' }, ctx);
+    page.send({ t: 'pointer', id: (await page.next((m) => m.t === 'pointer?')).id, x: 600, w: 1800 });
+    expect(await cornered).toEqual({ text: '鼠标在屏幕横向 33% 处;你已经在屏幕左边(屏幕横向 3% 处),没处可躲了,没走。' });
+  });
+
+  it('pet_walk_to cursor with a page that does not answer walks where the page last saw the pointer; away fails', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const going = tool(world, 'pet_walk_to').handler({ to: 'cursor' }, ctx);
+    await page.next((m) => m.t === 'pointer?');
+    const walk = await page.next((m) => m.t === 'walk', 3000);
+    expect(walk.to).toBe('cursor');
+    page.send({ t: 'arrived', walkId: walk.id, x: .3 });
+    expect(await going).toEqual({ text: '没问到鼠标这会儿在哪,朝桌宠页面上次看到它的地方走:走到了屏幕横向 30% 处。' });
+    const away = tool(world, 'pet_walk_to').handler({ to: 'away' }, ctx);
+    await page.next((m) => m.t === 'pointer?');
+    expect(await away).toEqual({ text: '[pet_walk_to 没执行] 没问到鼠标在哪(桌宠页面没有回答),稍后再试。', failed: true });
+  });
+
   it('pet_act forwards known actions', async () => {
     const { world } = await mounted();
     const page = await FakePage.open(origin(world));
@@ -718,6 +793,53 @@ describe('chat page', () => {
     await expect.poll(() => chat.last('init')).toBeDefined();
     expect((chat.last('init')!.items as Array<Record<string, unknown>>).map((i) => i.kind === 'say' ? i.beats : i.text))
       .toEqual(['帮我看看这个报错', [{ text: '看到了', mood: { id: 'happy', zh: '开心' } }]]);
+  });
+
+  it('an interrupt while the page is asked where the pointer is stops pet_walk_to before it sets off', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    page.send({ t: 'pose', x: 500, w: 1000, facing: 1, mode: 'idle' });
+    await expect.poll(() => (world as unknown as { pose: { x: number } | null }).pose?.x).toBe(500);
+    const stop = new AbortController();
+    const walking = tool(world, 'pet_walk_to').handler({ to: 'cursor' }, { ...ctx, signal: stop.signal });
+    const q = await page.next((m) => m.t === 'pointer?');
+    stop.abort();
+    page.send({ t: 'pointer', id: q.id, x: 900, w: 1000 });
+    expect(await walking).toEqual({ text: '还没起步就停下了,没走,还在屏幕横向 50% 处。' });
+    expect(page.messages.some((m) => m.t === 'walk')).toBe(false);
+  });
+
+  it('a page that goes away while it is asked where the pointer is ends pet_walk_to at once, without a walk', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    page.send({ t: 'pose', x: 500, w: 1000, facing: 1, mode: 'idle' });
+    await expect.poll(() => (world as unknown as { pose: { x: number } | null }).pose?.x).toBe(500);
+    const walking = tool(world, 'pet_walk_to').handler({ to: 'cursor' }, ctx);
+    await page.next((m) => m.t === 'pointer?');
+    const asked = Date.now();
+    await page.close();
+    // not the 1 s wait for an answer, and not a walk set off toward where the page last saw the pointer
+    expect(await walking).toMatchObject({ failed: true, text: expect.stringContaining('没有连接') });
+    expect(Date.now() - asked).toBeLessThan(600);
+    expect(page.messages.some((m) => m.t === 'walk')).toBe(false);
+    expect((world as unknown as { pointerAsks: Map<string, unknown> }).pointerAsks.size).toBe(0);
+  });
+
+  it('stopping the World while the page is asked where the pointer is ends pet_walk_to at once, without a walk', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    page.send({ t: 'pose', x: 500, w: 1000, facing: 1, mode: 'idle' });
+    await expect.poll(() => (world as unknown as { pose: { x: number } | null }).pose?.x).toBe(500);
+    const walking = tool(world, 'pet_walk_to').handler({ to: 'cursor' }, ctx);
+    await page.next((m) => m.t === 'pointer?');
+    const asked = Date.now();
+    await world.stop();
+    expect(await walking).toMatchObject({ failed: true });
+    expect(Date.now() - asked).toBeLessThan(600);
+    expect(page.messages.some((m) => m.t === 'walk')).toBe(false);
+    expect((world as unknown as { pointerAsks: Map<string, unknown> }).pointerAsks.size).toBe(0);
   });
 
   it('an interrupt stops pet_walk_to where the pet stands', async () => {

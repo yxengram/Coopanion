@@ -30,8 +30,12 @@ contextBridge.exposeInMainWorld('petHost', {
   /** Whether the window hides itself while a fullscreen window covers its display. */
   hideWhenFullscreen: (on) => ipcRenderer.send('pet:hideWhenFullscreen', !!on),
   openDress: () => ipcRenderer.send('pet:openDress'),
-  /** Where the cursor is, in page pixels, or null off the window: called every tenth of a second while the window is shown. */
-  onCursor: (cb) => ipcRenderer.on('pet:cursor', (_e, p) => cb(p)),
+  /**
+   * Where the cursor is, in page pixels, or null off the window: called every tenth of a second while the window is shown.
+   * The second argument is its x in page pixels while it is on the window's display (over the Dock or the taskbar too,
+   * clamped to the window), null on another display.
+   */
+  onCursor: (cb) => ipcRenderer.on('pet:cursor', (_e, p, across) => cb(p, typeof across === 'number' ? across : null)),
   /** Screen pixels behind `rect`, minus `skip` rects (page coordinates), as a flat [r, g, b, …]; null where the screen cannot be read. */
   sampleBackdrop: (rect, skip) => ipcRenderer.invoke('pet:sampleBackdrop', { rect, skip }),
   /** Moves the window to the display under the cursor: { x, y } the cursor and { w, h } the new size in page pixels, or null when it stays. */

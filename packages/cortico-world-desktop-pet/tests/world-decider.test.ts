@@ -552,6 +552,76 @@ describe('pet_walk', () => {
   });
 });
 
+describe('pet_walk toward and away from the mouse pointer', () => {
+  it('cursor walks to beside the pointer (or at most pixels toward it) and says where the pointer was', async () => {
+    const m = await mounted();
+    const p = await page(m, { x: 400, w: 2000, facing: 1, mode: 'sit' });
+    const go = tool(m.world, 'pet_walk').handler({ direction: 'cursor' }, ctx);
+    const q = await p.next((x) => x.t === 'pointer?');
+    p.send({ t: 'pointer', id: q.id, x: 1500, w: 2000 });
+    const w1 = await p.next((x) => x.t === 'walk');
+    expect(w1.to as number).toBeCloseTo(1448 / 2000, 6);
+    p.send({ t: 'arrived', walkId: w1.id, x: w1.to });
+    const out1 = textOf(await go);
+    expect(out1).toMatch(/^鼠标在屏幕横向 1500\/2000\(75%\)处;先站起来,往右走了 1048 像素,到了它左边,在屏幕横向 1448\/2000\(72%\)处。/);
+    // standing once she got there, before the page's next pose report says so
+    expect(out1).toMatch(/\[位置\][^\n]*站着/);
+    // the page reports her standing where she stopped
+    p.send({ t: 'pose', x: 1448, w: 2000, facing: 1, mode: 'idle' });
+    await expect.poll(() => m.world.positionLine()).toContain('站着');
+
+    // a limit: at most that many pixels toward it, and how far it still is
+    const p2 = tool(m.world, 'pet_walk').handler({ direction: 'cursor', pixels: 300, run: true }, ctx);
+    p.send({ t: 'pointer', id: (await p.next((x) => x.t === 'pointer?')).id, x: 200, w: 2000 });
+    const w2 = await p.next((x) => x.t === 'walk');
+    expect(w2.to as number).toBeCloseTo(1148 / 2000, 6);
+    expect(w2.run).toBe(true);
+    p.send({ t: 'arrived', walkId: w2.id, x: w2.to });
+    expect(textOf(await p2)).toMatch(/^鼠标在屏幕横向 200\/2000\(10%\)处;往左跑了 300 像素,到了屏幕横向 1148\/2000\(57%\)处,在鼠标右边约 948 像素,还差约 896 像素到它旁边。/);
+
+    // the pointer where she stands: no walk
+    const stay = tool(m.world, 'pet_walk').handler({ direction: 'cursor' }, ctx);
+    p.send({ t: 'pointer', id: (await p.next((x) => x.t === 'pointer?')).id, x: 1170, w: 2000 });
+    const out3 = await stay;
+    expect(textOf(out3)).toMatch(/^鼠标在屏幕横向 1170\/2000\(59%\)处,就在你旁边\(你在屏幕横向 1148\/2000\(57%\)处\),不用走。/);
+    expect(p.messages.some((x) => x.t === 'walk')).toBe(false);
+  });
+
+  it('away walks pixels (or a third of the screen) away from the pointer; left and right still need pixels', async () => {
+    const m = await mounted();
+    const p = await page(m, { x: 1000, w: 1800, facing: 1, mode: 'idle' });
+    const away = tool(m.world, 'pet_walk').handler({ direction: 'away', pixels: 250 }, ctx);
+    p.send({ t: 'pointer', id: (await p.next((x) => x.t === 'pointer?')).id, x: 900, w: 1800 });
+    const w1 = await p.next((x) => x.t === 'walk');
+    expect(w1.to as number).toBeCloseTo(1250 / 1800, 6);
+    p.send({ t: 'arrived', walkId: w1.id, x: w1.to });
+    expect(textOf(await away)).toMatch(/^鼠标在屏幕横向 900\/1800\(50%\)处;往右走了 250 像素躲开它,到了屏幕横向 1250\/1800\(69%\)处,离鼠标约 350 像素。/);
+
+    const far = tool(m.world, 'pet_walk').handler({ direction: 'away' }, ctx);
+    p.send({ t: 'pointer', id: (await p.next((x) => x.t === 'pointer?')).id, x: 1000, w: 1800 });
+    const w2 = await p.next((x) => x.t === 'walk');
+    // 600 px asked; the stage stops her 52 px from the edge (the kit's maxX(0) at scale 1)
+    expect(w2.to as number).toBeCloseTo(1748 / 1800, 6);
+    p.send({ t: 'arrived', walkId: w2.id, x: w2.to });
+    expect(textOf(await far)).toMatch(/^鼠标在屏幕横向 1000\/1800\(56%\)处;往右走了 498 像素躲开它,走到屏幕边停下了,在屏幕横向 1748\/1800\(97%\)处,离鼠标约 748 像素。/);
+
+    // pixels: null (how models often send an optional integer they leave out) counts as not given
+    const nul = tool(m.world, 'pet_walk').handler({ direction: 'away', pixels: null }, ctx);
+    p.send({ t: 'pointer', id: (await p.next((x) => x.t === 'pointer?')).id, x: 1748, w: 1800 });
+    const w3 = await p.next((x) => x.t === 'walk');
+    expect(w3.to as number).toBeCloseTo(1148 / 1800, 6);
+    p.send({ t: 'arrived', walkId: w3.id, x: w3.to });
+    expect(textOf(await nul)).toMatch(/^鼠标在屏幕横向 1748\/1800\(97%\)处;往左走了 600 像素躲开它,到了屏幕横向 1148\/1800\(64%\)处,离鼠标约 600 像素。/);
+    expect(await tool(m.world, 'pet_walk').handler({ direction: 'left', pixels: null }, ctx)).toMatchObject({ failed: true });
+
+    expect(await tool(m.world, 'pet_walk').handler({ direction: 'left' }, ctx)).toMatchObject({ failed: true });
+    expect(await tool(m.world, 'pet_walk').handler({ direction: 'cursor', pixels: 0 }, ctx)).toMatchObject({ failed: true });
+    const decl = tool(m.world, 'pet_walk').parameters as { required: string[]; properties: { direction: { enum: string[] } } };
+    expect(decl.required).toEqual(['direction']);
+    expect(decl.properties.direction.enum).toEqual(['left', 'right', 'cursor', 'away']);
+  });
+});
+
 describe('position on every call', () => {
   it('keeps one piggyback event that renders the pose at delivery, then arms the next', async () => {
     const m = await mounted();

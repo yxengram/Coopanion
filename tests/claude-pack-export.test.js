@@ -19,7 +19,7 @@ const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
 const builtin = JSON.parse(readFileSync(new URL('web/claude-chan/figure.json', PKG), 'utf8'));
 const upstreamTones = TONES.filter((t) => !t.plus).map((t) => t.name);
 let fromGit = null;
-try { fromGit = upstreamToneNames(UPSTREAM_REF); } catch { /* a shallow checkout may lack the tag */ }
+try { fromGit = upstreamToneNames(UPSTREAM_REF); } catch (e) { if (process.env.CI) throw new Error(`${UPSTREAM_REF} tag missing on CI (the workflow fetches it): ${e}`); /* a local checkout may lack the tag */ }
 
 /** The manifest written into `<root>/<id>/` with a stand-in file for every sound. */
 function writePack(m) {
@@ -60,7 +60,9 @@ describe('exported Claude-chan pack', () => {
     const whale = (await whaleSounds({ upstreamTones })).map((s) => s.name);
     const mine = ['fist', 'jot', 'twiddle'];
     expect(names).toEqual(TONES.map((t) => t.name).filter((n) => (whale.includes(n) && n !== 'spout' && n !== 'wag') || mine.includes(n)));
-    expect(names.length).toBe(34);
+    expect(names.length).toBe(38);
+    // expr2's faces (翻白眼, 震惊, 死鱼眼, 流口水) each with a tone of its own the pack ships
+    expect(names).toEqual(expect.arrayContaining(['eyeroll', 'shocked', 'deadpan', 'drool']));
   });
 
   it('builds a manifest our World and upstream v0.1.17 accept', async () => {

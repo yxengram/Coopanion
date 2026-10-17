@@ -58,6 +58,7 @@ export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDe
         avatarFile: join(ctx.botDir, AVATAR_FILE),
         controls: assembly.controls,
         packRoots: () => [join(ctx.dataDir, 'figures'), ...assembly.packRoots?.() ?? []],
+        packDir: () => join(ctx.dataDir, 'figures'),
         onBotChange: () => assembly.onBotChange?.(),
         ...(assembly.deciderKey ? { deciderKey: () => assembly.deciderKey!() } : {}),
         onModeChange: (mode) => assembly.onModeChange?.(mode),

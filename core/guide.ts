@@ -5,8 +5,11 @@
  *
  * 1. hello, what to call the person (the desktop-pet World's `user`), and where they heard of
  *    Coopanion (for the usage statistics; one of the buttons skips it);
- * 2. how lively to be (`roam`): while the cards are up Coo shows each one, standing still,
- *    strolling, or running back and forth;
+ * 2. on a first start only (no `guide.json` yet) and while the pet is still Coo, which figure to be: Coo (the
+ *    default, kept when the person closes the bubble here), the whale, Claude 娘, GPT 娘, Gemini 娘 or Grok 娘, each
+ *    card with its picture; another one is put on through the pet server's `POST /api/skin`, as the dressing page
+ *    saves a look (Coo is left as it is). Then how lively to be (`roam`): while the cards are up Coo shows each one,
+ *    standing still, strolling, or running back and forth;
  * 3. the model service (DeepSeek first, the others Coo Pet Provider offers after it, each card with
  *    its logo), the model (the service's cheap default that reads images, or any name typed in) and
  *    the key, saved, tested and made active through the console's own endpoint routes;
@@ -21,8 +24,10 @@
  * again (the World's `pet.guide` panel method). Once it has run, a missing key is asked for in the
  * bubble from time to time (`askForKey`), with the key box right there.
  */
-import { existsSync, writeFileSync } from 'node:fs';
-import type { DesktopPetWorld, PetDialog, PetDialogAnswer } from 'cortico-world-desktop-pet';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import type { DesktopPetWorld, FigurePack, PetDialog, PetDialogAnswer } from 'cortico-world-desktop-pet';
+import { SEED_DIR } from './seed.ts';
 import { VENDOR_ICONS, VENDORS, type Vendor } from 'cortico-provider-coo';
 import { connectVendor, currentConnection, type ConsoleCall } from 'cortico-provider-coo/src/connect.ts';
 
@@ -45,6 +50,12 @@ const MAC = process.platform === 'darwin';
 
 type Roam = 'off' | 'calm' | 'free';
 
+/** The figures a first start offers, in this order (the built-in packs); Coo, the first, is the default. */
+export const GUIDE_FIGURES = ['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan'] as const;
+/** A card's picture larger than this is left out (the card shows its name alone). */
+const THUMB_MAX = 256 * 1024;
+const THUMB_TYPES: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
+
 const S = {
   hello: '你好呀!我是 Coo,以后就住在你屏幕的底边啦,库...',
   helloReply: '你好,Coo!',
@@ -59,6 +70,20 @@ const S = {
     calm: { label: '多待着', level: '中', line: '我会时不时溜达一圈,大多时候待着。', motion: 'walk' },
     free: { label: '常走动', level: '高', line: '我可以到处跑来跑去,库...!', motion: 'run' },
   } as const,
+  askFigure: '先选一个样子吧!之后在「装扮」里随时能换。',
+  figureMark: '装扮',
+  figureOk: '就这个',
+  /** The cards' names (a pack's own name otherwise) and the line each types when it is picked. */
+  figures: {
+    coo: { label: 'Coo', line: '就是现在的我,C 形的小身体。' },
+    whale: { label: '大肥鱼', line: '穿女仆裙的大肥鱼,还会喷水。' },
+    'claude-chan': { label: 'Claude 娘', line: '温柔的 Claude 娘。' },
+    'gpt-chan': { label: 'GPT 娘', line: '有龙翼和龙尾的 GPT 娘。' },
+    'gemini-chan': { label: 'Gemini 娘', line: '有猫耳和猫尾的 Gemini 娘。' },
+    'grok-chan': { label: 'Grok 娘', line: '金发双马尾的吸血鬼 Grok 娘。' },
+  } as Record<string, { label: string; line: string }>,
+  figureKept: '好,那我还是 Coo 的样子。',
+  figureWorn: (name: string) => `换好啦,现在我是${name}的样子!`,
   roamOk: '就这样',
   roamDone: '好,就按这个来。',
 
@@ -245,6 +270,66 @@ async function connectLoop(show: (d: PetDialog) => Promise<PetDialogAnswer>, cal
   }
 }
 
+/** A pack's pick when it is put on with nothing chosen: the preset that picks each axis's first option, else those options joined (as the dressing page does). */
+export function defaultScheme(pack: FigurePack): string {
+  const m = pack.manifest;
+  const first = Object.fromEntries(m.axes.map((a) => [a.id, a.options[0]!.id]));
+  return m.presets.find((p) => m.axes.every((a) => p.pick[a.id] === first[a.id]))?.id ?? m.axes.map((a) => first[a.id]).join('-');
+}
+
+/** A file as a data URL for a card, or undefined when it is missing, too big or not a picture. */
+function dataUrl(file: string): string | undefined {
+  const type = THUMB_TYPES[extname(file).toLowerCase()];
+  try {
+    if (!type || statSync(file).size > THUMB_MAX) return undefined;
+    return `data:${type};base64,${readFileSync(file).toString('base64')}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A figure's picture: Coo's is the app's avatar; a pack's, its default pick's preset's, else its first option's, else its own. */
+function figureThumb(pack: FigurePack): string | undefined {
+  if (pack.id === 'coo') return dataUrl(join(SEED_DIR, 'avatar.png'));
+  const m = pack.manifest;
+  const scheme = defaultScheme(pack);
+  const file = m.presets.find((p) => p.id === scheme)?.thumb ?? m.axes[0]?.options[0]?.thumb ?? m.thumb;
+  return file ? dataUrl(join(pack.dir, file)) : undefined;
+}
+
+/** The figures a first start offers that are there (built in), in `GUIDE_FIGURES` order. */
+export function guideFigures(packs: readonly FigurePack[]): FigurePack[] {
+  return GUIDE_FIGURES.map((id) => packs.find((p) => p.id === id && p.builtin)).filter((p): p is FigurePack => !!p);
+}
+
+/** The card step asking which figure to be; Coo picked to begin with. */
+export function figureStep(figures: readonly FigurePack[]): PetDialog {
+  return {
+    text: S.askFigure, marks: [S.figureMark], actions: ['thinking'],
+    input: {
+      kind: 'choices', confirm: S.figureOk, value: Math.max(0, figures.findIndex((p) => p.id === 'coo')),
+      options: figures.map((p) => {
+        const image = figureThumb(p);
+        const own = S.figures[p.id];
+        return { label: own?.label ?? (p.manifest.name.zh ?? Object.values(p.manifest.name)[0] ?? p.id), ...(own ? { line: own.line } : {}), ...(image ? { image } : {}) };
+      }),
+    },
+  };
+}
+
+/** Puts on `pack` (its default pick) as the dressing page saves a look: the pet server's `POST /api/skin`. */
+async function wearFigure(pet: DesktopPetWorld, pack: FigurePack): Promise<boolean> {
+  const state = pet.petState() as { url?: string | null; skin?: Record<string, unknown> };
+  if (!state.url) return false;
+  const skin = { ...state.skin, figure: pack.id, scheme: defaultScheme(pack) };
+  try {
+    const res = await fetch(new URL('/api/skin', state.url), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ skin }) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 const keyInput = (v: Vendor, later: string): PetDialog['input'] => ({
   kind: 'text', submit: S.keySend, placeholder: v.keyHint, secret: true, maxLength: 200,
   link: { label: S.keyLink(v), url: v.keyUrl }, alt: later,
@@ -256,6 +341,8 @@ let running = false;
 export async function runGuide(deps: GuideDeps): Promise<void> {
   if (running) return;
   running = true;
+  // a first start: the introduction has never run here (the figure is asked only then)
+  const fresh = !guideDone(deps.doneFile);
   const t = talker(deps.pet);
   const call = api(deps.console);
   let reached = 0;
@@ -295,6 +382,20 @@ export async function runGuide(deps: GuideDeps): Promise<void> {
     const source = SOURCES['index' in src ? src.index : SOURCES.length - 1]?.[1] ?? 'skip';
     deps.track?.('source', { answer: source });
     if (source !== 'skip') await step(1, { text: S.sourceThanks, actions: ['nod'] });
+
+    // 2 which figure, on a first start while the pet is still Coo: Coo stays unless another is picked
+    const pet = deps.pet();
+    const figures = fresh && pet && ((pet.petState().skin as { figure?: string } | undefined)?.figure ?? 'coo') === 'coo' ? guideFigures(pet.packs()) : [];
+    if (figures.length > 1) {
+      const f = await step(2, figureStep(figures));
+      const picked = figures['index' in f ? f.index : 0];
+      const wearer = deps.pet() ?? pet;
+      if (picked && picked.id !== 'coo' && wearer && await wearFigure(wearer, picked)) {
+        await step(2, { text: S.figureWorn(S.figures[picked.id]?.label ?? picked.id), actions: ['happy', 'hop'] });
+      } else {
+        await step(2, { text: S.figureKept, actions: ['nod'] });
+      }
+    }
 
     // 2 how lively: each card plays out while it is picked
     const ORDER: Roam[] = ['off', 'calm', 'free'];

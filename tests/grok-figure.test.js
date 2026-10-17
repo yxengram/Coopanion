@@ -15,6 +15,7 @@ import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/grok-chan/fx
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/grok-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
 import { describeArmCut } from './helpers/arm-cut.js';
+import { describeLieCut } from './helpers/lie-cut.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/grok-chan/face.js';
 import { createGrokFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/grok-chan/figure.js';
@@ -1940,3 +1941,4 @@ describeFloorFace('Grok-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTUR
 
 /* ---------- arm drawings cut in for each other, never half seen at once (the four girls share these: tests/helpers/arm-cut.js) ---------- */
 describeArmCut('Grok-chan', { dir: DIR, M: KneelMotion, GESTURES });
+describeLieCut('Grok-chan', { dir: DIR, M: KneelMotion, GESTURES });

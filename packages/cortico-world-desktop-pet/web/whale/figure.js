@@ -347,6 +347,32 @@ export const DROOP = { pitch: .7, neck: 9, look: 4 };
  * leaning back (the same), a sway's rock of the whole body and of the neck on top of it (degrees).
  */
 export const BODY_LEAN = { closer: 2, closerNeck: 3, near: .1, back: 9, backNeck: 9, far: .04, chinUp: .35, swayBody: 3, swayNeck: 4 };
+/**
+ * The head's resting pitch, by face (HEAD_PITCH) and asleep (.8), and the sleeping neck's sink: a new face or falling
+ * asleep steps them, which drawn as it comes jumps her head in one frame (falling asleep .8 and more, where a nod moves
+ * at most .125 a frame). They ease there instead (`pitchEased`: at PITCH_EASE.rate, never faster than PITCH_EASE.max a
+ * second); `v` null (her first frame, or after reset) takes `to` at once. The gestures' own moves (a nod, a bow, a droop,
+ * a lean, a flinch) and every hand-over between bodies stay as fast as they were. Waking (`E` PITCH_EASE.wake, sleepK
+ * falling) lifts the head quicker, in about a fifth of a second, never faster a frame than a nod: a poke wakes her with a
+ * start, not a slow rise.
+ */
+export const PITCH_EASE = { rate: 8, max: 3, wake: { rate: 20, max: 7 } };
+export const pitchEased = (v, to, dt, E = PITCH_EASE) => (v == null ? to : v + clamp((to - v) * ease(E.rate, dt), -E.max * dt, E.max * dt));
+/**
+ * A drawn frame long after the last one: the pet window was hidden, and the kit moved on unseen (her posture, gestures
+ * and faces) while her own draw state (the seat, kneel and lie hand-overs, the arm drawings' shares, her springs and eased
+ * moves) moves only on the frames she draws. Before that frame `draw` steps her through the time missed without drawing,
+ * in steps of `step` and at most `max` seconds in all, so the first frame back shows the posture reached meanwhile with
+ * its hand-over done, instead of the picture from before the hide playing it then. A gap up to `gap` is an ordinary late
+ * frame, clamped to .05 as before. `catchUp(gap)`: the steps to take first (none for an ordinary frame).
+ */
+export const CATCH_UP = { gap: .25, max: 5, step: .05 };
+export function catchUp(gap) {
+  const out = [];
+  if (!(gap > CATCH_UP.gap)) return out;
+  for (let left = Math.min(gap, CATCH_UP.max) - CATCH_UP.step; left > 1e-6; left -= CATCH_UP.step) out.push(Math.min(CATCH_UP.step, left));
+  return out;
+}
 /** Lying, those moves of the head about the chin (degrees; a lean in also shifts it toward you, rig units). */
 export const LIE_MORE = { down: 9, closer: 6, back: 5, sway: 6 };
 /**
@@ -1168,6 +1194,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   let tiltDir = 1, tiltWas = false;
   let tiltK = 0;  // (kneel, lie) the tilt the drawing's head takes (tiltEased)
   let downK = 0;  // a droop's drop of the head, cut short eased back (tiltEased)
+  let restPitch = null, sleepK = null;  // the head's resting pitch by face, and how far asleep (pitchEased)
   const fxTurn = [0, 0]; // this frame's head turn (angleX, angleY), for effects drawn over the face
   // the kit tips Coo's whole round body to listen, nod, doze or wobble; she keeps her feet on the floor and
   // moves her head instead. Only flight, dragging and the jump's crouch and landing tip the whole group,
@@ -1235,8 +1262,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // a fresh canvas is sized the frame it is mounted (a new outfit remounts the rig: no 300x150 frames in between)
     if (mountedIn !== petG || !petG.contains(fo)) { mount(petG); frameN = 0; }
     if (frameN++ % 20 === 0) fitCanvas();
-    floorFace = null;
-    const t = o.t, dt = lastT == null ? 1 / 60 : clamp(t - lastT, 0, .05);
+    const t = o.t, gap = lastT == null ? 0 : t - lastT, dt = lastT == null ? 1 / 60 : clamp(gap, 0, .05);
     lastT = t;
     // turned to stone (petrify's `freeze`) she holds still: the last pose is drawn again, face and all, and only the
     // grey and the crack change; the springs and clocks pick up where they were once she thaws
@@ -1249,6 +1275,14 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       drawFx(fc, t);
       return;
     }
+    // the first frame after the window was hidden: she first moves on through the time missed, undrawn (catchUp)
+    for (const d of catchUp(gap)) frame(fc, o, t, d, true);
+    frame(fc, o, t, dt, false);
+  }
+
+  /** One frame of her motion at `dt`; `dry`: her state only, nothing painted or drawn (catchUp). */
+  function frame(fc, o, t, dt, dry) {
+    floorFace = null;
     // `face` is the face's body language (fins, tail, arms, the head's tilt and pitch); a face made of others takes its
     // brows and mouth from their own faces (partsOf), and the face painted is the whole one (`name`)
     const mode = o.mode || 'idle', name = o.face || 'neutral', FP = partsOf(fc, name), face = FP.body;
@@ -1260,6 +1294,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const low = o.low || 0;
     const lowV = (low - prevLow) / Math.max(dt, 1e-3); prevLow = low;
     const breath = Math.sin(t * (mode === 'sleep' ? 1.7 : 2.4));
+    // (a new face or falling asleep pitches her head over a few frames, not in one: pitchEased)
+    sleepK = mode === 'sleep' ? pitchEased(sleepK, 1, dt) : pitchEased(sleepK, 0, dt, PITCH_EASE.wake);
+    restPitch = pitchEased(restPitch, HEAD_PITCH[face] || 0, dt);
     // a scheme without the lying files drops her to sitting at once: its textures are not in the rig to ease out with
     lieK = LIE && poseOK() ? lerp(lieK, clamp(o.lie ?? 0, 0, 1), ease(14, dt)) : 0;
     if (lieK < 1e-3) lieK = 0;  // the easing alone never reaches zero
@@ -1337,7 +1374,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
     const angleX = clamp(clamp(o.look[0] / 5, -1, 1) * .9 + gYaw, -1.4, 1.4);
     // angleY + pitches the face down (the features slide down, more crown shows), as a gaze down (look[1] +) does
-    const angleY = clamp(clamp(o.look[1] / 4, -1, 1) * .7 + (mode === 'sleep' ? .8 : 0) + (HEAD_PITCH[face] || 0) + nod * .9 + bow * .5 - flinch * .3 - peek * .1 - .1 * inh + .3 * exh - .12 * tilt + DROOP.pitch * downK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
+    const angleY = clamp(clamp(o.look[1] / 4, -1, 1) * .7 + .8 * sleepK + restPitch + nod * .9 + bow * .5 - flinch * .3 - peek * .1 - .1 * inh + .3 * exh - .12 * tilt + DROOP.pitch * downK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
 
     /* springs */
     // (a kit without the guard against a frame of dt 0, upstream's before #87, may hand over a NaN swing for good: as none)
@@ -1594,7 +1631,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.tail = { a: tail - 10 * sitK };
     st.tailBend = { fn: u => [0, -tail * .5 * u * u] };
     // (the head stays up while she leans forward for the ninja run)
-    st.neck = { a: headA + clamp(bend * .8, -10, 12) - runK * 12, ty: (mode === 'sleep' ? 2.5 : 0) + breath * .35 + 3 * titter };
+    st.neck = { a: headA + clamp(bend * .8, -10, 12) - runK * 12, ty: 2.5 * sleepK + breath * .35 + 3 * titter };
     fxTurn[0] = angleX; fxTurn[1] = angleY;
     const parallax = (k, ky) => (u, v) => [angleX * k * bump(u) * (.4 + .6 * bump(v)), angleY * ky * bump(v) * (.4 + .6 * bump(u))];
     st.headFront = { fn: parallax(4.2, 2.8) };
@@ -1714,6 +1751,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       if (a >= 1) for (const id of L.KLOW_UNDER) st.alpha[id] = 0;
     }
     const hideFront = hide || backA >= 1 || ballA >= 1 || kneelA >= 1;
+    if (dry) { stoneK = Math.max(fc.stone || 0, stoneK - dt / .4); return; }
 
     st.mix = 0;
     if (fade) { if (fade.t0 == null) fade.t0 = t; st.mix = smooth(0, 1, (t - fade.t0) / fade.dur); }
@@ -1764,7 +1802,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.lie = { a: -14 * flopUp, sx: 1 + .006 * breath, sy: (1 - .012 * breath) * (1 - .04 * flinch) };
     st.lieBack = { fn: (u, v) => [0, -.8 * (.5 + .5 * breath) * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)] };
     // the head turns about the chin on her hands (degrees, + tips it forward), shifts sideways for a shake or peek
-    const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look[0], -6, 6) * .3 + (mode === 'sleep' ? 3 : 0)
+    const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look[0], -6, 6) * .3 + 3 * sleepK
       + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + 4 * exh - 2 * inh + fid('chin') * 6 + tilt * LIE_TILT
       + LIE_MORE.down * down + LIE_MORE.closer * closer - LIE_MORE.back * leanback + LIE_MORE.sway * sway) * Math.PI / 180;
     const hx = shake * 2.5 + peek * 3 + LIE_MORE.closer / 3 * closer, [cx, cy] = pv.lieChin;
@@ -1936,7 +1974,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; rootWas = {}; museK = 0; facing = 1; walkK = 0; runK = 0; tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; wagK = 0; wagPh = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
+      lastT = null; rootWas = {}; museK = 0; facing = 1; walkK = 0; runK = 0; tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; restPitch = sleepK = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; wagK = 0; wagPh = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's and outfit's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.flatMap(sc => OUTFITS.map(of => loadScheme(sc.id, of.id)))),

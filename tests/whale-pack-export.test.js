@@ -19,7 +19,7 @@ const builtin = (id) => JSON.parse(readFileSync(new URL(`web/${id}/figure.json`,
 // upstream's tones are the ones sound.js does not mark as ours; when the pinned upstream tag is there (a shallow
 // CI checkout may lack it), its sound.js must have exactly those
 let fromGit = null;
-try { fromGit = upstreamToneNames(UPSTREAM_REF); } catch { /* no tag here */ }
+try { fromGit = upstreamToneNames(UPSTREAM_REF); } catch (e) { if (process.env.CI) throw new Error(`${UPSTREAM_REF} tag missing on CI (the workflow fetches it): ${e}`); /* a local checkout may lack the tag */ }
 const upstreamTones = TONES.filter((t) => !t.plus).map((t) => t.name);
 
 /** The arm words drawn anew for the girls and the whale. */
@@ -38,7 +38,9 @@ describe('exported whale pack', () => {
     const sounds = await packSounds({ upstreamTones });
     const names = sounds.map((s) => s.name);
     const asked = requestedTones();
-    expect(names.length).toBe(36);
+    expect(names.length).toBe(40);
+    // expr2's faces (翻白眼, 震惊, 死鱼眼, 流口水) each with a tone of its own the pack ships
+    expect(names).toEqual(expect.arrayContaining(['eyeroll', 'shocked', 'deadpan', 'drool']));
     expect(names).toEqual(expect.arrayContaining(['song', 'spout', 'sip', 'roll', 'sigh', 'soft', 'wry', 'hehe', 'crack']));
     // the sounds of the words added since v0.5.0: the arm words drawn anew, her tail's wag, and the faces with marks of
     // their own and 安慰, and her fist, notebook and fingertips (加油, 记笔记, 对手指); not the ears' or wings'

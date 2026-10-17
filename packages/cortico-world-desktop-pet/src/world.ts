@@ -92,6 +92,10 @@ const WALK_SLACK = 1.25;
 const WALK_MARGIN_MS = 10_000;
 /** A walk the page still reports under way when its time is up is waited on this much longer, up to twice its time. */
 const WALK_RECHECK_MS = 10_000;
+/** How long the World waits for the page to say where the mouse pointer is (`pointer?`) before a walk to it. */
+const POINTER_ASK_MS = 1000;
+/** A walk away from the pointer with no distance given goes this share of the screen's width. */
+const AWAY_SHARE = 1 / 3;
 /** Touches of one kind closer than this are reported as one event with a count. */
 const TOUCH_MERGE_MS = 2500;
 /** How long a confirmation bubble waits for an answer. */
@@ -209,6 +213,8 @@ export interface DesktopPetWorldOptions {
   spawnSystemRecognizer?: typeof spawn;
   /** Directories whose subdirectories are installed figure packs (src/packs.ts). */
   packRoots?: () => string[];
+  /** Where the dressing page installs figure packs (src/pack-import.ts); without it, it cannot import any. */
+  packDir?: () => string | null;
   /** Called after the bot changed settings itself (`pet_set`), so an app watching the config knows it was not the person. */
   onBotChange?: () => void;
   /**
@@ -255,6 +261,9 @@ type WalkEnd =
   | { t: 'arrived' | 'interrupted'; x: number | null; by?: unknown; stopping?: boolean }
   | { t: 'timeout'; ms: number }
   | { t: 'stopped' | 'gone' };
+
+/** The page's answer to `pointer?`: the pointer's x in page pixels on a stage `w` wide, or null when it is off this screen. */
+type PointerAt = { x: number; w: number } | null;
 
 interface PendingWalk {
   resolve: (end: WalkEnd) => void;
@@ -352,6 +361,8 @@ export class DesktopPetWorld implements World {
   private screen: { w: number; h: number } | null = null;
   private busyUntil = 0;
   private readonly walks = new Map<string, PendingWalk>();
+  /** Questions `pointer?` sent to the page, by id; `undefined` when it did not answer (gone, stopped). */
+  private readonly pointerAsks = new Map<string, (p: PointerAt | undefined) => void>();
   private ask: PendingAsk | null = null;
   private touch: TouchBatch | null = null;
   /** A touch has woken the bot and no turn has ended since; touches until then wait for the next wake. */
@@ -456,6 +467,7 @@ export class DesktopPetWorld implements World {
       onPrefs: (prefs) => this.savePrefs(prefs),
       avatarFile: opts.avatarFile,
       packs: () => this.packs(),
+      packDir: () => this.opts.packDir?.() ?? null,
     });
   }
 
@@ -485,8 +497,9 @@ export class DesktopPetWorld implements World {
 
   /** The built-in packs, then the installed ones; scanned on each call (a few small files). */
   packs(): FigurePack[] {
-    const { packs, problems } = figurePacks(this.opts.packRoots?.() ?? []);
+    const { packs, problems, notes } = figurePacks(this.opts.packRoots?.() ?? []);
     for (const p of problems) if (!this.packProblems.has(p)) { this.packProblems.add(p); this.log?.warn(`形象包没加载:${p}`); }
+    for (const n of notes) if (!this.packProblems.has(n)) { this.packProblems.add(n); this.log?.info(`形象包部分内容跳过:${n}`); }
     return packs;
   }
 
@@ -648,6 +661,8 @@ export class DesktopPetWorld implements World {
     this.dialogs.clear();
     for (const w of this.walks.values()) { clearTimeout(w.timer); w.resolve({ t: 'stopped' }); }
     this.walks.clear();
+    for (const a of this.pointerAsks.values()) a(undefined);
+    this.pointerAsks.clear();
     for (const s of this.voiceSockets) s.close('stopped');
     this.voiceSockets.clear();
     this.chat.closeAll('stopped');
@@ -943,12 +958,20 @@ export class DesktopPetWorld implements World {
         this.walks.delete(String(msg.walkId));
         clearTimeout(w.timer);
         const x = typeof msg.x === 'number' && Number.isFinite(msg.x) ? msg.x : null;
-        // the receipt reads the spot it stopped at; the page's next pose report says the same
-        if (x !== null && this.pose) this.pose = { ...this.pose, x: x * this.pose.w };
+        // the receipt reads the spot it stopped at, standing when she got there; the page's next pose report says the same
+        if (x !== null && this.pose) this.pose = { ...this.pose, x: x * this.pose.w, ...(msg.t === 'arrived' ? { mode: 'idle' } : {}) };
         w.resolve({ t: msg.t, x, by: msg.by, stopping: w.stopping });
         return;
       }
       case 'pose': return this.onPose(msg);
+      case 'pointer': {
+        const a = this.pointerAsks.get(String(msg.id));
+        if (!a) return;
+        this.pointerAsks.delete(String(msg.id));
+        const x = Number(msg.x), w = Number(msg.w);
+        a(msg.x !== null && Number.isFinite(x) && Number.isFinite(w) && w > 0 ? { x: Math.max(0, Math.min(w, x)), w } : null);
+        return;
+      }
       case 'answer': return this.onAnswer(msg, 'pet');
       case 'text': {
         const text = typeof msg.text === 'string' ? msg.text.trim().slice(0, 500) : '';
@@ -1061,6 +1084,7 @@ export class DesktopPetWorld implements World {
     this.log?.info('桌宠页面断开');
     for (const [id, d] of this.dialogs) { d({ unavailable: true }); this.dialogs.delete(id); }
     for (const [id, w] of this.walks) { clearTimeout(w.timer); w.resolve({ t: 'gone' }); this.walks.delete(id); }
+    for (const [id, a] of this.pointerAsks) { a(undefined); this.pointerAsks.delete(id); }
     for (const [id, c] of this.confirms) { clearTimeout(c.timer); c.resolve('unavailable'); this.confirms.delete(id); }
     this.segmenter.flush();
     if (this.wasSpeaking) this.wasSpeaking = false;
@@ -1754,32 +1778,135 @@ export class DesktopPetWorld implements World {
   private async walkTo(args: Record<string, unknown>, ctx?: ToolCallContext): Promise<ToolOutcome> {
     const run = args.run === true;
     const to = args.to;
-    let target: number | 'cursor';
+    let target: number | 'cursor' | 'away';
     if (typeof to === 'number' && Number.isFinite(to)) target = Math.max(0, Math.min(1, to));
     else if (typeof to === 'string') {
-      const named: Record<string, number | 'cursor'> = { left: .05, center: .5, right: .95, cursor: 'cursor' };
+      const named: Record<string, number | 'cursor' | 'away'> = { left: .05, center: .5, right: .95, cursor: 'cursor', away: 'away' };
       const n = Number(to);
       if (to in named) target = named[to];
       else if (to.trim() !== '' && Number.isFinite(n)) target = Math.max(0, Math.min(1, n));
-      else return { text: `[pet_walk_to 没执行] to 应为 0–1 的数字或 left / center / right / cursor,收到 ${JSON.stringify(to)}。`, failed: true };
+      else return { text: `[pet_walk_to 没执行] to 应为 0–1 的数字或 left / center / right / cursor / away,收到 ${JSON.stringify(to)}。`, failed: true };
     } else return { text: '[pet_walk_to 没执行] 缺少 to。', failed: true };
     if (this.currentPack()?.manifest.can.walk === false) return { text: `[pet_walk_to 没执行] 现在的形象(${nameIn(this.currentPack()!.manifest.name)})不会走动。`, failed: true };
+    if (target === 'cursor' || target === 'away') return this.walkPointer('pet_walk_to', target, null, run, ctx);
+    const end = await this.startWalk(target, run, this.walkDistance(target), ctx);
+    return end ? { text: this.walkText(end) } : this.notConnected('pet_walk_to');
+  }
+
+  /** Sends a walk to the page and waits for it to end; null when the page is not connected. */
+  private async startWalk(to: number | 'cursor', run: boolean, distance: number, ctx?: ToolCallContext): Promise<WalkEnd | null> {
     const walkId = nextId('w');
-    if (!this.server.sendPet({ t: 'walk', id: walkId, to: target, run })) return this.notConnected('pet_walk_to');
+    // stopped (a pointer question stop() answered, say): no walk that nothing would ever end
+    if (this.stopped || !this.server.sendPet({ t: 'walk', id: walkId, to, run })) return null;
     this.kneeling = false;
     this.pendingPosture = null;
-    return { text: this.walkText(await this.awaitWalk(walkId, this.walkBudgetMs(this.walkDistance(target), run), ctx)) };
+    return this.awaitWalk(walkId, this.walkBudgetMs(distance, run), ctx);
+  }
+
+  /**
+   * Half her standing width plus 8 px: how near the stage's edge the kit lets her go (web/kit/body.js `minX(0)`,
+   * `halfW(0) * S + 8` with halfW 104 logo units and S = .42 × scale), and how close beside the pointer she stops.
+   */
+  private bodyMargin(): number {
+    return Math.round(104 * .42 * this.cfg.window.scale + 8);
+  }
+
+  /** Asks the page where the mouse pointer is (`pointer?`); `undefined` when it does not answer within POINTER_ASK_MS. */
+  private askPointer(): Promise<PointerAt | undefined> {
+    const id = nextId('p');
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => { this.pointerAsks.delete(id); resolve(undefined); }, POINTER_ASK_MS);
+      this.pointerAsks.set(id, (p) => { clearTimeout(timer); resolve(p); });
+      if (!this.server.sendPet({ t: 'pointer?', id })) { this.pointerAsks.get(id)?.(undefined); this.pointerAsks.delete(id); }
+    });
+  }
+
+  /**
+   * A walk toward the mouse pointer (`cursor`: to beside it, at most `pixels` when given) or away from it (`away`:
+   * `pixels`, or AWAY_SHARE of the screen, to the side away from it; with the pointer right above her, to the side
+   * with more room). The page is asked where the pointer is first, and she walks to where it was then; the receipt
+   * says where that was and where she stopped, in pixels for decider mode's `pet_walk`, in shares of the screen for
+   * `pet_walk_to`. A page that does not answer: toward goes where the page last saw the pointer, away fails.
+   */
+  private async walkPointer(tool: 'pet_walk_to' | 'pet_walk', how: 'cursor' | 'away', pixels: number | null, run: boolean, ctx?: ToolCallContext): Promise<ToolOutcome> {
+    const no = (why: string): ToolOutcome => ({ text: `[${tool} 没执行] ${why}`, failed: true });
+    if (!this.server.petConnected) return this.notConnected(tool);
+    const ptr = await this.askPointer();
+    const from = this.pose && this.pose.w > 0 ? this.pose : null;
+    // an interrupt while the page was asked: she never set off
+    if (ctx?.signal?.aborted) return { text: `还没起步就停下了,没走${from ? `,还在屏幕横向 ${pct(from.x / from.w)} 处` : ''}。` };
+    if (ptr === undefined) {
+      if (how === 'away') return no('没问到鼠标在哪(桌宠页面没有回答),稍后再试。');
+      const end = await this.startWalk('cursor', run, this.walkDistance('cursor'), ctx);
+      return end ? { text: `没问到鼠标这会儿在哪,朝桌宠页面上次看到它的地方走:${this.walkText(end)}` } : this.notConnected(tool);
+    }
+    if (ptr === null) return no('鼠标不在桌宠所在的这块屏幕上,不知道往哪走。');
+    const w = from?.w ?? ptr.w;
+    const px = ptr.x * (w / ptr.w);
+    const inPx = tool === 'pet_walk';
+    /** `屏幕横向 …处`: in pixels and a share for pet_walk, a share for pet_walk_to. */
+    const spot = (x: number) => (inPx ? `屏幕横向 ${Math.round(x)}/${Math.round(w)}(${pct(x / w)})处` : `屏幕横向 ${pct(x / w)} 处`);
+    const at = `鼠标在${spot(px)}`;
+    if (!from) {
+      // where she stands is not known yet (pet_walk_to only: pet_walk asks for it first): straight to the pointer
+      if (how === 'away') return no(`${at},还不知道你在哪,稍后再试。`);
+      const end = await this.startWalk(px / w, run, w, ctx);
+      return end ? { text: `${at};${this.walkText(end)}` } : this.notConnected(tool);
+    }
+    const near = this.bodyMargin();
+    const lo = Math.min(near, w / 2), hi = Math.max(w - near, w / 2);
+    const d = px - from.x;
+    let target: number;
+    let dir: -1 | 1;
+    if (how === 'cursor') {
+      if (Math.abs(d) <= near + CLAMP_SLACK_PX) return { text: `${at},就在你旁边(你在${spot(from.x)}),不用走。` };
+      dir = d < 0 ? -1 : 1;
+      const beside = px - dir * near;
+      target = pixels === null ? beside : from.x + dir * Math.min(pixels, Math.abs(beside - from.x));
+    } else {
+      dir = Math.abs(d) > near ? (d < 0 ? 1 : -1) : (w - from.x > from.x ? 1 : -1);
+      target = from.x + dir * (pixels ?? Math.round(w * AWAY_SHARE));
+    }
+    target = Math.max(lo, Math.min(hi, target));
+    const side = dir < 0 ? '左' : '右';
+    if (how === 'away' && Math.abs(target - from.x) < CLAMP_SLACK_PX) return { text: `${at};你已经在屏幕${side}边(${spot(from.x)}),没处可躲了,没走。` };
+    const before = this.posture();
+    const end = await this.startWalk(target / w, run, target - from.x, ctx);
+    if (!end) return this.notConnected(tool);
+    if (end.t !== 'arrived' || end.x === null) return { text: `${at};${this.walkText(end)}` };
+    const x = end.x * w;
+    const moved = Math.round(Math.abs(x - from.x));
+    const verb = run ? '跑' : '走';
+    const up = before === 'sit' || before === 'kneel' || before === 'lie' || before === 'sleep' ? '先站起来,' : '';
+    const went = `${up}往${side}${verb}${inPx ? `了 ${moved} 像素` : ''}`;
+    const gap = Math.round(Math.abs(px - x));
+    if (how === 'cursor') {
+      const rel = px > x ? '左' : '右';
+      return { text: gap <= near + CLAMP_SLACK_PX
+        ? `${at};${went},到了它${rel}边,在${spot(x)}。`
+        : `${at};${went},到了${spot(x)},在鼠标${rel}边约 ${gap} 像素,还差约 ${gap - near} 像素到它旁边。` };
+    }
+    const asked = pixels ?? Math.round(w * AWAY_SHARE);
+    const far = inPx ? `,离鼠标约 ${gap} 像素` : '';
+    return { text: moved < asked - CLAMP_SLACK_PX
+      ? `${at};${went}躲开它,${verb}到屏幕边停下了,在${spot(x)}${far}。`
+      : `${at};${went}躲开它,到了${spot(x)}${far}。` };
   }
 
   /**
    * Decider mode's `pet_walk`: `pixels` left or right from where the page last said she stands, clamped to the screen
    * here and to the stage on the page; a walk that ends short of what was asked stopped at the edge, and says so.
+   * `cursor` and `away` walk toward or away from the mouse pointer (`walkPointer`), `pixels` optional.
    */
   private async walkBy(args: Record<string, unknown>, ctx?: ToolCallContext): Promise<ToolOutcome> {
     const dir = args.direction;
-    if (dir !== 'left' && dir !== 'right') return { text: `[pet_walk 没执行] direction 应为 left 或 right,收到 ${JSON.stringify(dir)}。`, failed: true };
+    if (dir !== 'left' && dir !== 'right' && dir !== 'cursor' && dir !== 'away') return { text: `[pet_walk 没执行] direction 应为 left、right、cursor 或 away,收到 ${JSON.stringify(dir)}。`, failed: true };
+    const toPointer = dir === 'cursor' || dir === 'away';
     const pixels = typeof args.pixels === 'number' && Number.isFinite(args.pixels) ? Math.round(args.pixels) : NaN;
-    if (!(pixels >= 1 && pixels <= 8000)) return { text: `[pet_walk 没执行] pixels 应为 1–8000 的整数,收到 ${JSON.stringify(args.pixels)}。`, failed: true };
+    // an optional integer the model left out may come as null
+    if (!(toPointer && args.pixels == null) && !(pixels >= 1 && pixels <= 8000)) {
+      return { text: `[pet_walk 没执行] pixels 应为 1–8000 的整数${toPointer ? '(cursor、away 可以不给)' : ''},收到 ${JSON.stringify(args.pixels)}。`, failed: true };
+    }
     const run = args.run === true;
     if (this.currentPack()?.manifest.can.walk === false) return { text: `[pet_walk 没执行] 现在的形象(${nameIn(this.currentPack()!.manifest.name)})不会走动。`, failed: true };
     const from = this.pose;
@@ -1787,14 +1914,12 @@ export class DesktopPetWorld implements World {
       if (!this.server.petConnected) return this.notConnected('pet_walk');
       return { text: '[pet_walk 没执行] 还不知道桌宠在哪,稍后再试。', failed: true };
     }
+    if (toPointer) return this.walkPointer('pet_walk', dir, Number.isNaN(pixels) ? null : pixels, run, ctx);
     const sign = dir === 'left' ? -1 : 1;
     const tx = Math.max(0, Math.min(from.w, from.x + sign * pixels));
     const before = this.posture();
-    const walkId = nextId('w');
-    if (!this.server.sendPet({ t: 'walk', id: walkId, to: tx / from.w, run })) return this.notConnected('pet_walk');
-    this.kneeling = false;
-    this.pendingPosture = null;
-    const end = await this.awaitWalk(walkId, this.walkBudgetMs(tx - from.x, run), ctx);
+    const end = await this.startWalk(tx / from.w, run, tx - from.x, ctx);
+    if (!end) return this.notConnected('pet_walk');
     if (end.t !== 'arrived' || end.x === null) return { text: this.walkText(end) };
     const w = from.w;
     const x = Math.round(end.x * w);
@@ -1997,8 +2122,8 @@ export class DesktopPetWorld implements World {
     const p = this.pose;
     if (!p) return null;
     const x = Math.round(p.x), w = Math.round(p.w);
-    // the stage's edge: the kit keeps half the figure's width plus 8 px in (approximated, the receipt of a walk tells exactly)
-    const margin = Math.round(.25 * 256 * .42 * this.cfg.window.scale + 8);
+    // the stage's edge: the kit keeps half the standing figure's width plus 8 px in (the receipt of a walk tells exactly)
+    const margin = this.bodyMargin();
     const left = Math.max(0, x - margin), right = Math.max(0, w - margin - x);
     return `[位置] 屏幕横向 ${x}/${w} 像素(${pct(x / w)}),面朝${p.facing === 1 ? '右' : '左'},${POSTURE_NAMES[this.posture()]};往左还能走约 ${left} 像素,往右约 ${right} 像素。`;
   }

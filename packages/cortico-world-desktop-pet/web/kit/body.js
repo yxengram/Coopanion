@@ -273,11 +273,11 @@ export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel',
   'muse', 'fist', 'jot', 'twiddle', 'droop', 'blink', 'closer', 'leanback', 'sway', 'stamp', 'wag', 'earflick', 'earsup', 'earsdown',
   'wingbeat', 'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
-/** The tones of the plus faces, filed as face sounds like the kit's; comfort and the faces with marks of their own have
- *  tones of their own (web/sound.js), timed to the marks (the steam's puffs, the heart's crack, the dots). */
+/** The tones of the plus faces, filed as face sounds like the kit's; comfort, expr2's four and the faces with marks of
+ *  their own have tones of their own (web/sound.js), the marks' timed to them (the steam's puffs, the heart's crack, the dots). */
 const PLUS_FACE_TONES = {
   disgusted: 'hmm', nervous: 'hmm', gentle: 'soft', awkward: 'wry', giggle: 'hehe', moved: 'soft', petrify: 'surprised', coax: 'shy', tongue: 'wink',
-  eyeroll: 'wry', shocked: 'surprised', deadpan: 'hmm', drool: 'soft',
+  eyeroll: 'eyeroll', shocked: 'shocked', deadpan: 'deadpan', drool: 'drool',
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
   brave: 'wry', comfort: 'comfort', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',

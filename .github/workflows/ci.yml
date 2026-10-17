@@ -18,6 +18,9 @@ jobs:
           submodules: recursive
       # tests/pet-actions.test.js compares the kit's non-plus frames with upstream's v0.1.17 kit read from the tag
       - run: git fetch --depth=1 origin tag v0.1.17
+      # tests/pack-export-upstream.test.js reads upstream's current release's pack reader: fetched under its own ref, since
+      # the fork's own tags v0.2.x have upstream's names (tests/helpers/upstream-packs.js)
+      - run: git fetch --depth=1 --no-tags https://github.com/Pal-AI-Lab/Coopanion refs/tags/v0.2.3:refs/upstream-tags/v0.2.3
       - run: corepack enable
       - uses: actions/setup-node@v4
         with:
@@ -28,5 +31,11 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run typecheck:web
       - run: pnpm run test
+        if: runner.os != 'Linux'
+      # tests/pet-host-smoke.test.js starts the pet window in Electron: on Linux it needs an X display
+      - if: runner.os == 'Linux'
+        run: |
+          command -v xvfb-run >/dev/null || { sudo apt-get update && sudo apt-get install -y xvfb; }
+          xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm run test
       - run: pnpm run typecheck:worlds
       - run: pnpm run test:worlds

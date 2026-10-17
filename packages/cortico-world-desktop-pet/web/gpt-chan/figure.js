@@ -13,7 +13,7 @@
  */
 import { createRig } from '../kit/rig.js';
 import * as kit from '../kit/body.js';
-import { anchorsOf, buildRig, clamp, createMotion, extentOf, fxPointsOf, hitsOf, liveAnchors, smooth, tearDropOf } from './motion.js';
+import { anchorsOf, buildRig, catchUp, clamp, createMotion, extentOf, fxPointsOf, hitsOf, liveAnchors, smooth, tearDropOf } from './motion.js';
 import { createFacePainter, EYES } from './face.js';
 import { fxMarkup } from './fx.js';
 
@@ -179,7 +179,7 @@ export async function createGptFigure(base = new URL('./', import.meta.url), opt
   function draw(petG, fc, o) {
     if (mountedIn !== petG || !petG.contains(fo)) mount(petG);
     if (frameN++ % 20 === 0) fitCanvas();
-    const t = o.t, dt = lastT == null ? 1 / 60 : clamp(t - lastT, 0, .05);
+    const t = o.t, gap = lastT == null ? 0 : t - lastT, dt = lastT == null ? 1 / 60 : clamp(gap, 0, .05);
     lastT = t;
     // turned to stone (petrify's `freeze`) she holds still: the last frame is drawn again, face and all, and only the
     // grey and the crack change; the springs and clocks pick up where they were once she thaws
@@ -192,6 +192,9 @@ export async function createGptFigure(base = new URL('./', import.meta.url), opt
       return;
     }
     const face = o.face || 'neutral';
+    // the first frame after the window was hidden: her motion first moves on through the time missed (catchUp)
+    // (and her grey fades on through it too: a petrify ended meanwhile shows her in colour, as the whale does)
+    for (const d of catchUp(gap)) { motion.step(fc, o, d, caps); stoneK = Math.max(fc.stone || 0, stoneK - d / .4); }
     const out = motion.step(fc, o, dt, caps), st = out.st;
     st.mix = 0;
     if (fade) { if (fade.t0 == null) fade.t0 = t; st.mix = smooth(0, 1, (t - fade.t0) / fade.dur); }

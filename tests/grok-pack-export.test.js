@@ -25,7 +25,7 @@ const builtin = JSON.parse(readFileSync(new URL('web/grok-chan/figure.json', PKG
 const hasModel = existsSync(new URL('web/grok-chan/model.json', PKG));
 const upstreamTones = TONES.filter((t) => !t.plus).map((t) => t.name);
 let fromGit = null;
-try { fromGit = upstreamToneNames(UPSTREAM_REF); } catch { /* a shallow checkout may lack the tag */ }
+try { fromGit = upstreamToneNames(UPSTREAM_REF); } catch (e) { if (process.env.CI) throw new Error(`${UPSTREAM_REF} tag missing on CI (the workflow fetches it): ${e}`); /* a local checkout may lack the tag */ }
 
 /** The manifest written into `<root>/<id>/` with a stand-in file for every sound. */
 function writePack(m) {
@@ -64,7 +64,9 @@ describe('exported Grok-chan pack', () => {
     // Claude-chan's (the same kit and the same words), and her little bat wings' whumps
     const claude = (await claudeSounds({ upstreamTones })).map((s) => s.name);
     expect(names).toEqual(TONES.map((t) => t.name).filter((n) => claude.includes(n) || n === 'wingbeat'));
-    expect(names.length).toBe(35);
+    expect(names.length).toBe(39);
+    // expr2's faces (翻白眼, 震惊, 死鱼眼, 流口水) each with a tone of its own the pack ships
+    expect(names).toEqual(expect.arrayContaining(['eyeroll', 'shocked', 'deadpan', 'drool']));
   });
 
   it('builds a manifest our World and upstream v0.1.17 accept', async () => {

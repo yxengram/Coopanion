@@ -7,7 +7,9 @@
  * - `/dress`: the dressing page; changes go through `POST /api/skin` and `POST /api/prefs`.
  * - `/api/avatar`: the bot's avatar for the menu header, 404 until one exists.
  * - `/api/figures`: the figure packs (src/packs.ts) the pages may load, Coo's first; `/packs/<id>/…`:
- *   an installed pack's files (a built-in one is under `/web/`).
+ *   an installed pack's files (a built-in one is under `/web/`). `/api/figures/import` (`GET`: whether packs can be
+ *   imported here; `POST`: a zip, or the dressing page's framing of a folder's files), `…/import/install` and
+ *   `…/import/cancel`: the dressing page imports packs into the data directory (src/pack-import.ts).
  * - `/figure-frame`: the sandbox a pack's code runs in. Its own CSP sandboxes it (an opaque
  *   origin) and denies it every connection; scripts and images come from this server only. Files
  *   under `/web/` and `/packs/` answer that opaque origin's CORS requests; nothing else does,
@@ -23,6 +25,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { packFile, type FigurePack } from './packs.ts';
+import { BUNDLE_TYPE, IMPORT_MAX, PACK_DEPTH, PackImporter, filesFromBundle, filesFromZip } from './pack-import.ts';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -59,6 +62,8 @@ export interface PetServerOptions {
   avatarFile?: string;
   /** The figure packs, looked up again for each request. */
   packs?(): FigurePack[];
+  /** Where the dressing page installs packs (`figures/` in the data directory); without it, packs cannot be imported. */
+  packDir?(): string | null;
 }
 
 export class PetServer {
@@ -69,8 +74,12 @@ export class PetServer {
   /** Dressing pages and pet pages that only watch. */
   private readonly dressers = new Set<WebSocket>();
   private boundPort = 0;
+  /** Installs the packs the dressing page sends (src/pack-import.ts). */
+  private readonly importer: PackImporter;
 
-  constructor(private readonly opts: PetServerOptions) {}
+  constructor(private readonly opts: PetServerOptions) {
+    this.importer = new PackImporter({ packDir: () => opts.packDir?.() ?? null, packs: () => opts.packs?.() ?? [] });
+  }
 
   get port(): number {
     return this.boundPort;
@@ -114,6 +123,7 @@ export class PetServer {
   }
 
   async stop(): Promise<void> {
+    await this.importer.cancel();
     for (const ws of [this.pet, ...this.dressers]) ws?.close();
     this.pet = null;
     this.dressers.clear();
@@ -203,6 +213,8 @@ export class PetServer {
         vocab: m.vocab.map(({ id: w, kind, seconds, lasting }) => ({ id: w, kind, seconds, ...(lasting ? { lasting } : {}) })), sounds: m.sounds, can: m.can,
       })));
     }
+    if (req.method === 'GET' && path === '/api/figures/import') return json(res, 200, { importable: this.importer.importable, max: IMPORT_MAX, depth: PACK_DEPTH });
+    if (req.method === 'POST' && path.startsWith('/api/figures/import')) return this.importRequest(req, res, path);
     if (req.method === 'GET' && path === '/figure-frame') {
       const self = `http://${req.headers.host}`;
       return this.sendFile(res, join(this.opts.webDir, 'figure-frame.html'), [
@@ -241,6 +253,28 @@ export class PetServer {
     return this.sendFile(res, full, null, path.startsWith('/web/') && req.headers.origin === 'null');
   }
 
+  private async importRequest(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
+    if (path === '/api/figures/import') {
+      const type = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
+      const zip = type === 'application/zip' || type === 'application/x-zip-compressed';
+      if (!zip && type !== BUNDLE_TYPE) return json(res, 415, { error: '只收 zip 或文件夹' });
+      const bytes = await readBytes(req, IMPORT_MAX);
+      if (!bytes) return json(res, 413, { error: `超过 ${IMPORT_MAX / 1048576} MB` });
+      const files = zip ? filesFromZip(bytes) : filesFromBundle(bytes);
+      if (typeof files === 'string') return json(res, 400, { error: files });
+      const out = await this.importer.stage(files, !zip);
+      return json(res, 'error' in out ? 400 : 200, out);
+    }
+    const body = await readBody(req);
+    const msg = body ? parse(body) : null;
+    if (path === '/api/figures/import/install' && msg && typeof msg.token === 'string' && Array.isArray(msg.dirs)) {
+      const out = await this.importer.install(msg.token, msg.dirs.filter((d): d is string => typeof d === 'string'));
+      return json(res, 'error' in out ? 400 : 200, out);
+    }
+    if (path === '/api/figures/import/cancel') { await this.importer.cancel(); return json(res, 200, { ok: true }); }
+    return json(res, 400, { error: 'bad request' });
+  }
+
   /** A file with the pages' CSP (or `csp`); `frame` answers the figure frame's CORS request. */
   private async sendFile(res: ServerResponse, full: string, csp: string | null, frame = false): Promise<void> {
     try {
@@ -270,6 +304,22 @@ function parse(text: string): PageMessage | null {
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
+}
+
+/** The body of `req`, or null when it is longer than `max` bytes or breaks off. */
+function readBytes(req: IncomingMessage, max: number): Promise<Uint8Array | null> {
+  return new Promise((done) => {
+    if (Number(req.headers['content-length'] ?? 0) > max) { req.resume(); done(null); return; }
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > max) { req.destroy(); done(null); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => done(Buffer.concat(chunks)));
+    req.on('error', () => done(null));
+  });
 }
 
 const MAX_BODY = 64 * 1024;

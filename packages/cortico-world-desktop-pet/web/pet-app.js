@@ -230,6 +230,8 @@ function onOrder(m) {
     case 'confirm': dropAsks(); queue.push({ kind: 'ask', confirm: true, id: m.id, question: m.question, options: m.options, own: false }); holdRoam(20); break;
     case 'walk': walk(m); break;
     case 'walk-stop': stopWalk(m.id); break;
+    // where the mouse pointer is now, for a walk toward or away from it (null: off this screen, or never seen here)
+    case 'pointer?': send({ t: 'pointer', id: m.id, x: pointerX(), w: innerWidth }); break;
     case 'ask-close': closeAsk(m.id); break;
     case 'act': actAfterBubbles(m.actions); holdRoam(20); break;
     case 'listen': onListen(m); break;
@@ -1074,8 +1076,20 @@ function wireVoiceTool(b) {
   b.addEventListener('click', (e) => { if (e.detail === 0) { toggleVoice(); sfx.tick(); } });
 }
 
-/** Where the cursor is, in page pixels, or null when it is off the page. */
-const cursor = { at: null };
+/**
+ * Where the cursor is, in page pixels, or null when it is off the page; `across`, its x while it is on the window's
+ * display (over the Dock or the taskbar too, which the window does not cover), from the host's reports, null elsewhere.
+ */
+const cursor = { at: null, across: null };
+/**
+ * The pointer's x for a walk toward or away from it: on the page, or on the strip of this display the window does not
+ * cover (the host says); null on another display. Without a host (a browser tab) where the page last saw it.
+ */
+function pointerX() {
+  if (cursor.at) return Math.round(cursor.at.x);
+  if (host) return cursor.across === null ? null : Math.round(cursor.across);
+  return pointerSeen ? Math.round(lastPointer.x) : null;
+}
 function overTools(p) {
   if (tools.hidden) return false;
   const r = tools.getBoundingClientRect();
@@ -1174,8 +1188,9 @@ document.addEventListener('pointermove', (e) => {
  * window may miss the move that takes the cursor off the pet (onto the taskbar, another screen),
  * and the hover buttons would then stay.
  */
-host?.onCursor?.((p) => {
+host?.onCursor?.((p, across) => {
   cursor.at = p;
+  cursor.across = typeof across === 'number' ? across : p ? p.x : null;
   if (!p) {
     diag.poll = { at: performance.now(), off: true };
     if (!pressing) setInteractive(false, 'poll');

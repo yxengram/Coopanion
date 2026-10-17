@@ -31,11 +31,11 @@ export const DESKTOP_PET_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_walk_to',
     tags: ['act'],
-    description: '沿屏幕底边走(或跑)到某个位置,走到或被打断后返回(按路程等,远的等得久)。',
+    description: '沿屏幕底边走(或跑)到某个位置,走到或被打断后返回(按路程等,远的等得久)。cursor、away 会先看鼠标在哪,回执里说鼠标在哪、你停在哪。',
     parameters: {
       type: 'object',
       properties: {
-        to: { description: '目标:0–1 的数字(桌宠所在那块屏幕的宽度比例,0 最左、1 最右),或 left / center / right / cursor(鼠标所在的横向位置)。', anyOf: [{ type: 'number', minimum: 0, maximum: 1 }, { type: 'string', enum: ['left', 'center', 'right', 'cursor'] }] },
+        to: { description: '目标:0–1 的数字(桌宠所在那块屏幕的宽度比例,0 最左、1 最右),或 left / center / right,cursor 走到鼠标旁边(凑到对方跟前),away 背着鼠标走开约三分之一屏宽(躲开、让地方)。', anyOf: [{ type: 'number', minimum: 0, maximum: 1 }, { type: 'string', enum: ['left', 'center', 'right', 'cursor', 'away'] }] },
         run: { type: 'boolean', description: 'true 跑过去,默认走过去。' },
       },
       required: ['to'],
@@ -90,7 +90,7 @@ export const DESKTOP_PET_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
 
 /**
  * Decider mode (src/decider.ts): the bot names no word. `pet_say` takes the text and a feeling, `pet_feel` replaces
- * `pet_act`, `pet_walk` (direction and pixels) replaces `pet_walk_to`; `pet_ask` takes an optional feeling. `pet_set`
+ * `pet_act`, `pet_walk` (left or right by pixels, or toward or away from the mouse pointer) replaces `pet_walk_to`; `pet_ask` takes an optional feeling. `pet_set`
  * and `pet_quiet` are the classic declarations.
  */
 export const DECIDER_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
@@ -125,15 +125,15 @@ export const DECIDER_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
   {
     name: 'pet_walk',
     tags: ['act'],
-    description: '沿屏幕底边朝左或朝右走(或跑)一段,走到或被打断后返回(按路程等,远的等得久)。到屏幕边会停下,回执里说。你现在在哪、离两边多远,见每批事件和桌宠工具回执里的 [位置] 行。',
+    description: '沿屏幕底边朝左或朝右走(或跑)一段,或朝鼠标走过去、背着鼠标走开,走到或被打断后返回(按路程等,远的等得久)。到屏幕边会停下,回执里说。你现在在哪、离两边多远,见每批事件和桌宠工具回执里的 [位置] 行;鼠标在哪,cursor、away 的回执里说。',
     parameters: {
       type: 'object',
       properties: {
-        direction: { type: 'string', enum: ['left', 'right'], description: 'left 往左,right 往右。' },
-        pixels: { type: 'integer', minimum: 1, maximum: 8000, description: '走多少像素(桌宠所在那块屏幕的像素,屏幕宽度见 [位置])。' },
+        direction: { type: 'string', enum: ['left', 'right', 'cursor', 'away'], description: 'left 往左,right 往右;cursor 朝鼠标走,走到它旁边停下(凑到对方跟前);away 背着鼠标走开(躲开、让地方)。' },
+        pixels: { type: 'integer', minimum: 1, maximum: 8000, description: '走多少像素(桌宠所在那块屏幕的像素,屏幕宽度见 [位置])。left、right 必须给;cursor 不给就一直走到鼠标旁边,给了最多走这么多;away 不给就走开约三分之一屏宽。' },
         run: { type: 'boolean', description: 'true 跑过去,默认走。' },
       },
-      required: ['direction', 'pixels'],
+      required: ['direction'],
     },
   },
   ...DESKTOP_PET_TOOL_DECLS.filter((d) => d.name === 'pet_set' || d.name === 'pet_quiet'),

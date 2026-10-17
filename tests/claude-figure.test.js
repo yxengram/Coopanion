@@ -15,6 +15,7 @@ import { fxMarkup } from '../packages/cortico-world-desktop-pet/web/claude-chan/
 import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { describeKneelArms } from './helpers/kneel-arms.js';
 import { describeArmCut } from './helpers/arm-cut.js';
+import { describeLieCut } from './helpers/lie-cut.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/claude-chan/face.js';
 import { createClaudeFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/claude-chan/figure.js';
@@ -1103,23 +1104,6 @@ describe('Claude-chan: sitting', () => {
     }
     expect(seen.bad).toEqual([]);
   });
-  it.skipIf(!real)('on the real rig: lying down and getting up (jump or stand), the lying drawing cuts, never two of her at once', () => {
-    const { fig, seen } = stubFigure(real);
-    const pet = barePet(fig);
-    run(pet, 1);
-    for (const up of ['jump', 'stand']) {
-      let both = 0;
-      pet.doWord('lie');
-      for (let i = 0; i < 3 * 60; i++) { run(pet, 1 / 60); if (seen.last.poseShown > 0 && !seen.last.hideFront) both++; }
-      expect(seen.last.hideFront, up).toBe(true);
-      pet.doWord(up);
-      for (let i = 0; i < 3 * 60; i++) { run(pet, 1 / 60); if (seen.last.poseShown > 0 && !seen.last.hideFront) both++; }
-      expect(seen.last.poseShown, up).toBe(0);
-      // (a frame each way at most)
-      expect(both, up).toBeLessThanOrEqual(2);
-    }
-    expect(seen.bad).toEqual([]);
-  });
   it.skipIf(!real)('on the real rig: getting up from a kneel she stays the kneeling drawing until she stands, never the seated one', () => {
     const { fig, R: RR, seen } = stubFigure(real);
     const pet = barePet(fig);
@@ -1655,3 +1639,4 @@ describeFloorFace('Claude-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GEST
 
 /* ---------- arm drawings cut in for each other, never half seen at once (the four girls share these: tests/helpers/arm-cut.js) ---------- */
 describeArmCut('Claude-chan', { dir: DIR, M: KneelMotion, GESTURES });
+describeLieCut('Claude-chan', { dir: DIR, M: KneelMotion, GESTURES });

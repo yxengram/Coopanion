@@ -2,9 +2,12 @@ name: release
 
 # Pushing a tag v<version> builds the Windows installer, the macOS downloads (Apple silicon and
 # Intel, both built on the Apple silicon runner) and the Linux AppImage and deb, and attaches them to that tag's release.
+# Run by hand (workflow_dispatch) it only builds and keeps the installers as workflow artifacts: a dry run
+# of the packaging on every platform before tagging; nothing is published.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -56,6 +59,7 @@ jobs:
 
   publish:
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

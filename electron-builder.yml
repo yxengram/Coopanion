@@ -1,12 +1,17 @@
 # Packages build/app (assembled by scripts/pack.ts) into a per-user Windows installer, a
 # macOS disk image and zip for the architecture of the Mac it is built on, or a Linux AppImage and deb.
+# pack.ts runs electron-builder with --projectDir build/app (scripts/pack-builder.ts), so the app directory is the
+# project directory and every relative path here is relative to build/app, not to the repository.
 appId: ai.pal.coopanion
 productName: Coopanion
 copyright: Copyright © 2026 Pal-AI-Lab, yxengram
 electronVersion: 44.4.4
 directories:
-  app: build/app
-  output: dist
+  # no app: the app is build/app itself (electron-builder would take app/ instead if app/package.json existed)
+  # the repository's dist/ (the release workflow uploads from there)
+  output: ../../dist
+  # not the default build/: inside build/app that is the staged Cortico, which electron-builder would leave out of the app
+  buildResources: ../../installer
 # the Core child runs TypeScript sources through tsx and spawns esbuild, koffi, sherpa-onnx and pnpm: keep files unpacked
 asar: false
 npmRebuild: false
@@ -30,7 +35,8 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  include: installer/nsis.nsh
+  # looked up in buildResources (installer/)
+  include: nsis.nsh
   createDesktopShortcut: true
   createStartMenuShortcut: false
   shortcutName: Coopanion

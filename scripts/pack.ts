@@ -11,6 +11,9 @@
  * and `.deb` on Linux. `PACK_ARCH` (x64 or arm64) builds for
  * another architecture than the machine's: npm installs that architecture's native packages (esbuild, sherpa-onnx) and
  * electron-builder packs that Electron, so one Apple silicon Mac builds both Mac downloads.
+ *
+ * electron-builder runs with build/app as its project directory and that `package.json` names npm
+ * (scripts/pack-builder.ts): from the repository it detected pnpm and shipped the workspace's own copies instead.
  */
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -18,9 +21,11 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { slimTree } from './png-slim.ts';
 import { stripMapComments } from './map-strip.ts';
+import { builderArgs, packageManagerField, PROJECT_DIR } from './pack-builder.ts';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const OUT = join(ROOT, 'build', 'app');
+/** build/app, electron-builder's project directory */
+const OUT = join(ROOT, ...PROJECT_DIR.split('/'));
 const run = (cmd: string, args: string[], cwd: string) => {
   const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' });
   if (r.status !== 0) process.exit(r.status ?? 1);
@@ -55,6 +60,8 @@ cpSync(join(ROOT, 'build', 'cortico'), join(OUT, 'build', 'cortico'), { recursiv
 writeFileSync(join(OUT, 'package.json'), JSON.stringify({
   name: rootPkg.name, productName: rootPkg.productName, version: rootPkg.version, description: rootPkg.description,
   license: rootPkg.license, author: rootPkg.author, homepage: rootPkg.homepage, type: 'module', main: 'app/main.cjs',
+  // electron-builder then collects build/app/node_modules with `npm list`, not the root's pnpm workspace
+  packageManager: packageManagerField(spawnSync('npm', ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' }).stdout),
   dependencies: DEPS,
 }, null, 2));
 run('npm', ['install', '--omit=dev', '--no-package-lock', '--no-audit', '--no-fund', '--loglevel=error', `--os=${process.platform}`, `--cpu=${ARCH}`], OUT);
@@ -79,5 +86,4 @@ if (process.env.PACK_PNG_SLIM !== '0') {
 }
 console.log(`app directory ready: ${relative(ROOT, OUT)}`);
 
-const target = process.platform === 'darwin' ? '--mac' : process.platform === 'linux' ? '--linux' : '--win';
-run(join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder'), [target, `--${ARCH}`, '--publish', 'never', ...process.argv.slice(2)], ROOT);
+run(join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder'), builderArgs(process.platform, ARCH, process.argv.slice(2)), ROOT);

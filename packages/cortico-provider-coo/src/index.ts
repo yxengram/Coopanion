@@ -13,58 +13,23 @@
  * endpoint is marked multimodal and the service lists the model as reading them; tool results may
  * carry images too. Images go out only from the newest delivered batch of events on
  * (`sinceLastDelivery`). Prices are built in for DeepSeek, OpenAI, Anthropic, Gemini and xAI.
+ *
+ * The package has a second module, `chatgpt` (`CHATGPT_PROVIDER`, chatgpt/): a ChatGPT plan signed in with the
+ * account instead of a key, its requests billed to the plan.
  */
 import type { ProviderModule, ProviderInstance } from 'cortico/providers/base.ts';
-import type { LLMProviderEntry, ReasoningTier } from 'cortico/core/types.ts';
+import type { LLMProviderEntry } from 'cortico/core/types.ts';
 import { baseLanguage } from 'cortico/core/language.ts';
 import { isContextOverflow } from 'cortico/providers/transport/errors.ts';
-import { ModelCatalog, ResponsesProvider, type ResponsesProviderOptions } from 'cortico/providers/openai-responses-compat/native.ts';
-import type { GenerateOptions } from 'cortico/core/generation.ts';
-import type { Request } from 'cortico/protocol/open-responses/index.ts';
+import { ModelCatalog } from 'cortico/providers/openai-responses-compat/native.ts';
 import { ClaudeProvider } from './anthropic/client.ts';
-import { sinceLastDelivery } from './context.ts';
 import { GeminiProvider, listGeminiModels } from './gemini/client.ts';
 import { vendorPrices } from './pricing.ts';
-import { VENDORS, effortOf, protocolOf, vendorOf, type EffortMap } from './vendors.ts';
-
-const TIERS = {
-  zh: [
-    { id: 'off', label: '不思考', thinking: false },
-    { id: 'low', label: '思考 · 快', thinking: true, effort: 'low' },
-    { id: 'high', label: '思考 · 标准', thinking: true, effort: 'high' },
-    { id: 'max', label: '思考 · 最深', thinking: true, effort: 'max' },
-  ],
-  en: [
-    { id: 'off', label: 'No thinking', thinking: false },
-    { id: 'low', label: 'Thinking · fast', thinking: true, effort: 'low' },
-    { id: 'high', label: 'Thinking · standard', thinking: true, effort: 'high' },
-    { id: 'max', label: 'Thinking · deepest', thinking: true, effort: 'max' },
-  ],
-} satisfies Record<string, ReasoningTier[]>;
+import { VendorResponses } from './responses.ts';
+import { TIERS } from './tiers.ts';
+import { VENDORS, effortOf, protocolOf, vendorOf } from './vendors.ts';
 
 const readsImages = (entry: LLMProviderEntry, model: string | undefined) => !!model && (vendorOf(entry.baseUrl)?.vision ?? []).includes(model);
-
-/**
- * The Responses client with the thinking level rewritten to the value the service takes for the model
- * (`effortOf`) and images limited to the newest batch (`sinceLastDelivery`).
- */
-class VendorResponses extends ResponsesProvider {
-  constructor(opts: ResponsesProviderOptions, private readonly effort: (model: string) => EffortMap | undefined) {
-    super(opts);
-  }
-
-  protected override buildResponseBody(request: Request, options: GenerateOptions): Record<string, unknown> {
-    const body = super.buildResponseBody(request, options.context ? { ...options, context: sinceLastDelivery(options.context) } : options);
-    const reasoning = body.reasoning as { effort?: string } | undefined;
-    const level = reasoning?.effort;
-    const effort = this.effort(request.model ?? '');
-    if (!effort || !level || !(level in effort)) return body;
-    const to = effort[level as keyof EffortMap];
-    if (to === null || to === undefined) delete body.reasoning;
-    else body.reasoning = { ...reasoning, effort: to };
-    return body;
-  }
-}
 
 /** The Messages API states an oversized prompt as `prompt is too long`, the Gemini API as a token count over the maximum. */
 function contextOverflow(error: { status: number; body: string }): boolean {
@@ -142,6 +107,7 @@ export const COO = {
         media,
         keepThinking: host.keepThinking,
         reasoningReplay: vendor?.encryptedReasoning ? 'encrypted' : 'plaintext',
+        sendSyntheticReasoning: vendor?.syntheticReasoning,
       }, (model) => (vendor ? effortOf(vendor, model) : undefined)),
     };
   },
@@ -149,5 +115,9 @@ export const COO = {
 
 export default COO;
 export { anthropicPrices, deepseekPrices, geminiPrices, openaiPrices, vendorPrices, xaiPrices, OFF_PEAK } from './pricing.ts';
-export { VENDORS, effortOf, protocolOf, vendorById, vendorEntry, vendorKeyHint, vendorName, vendorOf, type Vendor } from './vendors.ts';
+export {
+  CHATGPT, CHATGPT_MODULE, VENDORS, chatgptEntry, connectionVendor, effortOf, endpointVendor, protocolOf, vendorById, vendorEntry, vendorKeyHint, vendorName, vendorOf,
+  type Vendor,
+} from './vendors.ts';
+export { CHATGPT_BUILTIN_PANEL, CHATGPT_PROVIDER, SIGN_IN_PANEL, USAGE_LIMIT, chatgptModule, signedIn, usageLimited, type SignInStatus } from './chatgpt/index.ts';
 export { VENDOR_ICONS } from './icons.ts';

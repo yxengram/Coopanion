@@ -15,10 +15,11 @@ export default {
   /** 打字气泡里把草稿带到对话页的按钮 */
   'bubble.expand': '在对话页继续写',
 
-  // 语音:头顶显示听到的话
-  'heard.done': '听到了',
+  // 你说的话:语音识别中的样子和它的取消按钮;对话页发来的消息附的图片数
   'heard.more': '还在听…',
   'heard.listening': '正在听…',
+  'heard.cancel': '取消',
+  'said.images': '图片 ×{n}',
 
   // 菜单与悬停按钮的说明
   'roam.off': '不乱动',

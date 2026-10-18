@@ -21,7 +21,7 @@ import { FakePage } from './helpers/page.ts';
 import { fakeSapi } from './helpers/fake-sapi.ts';
 
 /** A recognizer that answers `reply(samples)`; `decodes` lists how many samples each decode got. */
-interface FakeFunAsr { sherpa: SherpaModule; decodes: number[]; configs: Array<Record<string, unknown>>; reply: (samples: number) => string }
+interface FakeFunAsr { sherpa: SherpaModule; decodes: number[]; configs: Array<Record<string, unknown>>; reply: (samples: number) => string; hold?: Promise<void> }
 
 function fakeFunAsr(text: string | ((samples: number) => string)): FakeFunAsr {
   const fake = { decodes: [] as number[], configs: [] as Array<Record<string, unknown>>, reply: typeof text === 'string' ? () => text : text } as FakeFunAsr;
@@ -36,6 +36,7 @@ function fakeFunAsr(text: string | ((samples: number) => string)): FakeFunAsr {
           },
           decodeAsync: async (stream) => {
             const n = (stream as { samples: number }).samples;
+            if (fake.hold) await fake.hold;
             fake.decodes.push(n);
             return { text: fake.reply(n) };
           },
@@ -92,12 +93,13 @@ function scriptedKey(problem?: string) {
   return { key, watch };
 }
 
-async function setup(text: string | ((samples: number) => string), mode: MicMode = 'always', watch?: ReturnType<typeof scriptedKey>['watch']) {
+async function setup(text: string | ((samples: number) => string), mode: MicMode = 'always', watch?: ReturnType<typeof scriptedKey>['watch'], openOnPress = false) {
   const asr = fakeFunAsr(text);
   const cfg = structuredClone(DESKTOP_PET_DEFAULTS);
   Object.assign(cfg, { enabled: true, port: 0 });
   cfg.window.enabled = false;
   cfg.asr.mic.mode = mode;
+  cfg.asr.mic.openOnPress = openOnPress;
   const dir = mkdtempSync(join(tmpdir(), 'pet-voice-'));
   placeModel(join(dir, 'm'));
   const world = new DesktopPetWorld({
@@ -153,6 +155,77 @@ describe('voice input', () => {
     key.press(false);
     await expect.poll(() => host.events.length, { timeout: 5000 }).toBe(1);
     expect(host.events[0].text).toBe('[语音] 伙伴:帮我看看这个');
+  });
+
+  it('hold: the microphone stays open across a press and release unless it is set to open on press', async () => {
+    const { key, watch } = scriptedKey();
+    const { page } = await setup('帮我看看这个', 'hold', watch);
+    expect(page.init.mic).toBe(true);
+    key.press(true);
+    key.press(false);
+    await new Promise((r) => setTimeout(r, 800));
+    expect(page.messages.some((m) => m.t === 'prefs' && m.mic === false)).toBe(false);
+  });
+
+  it('hold, open on press: the page opens the microphone from the press until shortly after the release', async () => {
+    const { key, watch } = scriptedKey();
+    const { page, host } = await setup('帮我看看这个', 'hold', watch, true);
+    expect(page.init.mic).toBe(false);
+    key.press(true);
+    await page.next((m) => m.t === 'prefs' && m.mic === true);
+    // the bubble waits for the microphone: listening starts with the first frame from it
+    expect(page.messages.some((m) => m.t === 'listen' && m.phase === 'start')).toBe(false);
+    page.audio(tone(20, .01)[0]!);
+    await page.next((m) => m.t === 'listen' && m.phase === 'start');
+    for (const fr of tone(400, .2)) page.audio(fr);
+    await new Promise((r) => setTimeout(r, 200));
+    const up = Date.now();
+    key.press(false);
+    await page.next((m) => m.t === 'prefs' && m.mic === false);
+    expect(Date.now() - up).toBeGreaterThanOrEqual(400);
+    await expect.poll(() => host.events.length, { timeout: 5000 }).toBe(1);
+    expect(host.events[0].text).toBe('[语音] 伙伴:帮我看看这个');
+  });
+
+  it('open on press while set to another mode: the microphone stays open', async () => {
+    const { watch } = scriptedKey();
+    const { page } = await setup('x', 'toggle', watch, true);
+    expect(page.init.mic).toBe(true);
+  });
+
+  it("the listening bubble's cancel drops what was heard, sends nothing and closes the bubble", async () => {
+    const { key, watch } = scriptedKey();
+    const { host, page } = await setup('说错了', 'hold', watch);
+    key.press(true);
+    for (const fr of tone(600, .3)) page.audio(fr);
+    await page.next((m) => m.t === 'listen' && m.phase === 'start');
+    page.send({ t: 'cancel' });
+    await page.next((m) => m.t === 'listen' && m.phase === 'none');
+    // the key comes up after the cancel: nothing is left to send
+    key.press(false);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(host.events).toHaveLength(0);
+    expect(page.messages.some((m) => m.t === 'listen' && m.phase === 'heard')).toBe(false);
+  });
+
+  it('a cancel while the sentence is transcribed drops its text when it lands; toggle is switched off', async () => {
+    const { key, watch } = scriptedKey();
+    let release: () => void = () => {};
+    const slow = new Promise<void>((r) => { release = r; });
+    const { host, page, world, asr } = await setup('不要了', 'toggle', watch);
+    asr.hold = slow;
+    key.press(true);
+    await page.next((m) => m.t === 'listen' && m.phase === 'start');
+    for (const fr of [...tone(600, .3), ...tone(900, 0)]) page.audio(fr);
+    await page.next((m) => m.t === 'listen' && m.phase === 'transcribing');
+    page.send({ t: 'cancel' });
+    await page.next((m) => m.t === 'listen' && m.phase === 'none');
+    expect(world.voiceState().input).toMatchObject({ open: false });
+    release();
+    await slow;
+    await new Promise((r) => setTimeout(r, 600));
+    expect(host.events).toHaveLength(0);
+    expect(page.messages.some((m) => m.t === 'listen' && m.phase === 'heard')).toBe(false);
   });
 
   it('a talk key that cannot be read keeps the gate closed and says why', async () => {

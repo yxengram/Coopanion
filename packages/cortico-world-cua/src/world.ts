@@ -23,7 +23,7 @@
 import { fork, type ChildProcess } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import type { Logger, ToolCallContext, ToolDef, ToolOutcome, World, WorldConsoleDecl, WorldHost } from 'cortico/core/types.ts';
+import type { Logger, ToolCallContext, ToolDef, ToolOutcome, World, WorldWebUiDecl, WorldHost } from 'cortico/core/types.ts';
 import type { Language } from 'cortico/core/language.ts';
 import { childExecArgv } from 'cortico/extensions/runtime.ts';
 import { CUA_ID, cuaConfigGroup, type CuaConfigSection, type PermissionLevel } from './config.ts';
@@ -438,7 +438,7 @@ export class CuaWorld implements World {
     };
   }
 
-  console(language: Language = 'zh'): WorldConsoleDecl {
+  webUi(language: Language = 'zh'): WorldWebUiDecl {
     const t = cuaText(language);
     const c = t.console;
     return {

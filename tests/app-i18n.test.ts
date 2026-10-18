@@ -105,31 +105,50 @@ describe('the console language an older version saved', () => {
     const ipcRenderer = {
       sendSync(channel: string, arg?: unknown) {
         sent.push([channel, arg]);
-        return main.language;
+        return channel === 'settings:update' ? { auto: false, step: null } : main.language;
       },
     };
-    const localStorage = { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => { storage.set(k, String(v)); } };
+    const localStorage = {
+      getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => { storage.set(k, String(v)); }, removeItem: (k: string) => { storage.delete(k); },
+    };
+    const contextBridge = { exposeInMainWorld: () => { throw new Error('a build that does not update itself exposes nothing'); } };
     const source = readFileSync(join(import.meta.dirname, '../app/settings-preload.cjs'), 'utf8');
-    new Function('require', 'localStorage', source)(() => ({ ipcRenderer }), localStorage);
+    new Function('require', 'localStorage', source)(() => ({ contextBridge, ipcRenderer }), localStorage);
     return sent;
   }
 
   it('only ever changed the console\'s look: a Chinese app stays Chinese and the console follows it', () => {
     for (const before of ['en', 'ja', 'zh-Hant', undefined]) {
-      const storage = new Map<string, string>(before ? [['cortico.console.language', before]] : []);
+      const storage = new Map<string, string>(before ? [['cortico.webui.language', before]] : []);
       const main = { language: 'zh' };
-      // the preload only asks for the app language; it hands nothing over
-      expect(load(storage, main)).toEqual([['settings:language', undefined]]);
+      // the preload only asks for the app language (and whether this build updates itself); it hands nothing over
+      expect(load(storage, main)).toEqual([['settings:language', undefined], ['settings:update', undefined]]);
       expect(main.language).toBe('zh');
-      expect(storage.get('cortico.console.language')).toBe('zh');
+      expect(storage.get('cortico.webui.language')).toBe('zh');
     }
   });
 
+  it('sets the key Cortico\'s WebUI reads its language from', () => {
+    // Cortico 0.2 renamed it (cortico.console.language → cortico.webui.language); a stale key leaves the WebUI in its own language
+    const cortico = readFileSync(join(import.meta.dirname, '../vendor/cortico/src/web/client/core/language.ts'), 'utf8');
+    const key = /const STORAGE_KEY = '([^']+)'/.exec(cortico)?.[1];
+    expect(key).toBeTruthy();
+    const storage = new Map<string, string>();
+    load(storage, { language: 'en' });
+    expect([...storage.keys()]).toEqual([key]);
+  });
+
+  it('drops the key Cortico read before 0.2, which nothing reads now', () => {
+    const storage = new Map([['cortico.console.language', 'en']]);
+    load(storage, { language: 'zh' });
+    expect([...storage]).toEqual([['cortico.webui.language', 'zh']]);
+  });
+
   it('a later change of the app language reaches the console at the next load', () => {
-    const storage = new Map([['cortico.console.language', 'zh']]);
+    const storage = new Map([['cortico.webui.language', 'zh']]);
     const main = { language: 'en' };
     load(storage, main);
-    expect(storage.get('cortico.console.language')).toBe('en');
+    expect(storage.get('cortico.webui.language')).toBe('en');
   });
 
   it('the main process takes no language from the settings window', () => {
@@ -234,11 +253,48 @@ describe('the reply-language line', () => {
     for (const l of ['zh', 'zh-Hant', undefined]) {
       const w = world(l);
       expect(w.envPromptVars()).toBeNull();
-      expect(w.console!().promptDocs).toBeUndefined();
+      expect(w.webUi!().promptDocs).toBeUndefined();
       expect((await renderWorldEnvPrompt(w)).text).toBe('');
     }
     const w = world('en');
     expect((await renderWorldEnvPrompt(w)).text).toBe(replyLanguage('en'));
-    expect(w.console!('en').promptDocs?.[0]).toMatchObject({ key: 'worlds.coopanion.envPrompt', title: 'Reply language', role: 'envPrompt' });
+    expect(w.webUi!('en').promptDocs?.[0]).toMatchObject({ key: 'worlds.coopanion.envPrompt', title: 'Reply language', role: 'envPrompt' });
+  });
+});
+
+describe("the updater's steps in the settings window (settings-preload.cjs coopanionUpdate)", () => {
+  /** The preload in a build where the main process answers `settings:update` with `answer`; what it exposed, and its listeners. */
+  function exposed(answer: { auto: boolean; step: unknown }) {
+    const listeners = new Map<string, (e: unknown, step: unknown) => void>();
+    const ipcRenderer = {
+      sendSync: (channel: string) => (channel === 'settings:update' ? answer : 'zh'),
+      on: (channel: string, fn: (e: unknown, step: unknown) => void) => { listeners.set(channel, fn); },
+      removeListener: (channel: string, fn: unknown) => { if (listeners.get(channel) === fn) listeners.delete(channel); },
+    };
+    const world: Record<string, unknown> = {};
+    const contextBridge = { exposeInMainWorld: (key: string, api: unknown) => { world[key] = api; } };
+    const source = readFileSync(join(import.meta.dirname, '../app/settings-preload.cjs'), 'utf8');
+    new Function('require', 'localStorage', source)(() => ({ contextBridge, ipcRenderer }), { setItem() {}, removeItem() {} });
+    return { world, listeners };
+  }
+
+  it('gives the page the last step and each later one in a build that updates itself, and nothing in one that does not', () => {
+    expect(exposed({ auto: false, step: null }).world).toEqual({});
+    const { world, listeners } = exposed({ auto: true, step: { phase: 'downloading', version: '9.9.9' } });
+    const api = world.coopanionUpdate as { step(): unknown; onStep(fn: (s: unknown) => void): () => void };
+    expect(api.step()).toEqual({ phase: 'downloading', version: '9.9.9' });
+    const seen: unknown[] = [];
+    const stop = api.onStep((s) => seen.push(s));
+    listeners.get('settings:update')!({}, { phase: 'ready', version: '9.9.9' });
+    expect(seen).toEqual([{ phase: 'ready', version: '9.9.9' }]);
+    stop();
+    expect(listeners.has('settings:update')).toBe(false);
+  });
+
+  // whether the build updates itself comes from the channel (app/channel.cjs): never for the portable build
+  it('is answered and pushed by the main process', () => {
+    const main = readFileSync(join(import.meta.dirname, '../app/main.cjs'), 'utf8');
+    expect(main).toMatch(/ipcMain\.on\('settings:update', \(e\) => \{ e\.returnValue = \{ auto: RULES\.selfUpdate, step: updateLine\(\) \}; \}\)/);
+    expect(main).toContain("settings?.webContents.send('settings:update', updateLine())");
   });
 });

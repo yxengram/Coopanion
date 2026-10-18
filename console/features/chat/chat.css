@@ -18,7 +18,7 @@
 .chat-older { align-self: center; }
 .chat-note { align-self: center; font-size: 12.5px; color: var(--ink-dim); }
 
-/* 使用者:右侧浅色气泡,与终端页 .world 同形 */
+/* 使用者:右侧浅色气泡,与控制台页(运行轨迹) .world 同形 */
 .chatview .msg-user { align-self: flex-end; max-width: 78%; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .chatview .msg-user .bubble { background: var(--bubble-bg); color: var(--bubble-ink); border-radius: 15px 4px 15px 15px; padding: 10px 14px; white-space: pre-wrap; word-break: break-word; font-size: 14.5px; line-height: 1.6; }
 .chatview .msg-user .via { font-size: 11.5px; color: var(--ink-dim); }
@@ -36,13 +36,14 @@
 .chatview .sayrow .mood { flex: none; font-size: 11.5px; color: var(--ink-dim); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; margin-bottom: 4px; }
 
 /* 尖角:与 pet.css 同一画法转向左。x=0 是内边距框左沿,边框占 x∈[-2.5,0],尖端在 x=-11。
-   描边色三角的底边落在边框内沿,斜边与边框相连;底色三角缩进一个线宽,只盖住两条斜边之间的边框。 */
+   描边色三角的底边压进边框 .75px,斜边与边框相连;底色三角缩进一个线宽,只盖住两条斜边之间的边框。
+   边框按整设备像素画、三角不是:底边正好落在边框内沿时,放大或高分屏下尖角两肩会在线外冒出一点。 */
 .coo-body > :first-child .pet-bubble::before, .coo-body > :first-child .pet-bubble::after,
 .coo-body > .pet-bubble:first-child::before, .coo-body > .pet-bubble:first-child::after {
   content: ''; position: absolute; left: -11px; top: 6px; width: 11.5px; height: 22px;
 }
 .coo-body > :first-child .pet-bubble::before, .coo-body > .pet-bubble:first-child::before {
-  background: var(--ink); clip-path: path('M11 0 L2.1 8.9 Q0 11 2.1 13.1 L11 22 Z');
+  background: var(--ink); clip-path: path('M10.25 0.75 L2.1 8.9 Q0 11 2.1 13.1 L10.25 21.25 Z');
 }
 .coo-body > :first-child .pet-bubble::after, .coo-body > .pet-bubble:first-child::after {
   background: var(--sheet); clip-path: path('M11.5 3.04 L4.94 9.6 Q3.54 11 4.94 12.4 L11.5 18.96 Z');

@@ -2,7 +2,7 @@
 
 Coopanion 是用 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 组装的 Electron 桌面应用:Cortico Core + Cormini Persona +
 [桌宠 World](../packages/cortico-world-desktop-pet) + [电脑操作 World](../packages/cortico-world-cua),
-模型经 Coo Pet Provider(`packages/cortico-provider-coo`)接 DeepSeek、通义千问、Kimi 等几家服务,默认 DeepSeek。每家一个端点,名字就是它在 `src/vendors.ts` 里的 id;0.1.x 的 `deepseek` 模块端点在启动时由 `core/seed.ts` 改成 `coo`。
+模型经 Coo Pet Provider(`packages/cortico-provider-coo`)接 DeepSeek、通义千问、Kimi 等几家服务,默认 DeepSeek。每家一个端点,名字就是它在 `src/vendors.ts` 里的 id;0.1.x 的 `deepseek` 模块端点在启动时由 `core/seed.ts` 改成 `coo`。同一个包里还有 `chatgpt` 模块(`src/chatgpt/`,测试中):用 ChatGPT 账号登录、请求计入套餐，端点名 `chatgpt`(这个名字已被别种端点占了时是 `chatgpt-2` 这样的空名,见 `chatgptName`;令牌行记着端点目录的绝对路径,复制、改名或挪走的目录读成未登录并删掉抄来的令牌),按模块认而不是按地址(地址和 OpenAI 一样,见 `connectionVendor` / `endpointVendor`);引导里的 ChatGPT 走 OpenAI 卡片之后的一问(单开一张卡会改掉 DeepSeek 那条路上的卡片，动 `tests/fixtures/i18n-zh/guide.json`;这一问和登录自己的几句气泡不进交给 Coo 的引导记录，带 Key 的那几条路记录不变),登录页经 `companion:browse` 交给主进程，只开 `https://auth.openai.com/`;高级模式里它的账号一段是设置窗口登记的内置面板 `coopanion-chatgpt`(`console/features/chatgpt`)。
 
 ## 从源码构建
 
@@ -25,13 +25,13 @@ git submodule update --init --recursive
 |---|---|
 | `pnpm run dev` | 生成 `build/cortico` 并启动应用 |
 | `pnpm run start` | 直接启动应用(不重新生成 `build/cortico`) |
-| `pnpm run build:cortico` | 只生成 `build/cortico`(控制台改动后要重跑,并重启应用) |
+| `pnpm run build:cortico` | 只生成 `build/cortico`(`console/` 改动后要重跑,并重启应用) |
 | `pnpm run test` | 主仓库单元测试 |
 | `pnpm run test:worlds` | 桌宠与电脑操作 World 的单元测试（使用本仓库锁定的 Cortico） |
 | `pnpm run typecheck:worlds` | 两个 World 的类型检查 |
 | `pnpm run typecheck` | 检查 Core 与 Electron 部分的类型 |
-| `pnpm run typecheck:web` | 检查控制台的类型(先跑 `build:cortico`) |
-| `pnpm run build:installer` | Windows 上打出 `dist/Coopanion-Setup-<版本>.exe`;Mac 上打出 `dist/Coopanion-<版本>-mac-<架构>.dmg` 和 `.zip`(`PACK_ARCH=x64` 在 Apple 芯片上打 Intel 版) |
+| `pnpm run typecheck:web` | 检查设置窗口(WebUI 覆盖层)的类型(先跑 `build:cortico`) |
+| `pnpm run build:installer` | Windows 上打出 `dist/Coopanion-Setup-<版本>.exe`,设 `COOPANION_CHANNEL=portable` 时改打便携版 `dist/Coopanion-<版本>-win-x64-portable.zip`(不带 electron-updater,`app/channel.cjs`;只能在 Windows 上打,`pnpm exec tsx scripts/verify-portable.ts` 检查它);Mac 上打出 `dist/Coopanion-<版本>-mac-<架构>.dmg` 和 `.zip`(`PACK_ARCH=x64` 在 Apple 芯片上打 Intel 版) |
 | `pnpm run build:icons` | 用桌宠的造型重画应用图标和默认头像 |
 | `pnpm run export:whale` / `export:claude` / `export:gpt` / `export:gemini` / `export:grok` | 把大肥鱼、Claude 娘、GPT 娘、Gemini 娘、Grok 娘导出成原版 v0.1.17 起也能装的形象包(默认输出到 `build/packs/coopanion-<id>/`),说明见 `packages/cortico-world-desktop-pet/examples/whale/README.md`「导出成形象包」 |
 
@@ -49,11 +49,11 @@ $env:CORTICO_COMPANION_DATA = "$env:TEMP\coo-test"; pnpm run start
 |---|---|
 | `vendor/cortico` | Cortico 本体(子模块) |
 | `packages/cortico-world-desktop-pet`、`packages/cortico-world-cua` | 两个 World，源码由本仓库直接管理 |
-| `packages/cortico-provider-coo` | Coo Pet Provider:DeepSeek、千问、Kimi 等几家模型服务的 provider,DeepSeek 排第一 |
+| `packages/cortico-provider-coo` | Coo Pet Provider:DeepSeek、千问、Kimi 等几家模型服务的 provider,DeepSeek 排第一;另有 ChatGPT 套餐登录的 `chatgpt` 模块(测试中) |
 | `core/` | Core 子进程的入口:装配 Cormini、World、provider;首次运行的种子文件;没填 Key 时让桌宠提醒;`coopanion` World(`notice.ts`)在更新后把更新说明、在引导结束后把引导里的对话、在对方改设置后把改了什么告诉 Coo,并提供 Coo 给自己设唤醒器的工具(`alarms.ts`,不在界面上显示);匿名使用统计(`telemetry.ts`,字段见 [TELEMETRY.md](TELEMETRY.md)) |
-| `console/` | 覆盖在 Cortico 控制台上的入口:普通/高级两种模式,「开始」「习惯」「装扮」「语音输入」「电脑操作」五页,「系统提示词」页的「清空重开」,字标下的版本与更新提示(`features/release.ts`,版本号由 `scripts/stage.ts` 写进 `app-version.ts`) |
+| `console/` | 覆盖在 Cortico WebUI 上的入口:普通/高级两种模式,「开始」「习惯」「装扮」「语音输入」「电脑操作」五页,「系统提示词」页的「清空重开」,字标下的版本与更新提示(`features/release.ts`,版本号由 `scripts/stage.ts` 写进 `app-version.ts`) |
 | `app/` | Electron 主进程:托盘(Mac 上是菜单栏图标)、设置窗口(启动时不打开)、Core 子进程托管、桌宠窗口模式、自动更新(`updater.cjs`);`app/shims/` 是扩展安装用的 corepack 替身 |
-| `scripts/stage.ts` | 从 `vendor/cortico` 生成应用使用的 `build/cortico`:去掉内建的平台 World 与 llamacpp,叠加 `console/`,构建控制台 |
+| `scripts/stage.ts` | 从 `vendor/cortico` 生成应用使用的 `build/cortico`:去掉内建的平台 World 与 llamacpp,叠加 `console/`,构建 WebUI 与桌宠的面板 |
 | `scripts/pack.ts` | 组装扁平的 `build/app` 并调用 electron-builder(以 `build/app` 为项目目录、按 npm 收集其中的 `node_modules`,见 `scripts/pack-builder.ts`;`electron-builder.yml` 里的相对路径都相对 `build/app`);`installer/nsis.nsh` 定 Windows 默认安装位置、卸载时保留 `data`;Mac 包是临时签名(ad hoc)的 dmg 与 zip |
 | `scripts/make-icons.cjs` | 用 Electron 把 Coo 的造型(`web/coo/coo.js`)画成 `app/icons` 与 `core/seed/avatar.png` |
 | `scripts/banner.mjs` | 画各 README 顶部的明暗 banner(Coo + `scripts/lettering.mjs` 的字形):`node scripts/banner.mjs <companion\|desktop-pet\|cua> <目录>` 在目录里写 `banner.svg` 与 `banner-dark.svg` |
@@ -66,7 +66,9 @@ $env:CORTICO_COMPANION_DATA = "$env:TEMP\coo-test"; pnpm run start
 2. 写 `docs/releases/v<版本>.md`。它既是 GitHub Release 的正文，也随安装包分发：用户更新后 Coo 会读到上次运行的版本之后每个版本的说明(「## 下载」及以下不给 Coo),再用自己的话讲给用户;
 3. 提交后打 `v<版本>` 标签并推送。
 
-GitHub Actions 会构建 Windows 安装包和两个 Mac 包(Apple 芯片、Intel,都在 Apple 芯片的 runner 上打),附到对应的 Release 上,连同自动更新读的 `latest.yml`(Windows)和 `latest-linux.yml`(AppImage)。已装的 Windows 版和 AppImage 由 `app/updater.cjs`(electron-updater)在后台下载新版本,Coo 在气泡里问要不要重启更新;Mac(临时签名装不了自动更新)和 deb 仍靠设置窗口字标下的提示手动下载。
+GitHub Actions 会构建 Windows 安装包、Windows 便携版 zip 和两个 Mac 包(Apple 芯片、Intel,都在 Apple 芯片的 runner 上打)以及 Linux 的 AppImage 和 deb,附到对应的 Release 上,连同 `SHA256SUMS.txt` 和自动更新读的 `latest.yml`(Windows 安装包)和 `latest-linux.yml`(AppImage);便携版不进 `latest.yml`。已装的 Windows 版和 AppImage 由 `app/updater.cjs`(electron-updater)在后台下载新版本,Coo 在气泡里问要不要重启更新;Mac(临时签名装不了自动更新)、deb 和便携版仍靠设置窗口字标下的提示手动下载。
+
+在 Actions 里手动运行 release 工作流(workflow_dispatch)是打标签前的演练：各平台照常构建，便携版那一项跑 `scripts/verify-portable.ts`(渠道是 portable、没有 electron-updater、没有 `latest.yml`),汇总那一步按 `package.json` 的版本检查全部发布文件并写出 `SHA256SUMS.txt`,只是不建 Release;推标签时还会检查标签和 `package.json` 的版本一致。
 
 ## 提交改动
 
@@ -118,12 +120,14 @@ CI 在 Windows、macOS、Linux 上各跑一遍上面五项检查,另外:
 
 ## Cortico 版本
 
-`vendor/cortico` 钉在 Cortico 的 `472694f`:`v0.1.16` 之后、0.2.0 改名之前 0.1.x 的最后一个提交。升级时逐个标签走(`git -C vendor/cortico checkout <tag>`),每一步跑 `build:cortico`、三个 typecheck、两套测试，再用空数据目录启动一次看 `core.log`;原版每次升级的做法见 `git log upstream/main -- vendor/cortico`。
+`vendor/cortico` 钉在 Cortico 的 `087289d`(0.2.3,与原版 v0.2.4 同一处)。升级时逐个标签走(`git -C vendor/cortico checkout <tag>`),每一步跑 `build:cortico`、三个 typecheck、两套测试，再用空数据目录启动一次看 `core.log`;原版每次升级的做法见 `git log upstream/main -- vendor/cortico`。
 
+- 0.2.0 起(#250)终端改称控制台、控制台改称 WebUI:内建 World `terminal` → `console`(工具 `console_send`、事件 `console.*`),扩展契约 `console()` → `webUi()`、`Console*` → `WebUi*`,`cortico.consoleClient`/`consoleStyle` → `webUiClient`/`webUiStyle`(桌宠的面板源码在 `src/webui/`,`scripts/build-webui.mjs` 打成 `dist/webui.*`),路由 `/api/console/*` → `/api/webui/*`,`logging.console` → `logging.stdout`,WebUI 记的语言键 `cortico.console.language` → `cortico.webui.language`(`app/settings-preload.cjs`),三个包的 `cortico.api` 到 6。覆盖层 `console/main.ts` 跟着改名,其余逐字沿用。升级时 `core/seed.ts` 的 `moveTerminalToConsole` 把部署里的 `worlds.terminal`、`logging.console` 和 `worlds/terminal/` 提示词覆盖移到新名字,覆盖里的 `{{terminal.…}}` 变量改成 `{{console.…}}`(否则口令不再填进前缀;原版没有这一步),已在新名字下的不动(`tests/seed.test.ts`)。旧 session 的历史里仍有 `terminal_send` 调用;Cortico 本身在进程重启后让 session 沿用旧的系统前缀(其中还是 `## terminal`),工具表却已是 `console_send`;所以 `core/companion.ts` 在启动后看 session 的前缀(`core/seed.ts` 的 `prefixFromBeforeConsole`:有 `## terminal` 一节、没有 `## console`),是的话重载一次前缀,和点「重载系统前缀」一样(之后的启动不会再重载);`seed.ts` 还把 `core-state.json` 里 `worldVisibility.terminal`(对 Coo 隐藏)挪到 `console`;控制台页看不到改名前的终端对话(事件类型不同)。bot 读到的文字里变了的只有控制台 World 自己的:环境提示词把 terminal 说成 console、工具 `terminal_send` → `console_send`、发送回执说的页名(`on the console's "Terminal" page` → `on the WebUI's "Console" page`),该节在前缀里按 World id 排到 `cua` 之前;中文快照不覆盖这些,也没有变。
+- 0.2.x 同时带来:新版扩展市场(官方索引、标签与徽标、GitHub 设备码登录后投票与评论,#243、#251、#254、#265、#274)、扩展自描述(`describe`,本应用的包还没写)、旧契约扩展的过渡层(#258)、扩展装卸修复(#252、#260、#266,要 pnpm 11.28.6:根 `package.json` 的 `packageManager` 与依赖、两个 World 包的 `packageManager`、`scripts/pack.ts` 的 `DEPS.pnpm`)、重启补投不再重复已有事件(#264)、交接笔记不再漏掉最近一批的回答(#269)、明文回放不带签名块(#275),以及 `.env` 密钥只在同一行匹配(#268,空的 `NAME=` 不再读到下一行;`tests/decider-key.test.ts` 锁住)。
 - 0.1.11 起 `timezone` 缺省取本机时区，不再是 `Asia/Shanghai`;`core/seed.ts` 不写 `timezone`,所以时间、唤醒器和时间戳都跟电脑的时区走(`tests/seed.test.ts` 锁住);每天的唤醒器按设定时的墙钟时间(`Alarm.clock`)排到下一天(`nextDay`),夏令时切换前后不偏一小时;拨快那天不存在的时刻(如 02:30)顺延到跳过之后(03:30),第二天回到 02:30;拨慢那天重复的时刻取前一次(`tests/alarms.test.ts`)。
 - 0.1.9 起语言扩到 11 种:`Language` 不只 `zh` / `en`,只有中英两份文字的表按 `baseLanguage()` 取(如 `cortico-provider-coo` 的思考档位)。
-- 0.1.13 起实例锁冲突抛 `InstanceLockedError`:`core/companion.ts` 发 `companion:locked`,`app/core-host.cjs` 不再重启 Core,直接说明占锁的进程。
-- 0.1.16 的控制台提示词页要 `@codemirror/commands`(原版锁定 6.11.1),根 `package.json` 已加上这个依赖。提示词页改版(就地编辑、撤销、折叠、底部完整提示词预览，#235、#241)后按钮在 `.prompt-actions` 里、状态行是 `.prompt-status`,「重载当前 session」改名「重载系统前缀」;`console/features/clear-session.ts` 把「清空重开」放进 `.prompt-actions`,状态行沿用 `.prompt-status`。0.1.16 的 `worlds/index.ts` 按 id 动态导入 World,原版 cc2b1de 从那时起不再从打包产物里删它和 `src/launcher.ts`;`scripts/stage.ts` 的 DROP 照旧删也不影响运行。同版起扩展页可填 npm 源(写 `extensions/.npmrc`,#239),明文回传可关掉合成推理填充(#236)。
+- 0.1.13 起实例锁冲突抛 `InstanceLockedError`:`core/companion.ts` 发 `companion:locked`,`app/core-host.cjs` 不再重启 Core,直接说明占锁的进程。控制台试过的 5 个端口都监听不了时(Cortico 抛最后一个端口的 `EADDRINUSE`/`EACCES`),`core/console-origins.ts` 的 `portsBusy` 认出来,发 `companion:ports-busy { from, to }`,同样不重启(`core-host.cjs` 的 `blocked`),通知和错误框写明端口范围。
+- 0.1.16 的 WebUI 提示词页要 `@codemirror/commands`(原版锁定 6.11.1),根 `package.json` 已加上这个依赖。提示词页改版(就地编辑、撤销、折叠、底部完整提示词预览，#235、#241)后按钮在 `.prompt-actions` 里、状态行是 `.prompt-status`,「重载当前 session」改名「重载系统前缀」;`console/features/clear-session.ts` 把「清空重开」放进 `.prompt-actions`,状态行沿用 `.prompt-status`。0.1.16 的 `worlds/index.ts` 按 id 动态导入 World,原版 cc2b1de 从那时起不再从打包产物里删它和 `src/launcher.ts`;`scripts/stage.ts` 的 DROP 照旧删也不影响运行。同版起扩展页可填 npm 源(写 `extensions/.npmrc`,#239),明文回传可关掉合成推理填充(#236)。
 - 472694f 带进三处会让 Coo 不再出声的修复，由 `tests/cortico-hang-fixes.test.ts` 经本应用的装配方式锁住(在 v0.1.15 上三条都失败):#245 工具返回值既不是字符串也不是 `{ text }`(未经类型检查的扩展)时记失败回执，主循环不再退出;#246 重启读回 `session-main.jsonl` 时删去找不到调用的工具回执(原来每次请求都被上游拒绝);#249 别的端点记下的项出线时不带 `id`(来源按端点名和 base URL 区分),在走 Responses 协议的服务之间(如 DeepSeek 与 OpenAI、xAI)换模型不再 400;Gemini、Anthropic 走 provider-coo 自己的线路，不经这里。Cortico 自己的测试在 `vendor/cortico/tests/core/loop.test.ts`(要 minecraft World 的依赖，只能在 Cortico 仓库里跑)和 `tests/providers/transport/responses-input.test.ts`。
 
 ## 代理、主题与字标

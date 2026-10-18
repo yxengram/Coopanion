@@ -24,6 +24,7 @@ const TABLES = {
   'features/voice/index.ts': ['TEXT'],
   'features/dress/index.ts': ['TEXT'],
   'features/home/index.ts': ['TEXT'],
+  'features/chatgpt/index.ts': ['TEXT'],
   'features/cua/index.ts': ['TEXT'],
   'features/chat/index.ts': ['TEXT', 'STEP_TEXT'],
   'features/pet/index.ts': ['TEXT'],
@@ -42,7 +43,7 @@ class MemoryStorage {
 
 /** Loads console modules fresh with `language` as the stored console language (strings are picked at module load). */
 async function load(language, ...files) {
-  localStorage.setItem('cortico.console.language', language);
+  localStorage.setItem('cortico.webui.language', language);
   vi.resetModules();
   const out = [];
   for (const file of files) out.push(await import(/* @vite-ignore */ `${CLIENT}${file}`));
@@ -138,12 +139,12 @@ class FakeSocket {
 const settle = () => new Promise((r) => setTimeout(r, 30));
 
 async function mount(feature, mods, extra = {}) {
-  const [{ createConsoleUi }, { Lifecycle }] = mods;
+  const [{ createWebUi }, { Lifecycle }] = mods;
   const lifecycle = new Lifecycle((err) => { throw err; });
   const root = document.createElement('div');
   document.body.append(root);
   const memo = { get: (_k, d) => d, set: () => {} };
-  const ui = createConsoleUi({ memo, overlayHost: document.body, signal: lifecycle.signal, doc: document });
+  const ui = createWebUi({ memo, overlayHost: document.body, signal: lifecycle.signal, doc: document });
   const router = { route: { segments: [feature.route] }, navigate: () => {}, replace: () => {} };
   await feature.mount({ root, lifecycle, signal: lifecycle.signal, ui, router, route: router.route, capabilities: {}, onError: (err) => { throw err; }, refreshNav: () => {}, ...extra });
   await settle();
@@ -260,7 +261,7 @@ describe.skipIf(!STAGED && !process.env.CI)('console text in zh and en', () => {
     const reload = vi.fn();
     await setAppLanguage('en', undefined, { storage: { setItem: (k, v) => storage.set(k, v) }, reload });
     expect(sent).toEqual([{ path: '/api/config', body: { group: 'companion', values: { language: 'en' } } }]);
-    expect(storage.get('cortico.console.language')).toBe('en');
+    expect(storage.get('cortico.webui.language')).toBe('en');
     expect(reload).toHaveBeenCalledOnce();
     expect(storedLanguage([{ group: { id: 'companion' }, values: {} }])).toBe('zh');
     expect(storedLanguage([{ group: { id: 'companion' }, values: { language: 'xx' } }])).toBe('zh');
@@ -282,7 +283,7 @@ describe.skipIf(!STAGED && !process.env.CI)('console text in zh and en', () => {
     expect(main.FEATURES.find((f) => f.route === 'settings').mount).not.toBe(settings.settingsFeature.mount);
     const reload = vi.fn();
     const { root, lifecycle } = await mount(settings.settingsFeature, [ui, life]);
-    const ctx = { root, signal: lifecycle.signal, ui: ui.createConsoleUi({ memo: { get: (_k, d) => d, set: () => {} }, overlayHost: document.body, signal: lifecycle.signal, doc: document }), onError: (err) => { throw err; } };
+    const ctx = { root, signal: lifecycle.signal, ui: ui.createWebUi({ memo: { get: (_k, d) => d, set: () => {} }, overlayHost: document.body, signal: lifecycle.signal, doc: document }), onError: (err) => { throw err; } };
     language.routeLanguageButtons(ctx, { storage: localStorage, reload });
     root.querySelector('#settings-general button[lang="ja"]').click();
     await settle();
@@ -291,7 +292,7 @@ describe.skipIf(!STAGED && !process.env.CI)('console text in zh and en', () => {
     [...cards[0].querySelectorAll('button')].find((b) => b.textContent === 'Confirm').click();
     await settle();
     expect(sent).toContainEqual({ path: '/api/config', body: { group: 'companion', values: { language: 'ja' } } });
-    expect(localStorage.getItem('cortico.console.language')).toBe('ja');
+    expect(localStorage.getItem('cortico.webui.language')).toBe('ja');
     expect(reload).toHaveBeenCalledOnce();
     expect(root.querySelector('#settings-general').textContent).toContain('the window reloads after a change');
     lifecycle.dispose();

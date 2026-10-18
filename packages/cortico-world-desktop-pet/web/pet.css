@@ -47,57 +47,83 @@ body.desk .floor{display:none}
 .figure-layer iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:transparent; color-scheme:normal; pointer-events:none}
 
 
-/* bubbles */
+/* bubbles. --bubble-size scales the frame (widths, padding, corners, tail) and --bubble-font the text and the icons on
+   its lines, both factors set by pet-app.js from the bubbleSize and fontSize settings and unset at 1, where every value
+   below is what it was before they existed; the border keeps its line. */
 .bubble{
-  position:fixed; left:0; top:0; z-index:3; width:max-content; max-width:min(300px, calc(100vw - 20px));
-  padding:10px 14px; border-radius:18px; background:var(--surface); color:var(--text);
+  position:fixed; left:0; top:0; z-index:3; width:max-content; max-width:min(calc(300px * var(--bubble-size, 1)), calc(100vw - 20px));
+  padding:calc(10px * var(--bubble-size, 1)) calc(14px * var(--bubble-size, 1)); border-radius:calc(18px * var(--bubble-size, 1)); background:var(--surface); color:var(--text);
   border:2.5px solid var(--skin-ink); box-shadow:0 8px 22px var(--shadow);
-  font-size:14.5px; line-height:1.55; user-select:text; -webkit-user-select:text;
-  transform-origin:var(--tail, 50%) calc(100% + 10px);
+  font-size:calc(14.5px * var(--bubble-font, 1)); line-height:1.55; user-select:text; -webkit-user-select:text;
+  transform-origin:var(--tail, 50%) calc(100% + calc(10px * var(--bubble-size, 1)));
 }
-/* tail: an outline triangle whose base reaches the border's inner edge, so its sides join the border,
-   and a surface triangle one line width inside it that opens the border between the sides. Neither
-   is rotated. y=0 is the padding edge, the border spans 0..2.5, the tip sits 8.5px past the border. */
+/* tail: an outline triangle whose base lies inside the border, so its sides join the border, and a
+   surface triangle one line width inside it that opens the border between the sides. Neither is
+   rotated. y=0 is the padding edge, the border spans 0..2.5, the tip sits 8.5px past the border. The
+   outline's base sits .75px into the border: the border is drawn on whole device pixels and the triangle
+   is not, so a base on the border's inner edge showed as a nub above the line at each corner of the tail
+   when zoomed or on a hi-DPI screen. */
 .bubble::before, .bubble::after{
   content:""; position:absolute; left:calc(var(--tail, 50%) - 12px); bottom:-11px; width:22px; height:11.5px;
+  /* grown from where it meets the border, around the point above its tip */
+  scale:var(--bubble-size, none); transform-origin:11px 0;
 }
-.bubble::before{background:var(--skin-ink); clip-path:path('M0 0.5 L8.9 9.4 Q11 11.5 13.1 9.4 L22 0.5 Z')}
+.bubble::before{background:var(--skin-ink); clip-path:path('M0.75 1.25 L8.9 9.4 Q11 11.5 13.1 9.4 L21.25 1.25 Z')}
 .bubble::after{background:var(--surface); clip-path:path('M3.04 0 L9.6 6.56 Q11 7.96 12.4 6.56 L18.96 0 Z')}
-.bubble.heard{border-style:dashed; box-shadow:none; max-width:min(260px, calc(100vw - 20px))}
+.bubble.heard{border-style:dashed; box-shadow:none; max-width:min(calc(260px * var(--bubble-size, 1)), calc(100vw - 20px))}
 .bubble.heard::before, .bubble.heard::after{display:none}
-.bubble.ask{min-width:min(236px, calc(100vw - 20px)); padding-right:32px}
+/* what the person said, beside the pet (pet-app.js lines): a settled one closes on a click, lit in the eye colour on
+   hover; older ones step back; a fading one lets the pointer through. Its text shows six rows at most. */
+.bubble.said{transition:opacity .4s ease, border-color .15s}
+.bubble.said.settled{cursor:pointer; user-select:none; -webkit-user-select:none}
+.bubble.said.settled:hover{border-color:var(--skin-eye); opacity:1}
+.bubble.said.older{opacity:.62}
+.bubble.said.fading{opacity:0; pointer-events:none}
+.bubble.said.settled .b-text{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:6; line-clamp:6; overflow:hidden}
+/* the way a line came, before its text: the voice button's microphone, the chat page's arrows */
+.said-mark{display:inline-flex; vertical-align:-2px; margin-right:5px; color:color-mix(in srgb, var(--skin-eye) 78%, var(--skin-ink))}
+.said-mark svg{width:calc(15px * var(--bubble-font, 1)); height:calc(15px * var(--bubble-font, 1))}
+.b-hint .said-mark{vertical-align:-3px; margin-right:4px}
+.bubble.ask{min-width:min(calc(236px * var(--bubble-size, 1)), calc(100vw - 20px)); padding-right:calc(32px * var(--bubble-size, 1))}
 .bubble.pop{animation:bubble-in .26s cubic-bezier(.3,1.5,.5,1)}
 @keyframes bubble-in{from{transform:scale(.5); opacity:0}}
-.b-text{margin:0; min-height:1.55em; white-space:pre-wrap; text-wrap:pretty}
+/* a word longer than the line (a link such as the issues page in the failure bubble) breaks instead of running out of the bubble */
+.b-text{margin:0; min-height:1.55em; white-space:pre-wrap; text-wrap:pretty; overflow-wrap:anywhere}
 .b-text .interim{color:var(--muted)}
 .caret{display:inline-block; width:2px; height:1.05em; margin-left:2px; vertical-align:-2px; background:var(--skin-eye); animation:caret 1s steps(1) infinite}
 @keyframes caret{50%{opacity:0}}
-.b-hint{display:block; margin-top:2px; font-size:12px; color:var(--muted)}
+.b-hint{display:block; margin-top:2px; font-size:calc(12px * var(--bubble-font, 1)); color:var(--muted)}
+/* the listening bubble's foot: its hint, and the cancel button (hold and toggle) */
+.b-foot{display:flex; align-items:center; gap:8px; margin-top:2px}
+.b-foot .b-hint{flex:1; margin-top:0}
+.b-cancel{flex:none; font:inherit; font-size:calc(12px * var(--bubble-font, 1)); padding:2px 9px; border-radius:8px; border:1.5px solid var(--line); background:none; color:var(--muted); cursor:pointer}
+.b-cancel:hover{color:var(--text); border-color:var(--text)}
+.caret[hidden], .b-cancel[hidden]{display:none}
 .b-close{position:absolute; top:5px; right:6px; width:24px; height:24px; padding:0; border:0; border-radius:50%; background:none; color:var(--muted); font-size:18px; line-height:1; cursor:pointer}
 .b-close:hover{color:var(--text)}
-.b-opts{display:flex; flex-direction:column; gap:6px; margin:10px -18px 2px 0}
+.b-opts{display:flex; flex-direction:column; gap:6px; margin:10px calc(-18px * var(--bubble-size, 1)) 2px 0}
 .b-opt, .b-own{animation:opt-in .24s cubic-bezier(.3,1.4,.5,1) both; transition:border-color .15s, opacity .2s}
 @keyframes opt-in{from{transform:translateY(6px) scale(.92); opacity:0}}
 .b-opt{
-  display:flex; align-items:center; gap:8px; width:100%; text-align:left; font:inherit; font-size:14px;
+  display:flex; align-items:center; gap:8px; width:100%; text-align:left; font:inherit; font-size:calc(14px * var(--bubble-font, 1));
   padding:6px 10px; border-radius:11px; border:1.5px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer;
 }
 .b-opt:hover, .b-opt.chosen{border-color:var(--skin-eye)}
 .b-opt kbd{
-  flex:none; display:grid; place-items:center; width:20px; height:20px; border-radius:50%;
-  border:2px solid var(--skin-eye); font:500 11px/1 ui-monospace,Consolas,monospace; color:var(--text);
+  flex:none; display:grid; place-items:center; width:calc(20px * var(--bubble-font, 1)); height:calc(20px * var(--bubble-font, 1)); border-radius:50%;
+  border:2px solid var(--skin-eye); font:500 calc(11px * var(--bubble-font, 1))/1 ui-monospace,Consolas,monospace; color:var(--text);
 }
 .b-own{display:flex; align-items:center; gap:6px; padding:3px 3px 3px 10px; border-radius:11px; border:1.5px dashed var(--line); background:var(--bg)}
 .b-own:focus-within, .b-own.chosen{border-style:solid; border-color:var(--skin-eye)}
-.b-own input{flex:1; min-width:0; border:0; background:transparent; font:inherit; font-size:14px; color:var(--text); outline:none; padding:4px 0}
-.b-own button[type="submit"]{flex:none; font:inherit; font-size:12.5px; padding:4px 10px; border-radius:8px; border:0; background:var(--text); color:var(--surface); cursor:pointer}
+.b-own input{flex:1; min-width:0; border:0; background:transparent; font:inherit; font-size:calc(14px * var(--bubble-font, 1)); color:var(--text); outline:none; padding:4px 0}
+.b-own button[type="submit"]{flex:none; font:inherit; font-size:calc(12.5px * var(--bubble-font, 1)); padding:4px 10px; border-radius:8px; border:0; background:var(--text); color:var(--surface); cursor:pointer}
 .b-expand{flex:none; display:grid; place-items:center; width:26px; height:26px; padding:0; border:0; border-radius:50%; background:none; color:var(--muted); cursor:pointer}
 .b-expand:hover{color:var(--text)}
 .b-expand svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
 .b-opt.dim, .b-own.dim{opacity:.35}
 /* an app's conversation: one step per bubble, with the answer's controls under Coo's line */
 .d-mark{color:var(--skin-eye); font-weight:700}
-.bubble.talk{width:min(318px, calc(100vw - 20px)); max-width:none; padding:11px 14px 12px}
+.bubble.talk{width:min(calc(318px * var(--bubble-size, 1)), calc(100vw - 20px)); max-width:none; padding:calc(11px * var(--bubble-size, 1)) calc(14px * var(--bubble-size, 1)) calc(12px * var(--bubble-size, 1))}
 .d-top{display:flex; align-items:center; min-height:14px; margin:-2px 22px 5px 0}
 .bubble.talk .b-close{top:4px; right:5px}
 .d-dots{display:flex; gap:4px}
@@ -112,11 +138,17 @@ body.desk .floor{display:none}
 .d-row{display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px}
 .d-pill{
   padding:5px 14px; border-radius:999px; border:1.5px solid var(--line); background:var(--bg); color:var(--text);
-  font-size:13.5px; cursor:pointer; transition:border-color .15s, background .15s, transform .15s;
+  font-size:calc(13.5px * var(--bubble-font, 1)); cursor:pointer; transition:border-color .15s, background .15s, transform .15s;
 }
 .d-pill:hover{border-color:var(--skin-ink)}
 .d-pill.primary{background:var(--skin-ink); border-color:var(--skin-ink); color:var(--surface); font-weight:600}
 .d-pill.primary:hover{background:var(--skin-eye); border-color:var(--skin-eye)}
+/* a button with a second label (`hover`): that one while it is pointed at or focused. Both labels share one grid
+   cell and the other is only hidden, so the button is always as wide as the wider one: a button that grew on hover
+   could wrap to the next row, out from under the pointer, and flicker between its labels */
+.d-pill.swap{display:inline-grid; justify-items:center; align-items:center}
+.d-pill.swap > span{grid-area:1/1}
+.d-pill.swap:not(:hover):not(:focus-visible) .d-pill-hover, .d-pill.swap:is(:hover, :focus-visible) .d-pill-rest{visibility:hidden}
 .d-pill.chosen{animation:pill-pick .26s cubic-bezier(.3,1.5,.5,1)}
 @keyframes pill-pick{45%{transform:scale(1.1)}}
 .d-body button:disabled{cursor:default}
@@ -124,7 +156,7 @@ body.desk .floor{display:none}
 .d-keys{display:flex; justify-content:center; padding:4px 0 2px}
 .d-key{
   display:inline-block; padding:5px 16px 4px; border-radius:10px; border:2px solid var(--skin-ink); border-bottom-width:5px;
-  background:var(--surface); color:var(--text); font:600 14px/1.3 ui-monospace,Consolas,"Microsoft YaHei",monospace;
+  background:var(--surface); color:var(--text); font:600 calc(14px * var(--bubble-font, 1))/1.3 ui-monospace,Consolas,"Microsoft YaHei",monospace;
   animation:key-press 1.8s ease-in-out infinite;
 }
 @keyframes key-press{0%,35%,100%{transform:none; border-bottom-width:5px} 45%,80%{transform:translateY(3px); border-bottom-width:2px; border-color:var(--skin-eye); color:var(--skin-eye)}}
@@ -138,7 +170,7 @@ body.desk .floor{display:none}
   86%{transform:none; border-bottom-width:5px}
 }
 .d-keys{align-items:center; gap:6px}
-.d-taps{font:700 12px/1 ui-monospace,Consolas,monospace; color:var(--muted)}
+.d-taps{font:700 calc(12px * var(--bubble-font, 1))/1 ui-monospace,Consolas,monospace; color:var(--muted)}
 /* choice cards: the picked one lit in the eye color */
 .d-cards{display:grid; grid-template-columns:repeat(auto-fit, minmax(80px, 1fr)); gap:6px}
 .d-card{
@@ -151,10 +183,10 @@ body.desk .floor{display:none}
 .d-cardic svg{width:24px; height:24px; display:block}
 .d-cardimg{width:28px; height:28px; display:block; padding:3px; border-radius:7px; background:#fff; box-sizing:border-box}
 .d-card.on .d-cardimg{animation:card-bob .5s cubic-bezier(.3,1.5,.5,1)}
-.d-cardlbl{font-size:13px; color:var(--text)}
+.d-cardlbl{font-size:calc(13px * var(--bubble-font, 1)); color:var(--text)}
 .d-level{
   position:absolute; top:-7px; right:-5px; min-width:18px; padding:0 4px; border-radius:7px; border:1.5px solid var(--surface);
-  background:var(--muted); color:var(--surface); font:700 10px/15px system-ui,sans-serif;
+  background:var(--muted); color:var(--surface); font:700 calc(10px * var(--bubble-font, 1))/calc(15px * var(--bubble-font, 1)) system-ui,sans-serif;
 }
 .d-card.on .d-level{background:var(--skin-eye)}
 .d-card.on .d-cardic{animation:card-bob .5s cubic-bezier(.3,1.5,.5,1)}
@@ -162,26 +194,26 @@ body.desk .floor{display:none}
 /* a text box with its send button; a secret one can be peeked at */
 .d-field{display:flex; align-items:center; gap:4px; padding:3px 3px 3px 11px; border-radius:12px; border:1.5px solid var(--line); background:var(--bg)}
 .d-field:focus-within{border-color:var(--skin-eye)}
-.d-field input{flex:1; min-width:0; border:0; background:transparent; font-size:14px; color:var(--text); outline:none; padding:5px 0; user-select:text; -webkit-user-select:text}
+.d-field input{flex:1; min-width:0; border:0; background:transparent; font-size:calc(14px * var(--bubble-font, 1)); color:var(--text); outline:none; padding:5px 0; user-select:text; -webkit-user-select:text}
 .d-field .d-peek{flex:none; display:grid; place-items:center; width:26px; height:26px; padding:0; border:0; border-radius:50%; background:none; color:var(--muted); cursor:pointer}
 .d-field .d-peek:hover{color:var(--text)}
 .d-field .d-peek svg{width:16px; height:16px}
-.d-send{flex:none; padding:5px 12px; border-radius:9px; border:0; background:var(--skin-ink); color:var(--surface); font-size:13px; font-weight:600; cursor:pointer}
+.d-send{flex:none; padding:5px 12px; border-radius:9px; border:0; background:var(--skin-ink); color:var(--surface); font-size:calc(13px * var(--bubble-font, 1)); font-weight:600; cursor:pointer}
 .d-send:hover{background:var(--skin-eye)}
 .d-field.shake{animation:field-shake .32s}
 @keyframes field-shake{20%,60%{transform:translateX(-4px)} 40%,80%{transform:translateX(4px)}}
-.d-links{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12.5px}
+.d-links{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:calc(12.5px * var(--bubble-font, 1))}
 .d-link{display:inline-flex; align-items:center; gap:3px; color:var(--skin-eye); text-decoration:none}
 .d-link:hover{text-decoration:underline}
-.d-link svg{width:12px; height:12px}
-.d-alt{margin-left:auto; padding:2px 4px; border:0; background:none; color:var(--muted); font-size:12.5px; cursor:pointer}
+.d-link svg{width:calc(12px * var(--bubble-font, 1)); height:calc(12px * var(--bubble-font, 1))}
+.d-alt{margin-left:auto; padding:2px 4px; border:0; background:none; color:var(--muted); font-size:calc(12.5px * var(--bubble-font, 1)); cursor:pointer}
 .d-alt:hover{color:var(--text); text-decoration:underline}
 /* a progress bar; without a fraction a band slides along it */
 .d-bar{position:relative; height:8px; border-radius:4px; background:var(--line); overflow:hidden}
 .d-bar i{position:absolute; left:0; top:0; bottom:0; width:0; border-radius:4px; background:linear-gradient(90deg, var(--skin-eye), color-mix(in srgb, var(--skin-eye) 55%, #4CC9F0)); transition:width .4s ease}
 .d-bar.wait i{width:35%; animation:bar-slide 1.2s ease-in-out infinite}
 @keyframes bar-slide{from{left:-35%} to{left:100%}}
-.d-barlbl{display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--muted)}
+.d-barlbl{display:flex; justify-content:space-between; gap:8px; font-size:calc(12px * var(--bubble-font, 1)); color:var(--muted)}
 .d-barlbl b{font-weight:600; font-variant-numeric:tabular-nums; color:var(--text)}
 .trail{position:fixed; inset:0; pointer-events:none; z-index:3}
 .trail i{position:absolute; border-radius:50%; border:2.5px solid var(--skin-ink); background:var(--surface); animation:trail-bob 1.2s ease-in-out infinite}
@@ -266,4 +298,5 @@ body.desk .floor{display:none}
 @keyframes hold-ring{from{transform:scale(.72); opacity:0} to{transform:scale(1); opacity:1}}
 .tool.sent{animation:tool-sent .36s cubic-bezier(.3,1.5,.5,1)}
 @keyframes tool-sent{45%{transform:scale(1.2)}}
+@media (prefers-reduced-motion: reduce){.bubble.said{transition:none}}
 @media (prefers-reduced-motion: reduce){.bubble.pop, .b-opt, .b-own, .d-body > *, .d-card, .d-key, .d-key.taps, .d-bar.wait i, .d-card.on .d-cardic, .d-field.shake, .d-pill.chosen, .trail i, .caret, .menu, .tools, .tool.holding::after, .tool.sent, .m-tile, .m-tile::before, .m-tile::after, .m-tile .ic, .m-tile .ic::before{animation:none}}

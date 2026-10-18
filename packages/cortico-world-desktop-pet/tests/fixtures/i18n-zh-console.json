@@ -115,6 +115,24 @@
       "multipleOf": 0.05,
       "x-hot": true
      },
+     "worlds.desktop-pet.window.bubbleSize": {
+      "type": "number",
+      "title": "气泡尺寸",
+      "description": "桌宠和你的气泡的宽度、留白、圆角和尾巴,1 为默认;字号不变。",
+      "minimum": 0.8,
+      "maximum": 1.6,
+      "multipleOf": 0.05,
+      "x-hot": true
+     },
+     "worlds.desktop-pet.window.fontSize": {
+      "type": "number",
+      "title": "字体尺寸",
+      "description": "气泡里文字的大小,1 为默认;气泡宽度不变。",
+      "minimum": 0.8,
+      "maximum": 1.6,
+      "multipleOf": 0.05,
+      "x-hot": true
+     },
      "worlds.desktop-pet.window.lockFrameRate": {
       "type": "boolean",
       "title": "锁定 60 帧",

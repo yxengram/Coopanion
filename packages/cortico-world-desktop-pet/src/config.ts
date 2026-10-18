@@ -77,6 +77,10 @@ export interface DesktopPetConfigSection extends WorldSection {
     electronFile: string;
     /** Figure size on screen, 1 = 256 logo units drawn at 107 px. */
     scale: number;
+    /** The bubbles' frame (widths, padding, corners, tail, distance from the head), 1 = as drawn by pet.css; the text keeps its size. */
+    bubbleSize: number;
+    /** The text in the bubbles and the icons on its lines, 1 = as drawn by pet.css; the bubbles keep their widths. */
+    fontSize: number;
     /** The pet page draws 60 frames a second at rest too; off, it drops to 30 while the body stands, sits, lies or sleeps. */
     lockFrameRate: boolean;
     /** Hide the pet window while a fullscreen window covers the display it is on. */
@@ -147,6 +151,8 @@ export interface DesktopPetConfigSection extends WorldSection {
       hotkey: string;
       /** Browser media device id of the microphone; empty uses the system default. */
       deviceId: string;
+      /** Hold mode: the microphone opens when the talk key goes down and closes after it goes up; off keeps it open while voice input is on. */
+      openOnPress: boolean;
     };
   };
 }
@@ -155,7 +161,7 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
   enabled: false,
   port: 7797,
   user: '伙伴',
-  window: { enabled: true, electronFile: '', scale: 1, lockFrameRate: false, hideWhenFullscreen: false },
+  window: { enabled: true, electronFile: '', scale: 1, bubbleSize: 1, fontSize: 1, lockFrameRate: false, hideWhenFullscreen: false },
   roam: 'calm',
   sound: true,
   sounds: { move: true, touch: true, face: true, snore: true, talk: true, ui: true, snoreSeconds: 0 },
@@ -180,9 +186,17 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
     simplified: true,
     timeoutMs: 20_000,
     segment: { thresholdDb: -42, minSpeechMs: 180, dispatchSilenceMs: 250, silenceMs: 600, maxUtteranceMs: 15_000, preRollMs: 320, minUtteranceMs: 350 },
-    mic: { mode: 'hold', hotkey: DEFAULT_HOTKEY, deviceId: '' },
+    mic: { mode: 'hold', hotkey: DEFAULT_HOTKEY, deviceId: '', openOnPress: false },
   },
 };
+
+/** The range of `window.bubbleSize` and `window.fontSize` (the Habits page's sliders, 80%–160%). */
+export const BUBBLE_SIZE_MIN = .8, BUBBLE_SIZE_MAX = 1.6;
+/** A bubble or text size as the page takes it: a number in range, in steps of 5%; anything else is 1. */
+export function bubbleFactor(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
+  return Math.round(Math.min(BUBBLE_SIZE_MAX, Math.max(BUBBLE_SIZE_MIN, v)) * 20) / 20;
+}
 
 const K = `worlds.${DESKTOP_PET_ID}`;
 
@@ -205,6 +219,8 @@ export function desktopPetConfigGroup(language: Language = 'zh'): ConfigGroup {
         [`${K}.selfAdjust`]: { type: 'boolean', title: c.selfAdjust.title, description: c.selfAdjust.description, 'x-hot': true },
         [`${K}.window.enabled`]: { type: 'boolean', title: c.windowEnabled.title, 'x-hot': false },
         [`${K}.window.scale`]: { type: 'number', title: c.scale.title, minimum: .5, maximum: 2, multipleOf: .05, 'x-hot': true },
+        [`${K}.window.bubbleSize`]: { type: 'number', title: c.bubbleSize.title, description: c.bubbleSize.description, minimum: BUBBLE_SIZE_MIN, maximum: BUBBLE_SIZE_MAX, multipleOf: .05, 'x-hot': true },
+        [`${K}.window.fontSize`]: { type: 'number', title: c.fontSize.title, description: c.fontSize.description, minimum: BUBBLE_SIZE_MIN, maximum: BUBBLE_SIZE_MAX, multipleOf: .05, 'x-hot': true },
         [`${K}.window.lockFrameRate`]: { type: 'boolean', title: c.lockFrameRate.title, description: c.lockFrameRate.description, 'x-hot': true },
         // only the Windows window process tells another program's full screen (host/electron-main.cjs `fullscreen`); unregistered, the Habits page hides it too
         ...(process.platform === 'win32' ? {

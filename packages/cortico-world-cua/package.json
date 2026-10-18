@@ -22,11 +22,11 @@
   "engines": {
     "node": ">=22"
   },
-  "packageManager": "pnpm@11.5.0",
+  "packageManager": "pnpm@11.28.6",
   "main": "./src/index.ts",
   "cortico": {
     "kind": "world",
-    "api": 5
+    "api": 6
   },
   "files": [
     "src",

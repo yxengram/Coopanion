@@ -48,4 +48,15 @@ describe('the OpenRouter key decider mode uses', () => {
     endpoint(dir, 'openrouter', 'sk-or-new');
     expect(openRouterKey(providers as never, dir)).toBe('sk-or-new');
   });
+
+  // Cortico #268: an empty `NAME=` line is no key; the next line (another service's key) is not read as its value
+  it('an empty OPENROUTER_API_KEY= line is no key, and the line after it is not taken for one', () => {
+    delete process.env.OPENROUTER_API_KEY;
+    const dir = root();
+    mkdirSync(join(dir, 'openrouter'), { recursive: true });
+    writeFileSync(join(dir, 'openrouter', '.env'), `${OR.secret}=\nDEEPSEEK_API_KEY=sk-deep-other\n`);
+    expect(openRouterKey({ openrouter: vendorEntry(OR) } as never, dir)).toBe('');
+    writeFileSync(join(dir, 'openrouter', '.env'), `${OR.secret}= \t\r\n  sk-next-line\n`);
+    expect(openRouterKey({ openrouter: vendorEntry(OR) } as never, dir)).toBe('');
+  });
 });

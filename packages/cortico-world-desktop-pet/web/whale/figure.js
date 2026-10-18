@@ -1260,6 +1260,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   // the ninja run leans her whole body forward from the soles, in a straight line: bent at the waist instead,
   // the bodice comes away from the skirt and its bow and the tops of the legs show at the waist
   let wTilt = 0, wLean = 0, facing = 1, walkK = 0, runK = 0;
+  // how much the walk swings each arm (0–1, eased: a face that holds the arms still stops it in a few frames)
+  let swingN = 0, swingF = 0;
   const groupTilt = (mode, tilt, lean) => tilt * wTilt + lean * wLean + runK * 14 * facing;
   // the angle each hanging piece's root was last turned to (see the pendulums)
   let rootWas = {};
@@ -1501,52 +1503,59 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // running is a ninja run: both arms swept straight back, the whole body leaning forward (groupTilt)
     walkK = lerp(walkK, walking ? 1 : 0, ease(8, dt));
     runK = lerp(runK, mode === 'run' ? 1 : 0, ease(7, dt));
-    let aN = 4, aF = -2;
-    if (walking) { aN = -legA[0] * 1.3 + 4; aF = -legA[1] * 1.3 - 2; }
-    if (airborne) { aN = 40; aF = -30; }
-    if (held) { aN = 70 + 16 * Math.sin(t * 13); aF = -45 - 12 * Math.sin(t * 13 + 1.3); }
+    // the walk's swing goes on after the arm springs (below): `onN`/`onF` say whether it swings that arm at all (a pose
+    // that sets the arm holds it still), `gN`/`gF` how much of it is left by the poses that take the arm part way off
+    let aN = 4, aF = -2, onN = walking ? 1 : 0, onF = onN, gN = 1, gF = 1;
+    const easeOff = (k, near = true, far = true) => { if (near) gN *= 1 - k; if (far) gF *= 1 - k; };
+    if (airborne) { aN = 40; aF = -30; onN = onF = 0; }
+    if (held) { aN = 70 + 16 * Math.sin(t * 13); aF = -45 - 12 * Math.sin(t * 13 + 1.3); onN = onF = 0; }
     if (sitK > .5 && !walking) { aN = lerp(aN, -4, sitK); aF = lerp(aF, -6, sitK); }
     if (face === 'happy' || face === 'love') { aN += 12 + 5 * Math.sin(t * 8); aF -= 8 + 4 * Math.sin(t * 8); }
-    if (face === 'angry') { aN = 20 + 3 * Math.sin(t * 30); aF = -18 - 3 * Math.sin(t * 30); }
-    if (face === 'determined') { aN = 14; aF = -10; }
+    if (face === 'angry') { aN = 20 + 3 * Math.sin(t * 30); aF = -18 - 3 * Math.sin(t * 30); onN = onF = 0; }
+    if (face === 'determined') { aN = 14; aF = -10; onN = onF = 0; }
     if (face === 'excited') { aN += 18; aF -= 12; }
-    if (mode === 'dance') { const b = Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1); aN = 16 + 24 * Math.max(0, b); aF = -8 - 22 * Math.max(0, -b); }
-    if (runK > .001) { aN = lerp(aN, 38, runK); aF = lerp(aF, 32, runK); }
+    if (mode === 'dance') { const b = Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1); aN = 16 + 24 * Math.max(0, b); aF = -8 - 22 * Math.max(0, -b); onN = onF = 0; }
+    if (runK > .001) { aN = lerp(aN, 38, runK); aF = lerp(aF, 32, runK); easeOff(runK); }
     // nervous, the arms held stiffly in at her sides, fidgeting; a gesture's arms go on from there (it hands over
     // from the fist arms by their angle: set after it, this would hold them down and its drawing would never show)
-    if (face === 'nervous') { aN = -7 + 2.5 * Math.sin(t * 5); aF = 6; }
+    if (face === 'nervous') { aN = -7 + 2.5 * Math.sin(t * 5); aF = 6; onN = onF = 0; }
     // a face's arm pose: the fist arms come in toward her chest (for a hand at her head, up part way) as its drawing takes over
-    if (faceUp && RAISES[faceG]) aN = lerp(aN, BENT_RAISES.includes(faceG) ? 30 : RAISE_HIGH[faceG] ?? RAISE_TO, faceUp);
-    else if (faceUp) { aN = lerp(aN, 30, faceUp); aF = lerp(aF, -22, faceUp); }
+    if (faceUp && RAISES[faceG]) { aN = lerp(aN, BENT_RAISES.includes(faceG) ? 30 : RAISE_HIGH[faceG] ?? RAISE_TO, faceUp); easeOff(faceUp, true, false); }
+    else if (faceUp) { aN = lerp(aN, 30, faceUp); aF = lerp(aF, -22, faceUp); easeOff(faceUp); }
     // with the open-hand drawing she raises the arm on toward the drawing's own angle, and it takes over halfway up
     const { openHand } = waveHandover(wave, 0, lieK, !!WAVE && waveOK());
-    if (wave) aN = lerp(aN, openHand ? WAVE.rest : 108, wave);
+    if (wave) { aN = lerp(aN, openHand ? WAVE.rest : 108, wave); easeOff(wave, true, false); }
     // with the drawn arms the fist arms go part way up and hand over (see cheerHandover); without them she flings them up and out
     const cheerOn = CHEER && cheerOK() && !lieK ? cheer : 0;
-    if (cheer) { aN = lerp(aN, cheerOn ? CHEER_TO.near : 100, cheer); aF = lerp(aF, cheerOn ? -CHEER_TO.far : -80, cheer); }
+    if (cheer) { aN = lerp(aN, cheerOn ? CHEER_TO.near : 100, cheer); aF = lerp(aF, cheerOn ? -CHEER_TO.far : -80, cheer); easeOff(cheer); }
     // the fist arms start in toward her chest; with the drawing they hand over to it, without it they stay there
     const heartOn = HEART && heartOK() && !lieK ? heart : 0;
-    if (heart) { aN = lerp(aN, 30, heart); aF = lerp(aF, -22, heart); }
+    if (heart) { aN = lerp(aN, 30, heart); aF = lerp(aF, -22, heart); easeOff(heart); }
     // ...and for a cup or a book the same way
     const holdOn = propG && propOK(propG) && !lieK ? hold : 0;
     // (a stretch takes the fist arms up toward the drawing above her head; the others in toward her chest)
-    if (hold) { const up = propG === 'stretch'; aN = lerp(aN, up ? 110 : 30, hold); aF = lerp(aF, up ? -110 : -22, hold); }
+    if (hold) { const up = propG === 'stretch'; aN = lerp(aN, up ? 110 : 30, hold); aF = lerp(aF, up ? -110 : -22, hold); easeOff(hold); }
     // a raise: the fist arm goes up part way, and the drawing takes over (see cheerHandover); without it the fist stays up
     const raiseOn = raiseG && propOK(raiseG) && !lieK ? raise : 0;
     const farRaise = FAR_RAISES.includes(raiseG);
-    if (raise && !farRaise) aN = lerp(aN, BENT_RAISES.includes(raiseG) ? 30 : raiseOn ? RAISE_HIGH[raiseG] ?? RAISE_TO : 100, raise);
-    if (raise && farRaise) aF = lerp(aF, raiseOn ? -RAISE_TO : -100, raise);
-    if (shiver) { aN = lerp(aN, -10, shiver); aF = lerp(aF, 8, shiver); }
+    if (raise && !farRaise) { aN = lerp(aN, BENT_RAISES.includes(raiseG) ? 30 : raiseOn ? RAISE_HIGH[raiseG] ?? RAISE_TO : 100, raise); easeOff(raise, true, false); }
+    if (raise && farRaise) { aF = lerp(aF, raiseOn ? -RAISE_TO : -100, raise); easeOff(raise, false, true); }
+    if (shiver) { aN = lerp(aN, -10, shiver); aF = lerp(aF, 8, shiver); easeOff(shiver); }
     // coaxing, the hands come in together in front, swaying with her
-    if (face === 'coax' && !g) { aN = -9 + 3 * (fc.rock || 0); aF = 9 + 3 * (fc.rock || 0); }
+    if (face === 'coax' && !g) { aN = -9 + 3 * (fc.rock || 0); aF = 9 + 3 * (fc.rock || 0); onN = onF = 0; }
     // a flinch hugs the arms in tight; a peek holds them a little back and out, out of the way
-    if (flinch) { aN = lerp(aN, -16, flinch); aF = lerp(aF, 14, flinch); }
-    if (peek) { aN = lerp(aN, 14, peek); aF = lerp(aF, -6, peek); }
+    if (flinch) { aN = lerp(aN, -16, flinch); aF = lerp(aF, 14, flinch); easeOff(flinch); }
+    if (peek) { aN = lerp(aN, 14, peek); aF = lerp(aF, -6, peek); easeOff(peek); }
+    // each arm swings against the leg on its side, half the leg's angle. The swing goes on after the arm springs, which
+    // settle at about 1.2 Hz: the walk's 2.1 Hz stride came out of them about 120° late, each arm moving with its own leg.
+    // (`armBase`, which the drawn arms' handovers read, stays the spring's alone: every pose that hands over fades the swing)
+    swingN = lerp(swingN, onN, ease(8, dt)); swingF = lerp(swingF, onF, ease(8, dt));
+    const gaitN = -legA[0] * .5 * swingN * gN, gaitF = -legA[1] * .5 * swingF * gF;
     const armBase = sp.armN.step(aN, dt);
-    const armN = armBase + (openHand ? 0 : wave * 13 * Math.sin(t * 15)) + shiver * 1.4 * Math.sin(t * 47) + flap * 9 * Math.sin(t * 24)
+    const armN = armBase + gaitN + (openHand ? 0 : wave * 13 * Math.sin(t * 15)) + shiver * 1.4 * Math.sin(t * 47) + flap * 9 * Math.sin(t * 24)
       + (fc.shake && face === 'nervous' ? Math.sin(t * 47) : 0);
     const armFBase = sp.armF.step(aF, dt);
-    const armF = armFBase - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1);
+    const armF = armFBase + gaitF - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1);
 
     /* deformer states */
     // the kit sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
@@ -2048,7 +2057,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; rootWas = {}; museK = 0; facing = 1; walkK = 0; runK = 0; tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; restPitch = sleepK = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; wagK = 0; wagPh = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; faceArm = FACE_ARM_NOT; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
+      lastT = null; rootWas = {}; museK = 0; facing = 1; walkK = 0; runK = 0; swingN = 0; swingF = 0; tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; restPitch = sleepK = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; wagK = 0; wagPh = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; faceArm = FACE_ARM_NOT; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's and outfit's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.flatMap(sc => OUTFITS.map(of => loadScheme(sc.id, of.id)))),

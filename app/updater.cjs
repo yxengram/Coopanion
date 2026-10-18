@@ -1,17 +1,18 @@
 /**
  * Updates from the GitHub releases (electron-updater), where they can install themselves: the Windows
  * installer and the Linux AppImage. A macOS build is signed ad hoc, which Squirrel.Mac refuses to
- * install, and a deb belongs to the package manager; there the settings window's version line still
- * says when a release is out.
+ * install, and a deb belongs to the package manager; there the settings window's version line links
+ * to a newer release.
  *
  * A newer release downloads in the background. Each step is handed to the Core (`tell`), which says
- * it in Coo's bubble with a way to the releases page, since a download from GitHub can crawl: found
- * and downloading, downloaded (restart now, or it installs when the app quits), or failed. What the
- * updater does is written to `updater.log` in the logs directory.
+ * it in Coo's bubble, and to the settings window's version line: found and downloading, downloaded
+ * (restart now, or it installs when the app quits), or failed. Only a failed download points to the
+ * releases page outright; while downloading, the bubble's second button shows that way on hover. What
+ * the updater does is written to `updater.log` in the logs directory.
  */
 const { app } = require('electron');
 const { createWriteStream, mkdirSync } = require('node:fs');
-const { join } = require('node:path');
+const { dirname, join } = require('node:path');
 
 const RELEASES_URL = 'https://github.com/yxengram/Coopanion/releases/latest';
 /** Releases come out at most a few times a day; a run left open for days still hears of them the same day. */
@@ -37,6 +38,9 @@ function startUpdater({ logDir, tell }) {
   autoUpdater.autoDownload = true;
   // the app's own quit stops the Core first and then exits, which skips the quit event the updater waits for: installOnQuit does it
   autoUpdater.autoInstallOnAppQuit = false;
+  // the installer takes the directory registered for the app, or its default one when none is: an update goes
+  // into the directory of the program that is running, so the data beside it stays with it
+  if (process.platform === 'win32') autoUpdater.installDirectory = dirname(process.execPath);
 
   let downloading = null;
   let ready = null;
@@ -77,4 +81,4 @@ function startUpdater({ logDir, tell }) {
   };
 }
 
-module.exports = { startUpdater, RELEASES_URL };
+module.exports = { canUpdate, startUpdater, RELEASES_URL };

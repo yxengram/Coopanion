@@ -51,7 +51,7 @@ function strings(v: unknown): string[] {
 
 /** The console fixture's form of a declaration: what does not depend on the machine. */
 function consoleShape(world: DesktopPetWorld, language: Language) {
-  const d = world.console(language);
+  const d = world.webUi(language);
   const config = structuredClone(d.config!);
   for (const g of config) delete g.schema.properties['worlds.desktop-pet.window.hideWhenFullscreen'];
   return {
@@ -127,15 +127,15 @@ describe('English', () => {
     await world.start(new FakeHost());
     cleanup.push(() => world.stop());
     for (const language of ['en', 'ja'] as const) {
-      const d = world.console(language);
+      const d = world.webUi(language);
       const text = JSON.stringify({ label: d.label, lamps: d.lamps, panels: d.panels, links: d.links!.map((l) => l.label), config: d.config, docs: d.promptDocs!.map(({ path: _p, ...rest }) => rest) });
       expect(text).not.toMatch(CJK);
       expect(d.label).toBe('Desktop pet');
       // the same keys and limits as in Chinese
-      expect(d.config!.map((g) => Object.keys(g.schema.properties))).toEqual(world.console('zh').config!.map((g) => Object.keys(g.schema.properties)));
+      expect(d.config!.map((g) => Object.keys(g.schema.properties))).toEqual(world.webUi('zh').config!.map((g) => Object.keys(g.schema.properties)));
     }
-    await expect(world.console('en').invoke!('pet', 'nope', [])).rejects.toThrow('Unknown method pet.nope');
-    await expect(world.console('zh').invoke!('pet', 'nope', [])).rejects.toThrow('未知方法 pet.nope');
+    await expect(world.webUi('en').invoke!('pet', 'nope', [])).rejects.toThrow('Unknown method pet.nope');
+    await expect(world.webUi('zh').invoke!('pet', 'nope', [])).rejects.toThrow('未知方法 pet.nope');
   });
 
   it('the panels\' states follow the console request; the pet page\'s the app language', async () => {

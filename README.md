@@ -36,12 +36,12 @@ The app is in Chinese and English. A new install starts in your system's languag
 
 ## Features
 
-- **Many model services**: DeepSeek, Qwen, Kimi, Zhipu GLM, Doubao, Baidu Qianfan, MiniMax, StepFun, OpenRouter, OpenAI, Anthropic, Gemini and xAI. Pick one and paste an API key.
+- **Many model services**: DeepSeek, Qwen, Kimi, Zhipu GLM, Doubao, Baidu Qianfan, MiniMax, StepFun, OpenRouter, OpenAI, Anthropic, Gemini and xAI. Pick one and paste an API key. Or skip the key and sign in with a ChatGPT account to use your ChatGPT plan (testing).
 - **Chat**: hold the talk key and speak, or type; Coo answers in a bubble. Speech is recognized on your machine with FunASR.
 - **Memory**: Coo remembers what you talked about, and knows when you poke it or pat its head.
 - **Computer use**: clicking buttons, typing, switching windows. Coo asks before it acts.
 - **Six figures**: Coo, the **DeepSeek Whale**, a fully animated whale girl with eight vendor color schemes and two outfits (a maid dress and a winter outfit), **Claude-chan**, a front-facing chibi girl with long orange hair and a book, **GPT-chan**, a cool, quiet little white dragon girl with horns, wings and a tail, **Gemini-chan**, a lively cat girl with blue-violet hair, cat ears and a fluffy tail, or **Grok-chan**, a playful little vampire princess with long golden twin-tails, a small gear crown and little bat wings on her bows.
-- **Dress up**: Coo's colors, hats, earrings, glasses and neckwear, plus its size and how often it walks. The DeepSeek Whale has two rows on the Dress up page: her colors and her outfit (the maid dress or the winter outfit). The winter outfit is a whale hood (a spout on top, a fin on each side), a fur-trimmed cape and a striped scarf, with pompoms on the hood ties and scarf ends that swing. Every hand gesture has its own winter drawing, with fluffy fur cuffs and little blue bows (a wave, a cheer, a heart, a clap, praying, a stretch, a cup, a book, a tray, her chin on her hand, a fist, a notebook, fingertips…), and so is every whole-body pose: kneeling (with her arms posed over the kneeling drawing), lying on her front (kicking her feet), her back for turning round and away, and curled up in a ball for a roll, each in all eight color schemes and with her live face when kneeling or lying. Claude-chan, GPT-chan, Gemini-chan and Grok-chan have an outfit row too: their classic clothes or a winter outfit. Claude-chan's is a cream wool dress with a fur-edged capelet, knit sleeves with fur cuffs, cream tights and fur-trimmed boots; GPT-chan's a quilted qipao-style padded dress with a fur collar and frog buttons, her wings and tail left free; Gemini-chan's a closed navy top, a little lilac scarf with white stars and navy tights; Grok-chan's a black velvet coat-dress with crimson fur on the collar, cuffs, hem and boots. Every hand gesture and whole-body pose of theirs (sitting, kneeling, with arms posed while kneeling, lying, the back, the roll) has its own winter drawing, except Gemini-chan's light-bulb gesture (有了), which she does with her plain winter arm. Switching outfits is an instant cut, in whatever pose she is in.
+- **Dress up**: Coo's colors, hats, earrings, glasses and neckwear, plus its size and how often it walks. The DeepSeek Whale has two rows on the Dress up page: her colors and her outfit (the maid dress or the winter outfit). The winter outfit is a whale hood (a spout on top, a fin on each side), a fur-trimmed cape and a striped scarf, with pompoms on the hood ties and scarf ends that swing. Every hand gesture has its own winter drawing, with fluffy fur cuffs and little blue bows (a wave, a cheer, a heart, a clap, praying, a stretch, a cup, a book, a tray, her chin on her hand, a fist, a notebook, fingertips…), and so is every whole-body pose: kneeling (with her arms posed over the kneeling drawing), lying on her front (kicking her feet), her back for turning round and away, and curled up in a ball for a roll, each in all eight color schemes and with her live face when kneeling or lying. Claude-chan, GPT-chan, Gemini-chan and Grok-chan have an outfit row too: their classic clothes or a winter outfit. Claude-chan's is a cream wool dress with a fur-edged capelet, knit sleeves with fur cuffs, cream tights and fur-trimmed boots; GPT-chan's a quilted qipao-style padded dress with a fur collar and frog buttons, her wings and tail left free; Gemini-chan's a closed navy top, a little lilac scarf with white stars and navy tights; Grok-chan's a black velvet coat-dress with crimson fur on the collar, cuffs, hem and boots. Every hand gesture and whole-body pose of theirs (sitting, kneeling, with arms posed while kneeling, lying, the back, the roll) has its own winter drawing. Switching outfits is an instant cut, in whatever pose she is in.
 - **Extensions**: install Worlds such as a QQ bot, a drawing room and small games from the Extensions page.
 
 What changed in each version is in [Releases](https://github.com/yxengram/Coopanion/releases).
@@ -63,7 +63,7 @@ You also need an API key from one model service. [DeepSeek](https://platform.dee
 3. Pick a folder (default `C:\Users\<you>\Coopanion`) and install. Coopanion starts when done, and a desktop icon is added.
 
 > [!NOTE]
-> The program and all its data stay in the install folder and nothing goes to AppData, so it has no Start menu entry. Open it from the desktop icon.
+> The program and all its data stay in the install folder, so it has no Start menu entry. Open it from the desktop icon. The one file outside it is a small note of where the data is (see [Data and uninstalling](#data-and-uninstalling)).
 > It always installs for you alone, never for all users: Coopanion keeps its data beside the program, which a folder like Program Files does not allow. If it finds it cannot write its data folder, it says so and quits; run the installer again and pick a folder of your own.
 
 ### Windows: one command
@@ -75,6 +75,17 @@ irm https://raw.githubusercontent.com/yxengram/Coopanion/main/installer/install.
 ```
 
 It downloads the latest installer, runs it, and deletes the download afterwards.
+
+### Windows: portable
+
+To run Coopanion without installing it, from a removable drive, or as several pets at once, use the portable version:
+
+1. Download `Coopanion-<version>-win-x64-portable.zip` from the [latest release](https://github.com/yxengram/Coopanion/releases/latest) and unpack it into any folder you can write to (not Program Files).
+2. Run `Coopanion.exe` in that folder. Like the installer, it is not code-signed, so Windows may ask once more (**More info** → **Run anyway**).
+
+The portable version keeps its data in the folder's `data` and writes nothing else to the system, apart from the login item when you turn on Start at login; it keeps no note of where its data is. A copy of the whole folder is another pet with its own memory and settings, and each copy has its own Start at login. Up to 5 can run at once (installed and portable together); one more says that the ports are all taken. Extensions installed in a portable copy are stored so that they still work after the folder is copied or moved. A ChatGPT plan sign-in does not move with it: in a copied, moved or upgraded folder, sign in to ChatGPT again (see [Using a ChatGPT plan](#using-a-chatgpt-plan-testing)).
+
+The portable version does not update itself; the settings window shows a download link under the version when a new one is out. To upgrade, unpack the new version into a new folder and copy the old folder's `data` into it.
 
 ### macOS
 
@@ -104,7 +115,7 @@ It downloads the latest installer, runs it, and deletes the download afterwards.
 2. **Guide**: on first start Coo walks you through setup in its bubbles; you pick or type the answers right there:
    1. what Coo should call you;
    2. a figure: Coo, the DeepSeek Whale, Claude-chan, GPT-chan, Gemini-chan or Grok-chan, each card with a small picture (new installs start as Coo, which stays if you skip or close the bubble; asked only in the first guide), then how much it walks around: stay put / now and then / often;
-   3. which model service to use (DeepSeek, listed first, if unsure), then paste the API key and test the connection;
+   3. which model service to use (DeepSeek, listed first, if unsure), then paste the API key and test the connection; for OpenAI, Coo asks once more: an API key, or sign in with a ChatGPT account (testing, see [Using a ChatGPT plan](#using-a-chatgpt-plan-testing));
    4. download the speech model (FunASR, about 230 MB, from ModelScope), then how to talk to Coo;
    5. where the buttons, menu and settings are, and that the persona is on the System prompt page of the settings window.
 
@@ -144,7 +155,7 @@ OpenAI, Anthropic, Gemini and xAI usually need a proxy from mainland China, and 
 
 Each default is the cheap, vision-capable tier of that vendor. To use another model, change the name in the guide or in the Model field on the Start page.
 
-Services other than DeepSeek follow their documentation and have not each been tested with a real key. If one fails, please open an issue. Signing in with a ChatGPT plan, which upstream Coopanion offers, is not in this fork yet.
+Services other than DeepSeek follow their documentation and have not each been tested with a real key. If one fails, please open an issue.
 
 </details>
 
@@ -154,12 +165,14 @@ Services other than DeepSeek follow their documentation and have not each been t
 
 | How           | What to do                                                                                                                            |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Voice         | **Tap Left Alt, then press and hold it** (Left Option on Mac) and speak; releasing ends the sentence. Recognized text shows in a dashed bubble. |
+| Voice         | **Tap Left Alt, then press and hold it** (Left Option on Mac) and speak; releasing ends the sentence. Recognized text shows in a dashed bubble; click **Cancel** in it to drop the sentence. |
 | Typing        | Rest the pointer on Coo and click the bubble button beside it. With "Double-click Coo to open the typing box" on in Habits, double-clicking works too. |
 | Mic button    | Appears when the pointer rests on Coo and turns voice input on or off. Its corner shows the talk key (`ALT×2` by default) while listening on the key, AUTO while always listening. Long-press it while listening to send the sentence at once. |
 | Answering     | When Coo offers choices, click one or press 1–3; if none fits, write your own in the last box.                                         |
 
-Talk key, microphone and listening mode (hold to talk / press to toggle / always listen) are on the Voice input page. Click the talk key button and press a single key, a combination such as `Ctrl + Space`, or a mouse side button; beside it, choose **Double-tap, then hold** (the default) or **Just hold**. When the talk key is unavailable (on a Mac, usually because Input Monitoring is not allowed), speech is not recognized; the guide and the Voice input page say why.
+What you type, say or send from the Chat page stays beside Coo in a dashed bubble: a microphone marks speech, two arrows a message from the Chat page (with the number of images it carries). The bubbles fade a second after Coo's reply closes, or 8 seconds after you said them when Coo does not reply (while Coo is still thinking they stay); at most 3 stay, 6 lines in all, and past that the oldest fades first. Click a bubble to close it. The size of all bubbles and of their text is set under **Bubble size** and **Text size** on the Habits page (80%–160%).
+
+Talk key, microphone and listening mode (hold to talk / press to toggle / always listen) are on the Voice input page. Click the talk key button and press a single key, a combination such as `Ctrl + Space`, or a mouse side button; beside it, choose **Double-tap, then hold** (the default) or **Just hold**. When the talk key is unavailable (on a Mac, usually because Input Monitoring is not allowed), speech is not recognized; the guide and the Voice input page say why. If a headset, such as a Bluetooth one, switches to call mode and plays no sound while the microphone is open, turn on **Mic only while held** on the Voice input page (hold mode only): the microphone then opens when you press the talk key and closes half a second after you let go, so wait a moment after pressing before you speak.
 
 Speech is recognized on your machine by **FunASR** (the SenseVoiceSmall model) and audio is never uploaded. The model is about 230 MB and is downloaded once, from the guide or the Voice input page. On Windows you can use the built-in recognizer instead, which needs no download but is less accurate.
 
@@ -189,7 +202,7 @@ Computer use is on by default, but each turn Coo asks before it first looks at t
 - Logins, passwords and payments are left to you.
 - One wake makes at most 40 model requests; at the limit the turn ends and you can tell Coo to continue. The limit is on the Cormini page in advanced mode and applies after a restart.
 
-To keep Coo off your computer, untick **Let Coo use this computer** on the Computer use page.
+To keep Coo off your computer, untick **Let Coo use this computer** on the Computer use page. Ticking it again the first time asks first: a dialog says what computer use risks (screenshots go to your model service, Coo can click or type wrong, keep payments and passwords to yourself), and computer use turns on only after **Turn on**. Computer use is on from the start, so when you open the Computer use page while it is on, the same notice shows, with **Keep it on** and **Turn it off**, until you pick one (Esc or closing it leaves computer use on and shows the notice again next time; turning it off this way asks again the next time you turn it on). Once confirmed, the settings window does not ask again; the power button on the Computer use card of the World page in advanced mode asks the same until then.
 
 ### Tray / menu bar
 
@@ -204,15 +217,15 @@ Click the tray icon, or right-click Coo and click the gear. The window opens in 
 | Page          | What is there                                                                                                    |
 | ------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Start         | Connect a model, see whether Coo is awake, show the pet, rerun the guide. Pause / resume is at the bottom left.   |
-| Habits        | What to call you, walking, colors, size, remembering the position, hover buttons, double-click typing, sounds (each kind can be muted), 60 fps lock, hiding during full screen (Windows), letting Coo adjust itself, small talk (how often, quiet hours), anonymous usage statistics |
-| Dress up      | Figure (Coo, the DeepSeek Whale, Claude-chan, GPT-chan, Gemini-chan, Grok-chan or an installed figure pack), colors, outfits (the DeepSeek Whale and the four girls) and accessories; changes apply at once; **Import** at the end of the figure row installs a figure pack: pick its zip or folder, or drop it on the page, and the folders with a figure.json up to 3 levels down are listed with picture, version, author and credits; the ticked ones go into `figures/` in the data folder (an older version with the same id is replaced, and only once the new one is copied in; a folder of that name holding another pack is left alone; built-in ids and their exported copies are refused). Parts of a pack this version does not know (a new kind of expression, motion or sound, an audio format it cannot play) are skipped and the pack still loads; if the figure changes while running, expressions and motions follow the new figure's words right away (with Expression decisions off, Coo is also told which words it lost or gained) |
-| Voice input   | On/off, recognizer, model download, talk key, microphone, listening mode                                          |
+| Habits        | What to call you, walking, colors, size, bubble size, text size, remembering the position, hover buttons, double-click typing, sounds (each kind can be muted), 60 fps lock, hiding during full screen (Windows), letting Coo adjust itself, small talk (how often, quiet hours), anonymous usage statistics |
+| Dress up      | Figure (Coo, the DeepSeek Whale, Claude-chan, GPT-chan, Gemini-chan, Grok-chan or an installed figure pack), colors, outfits (the DeepSeek Whale and the four girls) and accessories; changes apply at once, and the picked cards, step dots and buttons in Coo's bubble take the figure's color too (the DeepSeek Whale's follows her color scheme, each of the four girls has her own, the same as the settings window's accent); **Import** at the end of the figure row installs a figure pack: pick its zip or folder, or drop it on the page, and the folders with a figure.json up to 3 levels down are listed with picture, version, author and credits; the ticked ones go into `figures/` in the data folder (an older version with the same id is replaced, and only once the new one is copied in; a folder of that name holding another pack is left alone; built-in ids and their exported copies are refused). Parts of a pack this version does not know (a new kind of expression, motion or sound, an audio format it cannot play) are skipped and the pack still loads; if the figure changes while running, expressions and motions follow the new figure's words right away (with Expression decisions off, Coo is also told which words it lost or gained) |
+| Voice input   | On/off, recognizer, model download, talk key, microphone, listening mode, opening the microphone only while the talk key is held |
 | Computer use  | On/off, mouse and keyboard permission, when to ask you, how long a yes lasts                                      |
 | System prompt | Coo's system prompt; the persona is the CONSTITUTION section. Edit the sections in place (with undo), save with Ctrl+S and apply with **Reload system prefix**; **Clear and restart** drops the current conversation; the whole prompt as sent is previewed at the bottom |
 | Usage & cost  | Tokens used and money spent per day                                                                               |
 | Chat          | The current conversation; you can also talk to Coo from here                                                      |
 
-The current version is shown at the top left, with a download link below it when a newer release is out. The Windows build and the AppImage download new versions in the background; Coo then asks in its bubble whether to restart and update, or the update installs the next time you quit. If a download stalls, get it from GitHub yourself. On Mac and with the deb, download new versions by hand. After an update, Coo tells you what the new version brings; when you change what it calls you, its dress, walking, computer use or similar settings here, it hears about it and responds.
+The current version is shown at the top left. The Windows installed build and the AppImage download new versions in the background and show how far they got below the version (downloading in the background, downloaded and installing when you quit); Coo then asks in its bubble whether to restart and update, or the update installs the next time you quit. On Windows an update always goes into the folder of the copy that is running, so the data beside it stays with it. While it downloads, the bubble no longer sends you to download by hand: its second button reads **Having trouble?** and shows **Download from GitHub** only while you point at it; only a failed download links to GitHub outright, below the version and in the bubble. On Mac, with the deb and with the Windows portable version, download new versions by hand: a download link appears below the version when a newer release is out. After an update, Coo tells you what the new version brings; when you change what it calls you, its dress, walking, computer use or similar settings here, it hears about it and responds.
 
 **Advanced mode** at the bottom left shows every page (Worlds, models, extensions, memory, diagnostics); **Back to normal mode** hides them again.
 
@@ -226,6 +239,15 @@ The default is DeepSeek's `deepseek-flash`. Computer use needs a model that can 
 - add an "OpenAI Responses Compatible" connection for any other service that speaks the Responses API;
 - enter prices for services without built-in ones (all but DeepSeek, OpenAI, Anthropic, Gemini and xAI) so Usage & cost can show spending.
 
+### Using a ChatGPT plan (testing)
+
+With a ChatGPT plan you can skip the API key and sign in with your ChatGPT account (OpenAI's "Sign in with ChatGPT"); requests count toward that account's plan. This is ported from upstream Coopanion and **still in testing**: neither upstream nor this fork has tried it end to end with a real plan account yet. If it fails, please open an issue.
+
+- **Where to sign in**: on the Start page, under **Connect a model**, the ChatGPT card next to OpenAI's. Picking it hides the model and key boxes; click **Continue with ChatGPT**, sign in and allow access in your browser, and the app is connected when you come back (if the plan does not list the connection's model, it switches to the first model the plan lists). In the guide, and in the bubble where Coo asks for a key, pick OpenAI and then **Continue with ChatGPT**; while the browser is out the bubble shows a progress bar, and closing it stops waiting. In advanced mode, a ChatGPT connection's editor on the Model page has a **ChatGPT account** section to sign in and out.
+- **Signing out**: while ChatGPT is connected, the Start page's line has **Sign out**, which removes the sign-in from this computer and asks OpenAI to revoke it. Sign out before deleting the connection: deleting it on the Model page does not tell OpenAI.
+- **Quota**: usage shares the plan's quota with ChatGPT and Codex. At the limit Coo reports no error; it tries again every 5 minutes and notes it in the log. The Start page's **Test** reports the 429 directly.
+- **Where the sign-in is kept**: the tokens are stored on this computer in the connection's `.env` (`home/providers/chatgpt/.env` in the data folder, next to the other services' API keys) and are only sent to `https://api.openai.com/v1`. The tokens record which folder they were written for: a connection copied or renamed on the Model page, or a whole data folder copied or moved (including the copy made when upgrading), does not take the sign-in along and has to sign in again, and the copied tokens are removed from the file the first time they are read. So two places never share one set of rotating tokens.
+
 ### Installing extensions
 
 The Extensions page in advanced mode lists Worlds on npm with the `cortico-world` keyword, for example:
@@ -235,25 +257,29 @@ The Extensions page in advanced mode lists Worlds on npm with the `cortico-world
 - Plants vs. Zombies (`cortico-world-pvz`)
 - Slay the Spire (`cortico-world-sts-1`)
 
-After installing, click **Restart process** and enable it in **World Overview**. Reinstalling the app keeps your extensions. If npm is slow or blocked where you are, enter a mirror in the **npm registry** field at the top of the **Extension market** section; updates, search and installs use it right away, and saving it empty restores the default.
+Packages in the official index ([Pal-AI-Lab/cortico-extensions](https://github.com/Pal-AI-Lab/cortico-extensions)) also show tags, badges, votes, comments and downloads; filter by tag, or sort by rating or downloads. Voting and commenting need a GitHub sign-in with a one-time code; the sign-in is kept in the extensions folder.
+
+After installing, click **Restart process** and enable it in **World Overview**. Reinstalling the app keeps your extensions. If npm is slow or blocked where you are, open **npm registry** under the search box in the **Extension market** section (next to **Advanced search**) and enter a mirror; updates, search and installs use it right away, and saving it empty restores the default.
 
 ## Cost and privacy
 
-- **Cost**: Coopanion is free. The model service you choose bills you for usage; see the Usage & cost page (built-in prices exist for DeepSeek, OpenAI, Anthropic, Gemini and xAI).
+- **Cost**: Coopanion is free. The model service you choose bills you for usage; see the Usage & cost page (built-in prices exist for DeepSeek, OpenAI, Anthropic, Gemini and xAI). Signed in with a ChatGPT plan, requests count toward the plan instead.
 - **Sent to the model service**: what you say and type, your interactions with Coo, and screenshots during computer use. Only the service you configured receives them.
-- **Kept on your machine**: API keys, memory, conversation history, settings and logs. Speech is recognized locally and only the text is sent.
+- **Kept on your machine**: API keys, ChatGPT sign-in tokens, memory, conversation history, settings and logs. Speech is recognized locally and only the text is sent.
 - **Usage statistics**: none. This build sends no usage statistics and keeps no install ID.
-- **Other network access**: a check for new releases on GitHub when the settings window opens; npm when installing extensions; ModelScope (or Hugging Face as a fallback) when downloading the speech model.
+- **Other network access**: a check for new releases on GitHub when the settings window opens; npm and the official extension index on GitHub on the Extensions page, and GitHub for votes and comments; ModelScope (or Hugging Face as a fallback) when downloading the speech model; `auth.openai.com` when signing in with a ChatGPT account (the sign-in page in your browser, getting and refreshing the tokens, revoking them on sign-out).
 
 ## Data and uninstalling
 
 | System  | Data folder                               | Uninstall                                                   |
 | ------- | ----------------------------------------- | ----------------------------------------------------------- |
-| Windows | `data` inside the install folder          | Settings → Apps                                             |
+| Windows | `data` inside the install folder; for the portable version, inside its folder | Settings → Apps; for the portable version, turn off Start at login, then delete the folder |
 | macOS   | `~/Library/Application Support/Coopanion` | Drag Coopanion from Applications to the Trash               |
 | Linux   | `~/.config/Coopanion`                     | deb: `sudo apt remove coopanion`; AppImage: delete the file |
 
 Uninstalling keeps the data, so memory and settings are still there after a reinstall. To remove everything, delete the data folder by hand (on Windows, the whole install folder).
+
+On Windows, when the installed program has moved (for example reinstalled into another folder) and finds no data beside it, Coopanion asks at start whether to inherit the data used before or start a new one; the data from before is never moved or deleted. When that data is gone too (an unplugged drive, a moved folder), it offers Retry, Choose folder, Start a new one or Quit. Where the data used before is, is noted in `%LOCALAPPDATA%\Coopanion\data-location.json`. Data beside the program always wins, so a folder copied whole keeps its own data. The portable version never asks and keeps no such note: its data is always the `data` in its own folder.
 
 Inside the data folder, `home` holds memory, conversations, settings and API keys, `extensions` the extensions, `logs` the logs, and `home/models` the speech model.
 
@@ -274,9 +300,11 @@ Check the status next to the title on the Start page:
 - **No model connected**: check that the API key is complete and the account has balance, then click **Test**. Doubao needs the default model enabled in the Ark console first.
 - **Paused**: click resume at the bottom of the left bar.
 
-After 5 failed model requests in a row, Coo says the error in a bubble (unknown model name, invalid key, no balance, …); click **Open settings** to fix it.
+After 5 failed model requests in a row, Coo says the error in a bubble (unknown model name, invalid key, no balance, …); click **Open settings** to fix it. When the service wants the thinking sent back before every tool call and Coopanion has that turned off for it (only OpenRouter, for now), the bubble asks you to report it to the developers instead: no setting fixes it.
 
 If Coo never appears right after an update, Coopanion keeps retrying quietly for a few minutes (an update may still be putting its files in place) and then says it could not start. Quit from the tray and open Coopanion again; opening it again also starts it over after such a failure.
+
+When every port the console tries (5 from 17788) is taken, Coopanion no longer restarts over and over but says which ports they are: a few copies of Coopanion may already be running, or other programs hold them. Quit one of them, then choose **Restart** in the tray menu.
 
 </details>
 

@@ -116,7 +116,7 @@ describe('which mode', () => {
     expect(env.sourceKey).toBe('worlds.desktop-pet.envPrompt');
     // no position event in classic mode
     expect(m.host.deferred).toEqual([]);
-    expect(m.world.console().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'offline' });
+    expect(m.world.webUi().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'offline' });
   });
 
   it('with a key but switched off: classic', async () => {
@@ -130,7 +130,7 @@ describe('which mode', () => {
     const m = await mounted({ patch: (c) => { c.decider = structuredClone(DESKTOP_PET_DEFAULTS.decider); } });
     expect(m.world.petMode).toBe('classic');
     expect(m.world.tools().map((t) => t.name)).toEqual(DESKTOP_PET_TOOL_DECLS.map((d) => d.name));
-    expect(m.world.console().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'offline', hint: expect.stringContaining('已关') });
+    expect(m.world.webUi().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'offline', hint: expect.stringContaining('已关') });
   });
 
   it('with a key: the decider tools and prompt, no vocabulary', async () => {
@@ -179,8 +179,8 @@ describe('which mode', () => {
     // the classic prompt has no such line (its vocabulary table names the parts) and does not declare the variable
     const c = await mounted({ key: '', patch: (x) => { x.skin.figure = 'gpt-chan'; x.skin.scheme = ''; } });
     expect((await renderWorldEnvPrompt(c.world)).text).not.toContain(',还会摇尾巴');
-    expect(c.world.console().promptDocs![0]!.vars!.map((v) => v.name)).not.toContain('pet.parts');
-    expect(m.world.console().promptDocs![0]!.vars!.map((v) => v.name)).toContain('pet.parts');
+    expect(c.world.webUi().promptDocs![0]!.vars!.map((v) => v.name)).not.toContain('pet.parts');
+    expect(m.world.webUi().promptDocs![0]!.vars!.map((v) => v.name)).toContain('pet.parts');
   });
 
   it('a deployment override of the classic prompt is warned of in decider mode', async () => {
@@ -695,7 +695,7 @@ describe('breaker and the key', () => {
     const out = textOf(await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx));
     expect(calls).toBe(3);
     expect(out).toContain('暂时用不了');
-    expect(m.world.console().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'error' });
+    expect(m.world.webUi().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'error' });
     // a bubble meanwhile is not held for words that will not come
     const p2 = await FakePage.open(origin(m.world));
     cleanup.push(() => p2.close());
@@ -719,7 +719,7 @@ describe('breaker and the key', () => {
     outs.push(await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx));
     await m.world.decisionsIdle();
     expect(m.records[0].failure).toContain('Bearer ***');
-    const all = JSON.stringify({ outs, logs: m.logs, events: m.host.events, stored: m.host.stored, records: m.records, state: m.world.petState(), console: m.world.console().lamps, page: p.messages });
+    const all = JSON.stringify({ outs, logs: m.logs, events: m.host.events, stored: m.host.stored, records: m.records, state: m.world.petState(), console: m.world.webUi().lamps, page: p.messages });
     expect(all).not.toContain(KEY);
     expect(all).not.toContain('SECRET');
   });
@@ -727,7 +727,7 @@ describe('breaker and the key', () => {
   it('lists the decision models from the public listing: no key sent, cached, too small a context left out', async () => {
     const m = await mounted({ key: '' });
     type Listing = { models: Array<{ id: string; promptPerM: number | null; context: number | null }>; source: string; minContext: number };
-    const r = await m.world.console().invoke!('pet', 'deciders', []) as Listing;
+    const r = await m.world.webUi().invoke!('pet', 'deciders', []) as Listing;
     expect(r.source).toBe('live');
     // cheapest first; the 2k-context one and the chat model are not offered
     expect(r.models).toEqual([
@@ -737,18 +737,18 @@ describe('breaker and the key', () => {
     expect(r.minContext).toBe(8192);
     expect(m.mock.listed).toEqual([{ url: '/api/v1/models?output_modalities=decisions', auth: undefined }]);
     // kept: a second ask does not fetch again
-    await m.world.console().invoke!('pet', 'deciders', []);
+    await m.world.webUi().invoke!('pet', 'deciders', []);
     expect(m.mock.listed).toHaveLength(1);
     // with a key lent, still no key on the listing
     m.key.value = KEY;
-    await m.world.console().invoke!('pet', 'deciders', [true]);
+    await m.world.webUi().invoke!('pet', 'deciders', [true]);
     expect(m.mock.listed.map((l) => l.auth)).toEqual([undefined, undefined]);
     // the listing down: the last one, then (a fresh World) the ids we know
     m.mock.listStatus = 503;
-    expect(await m.world.console().invoke!('pet', 'deciders', [true])).toMatchObject({ source: 'cache', models: r.models });
+    expect(await m.world.webUi().invoke!('pet', 'deciders', [true])).toMatchObject({ source: 'cache', models: r.models });
     const n = await mounted({ key: '' });
     n.mock.listStatus = 503;
-    const fb = await n.world.console().invoke!('pet', 'deciders', []) as Listing;
+    const fb = await n.world.webUi().invoke!('pet', 'deciders', []) as Listing;
     expect(fb.source).toBe('fallback');
     expect(fb.models[0]).toEqual({ id: 'perplexity/pplx-decider-v1.1-27b', promptPerM: null, context: null });
     expect(fb.models.map((x) => x.id)).toContain('liquid/d1');
@@ -847,7 +847,7 @@ describe('a decision with no answer: the words the feeling names', () => {
     const p = await page(m);
     for (let i = 0; i < 3; i++) await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
     expect(calls).toBe(3);
-    expect(m.world.console().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'error' });
+    expect(m.world.webUi().lamps!.find((l) => l.label === '表情决策')).toMatchObject({ state: 'error' });
     const out = textOf(await tool(m.world, 'pet_say').handler({ text: '太好了', feeling: '好开心' }, ctx));
     const say = await p.next((x) => x.t === 'say');
     expect(say).not.toHaveProperty('acts');

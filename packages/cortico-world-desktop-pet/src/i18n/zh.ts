@@ -288,6 +288,8 @@ const zh = {
     selfAdjust: { title: '允许自己调整', description: '桌宠可以自己换形象和装扮、改走动和呼噜;改音效、大小、黑白模式、悬停按钮和对你的称呼前先问你。关掉后这些它都改不了。' },
     windowEnabled: { title: '启动时打开桌宠窗口' },
     scale: { title: '大小' },
+    bubbleSize: { title: '气泡尺寸', description: '桌宠和你的气泡的宽度、留白、圆角和尾巴,1 为默认;字号不变。' },
+    fontSize: { title: '字体尺寸', description: '气泡里文字的大小,1 为默认;气泡宽度不变。' },
     lockFrameRate: { title: '锁定 60 帧', description: '一直按每秒 60 帧画桌宠。关着时站着、坐着、趴着、睡着降到每秒 30 帧,走动、被拎着、跳起时仍是 60 帧。' },
     hideWhenFullscreen: { title: '全屏时自动隐藏', description: '开着时,前台窗口全屏铺满桌宠所在的那块屏(游戏、全屏视频、浏览器全屏)就把它藏起来,退出全屏放回来;最大化的窗口不算。关着时一直浮在上面。' },
     electronFile: { title: 'Electron 程序', description: '留空时依次用 CORTICO_DESKTOP_PET_HOST 和面板里安装的运行时。' },
@@ -321,7 +323,7 @@ const zh = {
     maxUtteranceMs: { title: '一句最长' },
   },
 
-  /** The console's Desktop pet and Voice input panels (src/console/client.ts). */
+  /** The WebUI's Desktop pet and Voice input panels (src/webui/client.ts). */
   panel: {
     pet: '桌宠',
     window: '桌宠窗口',
@@ -348,6 +350,11 @@ const zh = {
     enable: '开启语音输入',
     enabledHint: '已开启:麦克风一直打开,按下面的收音方式把说的话发给桌宠',
     disabledHint: '已关闭:不打开麦克风,下面的设置暂不生效',
+    enabledHintOnPress: '已开启:按住说话键时打开麦克风,松开后关闭',
+    openOnPress: '按住时才打开麦克风',
+    openOnPressHint: '用蓝牙耳机等一打开麦克风就切到通话模式的耳机时开启;按下后稍等再说话,否则开头的字可能听不到',
+    switchOn: '已开启',
+    switchOff: '已关闭',
     engine: '识别引擎',
     funasr: 'FunASR(本机识别)',
     system: 'Windows 自带',

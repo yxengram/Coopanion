@@ -15,10 +15,11 @@ export default {
   /** The typing bubble's button that carries the draft to the chat page. */
   'bubble.expand': 'Continue on the chat page',
 
-  // voice: what was heard, above the pet
-  'heard.done': 'Got it',
+  // what the person said: a sentence being heard and its cancel button; how many images a chat-page message carries
   'heard.more': 'Still listening…',
   'heard.listening': 'Listening…',
+  'heard.cancel': 'Cancel',
+  'said.images': 'Images ×{n}',
 
   // the menu and the hover buttons
   'roam.off': 'Stay put',

@@ -17,13 +17,13 @@ const S = pick(TEXT);
 async function mount(ctx: FeatureContext): Promise<void> {
   const { ui, root } = ctx;
   root.classList.add('home');
-  if (!ctx.consolePageHost) {
+  if (!ctx.webUiPageHost) {
     root.append(ui.placeholder(S.unavailable));
     return;
   }
   const box = ui.h('div');
   root.append(box);
-  const host = ctx.consolePageHost({ root: ui.h('div'), route: () => ['voice'] });
+  const host = ctx.webUiPageHost({ root: ui.h('div'), route: () => ['voice'] });
   await host.load();
   if (ctx.signal.aborted) return;
   ctx.lifecycle.own(await host.mountConnection(PET_PAGE, 'voice', box, {}, (context) => context));

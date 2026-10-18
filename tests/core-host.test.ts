@@ -13,6 +13,7 @@ interface Host extends EventEmitter {
   child: ChildProcess | null;
   crashes: number[];
   missingModuleExits: number;
+  blocked: unknown;
   start(): Promise<void>;
   stop(graceMs?: number): Promise<void>;
   restart(): Promise<void>;
@@ -24,6 +25,8 @@ const { CoreHost, CORE_NODE_FLAGS, MISSING_MODULE_DELAYS_MS, isMissingModule, mi
   isMissingModule(text: string): boolean;
   missingModuleDelay(exits: number): number | null;
 };
+
+const { textOf } = require('../app/i18n/index.cjs') as { textOf(language: string): { corePortsBusy(from: number, to: number): string } };
 
 // not the temp directory: a Windows CI run cannot use it for this (CLAUDE.md)
 const scratch = join(fileURLToPath(new URL('..', import.meta.url)), 'node_modules', '.cache', 'core-host-test');
@@ -121,6 +124,30 @@ describe('Core host', () => {
       expect(states.map(([s]) => s)).toEqual(['starting', 'failed']);
       expect(host.crashes).toEqual([]);
       expect(host.child).toBeNull();
+    } finally { await host.stop(); }
+  });
+
+  it('does not restart a Core that said every console port is taken, and names the ports', async () => {
+    const appRoot = join(scratch, 'ports-busy');
+    mkdirSync(join(appRoot, 'core'), { recursive: true });
+    // what core/companion.ts does when bot.start() throws the last console port's EADDRINUSE
+    writeFileSync(join(appRoot, 'core', 'boot.ts'), [
+      "process.send({ type: 'companion:ports-busy', from: 17788, to: 17792 }, () => process.exit(1));",
+    ].join('\n'));
+    const host = new CoreHost({ appRoot, logDir: join(scratch, 'logs'), execPath: electron, env: { PATH: process.env.PATH }, resolveProxy: async () => 'DIRECT' });
+    const states: [string, string | undefined][] = [];
+    host.on('state', (state: string, detail?: string) => states.push([state, detail]));
+    try {
+      const failed = new Promise<string | undefined>((r) => host.on('state', (state: string, detail?: string) => { if (state === 'failed') r(detail); }));
+      await host.start();
+      const detail = await failed;
+      expect(detail).toBe(textOf('zh').corePortsBusy(17788, 17792));
+      expect(detail).toMatch(/控制台端口 17788–17792 都被占用.*5 个 Coopanion.*「重新启动」/);
+      expect(states.map(([s]) => s)).toEqual(['starting', 'failed']);
+      expect(host.crashes).toEqual([]);
+      expect(host.child).toBeNull();
+      // the next start (Restart in the tray) is not held by what the last child said
+      expect(host.blocked).toBeNull();
     } finally { await host.stop(); }
   });
 

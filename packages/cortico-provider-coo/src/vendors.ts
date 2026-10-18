@@ -12,6 +12,10 @@
  * 2026-10-08/09); none of the services but DeepSeek has been tried with a key here (upstream has
  * tried Anthropic).
  *
+ * A ChatGPT plan (`CHATGPT`) is connected by signing in with the account instead of with a key: its endpoint is the
+ * `chatgpt` module's (`chatgpt/index.ts`), at OpenAI's base URL, so it is kept out of `VENDORS` (which `vendorOf`
+ * reads by base URL) and found by its module (`connectionVendor`, `endpointVendor`).
+ *
  * This file imports nothing, so the browser console and the app's first-run seed can use it.
  */
 
@@ -62,6 +66,16 @@ export interface Vendor {
   protocol?: Protocol;
   /** Responses: past reasoning goes back as the signed blocks the service returned, not as text. */
   encryptedReasoning?: true;
+  /**
+   * Responses with past reasoning sent back as text: whether a tool call with no reasoning recorded before it
+   * gets a placeholder reasoning item (Cortico's `sendSyntheticReasoning`). Unset sends one, Cortico's default.
+   */
+  syntheticReasoning?: boolean;
+  /**
+   * Connected by signing in instead of with a key: the endpoint is the `chatgpt` module's (`chatgptEntry`);
+   * `keyHint`, `secret` and `keyUrl` are not used.
+   */
+  signIn?: true;
 }
 
 /** The key hint of the services whose keys have no fixed start, and its English (`vendorKeyHint`). */
@@ -74,6 +88,8 @@ export const VENDORS: readonly Vendor[] = [
     baseUrl: 'https://api.deepseek.com', keyUrl: 'https://platform.deepseek.com/api_keys', keyHint: 'sk-…',
     secret: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', models: ['deepseek-v4-pro'],
     vision: ['deepseek-flash'], contextWindows: { 'deepseek-flash': 1_000_000, 'deepseek-v4-pro': 1_000_000 },
+    // the endpoint answers 400 when a tool call in the input has no reasoning before it
+    syntheticReasoning: true,
   },
   {
     // Qwen3.8 takes none / low / medium / xhigh; qwen3.7-flash is cheaper up to 32K input
@@ -135,6 +151,9 @@ export const VENDORS: readonly Vendor[] = [
     secret: 'OPENROUTER_API_KEY', model: 'deepseek/deepseek-v4.1-flash',
     models: ['qwen/qwen3.7-flash', 'qwen/qwen3.8-flash', 'google/gemini-3.1-flash-lite', 'z-ai/glm-5.3-flash'],
     vision: ['deepseek/deepseek-v4.1-flash', 'qwen/qwen3.7-flash', 'qwen/qwen3.8-flash', 'google/gemini-3.1-flash-lite', 'z-ai/glm-5.3-flash'], contextWindows: { 'deepseek/deepseek-v4.1-flash': 1_048_576 },
+    // the models through it take a tool call with no reasoning before it (upstream Coopanion checked its Qwen, Kimi,
+    // GLM, MiniMax and Grok ones, 2026-10-13): no placeholder
+    syntheticReasoning: false,
   },
   {
     // gpt-6-luna takes none / low / medium / high / xhigh / max; the larger two have no none
@@ -176,7 +195,19 @@ export const VENDORS: readonly Vendor[] = [
   },
 ];
 
-export const vendorById = (id: string): Vendor | null => VENDORS.find((v) => v.id === id) ?? null;
+/** The provider module of a signed-in ChatGPT plan's endpoint (`chatgpt/index.ts`), and the name of the app's endpoint for it. */
+export const CHATGPT_MODULE = 'chatgpt';
+
+/**
+ * A ChatGPT plan, signed in with the account (Sign in with ChatGPT): OpenAI's API and models, billed to the plan.
+ * Its endpoint is the `chatgpt` module's, so it is not in `VENDORS`: its base URL is OpenAI's.
+ */
+export const CHATGPT: Vendor = {
+  ...VENDORS.find((v) => v.id === 'openai')!,
+  id: 'chatgpt', name: 'ChatGPT', nameEn: 'ChatGPT', keyUrl: 'https://chatgpt.com/', keyHint: '', secret: '', signIn: true,
+};
+
+export const vendorById = (id: string): Vendor | null => (id === CHATGPT.id ? CHATGPT : VENDORS.find((v) => v.id === id) ?? null);
 
 /** Whether `language` (Cortico's `Language`) reads the Chinese text: zh and zh-Hant do, every other language reads English. */
 const readsZh = (language: string) => language === 'zh' || language === 'zh-Hant';
@@ -204,6 +235,19 @@ export function vendorOf(baseUrl: string | undefined): Vendor | null {
 }
 
 /**
+ * The service of an endpoint: a ChatGPT plan by its module (its base URL is OpenAI's), the others by base URL
+ * (`vendorOf`). `module` is the endpoint's `kind`, as `/api/status` reports it under `modelConnection.module`.
+ */
+export function connectionVendor(endpoint: { module?: string; baseUrl?: string } | null | undefined): Vendor | null {
+  if (!endpoint) return null;
+  return endpoint.module === CHATGPT_MODULE ? CHATGPT : vendorOf(endpoint.baseUrl);
+}
+
+/** `connectionVendor` for an endpoint's config, whose module is its `kind`. */
+export const endpointVendor = (entry: { kind?: string; baseUrl?: string } | null | undefined): Vendor | null =>
+  connectionVendor(entry ? { module: entry.kind, baseUrl: entry.baseUrl } : null);
+
+/**
  * How an endpoint at `baseUrl` is sent. A service's own protocol applies only at its base URL
  * itself (Anthropic's also at `<baseUrl>/v1`): Gemini's OpenAI-compatible path (`<baseUrl>/openai`) is not the Gemini API, so it goes out
  * as Responses, as any other URL does.
@@ -224,6 +268,18 @@ export function vendorEntry(v: Vendor, model = v.model) {
     secret: v.secret,
     spec: { model, thinking: true, reasoningEffort: 'high', maxTokens: 8192 },
     multimodal: (v.vision ?? []).includes(model),
+    pricing: [],
+    options: {},
+  };
+}
+
+/** A new ChatGPT plan endpoint (`kind: 'chatgpt'`) on `model`; it has no key: the sign-in writes the account's tokens to its `.env`. */
+export function chatgptEntry(model = CHATGPT.model) {
+  return {
+    kind: CHATGPT_MODULE,
+    baseUrl: CHATGPT.baseUrl,
+    spec: { model, thinking: true, reasoningEffort: 'high', maxTokens: 8192 },
+    multimodal: (CHATGPT.vision ?? []).includes(model),
     pricing: [],
     options: {},
   };

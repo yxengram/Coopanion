@@ -26,7 +26,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { ToolDef, World, WorldConsoleDecl, WorldHost } from 'cortico/core/types.ts';
+import type { ToolDef, World, WorldWebUiDecl, WorldHost } from 'cortico/core/types.ts';
 import { pick, type Language } from 'cortico/core/language.ts';
 import type { WorldDefinition, WorldSection } from 'cortico/world.ts';
 import { Alarms } from './alarms.ts';
@@ -37,7 +37,7 @@ export const NOTICE_ID = 'coopanion';
 const LOOK_EVERY_MS = 1000;
 /** The template of the reply-language line. */
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./NOTICE_ENV_PROMPT.md', import.meta.url));
-/** The reply-language template on the console's prompt page. */
+/** The reply-language template on the WebUI's prompts page. */
 const REPLY_DOC = {
   zh: { title: '回复语言', description: '应用语言不是中文时,告诉 Coo 用哪种语言和对方说话。', line: '用哪种语言和对方说话的那一句' },
   en: { title: 'Reply language', description: 'When the app language is not Chinese, tells Coo which language to talk to you in.', line: 'The line naming the language to talk in' },
@@ -240,7 +240,7 @@ export class NoticeWorld implements World {
   }
 
   /** Only the reply-language template, and only while there is a line: in Chinese nothing is declared. */
-  console(language: Language = 'zh'): WorldConsoleDecl {
+  webUi(language: Language = 'zh'): WorldWebUiDecl {
     if (!this.a.replyLanguage?.()) return {};
     const S = pick(language, REPLY_DOC);
     return {

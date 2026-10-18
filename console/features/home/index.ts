@@ -7,6 +7,9 @@
  * to other model services shows with or without a key, and in the normal mode asks before it
  * switches to the advanced mode, where the model pages are; 「使用引导」 at the top has Coo run its
  * introduction again on the desktop (the app's Core holds it; this window steps aside for it).
+ * A ChatGPT plan (testing) is signed in instead of a key: its card, next to OpenAI's, hides the model and key boxes,
+ * and 「使用 ChatGPT 继续」 opens the sign-in in the system browser (features/chatgpt) and connects the plan the same
+ * way; connected, the plan's line has a sign-out button.
  * Saving and testing the key lives in model.ts. Every
  * control calls an endpoint the rest of the console already uses. Styles are in home.css, which
  * scripts/stage.ts adds to the console stylesheet.
@@ -15,9 +18,16 @@ import { post } from '../../core/api.ts';
 import { LANGUAGE, pick } from '../../core/language.ts';
 import type { FeatureContext, FrameworkFeature } from '../feature.ts';
 import { readMode, requestMode } from '../mode.ts';
-import { connectVendor, consoleCall, readStatus, testEndpoint, VENDOR_ICONS, VENDORS, vendorKeyHint, vendorName as nameOf, vendorOf, type ConnectResult, type Status, type Vendor } from './model.ts';
+import { signInReason } from 'cortico-provider-coo/src/strings.ts';
+import { S as CHATGPT_TEXT, openInBrowser } from '../chatgpt/index.ts';
+import {
+  CHATGPT, connectChatGPT, connectionVendor, connectVendor, consoleCall, readStatus, signOutChatGPT, testEndpoint, VENDOR_ICONS, VENDORS, vendorKeyHint,
+  vendorName as nameOf, type ConnectResult, type Status, type Vendor,
+} from './model.ts';
 
 const PET_PAGE = 'world:desktop-pet';
+/** The cards in order: the services, with a ChatGPT plan right after OpenAI. */
+const LISTED: readonly Vendor[] = VENDORS.flatMap((v) => (v.id === 'openai' ? [v, CHATGPT] : [v]));
 
 export const TEXT = {
   zh: {
@@ -89,7 +99,7 @@ const S = pick(TEXT);
 
 interface PetState { connected: boolean; url: string | null }
 
-const panelPath = (page: string, panel: string, method: string) => `/api/console/providers/${encodeURIComponent(page)}/panels/${panel}/${method}`;
+const panelPath = (page: string, panel: string, method: string) => `/api/webui/providers/${encodeURIComponent(page)}/panels/${panel}/${method}`;
 const errText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 /** A service by the name the console's language uses. */
 const vendorName = (v: Vendor) => nameOf(v, LANGUAGE);
@@ -117,7 +127,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
   /** The service the key box is for: picked on the row of logos. */
   let vendor: Vendor = VENDORS[0]!;
   const vendorRow = ui.h('div', 'home-vendors');
-  const vendorButtons = VENDORS.map((v) => {
+  const vendorButtons = LISTED.map((v) => {
     const b = ui.h('button', 'home-vendor');
     b.type = 'button';
     const mark = ui.h('span', 'home-vendormark');
@@ -148,9 +158,14 @@ async function mount(ctx: FeatureContext): Promise<void> {
   let active: { vendor: Vendor | null; model: string } = { vendor: null, model: '' };
   const getKey = ui.h('a', 'home-link', '');
   getKey.target = '_blank'; getKey.rel = 'noopener';
+  // a ChatGPT plan's quota is the person's to watch
+  const quota = ui.h('p', 'home-note', CHATGPT_TEXT.quota);
+  /** The wait for the browser of a sign-in under way: another pick, or 换一家, stops it. */
+  let signingIn: AbortController | null = null;
   const pickVendor = (v: Vendor) => {
+    if (v !== vendor) signingIn?.abort();
     vendor = v;
-    vendorButtons.forEach((b, i) => b.classList.toggle('on', VENDORS[i] === v));
+    vendorButtons.forEach((b, i) => b.classList.toggle('on', LISTED[i] === v));
     keyInput.placeholder = active.vendor === v ? S.keepKey : keyHint(v);
     modelInput.value = active.vendor === v && active.model ? active.model : v.model;
     modelList.replaceChildren(...[v.model, ...(v.models ?? [])].map((m) => Object.assign(document.createElement('option'), { value: m })));
@@ -158,6 +173,10 @@ async function mount(ctx: FeatureContext): Promise<void> {
     if (label) label.textContent = S.keyLabel(vendorName(v));
     getKey.textContent = S.getKey(vendorName(v));
     getKey.href = v.keyUrl;
+    // a ChatGPT plan takes no key and picks its model from the plan's list once signed in
+    keyField.hidden = modelField.hidden = getKey.hidden = !!v.signIn;
+    quota.hidden = !v.signIn;
+    save.textContent = v.signIn ? CHATGPT_TEXT.go : S.saveStart;
   };
   pickVendor(vendor);
   const need = ui.h('p', 'home-note', S.modelNeed);
@@ -165,6 +184,8 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const connectedPill = ui.pill('', 'on');
   const test = ui.button(S.test, { size: 'sm' });
   const change = ui.button(S.changeKey, { size: 'sm' });
+  const signOut = ui.button(CHATGPT_TEXT.signOut, { size: 'sm' });
+  signOut.hidden = true;
   /** 两处各一个:连上时在状态行末尾,没填 Key 时在申请链接旁。普通模式先问一声再切到高级模式。 */
   const otherLink = () => {
     const a = ui.h('a', 'home-link', S.otherProvider);
@@ -178,11 +199,11 @@ async function mount(ctx: FeatureContext): Promise<void> {
     }, opts);
     return a;
   };
-  connectedLine.append(connectedPill, test, change, ui.h('span', 'grow'), otherLink());
+  connectedLine.append(connectedPill, test, change, signOut, ui.h('span', 'grow'), otherLink());
   const links = ui.rowbar();
   links.append(getKey, ui.h('span', 'grow'), otherLink());
   const keyBox = ui.h('div', 'home-keybox');
-  keyBox.append(need, vendorRow, keyRow, links);
+  keyBox.append(need, vendorRow, keyRow, quota, links);
   model.body.append(connectedLine, keyBox, modelMsg);
   root.append(model.el);
 
@@ -212,8 +233,9 @@ async function mount(ctx: FeatureContext): Promise<void> {
     const ready = !!mc?.ready;
     connectedLine.hidden = !ready || editingKey;
     keyBox.hidden = ready && !editingKey;
-    const current = vendorOf(mc?.baseUrl);
+    const current = connectionVendor(mc);
     active = { vendor: current, model: mc?.model ?? '' };
+    signOut.hidden = current !== CHATGPT;
     if (mc?.model) connectedPill.textContent = S.connected(mc.model, current ? vendorName(current) : mc.moduleTitle);
     // the key box starts on the service in use, once
     if (!vendorShown && current) { vendorShown = true; pickVendor(current); }
@@ -233,6 +255,23 @@ async function mount(ctx: FeatureContext): Promise<void> {
   };
 
   save.addEventListener('click', async () => {
+    if (vendor.signIn) {
+      const stop = new AbortController();
+      signingIn = stop;
+      signal.addEventListener('abort', () => stop.abort(), { once: true });
+      save.disabled = true;
+      modelMsg.textContent = CHATGPT_TEXT.waiting;
+      modelMsg.classList.remove('bad');
+      const r = await connectChatGPT(call, openInBrowser, { signal: stop.signal, language: LANGUAGE });
+      save.disabled = false;
+      if (signingIn === stop) signingIn = null;
+      if (stop.signal.aborted) { modelMsg.textContent = ''; return; }
+      editingKey = editingKey && !r.ok;
+      showTest({ ...r, why: r.why && signInReason(r.why, LANGUAGE) });
+      if (r.ok) modelMsg.textContent = S.started;
+      await refreshModel();
+      return;
+    }
     const key = keyInput.value.trim();
     // only the service in use has a key saved to keep
     if (!key && active.vendor !== vendor) { keyInput.focus(); return; }
@@ -259,6 +298,22 @@ async function mount(ctx: FeatureContext): Promise<void> {
     showTest(await testEndpoint(call, name, LANGUAGE));
   });
   change.addEventListener('click', () => { editingKey = true; void refreshModel(); keyInput.focus(); });
+  signOut.addEventListener('click', async () => {
+    const name = status?.modelConnection?.name;
+    if (!name) return;
+    signOut.disabled = true;
+    try {
+      await signOutChatGPT(call, name);
+      modelMsg.textContent = CHATGPT_TEXT.signedOutDone;
+      modelMsg.classList.remove('bad');
+    } catch (err) {
+      modelMsg.textContent = errText(err);
+      modelMsg.classList.add('bad');
+    } finally {
+      signOut.disabled = false;
+    }
+    await refreshModel();
+  });
 
   /* pet */
   let petState: PetState | null = null;

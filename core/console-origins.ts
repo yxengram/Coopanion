@@ -17,3 +17,16 @@ export function consoleOrigins(web: { port: number; host?: string }, bound: numb
   const hosts = ['127.0.0.1', 'localhost', ...(web.host === '::1' || web.host === '[::1]' ? ['[::1]'] : [])];
   return ports.flatMap((port) => hosts.map((host) => `http://${host}:${port}`));
 }
+
+/**
+ * The console ports a failed start found taken, from the error `bot.start()` threw: Cortico tries PORT_ATTEMPTS ports
+ * from the configured one and, when none can be listened on, throws the last one's listen error (`EADDRINUSE`, or
+ * `EACCES` for a port Windows reserves), which carries that port. Null for any other error, a port the OS picks (0),
+ * and a listen error for a port outside the console's range (another server, such as the pet World's).
+ */
+export function portsBusy(err: unknown, web: { port: number }): { from: number; to: number } | null {
+  const { code, port } = (err ?? {}) as { code?: unknown; port?: unknown };
+  if (code !== 'EADDRINUSE' && code !== 'EACCES') return null;
+  if (web.port === 0 || typeof port !== 'number' || port < web.port || port >= web.port + PORT_ATTEMPTS) return null;
+  return { from: web.port, to: port };
+}

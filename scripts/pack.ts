@@ -8,7 +8,9 @@
  *
  * Run: `pnpm run build:installer` (builds build/cortico first). Output: `dist/Coopanion-Setup-<version>.exe` on
  * Windows, `dist/Coopanion-<version>-mac-<arch>.dmg` and `.zip` on a Mac, `dist/Coopanion-<version>-linux-x64.AppImage`
- * and `.deb` on Linux. `PACK_ARCH` (x64 or arm64) builds for
+ * and `.deb` on Linux. `COOPANION_CHANNEL=portable` (Windows) builds the portable zip instead,
+ * `dist/Coopanion-<version>-win-x64-portable.zip`: the app directory to unpack anywhere, without the updater (app/channel.cjs).
+ * `PACK_ARCH` (x64 or arm64) builds for
  * another architecture than the machine's: npm installs that architecture's native packages (esbuild, sherpa-onnx) and
  * electron-builder packs that Electron, so one Apple silicon Mac builds both Mac downloads.
  *
@@ -21,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { slimTree } from './png-slim.ts';
 import { stripMapComments } from './map-strip.ts';
-import { builderArgs, packageManagerField, PROJECT_DIR } from './pack-builder.ts';
+import { builderArgs, packageManagerField, packChannel, PROJECT_DIR, runtimeDeps, type PackChannel } from './pack-builder.ts';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 /** build/app, electron-builder's project directory */
@@ -32,10 +34,17 @@ const run = (cmd: string, args: string[], cwd: string) => {
 };
 
 const ARCH = process.env.PACK_ARCH || process.arch;
+let CHANNEL: PackChannel;
+try {
+  CHANNEL = packChannel(process.env, process.platform);
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
 const rootPkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as Record<string, unknown> & { version: string };
 const WORKSPACE = ['cortico-world-desktop-pet', 'cortico-world-cua', 'cortico-provider-coo'];
-/** Runtime dependencies: Core (express, ws), the TypeScript loader, pnpm for extension installs, the updater (app/updater.cjs), and the workspace packages' own. */
-const DEPS: Record<string, string> = { express: '^4.22.3', ws: '^8.21.3', tsx: '^4.23.15', pnpm: '11.5.0', 'electron-updater': '^6.8.9' };
+/** Runtime dependencies (pack-builder.ts runtimeDeps: no updater in the portable build) and the workspace packages' own. */
+const DEPS: Record<string, string> = runtimeDeps(CHANNEL);
 for (const name of WORKSPACE) {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'packages', name, 'package.json'), 'utf8')) as { dependencies?: Record<string, string> };
   Object.assign(DEPS, pkg.dependencies ?? {});
@@ -46,7 +55,7 @@ const skip = (base: string) => (src: string) => {
   // the top-level extensions/ of the staged Cortico is a junction to the developer's own data
   if (rel[0] === 'extensions') return false;
   if (rel.some((p) => ['node_modules', '.git', 'tests', 'scratch'].includes(p))) return false;
-  // source maps of the console bundles (build/cortico/dist, the pet's dist/): nothing loads them but DevTools
+  // source maps of the WebUI bundles (build/cortico/dist, the pet's dist/): nothing loads them but DevTools
   return !src.endsWith('.map');
 };
 
@@ -63,6 +72,8 @@ writeFileSync(join(OUT, 'package.json'), JSON.stringify({
   // electron-builder then collects build/app/node_modules with `npm list`, not the root's pnpm workspace
   packageManager: packageManagerField(spawnSync('npm', ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' }).stdout),
   dependencies: DEPS,
+  // the build's channel, read by app/channel.cjs
+  coopanion: { channel: CHANNEL },
 }, null, 2));
 run('npm', ['install', '--omit=dev', '--no-package-lock', '--no-audit', '--no-fund', '--loglevel=error', `--os=${process.platform}`, `--cpu=${ARCH}`], OUT);
 const manifest = JSON.parse(readFileSync(join(OUT, 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
@@ -86,4 +97,4 @@ if (process.env.PACK_PNG_SLIM !== '0') {
 }
 console.log(`app directory ready: ${relative(ROOT, OUT)}`);
 
-run(join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder'), builderArgs(process.platform, ARCH, process.argv.slice(2)), ROOT);
+run(join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder'), builderArgs(process.platform, ARCH, process.argv.slice(2), CHANNEL), ROOT);

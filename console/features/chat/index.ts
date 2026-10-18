@@ -8,8 +8,8 @@
  * Everything shown comes from the World's stream (packages/cortico-world-desktop-pet/src/chat.ts);
  * the phase line is Core's RunPhase as the World passes it on.
  */
-import { panelRoute, panelStreamRoute } from '../../../shared/console-protocol.ts';
-import type { ConsoleImageAttachment } from '../../../shared/client-panel.ts';
+import { panelRoute, panelStreamRoute } from '../../../shared/webui-protocol.ts';
+import type { WebUiImageAttachment } from '../../../shared/client-panel.ts';
 import { languageTag } from '../../../../core/language.ts';
 import { LANGUAGE, pick } from '../../core/language.ts';
 import { openStream } from '../../core/stream.ts';
@@ -173,8 +173,8 @@ async function mount(ctx: FeatureContext): Promise<void> {
   /** Messages that never reached the bot. */
   const discarded = new Set<number>();
   /** What this page sent, by the id it gave, then by cursor: a withdrawn message comes back as typed. */
-  const sentById = new Map<number, { text: string; images: readonly ConsoleImageAttachment[] }>();
-  const sentByCursor = new Map<number, { text: string; images: readonly ConsoleImageAttachment[] }>();
+  const sentById = new Map<number, { text: string; images: readonly WebUiImageAttachment[] }>();
+  const sentByCursor = new Map<number, { text: string; images: readonly WebUiImageAttachment[] }>();
   let nextSend = 1;
   /** Kept across re-renders: what is typed into an open question's own-answer box, and which step lists are expanded. */
   const ownDrafts = new Map<string, string>();
@@ -349,16 +349,17 @@ async function mount(ctx: FeatureContext): Promise<void> {
     for (const it of shown) {
       if (it.kind === 'user') { group = null; thread.append(userNode(it)); continue; }
       if (it.kind === 'touch') { group = null; thread.append(ui.h('div', 'chat-note', it.text)); continue; }
-      const body = cooBody();
+      // a row with Coo's avatar only for what shows: an activity whose steps are all hidden makes none
       if (it.kind === 'say') {
+        const body = cooBody();
         for (const beat of it.beats) {
           const row = ui.h('div', 'sayrow');
           row.append(ui.h('div', 'pet-bubble say', beat.text));
           if (beat.mood) row.append(ui.h('span', 'mood', moodName(beat.mood)));
           body.append(row);
         }
-      } else if (it.kind === 'ask') body.append(askNode(it, it.askId === ask));
-      else if (it.kind === 'activity' && shownSteps(it.steps).length) body.append(activityNode(String(it.cursor), shownSteps(it.steps), S.seconds(Math.max(1, Math.round(it.ms / 1000))), false));
+      } else if (it.kind === 'ask') cooBody().append(askNode(it, it.askId === ask));
+      else if (it.kind === 'activity' && shownSteps(it.steps).length) cooBody().append(activityNode(String(it.cursor), shownSteps(it.steps), S.seconds(Math.max(1, Math.round(it.ms / 1000))), false));
     }
     const liveSteps = live ? shownSteps(live.steps) : [];
     // more than one step: the title counts them, the meta names the one running now

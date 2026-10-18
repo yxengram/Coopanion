@@ -2,11 +2,11 @@
  * Builds `build/cortico/`, the copy of Cortico the app runs:
  *
  * 1. copies `vendor/cortico` without the built-in platform Worlds (minecraft, qq, bilibili,
- *    websearch, the console fixture), the llamacpp provider, the other bots, and repository
- *    tooling; `terminal` stays because the console's chat page talks to it;
+ *    websearch, the WebUI fixture), the llamacpp provider, the other bots, and repository
+ *    tooling; `console` (the chat World) stays because core/companion.ts mounts it;
  * 2. lays `console/` over `src/web/client/` (the app's entry and home page) and writes the app's
  *    version there as `app-version.ts`, for the release check under the wordmark;
- * 3. builds the console bundle with Cortico's own `buildWeb` and the stylesheet with Tailwind;
+ * 3. builds the WebUI bundle with Cortico's own `buildWeb` and the stylesheet with Tailwind;
  * 4. builds the desktop pet World's panel bundle.
  *
  * Run: `pnpm run build:cortico`. Idempotent; the previous `build/cortico` is replaced.
@@ -33,7 +33,7 @@ const DROP = new Set([
   'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', 'tsconfig.web.json', 'vitest.config.ts', 'start.bat', 'start.sh',
   'AGENTS.md', 'CLAUDE.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md', 'SECURITY.md', '.env', '.gitignore', '.gitattributes',
   'src/launcher.ts', 'src/worlds/index.ts',
-  'src/worlds/minecraft', 'src/worlds/qq', 'src/worlds/bilibili', 'src/worlds/websearch', 'src/worlds/console-fixture',
+  'src/worlds/minecraft', 'src/worlds/qq', 'src/worlds/bilibili', 'src/worlds/websearch', 'src/worlds/webui-fixture',
   'src/providers/llamacpp',
   'bots/corti-soulmate', 'bots/cortiv',
 ]);
@@ -75,7 +75,7 @@ if (css.status !== 0) process.exit(css.status ?? 1);
 rmSync(entry);
 
 const pet = join(ROOT, 'packages', 'cortico-world-desktop-pet');
-const panel = spawnSync(process.execPath, [join(pet, 'scripts', 'build-console.mjs')], { cwd: pet, stdio: 'inherit' });
+const panel = spawnSync(process.execPath, [join(pet, 'scripts', 'build-webui.mjs')], { cwd: pet, stdio: 'inherit' });
 if (panel.status !== 0) process.exit(panel.status ?? 1);
 
 console.log(`stage done in ${((Date.now() - t0) / 1000).toFixed(1)} s → ${relative(ROOT, OUT)}`);

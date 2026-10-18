@@ -1081,6 +1081,53 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       expect(Object.values(FACE_ARMS)).not.toContain('cover');
     } finally { done(); }
   });
+  /**
+   * Her near arm's turn and the leg on the same side (the back leg, legs[0], as the kit's legs give it) over `seconds` of
+   * a steady walk toward the far side of the stage, after `settle` seconds of walking; `face` is held throughout.
+   */
+  async function walkSamples(face = null, seconds = 2, settle = 1) {
+    const { pet, run, done } = await whaleOnKit();
+    try {
+      run(.5);
+      if (face) pet.setExpr(face, 60);
+      pet.walkTo(pet.pet.x > 600 ? 60 : 1140, false, 1);
+      run(settle);
+      const arm = [], leg = [], far = [], legF = [];
+      run(seconds, (st, o) => {
+        if (pet.pet.mode !== 'walk') return;
+        const a = o.legs.map(l => -Math.atan2(l[2] - l[0], Math.max(4, l[3] - l[1])) * 180 / Math.PI);
+        arm.push(st.armNear.a); leg.push(a[0]); far.push(st.armFar.a); legF.push(a[1]);
+      });
+      return { arm, leg, far, legF };
+    } finally { done(); }
+  }
+  const corr = (x, y) => {
+    const mx = x.reduce((s, v) => s + v, 0) / x.length, my = y.reduce((s, v) => s + v, 0) / y.length;
+    let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < x.length; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2; }
+    return sxy / Math.sqrt(sxx * syy);
+  };
+  const spread = (x) => Math.max(...x) - Math.min(...x);
+  it('walking, swings each arm against the leg on its own side, as far as before (#228)', async () => {
+    const { arm, leg, far, legF } = await walkSamples();
+    expect(arm.length).toBeGreaterThan(100);
+    // the legs swing (a stride every half second or so): each arm goes back as its own leg goes forward
+    expect(spread(leg)).toBeGreaterThan(20);
+    expect(corr(arm, leg)).toBeLessThan(-.95);
+    expect(corr(far, legF)).toBeLessThan(-.95);
+    // as wide as the swing that went through the arm springs before (about 21° from front to back)
+    expect(spread(arm)).toBeGreaterThan(15);
+    expect(spread(arm)).toBeLessThan(28);
+  });
+  it('walking, does not swing the arms a face holds still (angry, determined, nervous)', async () => {
+    for (const face of ['angry', 'determined', 'nervous']) {
+      const { arm, leg } = await walkSamples(face);
+      expect(spread(leg), face).toBeGreaterThan(20);
+      // (nervous fidgets on its own, about 6° from end to end, standing or walking)
+      expect(spread(arm), face).toBeLessThan(face === 'nervous' ? 7 : 2.5);
+      expect(Math.abs(corr(arm, leg)), face).toBeLessThan(.5);
+    }
+  });
   it('lying down and getting up (jump or stand), the lying drawing cuts, never two of her at once (as the girls: tests/helpers/lie-cut.js)', async () => {
     const { pet, done } = await whaleOnKit();
     try {

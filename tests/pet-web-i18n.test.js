@@ -40,7 +40,9 @@ describe('the pages\' text tables', () => {
     expect(zh['action.roam']).toBe('行为模式:{level} · {name} · 点一下换成「{next}」');
     expect(zh['action.themeDark']).toBe('夜间模式:开(浅色身体)· 点一下换白天');
     expect(zh['bubble.typePlaceholder']).toBe('想说什么…');
-    expect(zh['heard.done']).toBe('听到了');
+    // 'heard.done' (听到了) went with #241: what was heard stays beside the pet as a settled line, with no hint under it
+    expect(zh['heard.listening']).toBe('正在听…');
+    expect(zh['heard.more']).toBe('还在听…');
     expect(zh['dress.offline']).toBe('没保存上:连不上桌宠服务');
     expect(zh['import.done']).toBe('导入好了:{names}。在上面的形象里点它就能换上。');
     expect(zh['theme.toLight']).toBe('切到白天模式');

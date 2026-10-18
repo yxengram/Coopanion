@@ -1,16 +1,19 @@
 /**
- * Coopanion 的控制台入口:由 scripts/stage.ts 覆盖在 Cortico 的 src/web/client/main.ts 上。
+ * Coopanion 的 WebUI 入口:由 scripts/stage.ts 覆盖在 Cortico 的 src/web/client/main.ts 上。
  * 与上游的差别:
  * - 页面表多了关于桌宠的五页「开始」「习惯」「装扮」「语音输入」「电脑操作」(features/home、pet、dress、voice、cua)和「对话」(features/chat),
- *   上游的终端页改名「运行轨迹」放进「高级」组,其余页重排、改了几个分组名;
+ *   上游的控制台页(Cortico 0.2 以前叫终端)改名「运行轨迹」放进「高级」组,其余页重排、改了几个分组名;
  * - 「系统提示词」页的工具栏多一个「清空重开」(features/clear-session.ts);
  * - 两种模式(features/mode.ts):普通模式左栏只有那五页、「系统提示词」「用量与成本」和「对话」,别的路由都回到「开始」,底栏只留暂停键;
  *   高级模式再接上 Cortico 的全部页面。左栏底部的开关切换模式,页面也可以经 requestMode 请求换,换模式时重建左栏;
  * - 空路由打开「开始」;
  * - 左上角是 Coopanion 字标,下面是版本与项目地址,有新 Release 时再加一行下载链接(features/release.ts);
  * - 左栏各组按「桌宠五页 · 对话 → World → 设置 → Persona & Memory → 高级」重排。
+ * - Cortico 的端点编辑页里,ChatGPT 套餐的连接多一段账号登录(features/chatgpt,登记成内置面板 coopanion-chatgpt);
  * - The Settings page's language buttons write the app language (config.language), not only this
  *   browser's preference (features/language.ts).
+ * - The World page's power button on computer use asks the 电脑操作 page's risk dialog first, until it was
+ *   confirmed once (features/cua guardWorldsPage).
  * 其余逐字沿用上游。
  */
 
@@ -20,13 +23,13 @@ import { Lifecycle } from './core/lifecycle.ts';
 import { Router, type Route } from './core/router.ts';
 import type { SocketLike } from './core/stream.ts';
 import { wsUrlOf } from './core/websocket.ts';
-import { BUILTIN_PANELS } from './console-pages/builtins.ts';
-import { ConsolePageHost, PROVIDER_ROUTE } from './console-pages/host.ts';
-import { ConsolePageLoader } from './console-pages/loader.ts';
-import { createConsoleUi } from './ui/index.ts';
+import { BUILTIN_PANELS } from './webui-pages/builtins.ts';
+import { WebUiPageHost, PROVIDER_ROUTE } from './webui-pages/host.ts';
+import { WebUiPageLoader } from './webui-pages/loader.ts';
+import { createWebUi } from './ui/index.ts';
 import { subscribeLamps } from './ui/lamp.ts';
 import { applyStoredTheme } from './theme/studio.ts';
-import { createShell, type ConsoleShell } from './shell/index.ts';
+import { createShell, type WebUiShell } from './shell/index.ts';
 import { S as SHELL } from './shell/strings.ts';
 import { featureAvailable, type FeatureContext, type FrameworkFeature } from './features/feature.ts';
 import { liveFeature } from './features/live/index.ts';
@@ -38,10 +41,12 @@ import { extensionsFeature } from './features/extensions/index.ts';
 import { appearanceFeature } from './features/appearance/index.ts';
 import { settingsFeature } from './features/settings/index.ts';
 import { homeFeature } from './features/home/index.ts';
+import { chatgptPanel } from './features/chatgpt/index.ts';
+import { CHATGPT_BUILTIN_PANEL } from 'cortico-provider-coo/src/connect.ts';
 import { petFeature } from './features/pet/index.ts';
 import { dressFeature } from './features/dress/index.ts';
 import { voiceFeature } from './features/voice/index.ts';
-import { cuaFeature } from './features/cua/index.ts';
+import { cuaFeature, guardWorldsPage } from './features/cua/index.ts';
 import { chatFeature } from './features/chat/index.ts';
 import { promptsWithClearFeature } from './features/clear-session.ts';
 import { mountRelease } from './features/release.ts';
@@ -49,10 +54,10 @@ import { onModeRequest, readMode, writeMode, type ConsoleMode } from './features
 import { routeLanguageButtons } from './features/language.ts';
 import { icon } from './ui/icons.ts';
 import { coopanionWordmark } from './branding.ts';
-import type { ConsoleMemo } from '../shared/client-panel.ts';
+import type { WebUiMemo } from '../shared/client-panel.ts';
 
 /**
- * 控制台自己的页面。与贡献方的页无关——那一路完全由 manifest 驱动。
+ * WebUI 自己的页面。与贡献方的页无关——那一路完全由 manifest 驱动。
  *
  * 顺序即左栏顺序。`hidden` 的页面(外观)不进左栏,
  * 但仍要在这张表里:路由分派只认这张表,设置页里嵌着它的同时,直达链接也要能开。
@@ -87,7 +92,14 @@ export const FEATURES: readonly FrameworkFeature[] = [
   { ...extensionsFeature, navMode: 'group', navGroup: L.settings },
   { ...liveFeature, label: L.trace, navMode: 'group', navGroup: L.advanced },
   { ...coreFeature, navMode: 'group', navGroup: L.advanced },
-  worldsFeature, appearanceFeature,
+  {
+    ...worldsFeature,
+    mount: async (ctx) => {
+      guardWorldsPage(ctx.root, ctx.ui, ctx.signal);
+      return await worldsFeature.mount(ctx);
+    },
+  },
+  appearanceFeature,
   {
     ...settingsFeature,
     mount: async (ctx) => {
@@ -117,7 +129,7 @@ function orderNav(nav: Element): void {
 }
 
 /** localStorage 后端；无痕模式下静默降级成内存，不抛。 */
-export function createMemo(prefix: string): ConsoleMemo {
+export function createMemo(prefix: string): WebUiMemo {
   const fallback = new Map<string, unknown>();
   return {
     get<T>(key: string, dflt: T): T {
@@ -145,7 +157,7 @@ export function boot(doc: Document = document): { dispose(): void } {
   // 首次渲染前应用主题。
   try {
     applyStoredTheme(doc);
-  } catch { /* 主题读坏了不该拦住整个控制台 */ }
+  } catch { /* 主题读坏了不该拦住整个 WebUI */ }
 
   // 首屏提示已经完成使命——内核跑起来了。摘不掉它才说明脚本没起来。
   doc.getElementById('boot-note')?.remove();
@@ -157,21 +169,21 @@ export function boot(doc: Document = document): { dispose(): void } {
     doc.body.appendChild(root);
   }
   /**
-   * 贡献方的页与 framework feature 各自拥有独立根容器。ConsolePageHost.unmount() 清空其根节点时，不得影响 feature 的 DOM。
+   * 贡献方的页与 framework feature 各自拥有独立根容器。WebUiPageHost.unmount() 清空其根节点时，不得影响 feature 的 DOM。
    */
   const pageRoot = doc.createElement('div');
   const featureRoot = doc.createElement('div');
   root.replaceChildren(pageRoot, featureRoot);
 
   const onError = (err: unknown): void => {
-    console.error('[console]', err);
+    console.error('[WebUI]', err);
   };
 
-  const loader = new ConsolePageLoader({
+  const loader = new WebUiPageLoader({
     importModule: (url) => import(/* @vite-ignore */ url),
     styleHost: doc.head,
     createLink: () => doc.createElement('link'),
-    log: (msg, detail) => console.warn('[console]', msg, detail ?? ''),
+    log: (msg, detail) => console.warn('[WebUI]', msg, detail ?? ''),
   });
 
   const router = new Router({
@@ -186,7 +198,8 @@ export function boot(doc: Document = document): { dispose(): void } {
     doc,
     overlayHost: doc.body,
     loader,
-    builtins: BUILTIN_PANELS,
+    // the ChatGPT plan's sign-in in Cortico's editor of a `chatgpt` endpoint (the provider declares it as this built-in)
+    builtins: { ...BUILTIN_PANELS, [CHATGPT_BUILTIN_PANEL]: chatgptPanel },
     router,
     fetchManifest: () => fetchManifest(),
     memo,
@@ -194,10 +207,10 @@ export function boot(doc: Document = document): { dispose(): void } {
     wsUrl: (path: string) => wsUrlOf(location, withLanguage(path)),
     onError,
   };
-  const host = new ConsolePageHost({ ...hostDeps, root: pageRoot });
+  const host = new WebUiPageHost({ ...hostDeps, root: pageRoot });
   /** 框架页里嵌别的页的面板用的宿主:同一套加载器与 memo,只换容器与路由前缀。 */
-  const consolePageHost: NonNullable<FeatureContext['consolePageHost']> = (opts) =>
-    new ConsolePageHost({ ...hostDeps, root: opts.root, route: opts.route });
+  const webUiPageHost: NonNullable<FeatureContext['webUiPageHost']> = (opts) =>
+    new WebUiPageHost({ ...hostDeps, root: opts.root, route: opts.route });
 
   /** 框架能力清单；获取失败时不启用可选能力。 */
   let capabilities: Record<string, boolean> = {};
@@ -219,13 +232,13 @@ export function boot(doc: Document = document): { dispose(): void } {
     mode === 'advanced' || BASIC_FEATURES.some((f) => f.route === head);
 
   const shellLife = new Lifecycle(onError);
-  let shell!: ConsoleShell;
+  let shell!: WebUiShell;
   let shellBuild: Lifecycle | null = null;
   const buildShell = (): void => {
     shellBuild?.dispose();
     const life = shellLife.own(new Lifecycle(onError));
     shellBuild = life;
-    const ui = createConsoleUi({ memo, overlayHost: doc.body, signal: life.signal, doc });
+    const ui = createWebUi({ memo, overlayHost: doc.body, signal: life.signal, doc });
     const advanced = mode === 'advanced';
     const next = createShell({ doc, ui, router, features: advanced ? FEATURES : BASIC_FEATURES, onError });
     const brand = next.el.querySelector('.brand');
@@ -303,12 +316,12 @@ export function boot(doc: Document = document): { dispose(): void } {
     slot.className = `featureslot featureslot-${feature.route}`;
     featureRoot.appendChild(slot);
 
-    const ui = createConsoleUi({ memo, overlayHost: doc.body, signal: lifecycle.signal, doc });
+    const ui = createWebUi({ memo, overlayHost: doc.body, signal: lifecycle.signal, doc });
     void (async () => {
       try {
         const out = await feature.mount({
           root: slot, lifecycle, signal: lifecycle.signal, ui, router, route,
-          capabilities, onError, consolePageHost,
+          capabilities, onError, webUiPageHost,
           refreshNav: () => host.refresh(),
         });
         if (gen !== generation) {

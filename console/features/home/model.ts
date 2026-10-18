@@ -4,15 +4,15 @@
  * same the guide on the desktop uses). Only the provider package's browser-safe files are imported.
  */
 import { get, post } from '../../core/api.ts';
-import { connectVendor, testEndpoint, type ConnectResult, type ConsoleCall } from 'cortico-provider-coo/src/connect.ts';
+import { connectChatGPT, connectVendor, signOutChatGPT, testEndpoint, type ConnectResult, type ConsoleCall } from 'cortico-provider-coo/src/connect.ts';
 
-export { VENDORS, vendorKeyHint, vendorName, vendorOf, type Vendor } from 'cortico-provider-coo/src/vendors.ts';
+export { CHATGPT, VENDORS, connectionVendor, vendorKeyHint, vendorName, type Vendor } from 'cortico-provider-coo/src/vendors.ts';
 export { VENDOR_ICONS } from 'cortico-provider-coo/src/icons.ts';
-export { connectVendor, testEndpoint, type ConnectResult };
+export { connectChatGPT, connectVendor, signOutChatGPT, testEndpoint, type ConnectResult };
 
 export interface Status {
   loop?: { paused?: boolean };
-  modelConnection?: { ready: boolean; name: string; model: string | null; moduleTitle: string; baseUrl?: string } | null;
+  modelConnection?: { ready: boolean; name: string; model: string | null; module?: string; moduleTitle: string; baseUrl?: string } | null;
 }
 
 /** The console's routes for `connect.ts`: GET without a body, POST with one. */

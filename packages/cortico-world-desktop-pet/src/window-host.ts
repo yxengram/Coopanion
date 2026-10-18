@@ -56,6 +56,12 @@ export function resolveHostCommand(url: string, electronFile: string, managed: s
   return { missing: t.noElectron };
 }
 
+/** A window process's exit as the log writes it: the signal when there is no code; on Windows the code in hex. */
+export function exitCodeText(code: number | null, signal: NodeJS.Signals | null, platform: NodeJS.Platform = process.platform): string {
+  if (code === null) return String(signal);
+  return platform === 'win32' ? `0x${(code >>> 0).toString(16).toUpperCase()}` : String(code);
+}
+
 export class WindowHost {
   private child: ChildProcess | null = null;
   private st: HostState = { phase: 'stopped', pid: null, source: null, detail: null };
@@ -94,10 +100,16 @@ export class WindowHost {
     const forward = (d: Buffer) => { for (const line of d.toString().split(/\r?\n/)) if (line.trim()) log.debug(line); };
     child.stdout?.on('data', forward);
     child.stderr?.on('data', forward);
-    child.on('error', (err) => { this.st = { ...this.st, phase: 'error', detail: err.message }; });
-    child.on('exit', (code) => {
+    child.on('error', (err) => {
+      log.warn(`窗口进程出错:${err.message}`);
+      this.st = { ...this.st, phase: 'error', detail: err.message };
+    });
+    child.on('exit', (code, signal) => {
+      // (a window stopped on purpose, stop(), is no longer this.child)
       if (this.child !== child) return;
       this.child = null;
+      // a window process that ends on its own with a failure is logged; Windows exit codes such as 0x80000003 read in hex
+      if (code !== 0) log.warn(`窗口进程退出(退出码 ${exitCodeText(code, signal)})`);
       this.st = { phase: 'stopped', pid: null, source: cmd.source, detail: code === 0 ? this.text().closed : this.text().exited(code) };
     });
   }

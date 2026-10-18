@@ -16,6 +16,8 @@
 .home-vendor.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--foreground); }
 .home-vendormark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: #fff; }
 .home-vendormark svg { width: 17px; height: 17px; display: block; color: #1b1a1e; }
+/* ChatGPT 套餐的账号行(features/chatgpt):开始页与高级模式的端点编辑页 */
+.chatgpt-account .rowbar { align-items: center; }
 .home-petframe { display: block; width: 100%; height: 220px; margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; background: transparent; }
 .home .sheet + .sheet { margin-top: 14px; }
 
@@ -45,6 +47,8 @@
 /* 字标下的版本与项目地址;新版本提示沿用上游的 .release-hint */
 .companion-version { display: block; margin-top: 6px; font-size: 11.5px; color: var(--ink-dim); text-decoration: none; }
 .companion-version:hover { color: var(--ink); text-decoration: underline; }
+/* 更新器走到的一步(features/release.ts)是一行要读的字,不是链接:不用强调色 */
+.release-hint.companion-update-step { color: var(--ink-dim); }
 
 /* 左栏分组之间不画分隔线,只留间距 */
 .navgroup + .navgroup { border-top: 0; padding-top: 0; }
@@ -58,3 +62,8 @@
 .companion-mode:hover { color: var(--ink); background: var(--sheet-2); border-style: solid; }
 /* 普通模式:底栏的设置与关机两个键通往高级页面,只留暂停/继续 */
 .companion-normal .rail-actions .rail-action:not(.rail-run) { display: none; }
+
+/* the dialog before computer use is first turned on (features/cua) */
+.cua-risk-lead { margin: 0 0 10px; color: var(--ink); line-height: 1.55; }
+.cua-risks { margin: 0 0 12px; padding-left: 1.3em; list-style: disc; display: flex; flex-direction: column; gap: 6px; color: var(--danger); line-height: 1.55; }
+.cua-risk-note { margin: 0 0 14px; font-size: 13px; color: var(--ink-soft); }

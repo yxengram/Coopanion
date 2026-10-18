@@ -46,7 +46,7 @@
 | `cuaActions` | Coo 操作电脑的动作数（截屏、点击、打字等） |
 | `cuaAsked` / `cuaGranted` | 电脑操作前问你的次数和你同意的次数 |
 | `providerErrors` | 失败的模型请求数：一次请求连同它的自动重试都没拿到回复才算一次；被新输入打断或因退出中止的不算 |
-| `models` | 按请求实际发往的模型分：`calls`（HTTP 请求数，每次重试各算一次）、`failed`（失败的请求数，算法同 `providerErrors`）、`failedStatus`（`failed` 按最后一次尝试的 HTTP 状态码分开计数，如 `{"400": 3}`；`200` 表示回复到一半出错，`none` 表示没拿到状态码，比如连不上或超时）、`aborted`（被新输入打断或因退出中止的尝试数）、输入/输出/缓存命中 token 数；每项带 `vendor`（内置服务的 id，或 `kind:<模块>`）、`model`（内置服务的模型名，其他为 `custom`）、`endpointKind`（`builtin` / `custom-remote` / `custom-local`） |
+| `models` | 按请求实际发往的模型分：`calls`（HTTP 请求数，每次重试各算一次）、`failed`（失败的请求数，算法同 `providerErrors`）、`failedStatus`（`failed` 按最后一次尝试的 HTTP 状态码分开计数，如 `{"400": 3}`；`200` 表示回复到一半出错，`none` 表示没拿到状态码，比如连不上或超时）、`aborted`（被新输入打断或因退出中止的尝试数）、输入/输出/缓存命中 token 数；每项带 `vendor`（内置服务的 id，用 ChatGPT 账号登录的套餐报 `chatgpt`；其他为 `kind:<模块>`）、`model`（内置服务的模型名，其他为 `custom`）、`endpointKind`（`builtin` / `custom-remote` / `custom-local`） |
 | `vendor` / `model` / `endpointKind` | 当前使用的模型服务，规则同上 |
 | `language` | 界面语言 |
 | `autostart` | 是否开机自动启动 |

@@ -12,7 +12,11 @@
  *    standing still, strolling, or running back and forth;
  * 3. the model service (DeepSeek first, the others Coo Pet Provider offers after it, each card with
  *    its logo), the model (the service's cheap default that reads images, or any name typed in) and
- *    the key, saved, tested and made active through the console's own endpoint routes;
+ *    the key, saved, tested and made active through the console's own endpoint routes. The OpenAI card asks
+ *    first whether to use an API key or a ChatGPT plan (testing): the plan skips the model and key, its sign-in page
+ *    goes to the system browser (`GuideDeps.browse`) and a bar waits in the bubble until the browser comes back;
+ *    closing the bar stops the wait. (A card of its own would change the cards the DeepSeek walk shows.) That question
+ *    and the sign-in's own bubbles stay out of the record Coo is handed, so a walk with a key records what it did before;
  * 4. voice input: the speech model is downloaded with one click when it is missing, then how to
  *    talk, with the talk key as a key cap;
  * 5. where the buttons and the menu are, that Coo's persona is in the settings window's
@@ -33,8 +37,9 @@ import { extname, join } from 'node:path';
 import { pick, type Language, type LanguageTable } from 'cortico/core/language.ts';
 import type { DesktopPetWorld, FigurePack, PetDialog, PetDialogAnswer } from 'cortico-world-desktop-pet';
 import { DEFAULT_USER_EN, DEFAULT_USER_ZH, DEFAULT_USERS, SEED_DIR } from './seed.ts';
-import { VENDOR_ICONS, VENDORS, vendorKeyHint, vendorName, type Vendor } from 'cortico-provider-coo';
-import { connectVendor, currentConnection, type ConsoleCall } from 'cortico-provider-coo/src/connect.ts';
+import { CHATGPT, VENDOR_ICONS, VENDORS, vendorKeyHint, vendorName, type Vendor } from 'cortico-provider-coo';
+import { SIGN_IN_CANCELLED, connectChatGPT, connectVendor, currentConnection, type ConsoleCall } from 'cortico-provider-coo/src/connect.ts';
+import { signInReason } from 'cortico-provider-coo/src/strings.ts';
 
 const PET_GROUP = 'world:desktop-pet';
 const USER_KEY = 'worlds.desktop-pet.user';
@@ -115,6 +120,13 @@ const zh = {
   keyFail: (why: string) => `没连上:${bare(why)}。看看 Key 是不是完整,账户里还有没有余额?再贴一次试试。`,
   keyAlready: (name: string, model: string) => `模型已经连好了(${[name, model].filter(Boolean).join(' · ')}),省事,库...`,
   keySkipped: '没关系,等你填好我再开口。之后我会再来问你。',
+  /** The OpenAI card's question: a key, or a ChatGPT plan's sign-in. */
+  openaiHow: '用 OpenAI 有两种办法:贴 API Key,按用量计费;或者登录 ChatGPT 账号,用你的 ChatGPT 套餐(还在测试中)。用哪种?',
+  useKey: '用 API Key',
+  chatgptGo: '使用 ChatGPT 继续',
+  chatgptAsk: '点下面的按钮,在浏览器里登录 ChatGPT 账号。用量算在你的 ChatGPT 套餐里,和 ChatGPT、Codex 共用额度。',
+  chatgptWaiting: '请在浏览器里完成登录…',
+  chatgptFail: (why: string) => `没登录上:${bare(why)}。再试一次?`,
 
   askModel: (mb: number) => `要听懂你说话,我得先下载一个语音识别模型(FunASR,约 ${mb} MB,从国内的 ModelScope 下载)。现在下吗?`,
   download: '下载',
@@ -206,6 +218,12 @@ const en: GuideText = {
   keyFail: (why: string) => `That didn't connect: ${bare(why)}. Is the key complete, and is there credit left on the account? Try pasting it again.`,
   keyAlready: (name: string, model: string) => `A model is connected already (${[name, model].filter(Boolean).join(' · ')}). Easy. Coo...`,
   keySkipped: 'That\'s fine; I\'ll talk once you\'ve added it. I\'ll ask you again later.',
+  openaiHow: 'There are two ways to use OpenAI: paste an API key, billed by usage, or sign in with a ChatGPT account and use your ChatGPT plan (still in testing). Which one?',
+  useKey: 'Use an API key',
+  chatgptGo: 'Continue with ChatGPT',
+  chatgptAsk: 'Click the button below and sign in to your ChatGPT account in the browser. Usage counts toward your ChatGPT plan, shared with ChatGPT and Codex.',
+  chatgptWaiting: 'Finish signing in in the browser…',
+  chatgptFail: (why: string) => `That didn't sign in: ${bare(why)}. Try again?`,
 
   askModel: (mb: number) => `To understand what you say, I need to download a speech recognition model (FunASR, about ${mb} MB, from ModelScope in China). Download it now?`,
   download: 'Download',
@@ -263,6 +281,8 @@ export interface GuideDeps {
   track?: (type: string, fields: Record<string, unknown>) => void;
   /** The app language, read at each step and watched while one is up: the bubble's lines follow it (the record quotes them as shown; its own framing in notice.ts stays Chinese); without it, Chinese. */
   language?: () => Language;
+  /** Opens a ChatGPT sign-in page in the system browser (the app's main process); without it, the page is not opened. */
+  browse?: (url: string) => void;
 }
 
 export interface GuideEnd {
@@ -370,21 +390,34 @@ const logo = (v: Vendor) => `data:image/svg+xml;base64,${Buffer.from(VENDOR_ICON
 /**
  * Asks which service to use and then for its key, in the bubble, until it connects or the person
  * puts it off; true once connected. `ask` builds the question over the service cards, `later` the way out of the key
- * box, both in the language of the moment.
+ * box, both in the language of the moment. `quiet` shows a step the way `show` does but leaves it out of the record Coo
+ * is handed: the OpenAI card's question and the ChatGPT sign-in's own bubbles, so the record of every walk with a key
+ * reads as before the ChatGPT plan came in and no line of the plan's reaches the model.
  */
-async function connectLoop(show: (build: () => PetDialog) => Promise<PetDialogAnswer>, call: ConsoleCall, pet: () => DesktopPetWorld | null,
-  ask: () => Omit<PetDialog, 'input'>, later: () => string, language: () => Language): Promise<boolean> {
+async function connectLoop(show: (build: () => PetDialog) => Promise<PetDialogAnswer>, quiet: (build: () => PetDialog) => Promise<PetDialogAnswer>,
+  call: ConsoleCall, pet: () => DesktopPetWorld | null,
+  ask: () => Omit<PetDialog, 'input'>, later: () => string, language: () => Language, browse: (url: string) => void): Promise<boolean> {
   const T = () => guideStrings(language());
   const current = await currentConnection(call);
+  // a ChatGPT plan in use is under the OpenAI card
+  const inUse = current.vendor === CHATGPT ? VENDORS.find((v) => v.id === 'openai') : current.vendor;
   const picked = await show(() => ({
     ...ask(),
     input: {
-      kind: 'choices', confirm: T().vendorOk, value: Math.max(0, VENDORS.indexOf(current.vendor ?? VENDORS[0]!)),
+      kind: 'choices', confirm: T().vendorOk, value: Math.max(0, VENDORS.indexOf(inUse ?? VENDORS[0]!)),
       options: VENDORS.map((v) => ({ label: T().vendorName(v), image: logo(v) })),
     },
   }));
   if ('closed' in picked) throw new Closed();
   const vendor = VENDORS['index' in picked ? picked.index : 0] ?? VENDORS[0]!;
+  if (vendor.id === 'openai') {
+    const how = await quiet(() => ({
+      ...ask(), text: T().openaiHow, actions: ['thinking'],
+      input: { kind: 'buttons', options: [{ label: T().useKey, primary: current.vendor !== CHATGPT }, { label: T().chatgptGo, primary: current.vendor === CHATGPT }] },
+    }));
+    if ('closed' in how) throw new Closed();
+    if ('index' in how && how.index === 1) return signIn(show, quiet, call, pet, ask, later, language, browse);
+  }
   const m = await show(() => ({
     ...ask(), text: T().pickModel(vendor), marks: [vendor.model], actions: ['thinking'],
     input: { kind: 'text', submit: T().modelOk, value: vendor.model, maxLength: 120, suggestions: [vendor.model, ...(vendor.models ?? [])] },
@@ -409,6 +442,38 @@ async function connectLoop(show: (build: () => PetDialog) => Promise<PetDialogAn
     // the reason is the console's, in the language it was asked in
     const why = r.why ?? '?';
     step = keyStep(() => T().keyFail(why), ['sad']);
+  }
+}
+
+/**
+ * A ChatGPT plan: its sign-in page goes to the system browser at once, and a bar waits in the bubble until the browser
+ * comes back; closing the bar stops the wait. A failed or stopped sign-in asks again, with the way out of the key box.
+ * True once the plan is connected, false when put off.
+ */
+async function signIn(show: (build: () => PetDialog) => Promise<PetDialogAnswer>, quiet: (build: () => PetDialog) => Promise<PetDialogAnswer>,
+  call: ConsoleCall, pet: () => DesktopPetWorld | null,
+  ask: () => Omit<PetDialog, 'input'>, later: () => string, language: () => Language, browse: (url: string) => void): Promise<boolean> {
+  const T = () => guideStrings(language());
+  const again = (text: () => string, actions: string[]) => (): PetDialog => ({
+    ...ask(), text: text(), actions, input: { kind: 'buttons', options: [{ label: T().chatgptGo, primary: true }, { label: later() }] },
+  });
+  for (;;) {
+    const stop = new AbortController();
+    const wait = pet()?.dialog({ text: T().chatgptWaiting, actions: ['thinking'], step: ask().step, closable: true, input: { kind: 'progress' } });
+    void wait?.answer.then((w) => { if ('closed' in w) stop.abort(); });
+    const r = await connectChatGPT(call, browse, { signal: stop.signal, language: language() });
+    wait?.close();
+    if (r.ok) {
+      const { model } = await currentConnection(call);
+      await show(() => ({ ...ask(), text: T().keyOk(CHATGPT, model), marks: [T().vendorName(CHATGPT)], actions: ['love', 'jump'] }));
+      return true;
+    }
+    const why = r.why ?? '?';
+    const a = await quiet(stop.signal.aborted || why === SIGN_IN_CANCELLED
+      ? again(() => T().chatgptAsk, ['thinking'])
+      : again(() => T().chatgptFail(signInReason(why, language())), ['sad']));
+    if ('closed' in a) throw new Closed();
+    if (!('index' in a) || a.index !== 0) return false;
   }
 }
 
@@ -478,6 +543,21 @@ const keyInput = (v: Vendor, later: string, S: GuideText): PetDialog['input'] =>
   link: { label: S.keyLink(v), url: v.keyUrl }, alt: later,
 });
 
+/** Where the guide sends a sign-in page; only a ChatGPT sign-in page is ever handed on. */
+const browseOf = (deps: Pick<GuideDeps, 'browse'>) => (url: string) => {
+  if (isSignInPage(url)) deps.browse?.(url);
+};
+
+/** A page of OpenAI's sign-in, the only address the guide asks the app to open (the app checks it again). */
+export function isSignInPage(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && u.host === 'auth.openai.com' && !u.username && !u.password;
+  } catch {
+    return false;
+  }
+}
+
 let running = false;
 
 /** Runs the introduction; a second call while it runs does nothing. */
@@ -502,6 +582,12 @@ export async function runGuide(deps: GuideDeps): Promise<void> {
       return a;
     });
   };
+  /** A step left out of the record (`connectLoop`'s `quiet`); closing it ends the introduction as any step does. */
+  const quietStep = (n: number, build: () => PetDialog): Promise<PetDialogAnswer> =>
+    t.show(() => ({ ...build(), step: [n, STEPS], closable: true })).then(({ answer: a }) => {
+      if ('closed' in a) throw new Closed();
+      return a;
+    });
   try {
     // a moment for Coo to land after the window opens
     while (!t.connected()) await sleep(POLL_MS);
@@ -560,7 +646,7 @@ export async function runGuide(deps: GuideDeps): Promise<void> {
     // 3 the model key
     const k = await currentConnection(call);
     if (k.ready) await step(3, () => ({ text: T().keyAlready(k.vendor ? T().vendorName(k.vendor) : '', k.model), actions: ['happy'] }));
-    else if (!await connectLoop((b) => step(3, b), call, deps.pet, () => ({ text: T().askVendor, actions: ['thinking'], step: [3, STEPS] }), () => T().keyLater, language)) {
+    else if (!await connectLoop((b) => step(3, b), (b) => quietStep(3, b), call, deps.pet, () => ({ text: T().askVendor, actions: ['thinking'], step: [3, STEPS] }), () => T().keyLater, language, browseOf(deps))) {
       await step(3, () => ({ text: T().keySkipped, actions: ['sad'] }));
     }
 
@@ -633,7 +719,7 @@ const KEY_POLL_MS = 2000;
  * after each ask, or sooner once the person talks to Coo (what they said waits, undelivered, for
  * the key). The first ask comes `firstAfterMs` after the call.
  */
-export async function askForKey(deps: Pick<GuideDeps, 'pet' | 'console' | 'language'>, keySet: () => boolean, talked: () => boolean, firstAfterMs: number): Promise<void> {
+export async function askForKey(deps: Pick<GuideDeps, 'pet' | 'console' | 'language' | 'browse'>, keySet: () => boolean, talked: () => boolean, firstAfterMs: number): Promise<void> {
   const language = () => deps.language?.() ?? 'zh';
   const t = talker(deps.pet, language);
   const call = api(deps.console, language);
@@ -646,7 +732,7 @@ export async function askForKey(deps: Pick<GuideDeps, 'pet' | 'console' | 'langu
       const which = !asked ? 'first' : spoke ? 'talked' : 'again';
       const S = () => guideStrings(language());
       const show = (build: () => PetDialog) => t.show(build).then((s) => s.answer);
-      await connectLoop(show, call, deps.pet, () => ({ text: S().ask[which], actions: ['thinking'], closable: true }), () => S().askLater, language).catch(() => false);
+      await connectLoop(show, show, call, deps.pet, () => ({ text: S().ask[which], actions: ['thinking'], closable: true }), () => S().askLater, language, browseOf(deps)).catch(() => false);
       asked = true;
       lastAsk = Date.now();
       talked(); // what was said while the bubble was up got its answer there

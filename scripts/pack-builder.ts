@@ -28,11 +28,37 @@ export const CONFIG = '../../electron-builder.yml';
  * electron-builder.yml as the config. Relative, so the Windows shell (pack.ts spawns the .cmd with shell: true,
  * which does not quote) never sees a path with spaces.
  */
-export const builderArgs = (platform: NodeJS.Platform, arch: string, extra: string[]): string[] => [
+export const builderArgs = (platform: NodeJS.Platform, arch: string, extra: string[], channel: PackChannel = 'github'): string[] => [
   platform === 'darwin' ? '--mac' : platform === 'linux' ? '--linux' : '--win',
+  // the portable build asks for the zip target only (win.artifactName names it); the installer's nsis is left out
+  ...channel === 'portable' ? ['zip'] : [],
   `--${arch}`,
   '--projectDir', PROJECT_DIR,
   '--config', CONFIG,
   '--publish', 'never',
   ...extra,
 ];
+
+/**
+ * The build's channel (app/channel.cjs): `github`, the installers, or with `COOPANION_CHANNEL=portable` the Windows
+ * portable zip (upstream #237). Written into build/app/package.json as `coopanion.channel`.
+ */
+export type PackChannel = 'github' | 'portable';
+
+/** The channel `COOPANION_CHANNEL` asks for on this platform; throws (with the reason) for one that cannot be built here. */
+export const packChannel = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform): PackChannel => {
+  const asked = env.COOPANION_CHANNEL?.trim() || 'github';
+  if (asked !== 'github' && asked !== 'portable') throw new Error(`COOPANION_CHANNEL=${asked}: 只有 github(默认)和 portable`);
+  if (asked === 'portable' && platform !== 'win32') throw new Error('便携版只在 Windows 上构建');
+  return asked;
+};
+
+/**
+ * The runtime dependencies of build/app beyond the workspace packages' own: Core (express, ws), the TypeScript
+ * loader, pnpm for extension installs, and the updater (app/updater.cjs), which the portable build, updated by hand,
+ * does not carry.
+ */
+export const runtimeDeps = (channel: PackChannel): Record<string, string> => ({
+  express: '^4.22.3', ws: '^8.21.3', tsx: '^4.23.15', pnpm: '11.28.6',
+  ...channel === 'portable' ? {} : { 'electron-updater': '^6.8.9' },
+});

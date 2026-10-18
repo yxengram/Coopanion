@@ -1,9 +1,11 @@
 name: release
 
-# Pushing a tag v<version> builds the Windows installer, the macOS downloads (Apple silicon and
-# Intel, both built on the Apple silicon runner) and the Linux AppImage and deb, and attaches them to that tag's release.
-# Run by hand (workflow_dispatch) it only builds and keeps the installers as workflow artifacts: a dry run
-# of the packaging on every platform before tagging; nothing is published.
+# Pushing a tag v<version> builds the Windows installer and portable zip, the macOS downloads (Apple silicon and
+# Intel, both built on the Apple silicon runner) and the Linux AppImage and deb, and attaches them to that tag's release
+# with their SHA256SUMS.txt. The portable zip is updated by hand, so it stays out of latest.yml.
+# Run by hand (workflow_dispatch) it is a dry run of the packaging on every platform before tagging: it builds,
+# checks the portable zip and that every release file is there for package.json's version, writes SHA256SUMS.txt,
+# and keeps the builds and SHA256SUMS.txt as workflow artifacts; nothing is published.
 on:
   push:
     tags: ['v*']
@@ -21,6 +23,11 @@ jobs:
           - os: windows-latest
             arch: x64
             files: dist/Coopanion-Setup-*.exe dist/Coopanion-Setup-*.exe.blockmap dist/latest.yml
+          # the portable zip (scripts/pack.ts, app/channel.cjs): the same Windows build without the updater, as a zip
+          - os: windows-latest
+            arch: x64
+            channel: portable
+            files: dist/Coopanion-*-win-x64-portable.zip
           - os: macos-latest
             arch: arm64
             files: dist/Coopanion-*-mac-arm64.dmg dist/Coopanion-*-mac-arm64.zip
@@ -44,8 +51,12 @@ jobs:
       - run: pnpm run build:installer
         env:
           PACK_ARCH: ${{ matrix.arch }}
+          COOPANION_CHANNEL: ${{ matrix.channel }}
           # no Developer ID: the macOS build is signed ad hoc (electron-builder.yml)
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Check the portable zip
+        if: matrix.channel == 'portable'
+        run: pnpm exec tsx scripts/verify-portable.ts dist
       - name: Collect installers
         shell: bash
         run: |
@@ -53,13 +64,14 @@ jobs:
           cp ${{ matrix.files }} release-artifacts/
       - uses: actions/upload-artifact@v4
         with:
-          name: installers-${{ matrix.os }}-${{ matrix.arch }}
+          # two Windows x64 builds: the channel keeps their artifact names apart
+          name: installers-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.channel || 'github' }}
           path: release-artifacts/*
           if-no-files-found: error
 
+  # on a tag push it publishes; run by hand it stops after the checks and keeps SHA256SUMS.txt as an artifact
   publish:
     needs: build
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,17 +80,32 @@ jobs:
           pattern: installers-*
           path: release-artifacts
           merge-multiple: true
+      - name: Check the release files and write SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" != "v${version}" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json version $version"; exit 1
+          fi
+          cd release-artifacts
+          files=("Coopanion-Setup-${version}.exe" "Coopanion-${version}-win-x64-portable.zip" "Coopanion-${version}-mac-arm64.dmg" "Coopanion-${version}-mac-arm64.zip" "Coopanion-${version}-mac-x64.dmg" "Coopanion-${version}-mac-x64.zip" "Coopanion-${version}-linux-x64.AppImage" "Coopanion-${version}-linux-x64.deb")
+          for file in "${files[@]}" latest.yml latest-linux.yml; do test -s "$file"; done
+          # the installer's update information, never the portable zip's
+          if grep -q portable latest.yml; then echo "latest.yml names the portable zip"; exit 1; fi
+          sha256sum "${files[@]}" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dry-run-SHA256SUMS
+          path: release-artifacts/SHA256SUMS.txt
+          if-no-files-found: error
       - name: Publish complete release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          cd release-artifacts
-          files=("Coopanion-Setup-${version}.exe" "Coopanion-${version}-mac-arm64.dmg" "Coopanion-${version}-mac-arm64.zip" "Coopanion-${version}-mac-x64.dmg" "Coopanion-${version}-mac-x64.zip" "Coopanion-${version}-linux-x64.AppImage" "Coopanion-${version}-linux-x64.deb")
-          for file in "${files[@]}" latest.yml latest-linux.yml; do test -s "$file"; done
-          sha256sum "${files[@]}" > SHA256SUMS.txt
-          cd ..
           notes="docs/releases/${GITHUB_REF_NAME}.md"
           test -f "$notes"
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --verify-tag --draft --title "Coopanion $GITHUB_REF_NAME" --notes-file "$notes"

@@ -29,7 +29,7 @@ export const TEXT = {
 };
 const S = pick(TEXT);
 
-const panelPath = (method: string) => `/api/console/providers/${encodeURIComponent(PET_PAGE)}/panels/pet/${method}`;
+const panelPath = (method: string) => `/api/webui/providers/${encodeURIComponent(PET_PAGE)}/panels/pet/${method}`;
 
 async function mount(ctx: FeatureContext): Promise<void> {
   const { ui, root, signal } = ctx;

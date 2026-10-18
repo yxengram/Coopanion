@@ -39,6 +39,9 @@ Coo Pet Provider:[Cortico](https://github.com/Pal-AI-Lab/Cortico) 的一个 prov
   (`low` / `high` / `max` 原样),并带 beta `thinking-binding-controls-2026-08-01`,对话前缀被 Core 改写过的思考块由服务丢弃而不是报错;
   不思考时 Haiku 发 `disabled`,Sonnet 5.5 发 `between_tools`,Opus 5.5 关不掉思考,发 adaptive 的 `low`。
   思考块的签名记在推理项的 `encrypted_content`,只回传给同一端点同一模型。
+- **占位推理**:Responses 按明文回传过往推理时,没记下推理的工具调用前默认补一条占位推理(`Vendor.syntheticReasoning`,即 Cortico 的 `sendSyntheticReasoning`)。
+  DeepSeek 明确开(不补会回 400);OpenRouter 关(上游 Coopanion 2026-10-13 实测经它的千问、Kimi、GLM、MiniMax、Grok 不补也能通过,默认的 DeepSeek 模型不在其列);
+  别家不填,沿用 Cortico 的默认(补)。端点因此回 400 时,桌宠的失败气泡请使用者反馈给开发者,不给设置按钮。
 - **图片**:端点勾了「多模态」且那一家列明所用模型能看图(`Vendor.vision`)时才发;选模型时按它自动勾上或去掉「多模态」。
   只发最近一批送达的事件(user 消息或事件帧)及其后的图片,更早的只留 Core 给每份附件写的 `[blob …]` 那行文字。
   每次送达新的一批,请求里从上一批的第一张图起前缀缓存失效。
@@ -67,6 +70,24 @@ Coo Pet Provider:[Cortico](https://github.com/Pal-AI-Lab/Cortico) 的一个 prov
 ```
 
 0.1.x 叫 `cortico-provider-deepseek`(`kind: "deepseek"`);Coopanion 启动时把旧端点的 `kind` 改成 `coo`。
-上游 Coopanion 还有用 ChatGPT 套餐登录(另一个 provider 模块,要 Cortico 的 provider 网页面板和应用里的登录界面),这里还没有。
+
+## `chatgpt` 模块:用 ChatGPT 套餐登录(测试中)
+
+包里第二个 provider 模块(`kind: "chatgpt"`,`CHATGPT_PROVIDER`,`src/chatgpt/`),从上游 Coopanion v0.2.4 移植(含 #187、#188、#219 的修正),
+**没有用真实的 Plus / Pro 账号试过**。端点没有 Key:用 ChatGPT 账号登录(OAuth 授权码 + PKCE,经系统浏览器,回调在
+`127.0.0.1` 上系统挑的端口;第一次登录动态注册 `dynamic_agent_client`,之后沿用发下来的 client id),要拿到
+`chatgpt.tokens.use.direct` 授权才算登录上。令牌存在端点目录的 `.env`(`CHATGPT_*` 几行,整份写临时文件再替换),提前 5 分钟或被拒一次后刷新,
+刷新令牌每次轮换。请求只发 `https://api.openai.com/v1`(`normalize` 把地址钉死),每次都流式、`store: false`,去掉套餐路由不收的参数,
+函数工具放进一个命名空间。套餐用量到上限时客户端自己停 5 分钟再试,不算失败;连接测试直接报 429。
+
+- **服务表**:`CHATGPT` 用 OpenAI 的模型、思考换算和上下文长度,不在 `VENDORS` 里(地址和 OpenAI 一样,`vendorOf` 按地址认会认成 OpenAI);
+  端点按模块认(`connectionVendor` 读 `/api/status` 的 `module`,`endpointVendor` 读端点的 `kind`)。没有价目。标志沿用 OpenAI 的「O」方框。
+- **面板**:页 `llm:chatgpt` 的面板 `chatgpt` 有 `signIn`(返回授权地址,由调用方交给系统浏览器)、`state`、`cancel`(第二个参数是那次的授权地址,结束调用方不再等的那次登录,回调端口随即关闭)、`signOut`(作废并删掉令牌)四个方法,第一个参数是端点名。
+  它不带浏览器产物,声明成内置面板 `coopanion-chatgpt`(`CHATGPT_BUILTIN_PANEL`),由 Coopanion 的设置窗口登记,Cortico 的端点编辑页就画出账号一行。
+- **接入流程**:`connect.ts` 的 `connectChatGPT` 建端点(名字 `chatgpt`;这个名字已被别种端点占了时用 `chatgptName` 挑 `chatgpt-2` 这样的空名,已有的 ChatGPT 端点 `chatgpt-N` 接着用)、登录、端点的模型不在套餐列表里时改成列表第一个、测试、设为当前端点并恢复运行;
+  `signInChatGPT`、`signOutChatGPT`、`chatgptState` 是单项;`signInChatGPT` 的等待被中止时会调 `cancel`。
+- **和上游不同**:`.env` 按 `[ \t]*` 读,空的 `CHATGPT_*=` 行不会读到下一行(Cortico #268);这几行记下写给哪个端点目录(`CHATGPT_ENDPOINT`,目录的绝对路径),
+  在 Cortico 的模型页复制或改名的端点、整个复制或挪走的数据文件夹都读成未登录,第一次读到时就把抄来的几行从文件里删掉(文件改写成 0600),两处不会共用一份轮换的刷新令牌。上游的模型页禁止复制,这里用的是 Cortico 自己的页。
+  删除端点时 Cortico 不会先退出,刷新令牌在 OpenAI 那边不会作废,要先在「开始」页或编辑页点退出。
 
 在 Coopanion 里它随应用注册;单独使用时按 Cortico 的扩展方式安装(`cortico.kind = provider`,`api = 5`)。

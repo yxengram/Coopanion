@@ -25,3 +25,5 @@ const textTile = (label: string, size: number) =>
   `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="1.5" y="1.5" width="21" height="21" rx="5" fill="none" stroke="currentColor" stroke-width="1.5"/>`
   + `<text x="12" y="${12 + size * 0.35}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${size}" font-weight="600" fill="currentColor">${label}</text></svg>`;
 for (const [id, label, size] of [['openai', 'O', 13], ['anthropic', 'A', 13], ['gemini', 'G', 13], ['xai', 'xAI', 8.5]] as const) VENDOR_ICONS[id] = textTile(label, size);
+// a ChatGPT plan is OpenAI's, signed in: the same tile
+VENDOR_ICONS.chatgpt = VENDOR_ICONS.openai!;

@@ -30,15 +30,19 @@ const GROUP = 'world:desktop-pet';
 const SOUND_GROUP = 'world:desktop-pet:sound';
 const DECIDER_GROUP = 'world:desktop-pet:decider';
 const PET_PAGE = 'world:desktop-pet';
-const panelPath = (method: string) => `/api/console/providers/${encodeURIComponent(PET_PAGE)}/panels/pet/${method}`;
+const panelPath = (method: string) => `/api/webui/providers/${encodeURIComponent(PET_PAGE)}/panels/pet/${method}`;
 /** The World's default decision model (DECIDER_DEFAULT_MODEL). */
 const DEFAULT_DECIDER = 'perplexity/pplx-decider-v1.1-27b';
 const K = 'worlds.desktop-pet';
+/** The range of the bubble and text sizes, as BUBBLE_SIZE_MIN and BUBBLE_SIZE_MAX in the World's config.ts; 1 is the bubbles as pet.css draws them. */
+const BUBBLE_SIZE_MIN = .8, BUBBLE_SIZE_MAX = 1.6;
 const KEYS = {
   user: `${K}.user`,
   roam: `${K}.roam`,
   theme: `${K}.theme`,
   scale: `${K}.window.scale`,
+  bubbleSize: `${K}.window.bubbleSize`,
+  fontSize: `${K}.window.fontSize`,
   lockFps: `${K}.window.lockFrameRate`,
   hideFullscreen: `${K}.window.hideWhenFullscreen`,
   sound: `${K}.sound`,
@@ -94,6 +98,10 @@ export const TEXT = {
     themeDark: '夜间(浅色身体)',
     themeLight: '白天(深色身体)',
     scale: '大小',
+    bubbleSize: '气泡尺寸',
+    bubbleSizeHint: '调整 Coo 和你的气泡的宽度、留白、圆角和尾巴,文字大小不变。',
+    fontSize: '字体尺寸',
+    fontSizeHint: '调整气泡里文字的大小,气泡宽度不变。',
     lockFps: '锁定 60 帧',
     lockFpsHint: '关着时 Coo 站着、坐着、趴着、睡着每秒画 30 帧,走动、被拎着、跳起时 60 帧,占用的 CPU 更少;打开后一直 60 帧。',
     hideFullscreen: '全屏时自动隐藏',
@@ -179,6 +187,10 @@ export const TEXT = {
     themeDark: 'Night (light body)',
     themeLight: 'Day (dark body)',
     scale: 'Size',
+    bubbleSize: 'Bubble size',
+    bubbleSizeHint: "Changes the width, padding, corners and tail of Coo's bubbles and yours; the text keeps its size.",
+    fontSize: 'Text size',
+    fontSizeHint: 'Changes the size of the text in the bubbles; the bubbles keep their width.',
     lockFps: 'Lock to 60 fps',
     lockFpsHint: 'Off: Coo draws 30 frames a second while standing, sitting, lying or asleep and 60 while walking, carried or jumping, which uses less CPU. On: always 60.',
     hideFullscreen: 'Hide during full screen',
@@ -306,6 +318,20 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const scaleText = ui.h('span', 'companion-rangeval');
   const scaleBox = ui.h('div', 'companion-rangebox');
   scaleBox.append(scale, scaleText);
+  // 气泡尺寸 and 字体尺寸: 80%–160% in steps of 5%, saved once a drag or a key press ends (the World's BUBBLE_SIZE_MIN/MAX)
+  const sizeSlider = (key: string) => {
+    const input = ui.h('input', 'companion-range');
+    input.type = 'range';
+    input.min = String(BUBBLE_SIZE_MIN); input.max = String(BUBBLE_SIZE_MAX); input.step = '0.05';
+    const text = ui.h('span', 'companion-rangeval');
+    const box = ui.h('div', 'companion-rangebox');
+    box.append(input, text);
+    const show = () => { text.textContent = `${Math.round(Number(input.value) * 100)}%`; };
+    input.addEventListener('input', show);
+    input.addEventListener('change', () => { show(); void save(key, Number(input.value)); });
+    return { key, input, box, show };
+  };
+  const bubbleSize = sizeSlider(KEYS.bubbleSize), fontSize = sizeSlider(KEYS.fontSize);
   const lockFps = ui.checkbox(S.lockFps, { onChange: (on) => void save(KEYS.lockFps, on) });
   const hideFullscreen = ui.checkbox(S.hideFullscreen, { onChange: (on) => void save(KEYS.hideFullscreen, on) });
   const remember = ui.checkbox(S.remember, { onChange: (on) => void save(KEYS.remember, on) });
@@ -359,6 +385,8 @@ async function mount(ctx: FeatureContext): Promise<void> {
     row(S.roam, roam.el),
     row(S.theme, theme.el),
     row(S.scale, scaleBox),
+    row(S.bubbleSize, bubbleSize.box, S.bubbleSizeHint),
+    row(S.fontSize, fontSize.box, S.fontSizeHint),
     row('', lockFps.el, S.lockFpsHint),
     hideFullscreenRow,
     row('', remember.el, S.rememberHint),
@@ -595,6 +623,9 @@ async function mount(ctx: FeatureContext): Promise<void> {
     if (typeof values[KEYS.roam] === 'string') roam.setValue(values[KEYS.roam] as string);
     if (typeof values[KEYS.theme] === 'string') theme.setValue(values[KEYS.theme] as string);
     if (typeof values[KEYS.scale] === 'number' && active !== scale) { scale.value = String(values[KEYS.scale]); showScale(); }
+    for (const sz of [bubbleSize, fontSize]) {
+      if (active !== sz.input) { sz.input.value = String(typeof values[sz.key] === 'number' ? values[sz.key] : 1); sz.show(); }
+    }
     if (typeof soundValues[KEYS.sound] === 'boolean') sound.setChecked(soundValues[KEYS.sound] as boolean);
     for (const [kind, c] of kinds) {
       const v = soundValues[`${K}.sounds.${kind}`];

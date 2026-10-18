@@ -1,4 +1,4 @@
-# Packages build/app (assembled by scripts/pack.ts) into a per-user Windows installer, a
+# Packages build/app (assembled by scripts/pack.ts) into a per-user Windows installer (or the portable zip), a
 # macOS disk image and zip for the architecture of the Mac it is built on, or a Linux AppImage and deb.
 # pack.ts runs electron-builder with --projectDir build/app (scripts/pack-builder.ts), so the app directory is the
 # project directory and every relative path here is relative to build/app, not to the repository.
@@ -29,6 +29,9 @@ win:
     - target: nsis
       arch: [x64]
   icon: app/icons/icon.ico
+  # the portable zip (COOPANION_CHANNEL=portable: scripts/pack.ts asks for the zip target only); the installer is named
+  # under nsis. A zip target writes no latest.yml, so the portable build stays out of the automatic updates.
+  artifactName: Coopanion-${version}-win-${arch}-portable.${ext}
 # Asks where to install. Every file the app writes stays under that directory (data in data\),
 # so the start-menu entry, which Windows keeps under AppData, is not created.
 nsis:

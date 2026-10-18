@@ -10,8 +10,15 @@
  * - `--pet-host --pet-url=… --parent-pid=…`: the desktop pet's transparent window, started by
  *   the desktop-pet World through `CORTICO_DESKTOP_PET_HOST`. It uses its own profile directory.
  *
- * Every file the app writes lives under one data directory: on Windows `<install dir>\data` when
- * packaged (the uninstaller leaves it, and nothing goes to AppData); on macOS
+ * A build is for one channel, `coopanion.channel` in the app's package.json (scripts/pack.ts, `channel.cjs`): `github`
+ * (the default) is the installers, which on Windows and as an AppImage update themselves from the GitHub releases;
+ * `portable` is the Windows zip, which runs from wherever it is unpacked, writes nothing outside its folder but its
+ * login item, and is updated by hand.
+ *
+ * Every file the app writes lives under one data directory: on Windows `data\` beside the program when
+ * packaged, or for the installed build the data an earlier start used when the program has none beside it
+ * (`data-dir.cjs`, whose record in `%LOCALAPPDATA%\Coopanion` is the one file outside it); the uninstaller leaves
+ * it. A portable folder copied whole is a second pet with its own data. On macOS
  * `~/Library/Application Support/Coopanion`, since the .app is not a place to write; on Linux
  * `~/.config/Coopanion` (an AppImage is mounted read-only, a deb installs under /opt); from
  * source `build/data`; or `CORTICO_COMPANION_DATA`. It holds `home/` (deployment, endpoint,
@@ -32,6 +39,8 @@
 const { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, powerMonitor, session, shell } = require('electron');
 const { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
 const { delimiter, dirname, join } = require('node:path');
+const { askDataLocation, bindDataLocation, locateData, readRecord, samePath, strandedAction, writeRecord } = require('./data-dir.cjs');
+const { buildChannel, channelRules, loginItemOn } = require('./channel.cjs');
 
 const MAC = process.platform === 'darwin';
 const LINUX = process.platform === 'linux';
@@ -44,15 +53,75 @@ if (LINUX) app.commandLine.appendSwitch('ozone-platform', 'x11');
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 const APP_ROOT = app.getAppPath();
 const ICONS = join(__dirname, 'icons');
+const PET_HOST = process.argv.includes('--pet-host');
+const PROGRAM_DIR = dirname(process.execPath);
+/** The build's channel (see the module header); from source there is none, which reads as `github`. */
+const CHANNEL = buildChannel(JSON.parse(readFileSync(join(APP_ROOT, 'package.json'), 'utf8')));
+const RULES = channelRules({
+  channel: CHANNEL, platform: process.platform, isPackaged: app.isPackaged, dataOverride: !!process.env.CORTICO_COMPANION_DATA,
+  canUpdate: require('./updater.cjs').canUpdate(), programDir: PROGRAM_DIR,
+});
+/** The Windows installed build, whose data directory data-dir.cjs finds from the program's directory. */
+const INSTALLED = RULES.installed;
+const BESIDE = join(PROGRAM_DIR, 'data');
+const DATA_RECORD = process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Coopanion', 'data-location.json') : null;
+const located = INSTALLED && DATA_RECORD ? locateData({ programDir: PROGRAM_DIR, record: readRecord(DATA_RECORD) }) : null;
 const DATA = process.env.CORTICO_COMPANION_DATA
   || (!app.isPackaged ? join(APP_ROOT, 'build', 'data')
-    : MAC || LINUX ? join(app.getPath('appData'), 'Coopanion') : join(dirname(process.execPath), 'data'));
+    : MAC || LINUX ? join(app.getPath('appData'), 'Coopanion') : located?.use ?? BESIDE);
+
+/**
+ * An install made through the installer's pages sits in %LOCALAPPDATA%\Programs\Coopanion: the per-user
+ * install mode (installer/nsis.nsh's customInstallMode) sets that after its customInit ran. From 0.1.14 to 0.1.16 an update, which installs
+ * silently and so keeps customInit's choice, moved the program to %USERPROFILE%\Coopanion and left data\ behind
+ * (#84). See restoreStrandedData.
+ */
+const STRANDED_DIR = process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Programs', 'Coopanion') : null;
+const STRANDED_DATA = STRANDED_DIR && join(STRANDED_DIR, 'data');
+
+if (located?.ask && !PET_HOST) {
+  // No data beside the program, and the record names data an earlier start used: ask which to use, bind the
+  // record to this program directory with the answer, and start again on it (data-dir.cjs).
+  // Chromium's own files for these dialogs go to the temp directory
+  app.setPath('userData', join(app.getPath('temp'), 'Coopanion'));
+  app.whenReady().then(() => {
+    const { record } = located;
+    const { configuredLanguage, systemLanguage, textOf } = require('./i18n/index.cjs');
+    const language = configuredLanguage(join(record.data, 'home')) ?? systemLanguage(app);
+    const data = askDataLocation(located, {
+      box: (options) => dialog.showMessageBoxSync(options),
+      pickFolder: (defaultPath) => dialog.showOpenDialogSync({ title: textOf(language).dataChooseTitle, defaultPath, properties: ['openDirectory'] })?.[0],
+      text: textOf(language),
+      when: new Date(record.startedAt).toLocaleString(language),
+      programDir: PROGRAM_DIR,
+      beside: BESIDE,
+    });
+    if (data) {
+      try {
+        bindDataLocation(data, { recordFile: DATA_RECORD, record, programDir: PROGRAM_DIR, beside: BESIDE, strandedData: STRANDED_DATA });
+      } catch {
+        // quit rather than stay running with no window; a new one beside a program in a directory that needs
+        // administrator rights (Program Files) says why, as dataNotWritable below does
+        if (samePath(data, BESIDE)) {
+          const suggested = join(process.env.LOCALAPPDATA ?? app.getPath('home'), 'Programs', 'Coopanion');
+          dialog.showErrorBox('Coopanion', textOf(language).dataNotWritable(data, suggested));
+        }
+        app.exit(1);
+        return;
+      }
+      app.relaunch();
+    }
+    app.exit(0);
+  });
+  return;
+}
 
 /**
  * data\ beside the program cannot be written when the program sits in a directory that needs administrator
  * rights, such as Program Files. The app then says why and quits before anything is created under DATA; the
  * probe goes into DATA, or into the install directory while DATA does not exist yet (an empty data\ made here
- * would be taken for data in use by restoreStrandedData).
+ * would be taken for data in use by restoreStrandedData). The portable build checks the same (a zip unpacked into
+ * Program Files, or onto a read-only drive) and says to unpack it somewhere else.
  */
 function dataWritable() {
   const probe = join(existsSync(DATA) ? DATA : dirname(DATA), `.write-test-${process.pid}`);
@@ -64,40 +133,34 @@ function dataWritable() {
     return false;
   }
 }
-if (app.isPackaged && process.platform === 'win32' && !process.env.CORTICO_COMPANION_DATA && !dataWritable()) {
+if ((INSTALLED || RULES.besideOnly) && !dataWritable()) {
   // Chromium's own files for this one dialog go to the temp directory
   app.setPath('userData', join(app.getPath('temp'), 'Coopanion'));
   app.whenReady().then(() => {
     const suggested = join(process.env.LOCALAPPDATA ?? app.getPath('home'), 'Programs', 'Coopanion');
     const { configuredLanguage, systemLanguage, textOf } = require('./i18n/index.cjs');
     const t = textOf(configuredLanguage(join(DATA, 'home')) ?? systemLanguage(app));
-    dialog.showErrorBox('Coopanion', t.dataNotWritable(DATA, suggested));
+    dialog.showErrorBox('Coopanion', INSTALLED ? t.dataNotWritable(DATA, suggested) : t.portableNotWritable(DATA));
     app.exit(1);
   });
   return;
 }
 
-/**
- * An install made through the installer's pages sits in %LOCALAPPDATA%\Programs\Coopanion: the per-user
- * install mode (installer/nsis.nsh's customInstallMode) sets that after its customInit ran. From 0.1.14 to 0.1.16 an update, which installs
- * silently and so keeps customInit's choice, moved the program to %USERPROFILE%\Coopanion and left data\ behind
- * (#84). The first start in the new place takes that data\ back. When the app has run here since, this data\ may
- * be the one in use, so a dialog asks first (askRestoreStranded); taking the old one back then happens on the
- * next start, before anything here is open, and keeps this one beside it as data-replaced-<time>.
+/*
+ * The data an update left in STRANDED_DIR (#84): the first start in the new place takes that data\ back. When
+ * the app has run here since, this data\ may be the one in use, so a dialog asks first (askRestoreStranded);
+ * taking the old one back then happens on the next start, before anything here is open, and keeps this one
+ * beside it as data-replaced-<time>. Only data beside the program is handled so: data the record pointed
+ * elsewhere was chosen, and a new one started from the data-location dialog carries the answer `keep`.
  */
-const STRANDED_DIR = process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Programs', 'Coopanion') : null;
-const STRANDED_DATA = STRANDED_DIR && join(STRANDED_DIR, 'data');
 /** The answer to that dialog: `restore` or `keep`. */
 const STRANDED_CHOICE = join(DATA, 'stranded-data-choice');
 
 /** Returns true when the dialog has to ask. */
 function restoreStrandedData() {
-  if (!STRANDED_DATA || STRANDED_DATA.toLowerCase() === DATA.toLowerCase()) return false;
-  // an install still living there is its own install, not a leftover
-  if (!existsSync(join(STRANDED_DATA, 'home')) || existsSync(join(STRANDED_DIR, 'Coopanion.exe'))) return false;
   const choice = existsSync(STRANDED_CHOICE) ? readFileSync(STRANDED_CHOICE, 'utf8') : '';
-  if (choice === 'keep') return false;
-  if (choice !== 'restore' && existsSync(join(DATA, 'home'))) return true;
+  const action = strandedAction({ data: DATA, strandedDir: STRANDED_DIR, choice });
+  if (action !== 'restore') return action === 'ask';
   rmSync(STRANDED_CHOICE, { force: true });
   const aside = `${DATA}-replaced-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   let line;
@@ -114,8 +177,7 @@ function restoreStrandedData() {
   appendFileSync(join(DATA, 'logs', 'data-restore.log'), `${new Date().toISOString()} ${line}\n`);
   return false;
 }
-const askStranded = app.isPackaged && process.platform === 'win32' && !process.env.CORTICO_COMPANION_DATA
-  && !process.argv.includes('--pet-host') && restoreStrandedData();
+const askStranded = INSTALLED && !PET_HOST && DATA === BESIDE && restoreStrandedData();
 
 // before anything asks Electron for a path: the single-instance lock and the profile live in userData
 app.setPath('userData', DATA);
@@ -124,7 +186,7 @@ process.env.TEMP = process.env.TMP = process.env.TMPDIR = join(DATA, 'tmp');
 mkdirSync(process.env.TEMP, { recursive: true });
 
 /* ---------- pet window mode ---------- */
-if (process.argv.includes('--pet-host')) {
+if (PET_HOST) {
   const arg = (name) => { const hit = process.argv.find((a) => a.startsWith(`--${name}=`)); return hit ? hit.slice(name.length + 3) : ''; };
   app.setPath('userData', join(app.getPath('userData'), 'pet-window'));
   if (MAC) app.dock?.hide();
@@ -138,8 +200,13 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
   return;
 }
+if (located) {
+  try {
+    writeRecord(DATA_RECORD, { data: DATA, program: PROGRAM_DIR, startedAt: new Date().toISOString() });
+  } catch { /* the app runs without the record; a later move of the program then finds no data to offer */ }
+}
 
-const { CoreHost } = require('./core-host.cjs');
+const { CoreHost, isSignInPage } = require('./core-host.cjs');
 const { systemLanguageEnvironment } = require('./core-env.cjs');
 const { configuredLanguage, systemLanguage, textOf } = require('./i18n/index.cjs');
 const { trayTemplate } = require('./tray-menu.cjs');
@@ -171,6 +238,8 @@ const core = new CoreHost({
     pnpm_config_store_dir: join(DATA, 'pnpm', 'store'),
     pnpm_config_cache_dir: join(DATA, 'pnpm', 'cache'),
     pnpm_config_state_dir: join(DATA, 'pnpm', 'state'),
+    // the portable build installs extensions in pnpm's hoisted layout, which survives copying the folder (channel.cjs)
+    ...RULES.coreEnv,
     // extension installs call `corepack pnpm`; the shim (corepack.cmd, or corepack on macOS) runs the bundled pnpm on this runtime
     PATH: `${shimDir}${delimiter}${process.env.PATH ?? ''}`,
     CORTICO_NODE_EXE: process.execPath,
@@ -188,6 +257,8 @@ let quitting = false;
 let updater = null;
 /** The updater's last step, told again to a Core that starts after it (`core/companion.ts` says it in the bubble). */
 let updateStep = null;
+/** What the settings window's version line shows of the updater (`settings-preload.cjs`, console/features/release.ts). */
+const updateLine = () => updateStep && { phase: updateStep.phase, version: updateStep.version };
 
 const consoleUrl = (path = '') => (core.port ? `http://127.0.0.1:${core.port}/${path}` : null);
 
@@ -235,9 +306,9 @@ function openSettings(path = '') {
   settings.loadURL(url ?? loadingPage(T().starting));
 }
 
-/** Calls a panel method of a World page through the console API. */
+/** Calls a panel method of a World page through the WebUI API. */
 async function panel(pageId, panelId, method) {
-  const url = consoleUrl(`api/console/providers/${encodeURIComponent(pageId)}/panels/${panelId}/${method}`);
+  const url = consoleUrl(`api/webui/providers/${encodeURIComponent(pageId)}/panels/${panelId}/${method}`);
   if (!url) return null;
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ args: [] }) });
   return res.ok ? res.json() : null;
@@ -256,13 +327,16 @@ async function ensurePet() {
 
 /**
  * Start at login. Electron's login items cover Windows and macOS; on Linux it is an XDG autostart entry
- * (~/.config/autostart/coopanion.desktop) that runs the AppImage, or the installed executable.
+ * (~/.config/autostart/coopanion.desktop) that runs the AppImage, or the installed executable. The portable build
+ * names its Windows value after its folder, so each copy has its own (channel.cjs).
  */
 const AUTOSTART = join(app.getPath('home'), '.config', 'autostart', 'coopanion.desktop');
+const LOGIN_ARGS = ['--background'];
 const loginItem = {
-  get: () => (LINUX ? existsSync(AUTOSTART) : app.getLoginItemSettings().openAtLogin),
+  // Windows reads openAtLogin back as true only with the arguments it was set with
+  get: () => (LINUX ? existsSync(AUTOSTART) : loginItemOn(app.getLoginItemSettings(RULES.loginName ? undefined : { args: LOGIN_ARGS }), RULES.loginName)),
   set(on) {
-    if (!LINUX) { app.setLoginItemSettings({ openAtLogin: on, args: ['--background'] }); return; }
+    if (!LINUX) { app.setLoginItemSettings({ openAtLogin: on, args: LOGIN_ARGS, ...RULES.loginName ? { name: RULES.loginName } : {} }); return; }
     if (!on) { rmSync(AUTOSTART, { force: true }); return; }
     const exe = process.env.APPIMAGE || process.execPath;
     mkdirSync(dirname(AUTOSTART), { recursive: true });
@@ -315,8 +389,12 @@ core.on('language', (next) => {
   else settings.webContents.reload();
 });
 ipcMain.on('settings:language', (e) => { e.returnValue = language; });
+// whether this build updates itself (then the version line shows the updater's steps), and its last step
+ipcMain.on('settings:update', (e) => { e.returnValue = { auto: RULES.selfUpdate, step: updateLine() }; });
 core.on('update-install', () => updater?.installNow());
 core.on('releases', () => void shell.openExternal(RELEASES_URL));
+// the ChatGPT sign-in page the pet's bubble sends to the system browser; core-host.cjs hands on no other address
+core.on('browse', (url) => { if (isSignInPage(url)) void shell.openExternal(url); });
 core.on('state', (state, detail) => {
   if (!detail) return;
   if (Notification.isSupported()) new Notification({ title: 'Coopanion', body: detail, icon: join(ICONS, 'icon.png') }).show();
@@ -381,8 +459,13 @@ app.whenReady().then(() => {
   startPresence({ powerMonitor, send: (msg) => core.send(msg), onReady: (fn) => core.on('ready', fn) });
   noteAutostart();
   void core.start();
-  updater = startUpdater({
+  // the portable build is updated by hand: its version line links to a newer release instead
+  if (RULES.selfUpdate) updater = startUpdater({
     logDir: join(userData, 'logs'),
-    tell: (step) => { updateStep = { type: 'companion:update', ...step }; core.send(updateStep); },
+    tell: (step) => {
+      updateStep = { type: 'companion:update', ...step };
+      core.send(updateStep);
+      settings?.webContents.send('settings:update', updateLine());
+    },
   });
 });

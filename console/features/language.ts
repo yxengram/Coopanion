@@ -3,7 +3,7 @@
  * group (core/language.ts, core/companion.ts). An old config has none, which reads as Chinese.
  *
  * A change is written through `/api/config`; the Core tells the Electron main process, which sets
- * the console's stored language (`cortico.console.language`, app/settings-preload.cjs) and reloads
+ * the console's stored language (`cortico.webui.language`, app/settings-preload.cjs) and reloads
  * this window, the tray and the pet. For a plain browser the page also saves the console language
  * itself and reloads, since nothing else would. Cortico's own Settings → Language buttons only save
  * the browser's preference, which the preload overwrites on the next load; `routeLanguageButtons`

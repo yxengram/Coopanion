@@ -165,6 +165,32 @@ describe('Coo Pet Provider', () => {
     }
   });
 
+  it('sends DeepSeek a placeholder reasoning before a tool call with none recorded, and OpenRouter none (syntheticReasoning)', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const reply = { id: 'r', object: 'response', model: 'm', status: 'completed', created_at: 1, output: [], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } };
+    vi.stubGlobal('fetch', async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+      return new Response(JSON.stringify(reply), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    const context = [message('user', '几点了'), functionCall('c1', 'clock', '{}'), functionResult('c1', '12:00')];
+    const types = async (id: string) => {
+      const v = VENDORS.find((x) => x.id === id)!;
+      const instance = COO.create(id, entry({ baseUrl: v.baseUrl, spec: { model: v.model, thinking: true } }), host() as never);
+      await instance.client.respond({ model: v.model, input: context.map((r) => r.item) } as unknown as Request, { context });
+      return (bodies.at(-1)!.input as Array<{ type: string }>).map((i) => i.type);
+    };
+    try {
+      expect(VENDORS.find((v) => v.id === 'deepseek')!.syntheticReasoning).toBe(true);
+      expect(await types('deepseek')).toEqual(['message', 'reasoning', 'function_call', 'function_call_output']);
+      expect(await types('openrouter')).toEqual(['message', 'function_call', 'function_call_output']);
+      // a service the table says nothing for keeps Cortico's default: the placeholder
+      expect(VENDORS.find((v) => v.id === 'qwen')!.syntheticReasoning).toBeUndefined();
+      expect(await types('qwen')).toEqual(['message', 'reasoning', 'function_call', 'function_call_output']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('sends Gemini to generateContent with its key header and lists its models from /models', async () => {
     const seen: Array<{ url: string; key: string | undefined; body: Record<string, unknown> | null }> = [];
     vi.stubGlobal('fetch', async (url: string, init: { body?: string; headers?: Record<string, string> }) => {

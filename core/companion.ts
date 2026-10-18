@@ -1,6 +1,7 @@
 /**
- * The app's Core process: Cormini as the Persona, the terminal, desktop-pet, cua and coopanion Worlds, Coo Pet
- * Provider (DeepSeek and the other model services Coo offers) next to Cortico's built-in providers,
+ * The app's Core process: Cormini as the Persona, the console, desktop-pet, cua and coopanion Worlds, Coo Pet
+ * Provider (DeepSeek and the other model services Coo offers) and its `chatgpt` module (a ChatGPT plan, signed in
+ * instead of a key; testing) next to Cortico's built-in providers,
  * and Worlds or providers installed from npm through the console's extension page.
  *
  * The two bundled Worlds are wired to each other and to the app: the header of the pet's right-click
@@ -33,9 +34,12 @@
  * The parent (Electron main) gets `{ type: 'companion:ready', port, dataDir, keyMissing, language }` once the
  * console listens, `{ type: 'companion:language', language }` after the app language changes,
  * `{ type: 'companion:open', path }` to show the settings window at a console
- * route, `{ type: 'companion:hide' }` to put it away (the introduction runs again on the desktop)
+ * route, `{ type: 'companion:browse', url }` to open the ChatGPT sign-in page in the system browser (the app opens
+ * only `https://auth.openai.com/` pages), `{ type: 'companion:hide' }` to put it away (the introduction runs again on the desktop)
  * and `{ type: 'companion:quit' }` to quit the whole app; it asks for a clean stop with
- * `{ type: 'companion:shutdown' }`.
+ * `{ type: 'companion:shutdown' }`. A start that cannot go on says why before it exits:
+ * `{ type: 'companion:locked', pid, file }` when another process holds the data directory, and
+ * `{ type: 'companion:ports-busy', from, to }` when no console port Cortico tried could be listened on.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -58,25 +62,27 @@ import { deploymentRoot, providersRoot, repoRoot } from 'cortico/paths.ts';
 import { providerModules, registerProviderModules } from 'cortico/providers/registry.ts';
 import { InstanceLockedError } from 'cortico/core/instance-lock.ts';
 import { withWorlds, type WorldDefinition, type WorldSection } from 'cortico/world.ts';
-import { TERMINAL } from 'cortico/worlds/terminal/definition.ts';
+import { CONSOLE } from 'cortico/worlds/console/definition.ts';
 import { desktopPetDefinition, figureOf, figurePacks, type DesktopPetWorld } from 'cortico-world-desktop-pet';
 import { cuaDefinition, cuaText } from 'cortico-world-cua';
-import COO, { vendorOf } from 'cortico-provider-coo';
-import { bundledConsoleAssets } from './bundled-panels.ts';
-import { consoleOrigins } from './console-origins.ts';
+import COO, { CHATGPT_PROVIDER, endpointVendor, signedIn, usageLimited } from 'cortico-provider-coo';
+import { bundledWebUiAssets } from './bundled-panels.ts';
+import { consoleOrigins, portsBusy } from './console-origins.ts';
 import { followPetLook } from './console-theme.ts';
 import { askForKey, guideDone, markDone, runGuide, type GuideDeps } from './guide.ts';
 import { noticeDefinition, type NoticeWorld } from './notice.ts';
 import { appLanguage, newInstallLanguage, replyLanguage } from './language.ts';
-import { CONSOLE_PORT, DEFAULT_USERS, DEPLOYMENT, DISPLAY_NAME, languageSwitchPatch, SEED_DIR, seed, type LanguagePetValues } from './seed.ts';
+import { CONSOLE_PORT, DEFAULT_USERS, DEPLOYMENT, DISPLAY_NAME, languageSwitchPatch, prefixFromBeforeConsole, SEED_DIR, seed, type LanguagePetValues } from './seed.ts';
 import { openRouterKey } from './decider-key.ts';
 import { presenceFrom, type PresenceReport } from './presence.ts';
 import { crashFields, describeEndpoint, publicExtensionName, reportedLook, Telemetry, type Counter } from './telemetry.ts';
 
-/** The active endpoint's key is set in the process environment or the endpoint's `.env`. */
-function hasKey(config: CoreConfig): boolean {
+/** The active endpoint's key is set in the process environment or the endpoint's `.env`; a ChatGPT plan's endpoint is signed in. */
+export function hasKey(config: CoreConfig): boolean {
   const entry = config.providers[config.activeProvider];
   if (!entry) return false;
+  // before the secret check: the plan's endpoint has no secret
+  if (entry.kind === CHATGPT_PROVIDER.id) return signedIn(join(providersRoot(), config.activeProvider));
   if (!entry.secret) return true;
   return secretReader(join(providersRoot(), config.activeProvider, '.env'))(entry.secret) !== '';
 }
@@ -249,7 +255,7 @@ function countUse(core: Core<CoreConfig>, config: CoreConfig, telemetry: Telemet
   usageLog.append = (rec: UsageRecord) => {
     // the endpoint the try went to; usage a World reports has no try and goes under the active one
     const endpoint = config.providers[rec.attempt?.origin.instance ?? config.activeProvider];
-    telemetry.usage(describeEndpoint(endpoint, rec.model, vendorOf), {
+    telemetry.usage(describeEndpoint(endpoint, rec.model, () => endpointVendor(endpoint)), {
       promptTokens: rec.promptTokens, completionTokens: rec.completionTokens, cacheHitTokens: rec.cacheHitTokens, attempt: rec.attempt,
     });
     append(rec);
@@ -260,15 +266,27 @@ function countUse(core: Core<CoreConfig>, config: CoreConfig, telemetry: Telemet
 const FAILURES_BEFORE_HINT = 5;
 /** The upstream's reason is cut to this many characters: a gateway's error page is a whole HTML document. */
 const REASON_MAX = 200;
+/**
+ * What Cortico's Responses provider adds to a 400 that names `reasoning_text` while `sendSyntheticReasoning` is off
+ * (src/providers/openai-responses-compat/native.ts): a service the vendor table sends no placeholder reasoning
+ * (`Vendor.syntheticReasoning: false`) wants one after all.
+ */
+export const SYNTHETIC_REASONING_OFF = 'sendSyntheticReasoning is off';
+
+/** Where the person reports what only a change to Coopanion fixes. */
+const ISSUES_URL = 'https://github.com/yxengram/Coopanion/issues';
 
 export const FAILURE_HINT = {
   zh: {
     text: (n: number, status: number, reason: string) => `我连着 ${n} 次没能从模型那里拿到回复。错误${status ? ` ${status}` : ''}:${reason}。请在设置的「开始」页检查模型名和 API Key,那里可以测试连接。`,
+    /** The service wants reasoning sent back before each tool call, which Coopanion has turned off for it. */
+    reasoningReplay: (n: number) => `我连着 ${n} 次没能从模型那里拿到回复:这家服务商要求每次调用工具前都回传思考内容,Coopanion 对它关掉了这一项。请把这件事反馈给开发者:${ISSUES_URL}`,
     open: '打开设置',
     ok: '知道了',
   },
   en: {
     text: (n: number, status: number, reason: string) => `My last ${n} requests to the model failed. Error${status ? ` ${status}` : ''}: ${reason}. Check the model name and API key on the Start page in settings, where you can test the connection.`,
+    reasoningReplay: (n: number) => `My last ${n} requests to the model failed: this service requires the thinking to be sent back before every tool call, and Coopanion has that turned off for it. Please report this to the developers: ${ISSUES_URL}`,
     open: 'Open settings',
     ok: 'OK',
   },
@@ -295,9 +313,11 @@ function failureOf(err: unknown): { status: number; reason: string } {
  * After `FAILURES_BEFORE_HINT` model requests in a row fail, the pet says why in its bubble, once
  * per run of failures, with a button to the settings window's home page, where the model and key
  * are set and tested. Any answered request ends the run; a request cut off by newer input or by
- * shutdown neither counts nor ends it.
+ * shutdown neither counts nor ends it, and neither does one refused for a ChatGPT plan's usage limit (its client
+ * waits the limit out and logs it; only a request that cannot be sent again fails with it). A 400 the vendor table caused by sending no placeholder reasoning
+ * (`SYNTHETIC_REASONING_OFF`) is said as that, with no settings button: nothing the person can set fixes it.
  */
-function hintFailures(core: Core<CoreConfig>, config: CoreConfig, pet: () => DesktopPetWorld | null): void {
+export function hintFailures(core: Core<CoreConfig>, config: CoreConfig, pet: () => DesktopPetWorld | null): void {
   const { llm } = core;
   const respond = llm.respond.bind(llm);
   let failures = 0;
@@ -309,17 +329,20 @@ function hintFailures(core: Core<CoreConfig>, config: CoreConfig, pet: () => Des
       shown = false;
       return answered;
     } catch (err) {
-      if (!options?.signal?.aborted && ++failures >= FAILURES_BEFORE_HINT && !shown) {
+      if (!options?.signal?.aborted && !usageLimited(err) && ++failures >= FAILURES_BEFORE_HINT && !shown) {
         const p = pet();
         if (p?.petState().connected) {
           const S = pick(appLanguage(config.language), FAILURE_HINT);
           const { status, reason } = failureOf(err);
+          // (anywhere along the causes: Cortico's router hands the provider's error on as it is, a wrapper may not)
+          let replay = false;
+          for (let e: unknown = err; e instanceof Error && !replay; e = e.cause) replay = e.message.includes(SYNTHETIC_REASONING_OFF);
           shown = true;
           void p.dialog({
-            text: S.text(failures, status, reason), actions: ['sad'], closable: true,
-            input: { kind: 'buttons', options: [{ label: S.open, primary: true }, { label: S.ok }] },
+            text: replay ? S.reasoningReplay(failures) : S.text(failures, status, reason), actions: ['sad'], closable: true,
+            input: { kind: 'buttons', options: replay ? [{ label: S.ok, primary: true }] : [{ label: S.open, primary: true }, { label: S.ok }] },
           }).answer.then((a) => {
-            if ('index' in a && a.index === 0) process.send?.({ type: 'companion:open', path: '#/home' });
+            if (!replay && 'index' in a && a.index === 0) process.send?.({ type: 'companion:open', path: '#/home' });
             // the page went away before it showed: the next failure tries again
             if ('unavailable' in a) shown = false;
           });
@@ -338,16 +361,19 @@ export const LENT_TEXT = {
 
 export const UPDATE_TEXT = {
   zh: {
-    downloading: (v: string) => `发现新版本 ${v},正在后台下载,下好了我再告诉你。下载卡住的话,也可以去 GitHub 手动下载安装。`,
+    downloading: (v: string) => `发现新版本 ${v},正在后台下载,下好了我再告诉你。`,
     ready: (v: string) => `新版本 ${v} 下载好了。现在重启更新吗?不急的话,下次退出应用时会自动装上。`,
     failed: (v: string, why: string) => `新版本 ${v} 没能下载下来:${why}。可以去 GitHub 手动下载安装。`,
     ok: '好', github: '去 GitHub 下载', install: '现在重启更新', later: '下次再说', gotIt: '知道了',
+    /** While downloading: the second button, and what it says while pointed at or focused. */
+    trouble: '遇到问题?', githubByHand: '去 GitHub 手动下载',
   },
   en: {
-    downloading: (v: string) => `Version ${v} is out and downloading in the background; I'll tell you when it's ready. If the download stalls, you can get it from GitHub yourself.`,
+    downloading: (v: string) => `Version ${v} is out and downloading in the background; I'll tell you when it's ready.`,
     ready: (v: string) => `Version ${v} is downloaded. Restart to update now? Otherwise it installs the next time you quit the app.`,
     failed: (v: string, why: string) => `Version ${v} did not download: ${why}. You can get it from GitHub yourself.`,
     ok: 'OK', github: 'Download from GitHub', install: 'Restart and update', later: 'Later', gotIt: 'OK',
+    trouble: 'Having trouble?', githubByHand: 'Download from GitHub',
   },
 };
 
@@ -367,7 +393,9 @@ function sayUpdates(config: CoreConfig, pet: () => DesktopPetWorld | null, guidi
     const step = pending;
     pending = null;
     const s = S();
-    const [text, options] = step.phase === 'downloading' ? [s.downloading(step.version), [{ label: s.ok, primary: true }, { label: s.github }]]
+    // while it downloads the way to GitHub stays out of sight until asked for: a download started by hand runs the
+    // installer as a new install, where it asks for a directory (the update itself goes where the program is)
+    const [text, options] = step.phase === 'downloading' ? [s.downloading(step.version), [{ label: s.ok, primary: true }, { label: s.trouble, hover: s.githubByHand }]]
       : step.phase === 'ready' ? [s.ready(step.version), [{ label: s.install, primary: true }, { label: s.later }]]
         : [s.failed(step.version, step.reason ?? '?'), [{ label: s.github, primary: true }, { label: s.gotIt }]];
     void p.dialog({ text, actions: [step.phase === 'failed' ? 'sad' : 'happy'], closable: true, input: { kind: 'buttons', options } }).answer.then((a) => {
@@ -410,7 +438,7 @@ let builtinFigures: ReadonlySet<string> | null = null;
 function snapshotOf(config: CoreConfig, workspace: string): Record<string, unknown> {
   const at = (path: string) => getByPath(config as unknown as Record<string, unknown>, path) ?? null;
   const active = config.providers[config.activeProvider];
-  const endpoint = describeEndpoint(active, active?.spec?.model ?? '', vendorOf);
+  const endpoint = describeEndpoint(active, active?.spec?.model ?? '', () => endpointVendor(active));
   builtinFigures ??= new Set(figurePacks([]).packs.map((p) => p.id));
   const figure = at('worlds.desktop-pet.skin.figure');
   const look = reportedLook(typeof figure === 'string' ? figureOf(figure) : null, at('worlds.desktop-pet.skin.scheme'), builtinFigures);
@@ -572,7 +600,7 @@ export async function main(): Promise<void> {
   const cormini = await corminiDefinition();
   const base: BotDefinition<CoreConfig> = {
     ...cormini,
-    declares: [TERMINAL.id, DESKTOP_PET.id, CUA.id, NOTICE.id],
+    declares: [CONSOLE.id, DESKTOP_PET.id, CUA.id, NOTICE.id],
     defaults: () => ({
       ...cormini.defaults(),
       displayName: DISPLAY_NAME,
@@ -586,25 +614,25 @@ export async function main(): Promise<void> {
       const parts = cormini.build(loaded, worlds);
       return {
         ...parts,
-        console: {
-          ...parts.console,
-          configGroups: [...parts.console?.configGroups ?? [], COMPANION_GROUP],
+        webUi: {
+          ...parts.webUi,
+          configGroups: [...parts.webUi?.configGroups ?? [], COMPANION_GROUP],
           configOptions: (kind, lang) => (kind === LANGUAGE_OPTIONS
             ? LANGUAGES.map((value) => ({ value, label: LANGUAGE_NAMES[value] }))
-            : parts.console?.configOptions?.(kind, lang) ?? []),
+            : parts.webUi?.configOptions?.(kind, lang) ?? []),
         },
       };
     },
   };
-  const bundled = [TERMINAL, DESKTOP_PET, CUA, NOTICE] as WorldDefinition<WorldSection>[];
+  const bundled = [CONSOLE, DESKTOP_PET, CUA, NOTICE] as WorldDefinition<WorldSection>[];
 
   // extension providers must be registered before endpoints are resolved
   const extensions = await loadExtensions(repoRoot(), {
     reserved: bundled.map((w) => w.id),
-    reservedProviders: [...providerModules.map((m) => m.id), COO.id],
+    reservedProviders: [...providerModules.map((m) => m.id), COO.id, CHATGPT_PROVIDER.id],
   });
-  registerProviderModules([COO, ...extensions.providers]);
-  extensions.consoleAssets.push(...bundledConsoleAssets([
+  registerProviderModules([COO, CHATGPT_PROVIDER, ...extensions.providers]);
+  extensions.webUiAssets.push(...bundledWebUiAssets([
     { id: DESKTOP_PET.id, packageName: 'cortico-world-desktop-pet' },
     { id: CUA.id, packageName: 'cortico-world-cua' },
   ]));
@@ -655,14 +683,26 @@ export async function main(): Promise<void> {
   const keyMissing = !hasKey(loaded.config);
   if (keyMissing) bot.core.bus.setPaused(true);
   const { port } = await bot.start().catch(async (err: unknown) => {
-    // another process holds the data directory: the app says which, rather than restarting this Core
-    if (err instanceof InstanceLockedError) await new Promise<void>((done) => { if (!process.send?.({ type: 'companion:locked', pid: err.pid, file: err.file }, () => done())) done(); });
+    // the app says why, rather than restarting this Core into the same wall: another process holds the data
+    // directory, or every console port Cortico tried is taken (each message waits until it is delivered)
+    const tell = (msg: object) => new Promise<void>((done) => { if (!process.send?.(msg, () => done())) done(); });
+    if (err instanceof InstanceLockedError) await tell({ type: 'companion:locked', pid: err.pid, file: err.file });
+    const busy = portsBusy(err, loaded.config.web);
+    if (busy) await tell({ type: 'companion:ports-busy', ...busy });
     throw err;
   });
   consolePort = port;
   reloadPrefix = () => bot.core.loop.reloadSystemPrefix().catch((err: unknown) => {
     bot.core.runlog.logger('process').emit('warn', '桌宠换模式后重建前缀失败', { event: 'pet-mode-reload', err });
   });
+  // a session from before Cortico 0.2 still has a section for the terminal World (and names terminal_send): rebuilt once
+  if (prefixFromBeforeConsole(bot.core.session.records)) {
+    void bot.core.loop.reloadSystemPrefix().then(() => {
+      bot.core.runlog.logger('process').info('会话前缀来自 Cortico 0.2 之前(terminal World),已按现在的 World 重建', { event: 'prefix-console-reload' });
+    }, (err: unknown) => {
+      bot.core.runlog.logger('process').emit('warn', '重建 Cortico 0.2 之前的会话前缀失败', { event: 'prefix-console-reload', err });
+    });
+  }
   stats?.start();
   process.send?.({ type: 'companion:ready', port, dataDir: loaded.dataDir, keyMissing, language: language() });
   const guideDeps: GuideDeps = {
@@ -673,6 +713,7 @@ export async function main(): Promise<void> {
     onEnd: (end) => (notice as NoticeWorld | null)?.guideEnded(end),
     track: (type, fields) => stats?.event(type, fields),
     language,
+    browse: (url) => process.send?.({ type: 'companion:browse', url }),
   };
   guide = guideDeps;
   void introduce(guideDeps, guideRun, () => hasKey(loaded.config), keyMissing ? watchTalk(bot.core.bus) : null).catch((err) => {

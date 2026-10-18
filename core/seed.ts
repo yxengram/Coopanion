@@ -1,7 +1,7 @@
 /** First-run files of the app's deployment. Imports nothing from Cortico, so it runs and tests on its own. */
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const DEPLOYMENT = 'companion';
@@ -72,7 +72,8 @@ export function languageSwitchPatch(pet: LanguagePetValues, from: string, to: st
 /**
  * Writes the first-run files that are missing; existing files are left as the operator made them,
  * except a self-description still exactly as an older version seeded it, which becomes the current
- * one, and endpoints of the old `deepseek` module, which now belong to `coo`. A new deployment config
+ * one, endpoints of the old `deepseek` module, which now belong to `coo`, and the names Cortico 0.2
+ * changed (`moveTerminalToConsole`). A new deployment config
  * gets `language` (the system's, `newInstallLanguage` in language.ts) and, when that is not Chinese,
  * `newInstallWorlds`; an existing one keeps its own, or none, which reads as Chinese.
  */
@@ -106,6 +107,84 @@ export function seed(home: string, language = 'zh'): void {
   if (!existsSync(join(deploy, 'avatar.png'))) copyFileSync(join(SEED_DIR, 'avatar.png'), join(deploy, 'avatar.png'));
   upgradeSeededConstitution(workspace);
   moveEndpointsToCoo(join(home, 'providers'));
+  moveTerminalToConsole(deploy);
+}
+
+type Section = Record<string, unknown>;
+
+/** A text file as Cortico reads one (`readTextFile`): UTF-16 LE or UTF-8, a byte order mark dropped. */
+function readText(file: string): string {
+  const bytes = readFileSync(file);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return bytes.subarray(2).toString('utf16le');
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return bytes.subarray(3).toString('utf8');
+  return bytes.toString('utf8');
+}
+
+/**
+ * Cortico 0.2 renamed the `terminal` World to `console` and `logging.console` to `logging.stdout`:
+ * `worlds.terminal`, `logging.console` and the deployment's `worlds/terminal/` prompt override move to
+ * the new names (as upstream Coopanion's `moveTerminalToConsole`), and the moved override's
+ * `{{terminal.…}}` variables become `{{console.…}}`, so its PIN still renders. A key or folder already
+ * at the new name stays as it is, and its old twin is dropped (a key) or left alone (a folder). Runs at
+ * every start; once moved, nothing is left to move.
+ */
+function moveTerminalToConsole(deploy: string): void {
+  const file = join(deploy, 'config.json');
+  let config: { worlds?: Record<string, Section | undefined>; logging?: Section; paths?: { data?: unknown } };
+  try {
+    config = JSON.parse(readText(file)) as typeof config;
+  } catch {
+    // a config.json Cortico cannot read either: it says so when it loads the deployment; the prompt override still moves
+    config = {};
+  }
+  let changed = false;
+  const worlds = config.worlds;
+  if (worlds && typeof worlds === 'object' && 'terminal' in worlds) {
+    const old = worlds.terminal;
+    if (old && typeof old === 'object') worlds.console = { ...old, ...worlds.console };
+    delete worlds.terminal;
+    changed = true;
+  }
+  const logging = config.logging;
+  if (logging && typeof logging === 'object' && 'console' in logging) {
+    if (!('stdout' in logging)) logging.stdout = logging.console;
+    delete logging.console;
+    changed = true;
+  }
+  if (changed) writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+  const data = typeof config.paths?.data === 'string' ? config.paths.data : 'data';
+  moveHiddenTerminal(isAbsolute(data) ? data : resolve(deploy, data));
+  const prompts = join(deploy, 'worlds', 'terminal');
+  const renamed = join(deploy, 'worlds', 'console');
+  if (!existsSync(prompts) || existsSync(renamed)) return;
+  renameSync(prompts, renamed);
+  // the override's own `{{terminal.pin}}` would stay as it is in the prompt: the World now fills `{{console.pin}}`
+  const prompt = join(renamed, 'ENV_PROMPT.md');
+  if (!existsSync(prompt)) return;
+  const text = readFileSync(prompt, 'utf8');
+  const moved = text.replace(/\{\{(\s*)terminal\./g, '{{$1console.');
+  if (moved !== text) writeFileSync(prompt, moved);
+}
+
+/**
+ * The Core's state file keeps which Worlds the agent does not see by World id (`worldVisibility`): a `terminal`
+ * World hidden before Cortico 0.2 stays hidden as `console`, unless that id has its own entry. The data directory
+ * is the deployment config's `paths.data`, resolved against the deployment as Cortico does (`data` unless set).
+ */
+function moveHiddenTerminal(dataDir: string): void {
+  const file = join(dataDir, 'core-state.json');
+  if (!existsSync(file)) return;
+  let state: { worldVisibility?: Record<string, unknown> };
+  try {
+    state = JSON.parse(readText(file)) as typeof state;
+  } catch {
+    return;
+  }
+  const seen = state.worldVisibility;
+  if (!seen || typeof seen !== 'object' || Array.isArray(seen) || !('terminal' in seen)) return;
+  if (!('console' in seen)) seen.console = seen.terminal;
+  delete seen.terminal;
+  writeFileSync(file, JSON.stringify(state, null, 2));
 }
 
 function moveEndpointsToCoo(providers: string): void {
@@ -123,4 +202,25 @@ function upgradeSeededConstitution(workspace: string): void {
   const file = join(workspace, 'CONSTITUTION.md');
   const text = readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
   if (createHash('sha256').update(text).digest('hex') === OLD_CONSTITUTION) copyFileSync(join(SEED_DIR, 'CONSTITUTION.md'), file);
+}
+
+/**
+ * Whether a session restored at start still has the system prefix of a Cortico before 0.2: one with a section for
+ * the `terminal` World (`## terminal`), which is the `console` World now, its tool `console_send` where the prefix
+ * says `terminal_send`. Cortico keeps a restored session's prefix until something reloads it, so the Core reloads
+ * it once when this is true (companion.ts); a prefix with a `## console` section too is not one. `records` are the
+ * session's, oldest first.
+ */
+export function prefixFromBeforeConsole(records: readonly { item?: unknown }[]): boolean {
+  let terminal = false, renamed = false;
+  for (const r of records) {
+    const item = r.item as { type?: unknown; role?: unknown; content?: unknown } | undefined;
+    if (item?.type !== 'message' || (item.role !== 'system' && item.role !== 'developer')) break;
+    const parts = typeof item.content === 'string' ? [item.content] : Array.isArray(item.content) ? item.content.map((c: { text?: unknown }) => c?.text) : [];
+    const text = parts.filter((t) => typeof t === 'string').join('\n');
+    if (/^## terminal\s*$/m.test(text)) terminal = true;
+    if (/^## console\s*$/m.test(text)) renamed = true;
+  }
+  // (a prefix with the console World's section as well is a rebuilt one whose own text has such a heading: no reload)
+  return terminal && !renamed;
 }

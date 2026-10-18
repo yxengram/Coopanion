@@ -51,7 +51,7 @@ async function mounted(patch?: (c: DesktopPetConfigSection) => void, extra?: Par
 
 describe('definition', () => {
   it('passes the extension dry mount', async () => {
-    const report = await dryMountWorld(DESKTOP_PET as never, { scratchDir: mkdtempSync(join(tmpdir(), 'pet-dry-')), packageDir: fileURLToPath(new URL('../', import.meta.url)), hasConsoleClient: true });
+    const report = await dryMountWorld(DESKTOP_PET as never, { scratchDir: mkdtempSync(join(tmpdir(), 'pet-dry-')), packageDir: fileURLToPath(new URL('../', import.meta.url)), hasWebUiClient: true });
     expect(report.failures).toEqual([]);
     expect(report.warnings).toEqual([]);
   });
@@ -721,10 +721,10 @@ describe('with a pet page', () => {
   it('the pet panel runs the app\'s introduction when the app lends one', async () => {
     let runs = 0;
     const { world } = await mounted(undefined, { controls: { guide: () => { runs++; } } });
-    await world.console().invoke!('pet', 'guide', []);
+    await world.webUi().invoke!('pet', 'guide', []);
     expect(runs).toBe(1);
     const bare = await mounted();
-    await expect(bare.world.console().invoke!('pet', 'guide', [])).rejects.toThrow('没有引导');
+    await expect(bare.world.webUi().invoke!('pet', 'guide', [])).rejects.toThrow('没有引导');
   });
 
   it('the menu header carries the bot and its run controls; clicks reach them', async () => {
@@ -797,7 +797,7 @@ function chatSocket(world: DesktopPetWorld) {
     onMessage: (cb: (text: string) => void) => { receive = cb; },
     onClose: () => {},
   };
-  world.console().stream!('chat', socket);
+  world.webUi().stream!('chat', socket);
   return { frames, send: (m: Record<string, unknown>) => receive(JSON.stringify(m)), last: (t: string) => frames.filter((f) => f.t === t).at(-1) };
 }
 
@@ -830,6 +830,31 @@ describe('chat page', () => {
     await expect.poll(() => chat.last('init')).toBeDefined();
     expect((chat.last('init')!.items as Array<Record<string, unknown>>).map((i) => i.kind === 'say' ? i.beats : i.text))
       .toEqual(['帮我看看这个报错', [{ text: '看到了', mood: { id: 'happy', zh: '开心' } }]]);
+  });
+
+  it('the pet page gets what was sent from the chat page, to show beside the pet, and closes it when it is withdrawn', async () => {
+    const { world } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const chat = chatSocket(world);
+
+    chat.send({ t: 'send', id: 1, text: '这张截图里的报错是什么意思', images: [{ mime: 'image/png', base64: Buffer.from('png').toString('base64') }] });
+    await expect.poll(() => chat.last('sent')).toMatchObject({ id: 1 });
+    const cursor = chat.last('sent')!.cursor as number;
+    expect(await page.next((m) => m.t === 'said')).toEqual({ t: 'said', via: 'chat', text: '这张截图里的报错是什么意思', images: 1, cursor });
+
+    chat.send({ t: 'withdraw', cursor });
+    expect(await page.next((m) => m.t === 'said-withdrawn')).toEqual({ t: 'said-withdrawn', cursor });
+  });
+
+  it('the pet page gets the bubble and text sizes, each 1 by default and kept in range', async () => {
+    const { world, cfg } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    expect(page.init).toMatchObject({ bubbleSize: 1, fontSize: 1 });
+    cfg.window.bubbleSize = 1.3;
+    cfg.window.fontSize = 9;
+    expect(await page.next((m) => m.t === 'prefs' && m.bubbleSize === 1.3)).toMatchObject({ fontSize: 1.6 });
   });
 
   it('an interrupt while the page is asked where the pointer is stops pet_walk_to before it sets off', async () => {

@@ -85,18 +85,18 @@ describe('the text people see', () => {
       cfg.permission = permission;
       for (const control of [true, false]) {
         cfg.control = control;
-        const en = w.console('en');
+        const en = w.webUi('en');
         // the template's file path is left out: a checkout may sit under any folder
         expect(JSON.stringify({ ...en, promptDocs: en.promptDocs?.map((d) => ({ ...d, path: '' })) }), `${permission} ${control}`).not.toMatch(CJK);
-        expect(JSON.stringify(w.console('ja').badges)).toBe(JSON.stringify(en.badges));
+        expect(JSON.stringify(w.webUi('ja').badges)).toBe(JSON.stringify(en.badges));
       }
     }
-    const zh = w.console('zh');
+    const zh = w.webUi('zh');
     expect([zh.label, zh.lamps?.[0]?.label, zh.lamps?.[0]?.hint, zh.badges?.map((b) => b.label)]).toEqual(['电脑操作', '操作引擎', '按需启动', ['操作', '询问']]);
     cfg.permission = 'ask-once';
-    expect(w.console('zh').badges?.[1]?.value).toBe('30 分钟一次');
-    expect(w.console('en').badges?.[1]?.value).toBe('Once per 30 min');
-    expect(w.console('en').promptDocs?.[0]?.vars?.map((v) => v.name)).toEqual(zh.promptDocs?.[0]?.vars?.map((v) => v.name));
+    expect(w.webUi('zh').badges?.[1]?.value).toBe('30 分钟一次');
+    expect(w.webUi('en').badges?.[1]?.value).toBe('Once per 30 min');
+    expect(w.webUi('en').promptDocs?.[0]?.vars?.map((v) => v.name)).toEqual(zh.promptDocs?.[0]?.vars?.map((v) => v.name));
   });
 
   it('shows an engine exit in the console language and tells the bot in Chinese', async () => {
@@ -104,8 +104,8 @@ describe('the text people see', () => {
     const inner = w as unknown as { engineError: string | null; engineExit: number | null };
     inner.engineError = '引擎进程退出(退出码 3)';
     inner.engineExit = 3;
-    expect(w.console('en').lamps?.[0]).toEqual({ label: 'Input engine', state: 'error', hint: 'The engine process exited (exit code 3)' });
-    expect(w.console('zh').lamps?.[0]?.hint).toBe('引擎进程退出(退出码 3)');
+    expect(w.webUi('en').lamps?.[0]).toEqual({ label: 'Input engine', state: 'error', hint: 'The engine process exited (exit code 3)' });
+    expect(w.webUi('zh').lamps?.[0]?.hint).toBe('引擎进程退出(退出码 3)');
   });
 
   it('asks the permission question in the app language, live, with the system dialog labelled to match', async () => {

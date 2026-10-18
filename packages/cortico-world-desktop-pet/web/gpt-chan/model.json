@@ -3343,9 +3343,9 @@
        ],
        "box": [
         64.2,
-        120.0,
+        118.0,
         131.2,
-        108.0
+        110.0
        ],
        "src": "outfits/winter/poses/pose_pray.png"
       }
@@ -3535,9 +3535,9 @@
        ],
        "box": [
         64.2,
-        117.0,
+        115.2,
         131.2,
-        113.0
+        114.8
        ],
        "src": "outfits/winter/poses/pose_oops.png"
       }
@@ -3861,7 +3861,7 @@
         60.8,
         78.6,
         59.8,
-        82.4
+        84.4
        ],
        "src": "outfits/winter/poses/pose_salute.png"
       }

@@ -38,7 +38,7 @@ const WEB = new URL('../packages/cortico-world-desktop-pet/web/', import.meta.ur
 const GIRLS = {
   'claude-chan': { make: createClaudeFigure, M: ClaudeM, files: claudeFiles, changed: ['shoe_l', 'shoe_r', 'skirt', 'torso', 'arm_l', 'arm_r', 'capelet'], without: [] },
   'gpt-chan': { make: createGptFigure, M: GptM, files: gptFiles, changed: ['shoe_l', 'shoe_r', 'skirt', 'torso', 'arm_l', 'arm_r'], without: [] },
-  'gemini-chan': { make: createGeminiFigure, M: GeminiM, files: geminiFiles, changed: ['shoe_l', 'shoe_r', 'skirt', 'torso', 'arm_l', 'arm_r'], without: ['idea'] },
+  'gemini-chan': { make: createGeminiFigure, M: GeminiM, files: geminiFiles, changed: ['shoe_l', 'shoe_r', 'skirt', 'torso', 'arm_l', 'arm_r'], without: [] },
   'grok-chan': { make: createGrokFigure, M: GrokM, files: grokFiles, changed: ['shoe_l', 'shoe_r', 'skirt', 'torso', 'arm_l', 'arm_r'], without: [] },
 };
 /** Every part of a pose (its drawing, its patches, its live face's blank and fringe). */

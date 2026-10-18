@@ -61,3 +61,46 @@ export function describeSitLap(name, { dir }) {
     }
   });
 }
+
+/** Skin as the girls' build scripts tell it (scratch/outfits/gemini/build_arms_w.py skin()). */
+const isSkin = c => c[0] > 190 && c[0] - c[2] > 18 && c[0] - c[1] > 4 && c[1] > 120;
+
+/**
+ * Her hands resting in her lap belong to sit_top, which a gesture seated hides (with the standing torso and the
+ * gesture's arms shown instead): left in sit_skirt they stayed in her lap and she showed four hands (Gemini 娘 did, her
+ * navy cuffs cut the hands off the sleeves in the seg map; scratch/art/sit_lap.py lap_hands()). Checked on the textures,
+ * the classic look and each outfit with its own sit: sit_top (placed as at rest, its head-relative box sunk by headDrop)
+ * has her lap hands below the sunk standing torso, and under them sit_skirt is opaque and not a second pair of hands.
+ * `minHand`: the least skin area (rig units²) the lap hands cover. (Not for Claude 娘: her cream dress and book pass
+ * the skin test, so sit_top's "skin" reaches over sleeves the pool does not lie under; her renders show no second pair.)
+ */
+export function describeLapHands(name, { dir, minHand = 15 }) {
+  const model = JSON.parse(readFileSync(new URL('model.json', dir), 'utf8'));
+  const looks = [{ id: 'classic', parts: model.parts, sit: model.poses?.sit }];
+  for (const O of model.outfits || []) if (O.parts) looks.push({ id: O.id, parts: [...model.parts.filter(p => !O.parts.some(q => q.id === p.id)), ...O.parts], sit: O.poses?.sit || model.poses?.sit });
+  const url = p => new URL(p.src || `tex/${p.tex}.png`, dir);
+  describe(`${name}: her lap hands seated`, () => {
+    for (const L of looks) {
+      const by = id => L.parts.find(p => p.id === id) || L.sit?.required?.find(p => p.id === id);
+      const ok = L.sit && ['torso', 'sit_top', 'sit_skirt'].every(id => by(id) && existsSync(url(by(id))));
+      it.skipIf(!ok)(`${L.id}: the lap hands are sit_top's, and sit_skirt under them is plain lap (no second pair of hands when a gesture hides sit_top)`, () => {
+        const [torso, top, lap] = ['torso', 'sit_top', 'sit_skirt'].map(by), drop = L.sit.headDrop;
+        const T = rgba(url(top)), P = rgba(url(lap)), y0 = torso.box[1] + torso.box[3] + drop, st = .25;
+        const tbox = [top.box[0], top.box[1] + drop, top.box[2], top.box[3]];
+        let hand = 0, opaque = 0, skin = 0;
+        for (let y = y0; y < tbox[1] + tbox[3]; y += st) for (let x = tbox[0]; x < tbox[0] + tbox[2]; x += st) {
+          const a = texel(T, tbox, x, y);
+          if (a[3] < 200 || !isSkin(a)) continue;
+          hand++;
+          const b = texel(P, lap.box, x, y);
+          if (b[3] >= 200) { opaque++; if (isSkin(b)) skin++; }
+        }
+        expect(hand * st * st, 'skin of sit_top below the sunk torso (rig units²)').toBeGreaterThan(minHand);
+        // (under them: the sunk standing skirt and the lap carried in from the sides; skin-coloured frill shading 0-9 %;
+        // the hands themselves left in sit_skirt were most of it)
+        expect(opaque / hand, 'sit_skirt opaque under the lap hands').toBeGreaterThan(.95);
+        expect(skin / hand, 'sit_skirt skin under the lap hands').toBeLessThan(.2);
+      });
+    }
+  });
+}

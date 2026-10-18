@@ -2778,7 +2778,7 @@
       101.0,
       131.0,
       58.0,
-      56.4
+      70.8
      ]
     }
    ],
@@ -3749,6 +3749,39 @@
      ],
      "kind": "armL",
      "rest": 154
+    },
+    "idea": {
+     "required": [
+      {
+       "id": "pose_idea",
+       "tex": "winter_pose_idea",
+       "z": 15.8,
+       "parent": "poseIdea",
+       "grid": [
+        4,
+        6
+       ],
+       "box": [
+        83.4,
+        119.6,
+        30.8,
+        45.4
+       ],
+       "src": "outfits/winter/poses/pose_idea.png"
+      }
+     ],
+     "pivots": {
+      "poseIdea": [
+       107.6,
+       143.4
+      ]
+     },
+     "wrist": [
+      91.05,
+      131.68
+     ],
+     "kind": "armL",
+     "rest": 125
     },
     "salute": {
      "required": [
@@ -4936,7 +4969,7 @@
         100.0,
         125.2,
         56.0,
-        67.4
+        76.6
        ],
        "src": "outfits/winter/tex/sit_top.png"
       }

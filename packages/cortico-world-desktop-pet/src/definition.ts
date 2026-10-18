@@ -53,6 +53,11 @@ export interface DesktopPetAssembly {
    * the bot is assembled.
    */
   labelLanguage?(): Language;
+  /**
+   * The origins of the app's console (scheme, host and port), read at each request: the figure frame lets exactly these
+   * frame it, for the pet previews in the console's pages. Without it, a console on any local port may.
+   */
+  consoleOrigins?(): string[];
 }
 
 /** The definition, with what an embedding app lends the World. */
@@ -89,6 +94,7 @@ export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDe
         ...(assembly.presence ? { presence: () => assembly.presence!() } : {}),
         ...(assembly.nextAlarmAt ? { nextAlarmAt: () => assembly.nextAlarmAt!() } : {}),
         ...(assembly.language ? { language: () => assembly.language!() } : {}),
+        ...(assembly.consoleOrigins ? { consoleOrigins: () => assembly.consoleOrigins!() } : {}),
       });
       assembly.onCreate?.(world);
       return world;

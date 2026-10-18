@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { PACK_ALIASES, figureOf, figurePacks, lookOf, lookPatch, nameIn, packFor, readManifest, unaliasSkin } from '../src/packs.ts';
@@ -506,6 +507,30 @@ describe('importing figure packs from the dressing page', () => {
     } finally {
       await server.stop();
     }
+  });
+
+  it('the figure frame may be framed by the pet server and exactly the console origins it is told, by any local port when told none', async () => {
+    const webDir = fileURLToPath(new URL('../web/', import.meta.url));
+    const opts = { port: () => 0, webDir, snapshot: () => ({}), onPetMessage() {}, onAudio() {}, onPetConnect() {}, onPetDisconnect() {}, onSkin() {}, onPrefs() {} };
+    const ancestors = async (server: PetServer) => {
+      const port = await server.start();
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/figure-frame`);
+        expect(res.status).toBe(200);
+        const csp = res.headers.get('content-security-policy') ?? '';
+        expect(csp).toContain('sandbox allow-scripts');
+        return { port, ancestors: csp.split('; ').find((d) => d.startsWith('frame-ancestors ')) };
+      } finally {
+        await server.stop();
+      }
+    };
+    // the console (Start and Dress up frame the pet page) is on another port: its origins are named, nothing wider
+    const origins = ['http://127.0.0.1:17788', 'http://localhost:17788'];
+    const told = await ancestors(new PetServer({ ...opts, consoleOrigins: () => origins }));
+    expect(told.ancestors).toBe(`frame-ancestors http://127.0.0.1:${told.port} http://127.0.0.1:17788 http://localhost:17788`);
+    // an app that names none gets upstream's rule
+    const untold = await ancestors(new PetServer(opts));
+    expect(untold.ancestors).toBe(`frame-ancestors http://127.0.0.1:${untold.port} http://127.0.0.1:* http://localhost:*`);
   });
 
   it('a folder named as the pack\'s id that holds another pack is left alone: the import takes the next free name', async () => {

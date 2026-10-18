@@ -571,7 +571,8 @@ function stepTalkRead() {
   if (it?.kind === 'dialog' && it.readUntil && T > it.readUntil) settleDialog(it, { done: true });
 }
 
-function showDialogInput(it) {
+/** `quiet`: drawn again in place (relabelled), with no pop-in sound and no taking the keyboard; `refocus` gives the focus back. */
+function showDialogInput(it, quiet = false, refocus = false) {
   const body = bubble.querySelector('.d-body'), input = it.d.input;
   if (!body) return;
   if (input.kind === 'buttons') {
@@ -588,7 +589,7 @@ function showDialogInput(it) {
       // the bubble stays put from here on, so the cards do not run off while Coo shows how it moves
       if (it.pinX === undefined) { const a = at()?.bubble ?? { x: innerWidth / 2, y: innerHeight }; it.pinX = a.x; it.pinY = a.y; }
       talk.motion = o?.motion ?? null; talk.next = 0;
-      if (speak && o?.line) { it.text = o.line; it.shown = 0; it.acc = 0; }
+      if (speak && o?.line) { it.text = o.line; it.shown = 0; it.acc = 0; it.spoke = i; }
     };
     input.options.forEach((o, i) => {
       const c = document.createElement('button');
@@ -598,7 +599,7 @@ function showDialogInput(it) {
       c.innerHTML = `${image || (o.icon && ICONS[o.icon] ? `<span class="d-cardic">${ICONS[o.icon]}</span>` : '')}<span class="d-cardlbl">${esc(o.label)}</span>${o.level ? `<b class="d-level">${esc(o.level)}</b>` : ''}`;
       c.addEventListener('click', () => { sfx.tick(); pick(i, true); });
       cards.appendChild(c);
-      setTimeout(() => sfx.blub(), i * 70);
+      if (!quiet) setTimeout(() => sfx.blub(), i * 70);
     });
     body.appendChild(cards);
     const row = Object.assign(document.createElement('div'), { className: 'd-row' });
@@ -649,15 +650,35 @@ function showDialogInput(it) {
       body.appendChild(row);
     }
     // the window takes the keyboard so the box can be typed in right away
-    host?.focus?.();
-    setTimeout(() => field.focus(), 30);
+    if (!quiet) { host?.focus?.(); setTimeout(() => field.focus(), 30); }
   } else if (input.kind === 'progress') {
     body.innerHTML = `<div class="d-bar${typeof it.progress === 'number' ? '' : ' wait'}"><i></i></div><div class="d-barlbl"><span></span><b></b></div>`;
     body.querySelector('.d-barlbl span').textContent = input.label || '';
     drawProgress(it);
   }
   body.hidden = false;
-  body.querySelector('.d-send, .d-pill.primary')?.focus?.({ preventScroll: true });
+  if (!quiet || refocus) (quiet && body.querySelector('.d-field input') || body.querySelector('.d-send, .d-pill.primary'))?.focus?.({ preventScroll: true });
+}
+
+/**
+ * The step relabelled while its input is up (the app language changed): the input drawn again in the new words, with
+ * what is typed in the box (and whether it is shown) or the card picked kept, and the focus where it was.
+ */
+function redrawDialogInput(it) {
+  const body = bubble.querySelector('.d-body'), input = it.d.input;
+  if (!body || !input) return;
+  const field = body.querySelector('.d-field input');
+  const focused = body.contains(document.activeElement);
+  const peeking = !!input.secret && field?.type === 'text';
+  const caret = field ? [field.selectionStart, field.selectionEnd] : null;
+  if (input.kind === 'text' && field) it.d = { ...it.d, input: { ...input, value: field.value } };
+  else if (input.kind === 'choices' && typeof it.value === 'number') it.d = { ...it.d, input: { ...input, value: it.value } };
+  body.replaceChildren();
+  body.classList.add('still');
+  showDialogInput(it, true, focused);
+  const now = body.querySelector('.d-field input');
+  if (peeking && now) { now.type = 'text'; body.querySelector('.d-peek').innerHTML = ICONS.eyeOff; }
+  if (focused && now && caret) now.setSelectionRange(caret[0], caret[1]);
 }
 
 function pill(label, primary, onClick) {
@@ -679,11 +700,28 @@ function updateDialog(m) {
   const it = item?.kind === 'dialog' && item.id === m.id ? item : queue.find((q) => q.kind === 'dialog' && q.id === m.id);
   if (!it) return;
   if ('progress' in m) it.progress = m.progress;
+  // relabelled: the same step in other words (marks, input), a card's line said in them if one was being said
+  if (Array.isArray(m.marks)) {
+    it.d = { ...it.d, marks: m.marks };
+    if (it === item) it.marks = m.marks.filter((w) => typeof w === 'string');
+  }
+  const relabel = !!m.input && typeof m.input === 'object' && m.input.kind === it.d.input?.kind;
+  if (relabel) it.d = { ...it.d, input: m.input };
   if (typeof m.text === 'string') {
     it.d = { ...it.d, text: m.text };
-    if (it === item) { it.text = m.text; it.shown = 0; it.acc = 0; }
+    if (it === item) {
+      const line = it.spoke !== undefined ? it.d.input?.options?.[it.spoke]?.line : undefined;
+      it.text = typeof line === 'string' && line ? line : m.text; it.shown = 0; it.acc = 0;
+      // a line with nothing to answer is read again in full before it ends
+      if (!it.d.input && it.bodyShown) { it.bodyShown = false; it.readUntil = 0; }
+    }
   }
-  if (it === item) drawProgress(it);
+  if (it === item && relabel && it.bodyShown) redrawDialogInput(it);
+  if (it === item) {
+    const close = bubble.querySelector('.d-top .b-close');
+    if (close) { close.setAttribute('aria-label', t('bubble.skip')); close.title = t('bubble.skip'); }
+    drawProgress(it);
+  }
 }
 
 function endDialog(id) {

@@ -16,6 +16,7 @@ import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/grok-cha
 import { describeKneelArms } from './helpers/kneel-arms.js';
 import { describeArmCut } from './helpers/arm-cut.js';
 import { describeLieCut } from './helpers/lie-cut.js';
+import { describeSitLap } from './helpers/sit-lap.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/grok-chan/face.js';
 import { createGrokFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/grok-chan/figure.js';
@@ -924,15 +925,27 @@ describe('Grok-chan: faces', () => {
 describe('Grok-chan: sitting and bowing', () => {
   it.skipIf(!real?.poses?.sit)('seated, the plain skirt under her arms is black fabric: no stripes of the red lining, the frills or her hands', () => {
     // (it shows over the seated pool whenever her standing torso and gesture arms are up; carried up from the lap, the
-    // red front opening, the white frills and her skin came out as red, white and pink stripes down her front)
+    // red front opening, the white frills and her skin came out as red, white and pink stripes down her front. Under
+    // the sunk torso it is now her standing skirt, sunk with it (scratch/art/sit_lap.py): its gold belt and trims are
+    // not stripes, so a pixel the standing skirt has there, within a texel, does not count)
     const p = real.poses.sit.required.find(q => q.id === 'sit_skirt'), K = real.units.DS / real.units.S;
     const { w, px } = rgbaOf(new URL(`tex/${p.tex}.png`, DIR)), ax = Math.round((128 - p.box[0]) * K);
+    const sk = real.parts.find(q => q.id === 'skirt'), S = rgbaOf(new URL(`tex/${sk.tex}.png`, DIR));
+    const ox = Math.round((sk.box[0] - p.box[0]) * K), oy = Math.round((sk.box[1] + real.poses.sit.headDrop - p.box[1]) * K);
+    const standing = (x, y, i) => {
+      for (let v = y - oy - 1; v <= y - oy + 1; v++) for (let u = x - ox - 1; u <= x - ox + 1; u++) {
+        if (u < 0 || v < 0 || u >= S.w || v >= S.h) continue;
+        const j = (v * S.w + u) * 4;
+        if (S.px[j + 3] > 200 && [0, 1, 2].every(c => Math.abs(S.px[j + c] - px[i + c]) <= 24)) return true;
+      }
+      return false;
+    };
     let opaque = 0, bright = 0;
     for (let y = 0; y < 32 * K; y++) for (let x = ax - 12 * K; x < ax + 12 * K; x++) {
       const i = (y * w + x) * 4;
       if (px[i + 3] < 200) continue;
       opaque++;
-      if (Math.max(px[i], px[i + 1], px[i + 2]) > 130) bright++;
+      if (Math.max(px[i], px[i + 1], px[i + 2]) > 130 && !standing(x, y, i)) bright++;
     }
     expect(opaque).toBeGreaterThan(1000);
     expect(bright / opaque).toBeLessThan(.005);
@@ -1982,3 +1995,6 @@ describeFloorFace('Grok-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTUR
 /* ---------- arm drawings cut in for each other, never half seen at once (the four girls share these: tests/helpers/arm-cut.js) ---------- */
 describeArmCut('Grok-chan', { dir: DIR, M: KneelMotion, GESTURES });
 describeLieCut('Grok-chan', { dir: DIR, M: KneelMotion, GESTURES });
+
+// seated with a gesture: the standing skirt under the sunk torso, not a blurred fill (scratch/art/sit_lap.py)
+describeSitLap('Grok-chan', { dir: DIR });

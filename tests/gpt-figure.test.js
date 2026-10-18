@@ -16,6 +16,7 @@ import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gpt-chan
 import { describeKneelArms } from './helpers/kneel-arms.js';
 import { describeArmCut } from './helpers/arm-cut.js';
 import { describeLieCut } from './helpers/lie-cut.js';
+import { describeSitLap } from './helpers/sit-lap.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/gpt-chan/face.js';
 import { createGptFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/gpt-chan/figure.js';
@@ -2005,3 +2006,6 @@ describeFloorFace('GPT-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GESTURE
 /* ---------- arm drawings cut in for each other, never half seen at once (the four girls share these: tests/helpers/arm-cut.js) ---------- */
 describeArmCut('GPT-chan', { dir: DIR, M: KneelMotion, GESTURES });
 describeLieCut('GPT-chan', { dir: DIR, M: KneelMotion, GESTURES });
+
+// seated with a gesture: the standing skirt under the sunk torso, not a blurred fill (scratch/art/sit_lap.py)
+describeSitLap('GPT-chan', { dir: DIR });

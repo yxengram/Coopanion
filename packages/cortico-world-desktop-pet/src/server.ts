@@ -11,7 +11,8 @@
  *   imported here; `POST`: a zip, or the dressing page's framing of a folder's files), `…/import/install` and
  *   `…/import/cancel`: the dressing page imports packs into the data directory (src/pack-import.ts).
  * - `/figure-frame`: the sandbox a pack's code runs in. Its own CSP sandboxes it (an opaque
- *   origin) and denies it every connection; scripts and images come from this server only. Files
+ *   origin) and denies it every connection; scripts and images come from this server only; only
+ *   this server's pages and the console's (`consoleOrigins`) may frame it. Files
  *   under `/web/` and `/packs/` answer that opaque origin's CORS requests; nothing else does,
  *   and a write (`POST`, the socket) from it is refused.
  * - `/socket?role=pet|dress&host=window|tab`: one live pet connection plus any number of
@@ -71,6 +72,11 @@ export interface PetServerOptions {
   packDir?(): string | null;
   /** The app language, for the errors the pages show and the World's start; Chinese when absent. */
   language?(): Language;
+  /**
+   * The origins of the console that shows the pet page in its own frames (another local port), read at each request:
+   * the figure frame lets exactly these frame it besides this server. Without it, any local port may (as upstream).
+   */
+  consoleOrigins?(): string[];
 }
 
 export class PetServer {
@@ -229,7 +235,9 @@ export class PetServer {
     if (req.method === 'GET' && path === '/figure-frame') {
       const self = `http://${req.headers.host}`;
       return this.sendFile(res, join(this.opts.webDir, 'figure-frame.html'), [
-        'sandbox allow-scripts', "default-src 'none'", `script-src ${self}`, `img-src ${self} data: blob:`, "style-src 'unsafe-inline'", "connect-src 'none'", `frame-ancestors ${self}`,
+        'sandbox allow-scripts', "default-src 'none'", `script-src ${self}`, `img-src ${self} data: blob:`, "style-src 'unsafe-inline'", "connect-src 'none'",
+        // the pet page holds it, and the console that shows the pet page in its own frames (another local port) is an ancestor too
+        `frame-ancestors ${[self, ...this.opts.consoleOrigins?.() ?? ['http://127.0.0.1:*', 'http://localhost:*']].join(' ')}`,
       ].join('; '));
     }
     if (req.method === 'GET' && path.startsWith('/packs/')) {

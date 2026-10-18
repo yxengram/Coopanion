@@ -183,9 +183,15 @@ export type PetDialogInput =
 export type PetDialogAnswer =
   | { index: number } | { text: string } | { alt: true } | { closed: true } | { done: true } | { unavailable: true };
 
-/** What the app changes on a step while it is up: the line, and a progress step's bar (0–1, or null while there is no telling). */
+/**
+ * What the app changes on a step while it is up: the line, and a progress step's bar (0–1, or null while there is no
+ * telling). `marks` and `input` relabel the step, as when the app language changes: the same kind of input in other
+ * words, keeping what is typed in the box or the card picked.
+ */
 export interface PetDialogUpdate {
   text?: string;
+  marks?: string[];
+  input?: PetDialogInput;
   progress?: number | null;
 }
 
@@ -263,6 +269,8 @@ export interface DesktopPetWorldOptions {
    * Chinese. Without it, Chinese.
    */
   language?: () => Language;
+  /** The console's origins, which may frame the figure frame (`PetServerOptions.consoleOrigins`), read at each request. */
+  consoleOrigins?: () => string[];
 }
 
 /**
@@ -512,6 +520,7 @@ export class DesktopPetWorld implements World {
       packs: () => this.packs(),
       packDir: () => this.opts.packDir?.() ?? null,
       language: () => this.appLanguage(),
+      ...(opts.consoleOrigins ? { consoleOrigins: () => opts.consoleOrigins!() } : {}),
     });
   }
 

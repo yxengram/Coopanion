@@ -682,8 +682,13 @@ describe('with a pet page', () => {
     expect(d1).toMatchObject({ text: '怎么称呼你?', actions: ['thinking'], step: [1, 5], closable: true, input: { kind: 'text' } });
     expect(name.dropped).toEqual(['不存在']);
     expect(warned).toEqual(['气泡对话里有当前形象的词表没有的词,已略过:不存在']);
+    // relabelled while it is up (the app language changed): the page gets the new line, marks and input
+    name.update({ text: 'What should I call you?', marks: [], input: { kind: 'text', submit: 'OK' } });
+    expect(await page.next((m) => m.t === 'dialog-update')).toMatchObject({ id: d1.id, text: 'What should I call you?', marks: [], input: { kind: 'text', submit: 'OK' } });
     page.send({ t: 'dialog', id: d1.id, text: '小明' });
     expect(await name.answer).toEqual({ text: '小明' });
+    // once answered, a late relabel reaches no page
+    name.update({ text: 'too late' });
 
     const pick = world.dialog({ text: '选一个', actions: ['happy'], input: { kind: 'buttons', options: [{ label: 'A' }, { label: 'B' }] } });
     // all of them known: nothing left out, nothing logged
@@ -691,6 +696,7 @@ describe('with a pet page', () => {
     expect(warned).toHaveLength(1);
     page.send({ t: 'dialog', id: (await page.next((m) => m.t === 'dialog')).id, index: 1 });
     expect(await pick.answer).toEqual({ index: 1 });
+    expect(page.messages.some((m) => m.t === 'dialog-update' && m.text === 'too late')).toBe(false);
 
     const closed = world.dialog({ text: '跳过?', closable: true, input: { kind: 'text', submit: '好', alt: '算了' } });
     page.send({ t: 'dialog', id: (await page.next((m) => m.t === 'dialog')).id, closed: true });
@@ -700,7 +706,7 @@ describe('with a pet page', () => {
     const bar = world.dialog({ text: '下载中', input: { kind: 'progress' } });
     const d4 = await page.next((m) => m.t === 'dialog');
     bar.update({ progress: .5 });
-    expect(await page.next((m) => m.t === 'dialog-update')).toMatchObject({ id: d4.id, progress: .5 });
+    expect(await page.next((m) => m.t === 'dialog-update' && m.id === d4.id)).toMatchObject({ id: d4.id, progress: .5 });
     bar.close();
     expect(await page.next((m) => m.t === 'dialog-close')).toMatchObject({ id: d4.id });
     expect(await bar.answer).toEqual({ done: true });

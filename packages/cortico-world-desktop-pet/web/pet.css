@@ -106,6 +106,8 @@ body.desk .floor{display:none}
 .d-dots i.on{width:16px; background:var(--skin-eye)}
 .d-body{display:flex; flex-direction:column; gap:8px; margin-top:10px}
 .d-body > *{animation:opt-in .24s cubic-bezier(.3,1.4,.5,1) both}
+/* drawn again in other words (the app language changed): no pop-in */
+.d-body.still > *, .d-body.still .d-card{animation:none}
 .d-body button, .d-body input{font:inherit}
 .d-row{display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px}
 .d-pill{

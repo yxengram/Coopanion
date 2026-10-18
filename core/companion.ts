@@ -63,6 +63,7 @@ import { desktopPetDefinition, figureOf, figurePacks, type DesktopPetWorld } fro
 import { cuaDefinition, cuaText } from 'cortico-world-cua';
 import COO, { vendorOf } from 'cortico-provider-coo';
 import { bundledConsoleAssets } from './bundled-panels.ts';
+import { consoleOrigins } from './console-origins.ts';
 import { followPetLook } from './console-theme.ts';
 import { askForKey, guideDone, markDone, runGuide, type GuideDeps } from './guide.ts';
 import { noticeDefinition, type NoticeWorld } from './notice.ts';
@@ -486,6 +487,8 @@ export async function main(): Promise<void> {
   /** Set once the deployment is loaded. */
   let telemetry: Telemetry | null = null;
   let config: CoreConfig | null = null;
+  /** The port the console listens on, once it does (Cortico moves on from a taken one). */
+  let consolePort: number | null = null;
   let notice: NoticeWorld | null = null;
   /** The introduction is running: the settings it makes are not told as changes. */
   let guiding = false;
@@ -534,6 +537,8 @@ export async function main(): Promise<void> {
     nextAlarmAt: () => (notice as NoticeWorld | null)?.nextAlarmAt() ?? null,
     language,
     labelLanguage,
+    // the console's Start and Dress up pages frame the pet page: its figure frame lets exactly the console frame it
+    consoleOrigins: () => consoleOrigins(config?.web ?? { port: CONSOLE_PORT }, consolePort),
   });
   const CUA = cuaDefinition({
     askPermission: async (question) => {
@@ -654,6 +659,7 @@ export async function main(): Promise<void> {
     if (err instanceof InstanceLockedError) await new Promise<void>((done) => { if (!process.send?.({ type: 'companion:locked', pid: err.pid, file: err.file }, () => done())) done(); });
     throw err;
   });
+  consolePort = port;
   reloadPrefix = () => bot.core.loop.reloadSystemPrefix().catch((err: unknown) => {
     bot.core.runlog.logger('process').emit('warn', '桌宠换模式后重建前缀失败', { event: 'pet-mode-reload', err });
   });

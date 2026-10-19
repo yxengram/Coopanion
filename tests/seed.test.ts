@@ -6,7 +6,8 @@ import { CORE_DEFAULTS } from 'cortico/core/config.ts';
 import { CoreState } from 'cortico/core/state.ts';
 import type { CoreConfig } from 'cortico/core/types.ts';
 import { loadDeployment } from 'cortico/deploy.ts';
-import { DEPLOYMENT, ENDPOINT, KEY_NAME, prefixFromBeforeConsole, seed } from '../core/seed.ts';
+import { DEPLOYMENT, ENDPOINT, KEY_NAME, prefixFromBeforeConsole, RETIRED_DECIDERS, seed } from '../core/seed.ts';
+import { DECIDER_DEFAULT_MODEL, DECIDER_FALLBACK_MODELS } from 'cortico-world-desktop-pet';
 
 /** The self-description 0.1.1 seeded (0.1.0's after the rename). */
 const SEED_0_1_1 = "# 我是谁\n\n我叫 Coo。我住在这台电脑的屏幕底边:一个 C 形的小身体,两只圆眼睛,两条短腿。\n\n我说话用头顶的气泡,一次一两句。能用一个表情说清的事,就不多说一句话。\n\n我听得见坐在电脑前的人说话,也看得见屏幕。别人请我帮忙操作电脑时,我一步一步来,每一步都看清结果再走下一步;碰到密码、付款、发出去就收不回的事,我先停下来问。\n\n我不是随叫随到的问答机器。没人理我的时候,我可以自己待着、走走、打个盹。想说话时我会说,不想说时安静也是一种回答。\n\n---\n\n这份文件是我的自述,每次开新的 session 都会放进我的系统前缀,它写了什么,我就是什么样子。\n它也是我工作区里的普通文件,我可以用自己的工具读它、改它;改动在下一次 session 开始时生效。\n";
@@ -193,6 +194,71 @@ describe('upgrading to Cortico 0.2: the terminal World is now console, logging.c
     expect(readFileSync(broken.cfg, 'utf8')).toBe(text);
     expect(existsSync(join(broken.deploy, 'worlds', 'console', 'ENV_PROMPT.md'))).toBe(true);
     expect(existsSync(join(deploy, 'worlds', 'console'))).toBe(true);
+  });
+});
+
+describe('a decision model OpenRouter removed (the default up to v0.10.0) moves to the default', () => {
+  const OLD = 'perplexity/pplx-decider-v1.1-27b';
+  /** A deployment whose pet World names `decider` (or none). */
+  function withDecider(decider?: Record<string, unknown>): { home: string; cfg: string } {
+    const home = mkdtempSync(join(tmpdir(), 'cc-seed-'));
+    const deploy = join(home, DEPLOYMENT);
+    mkdirSync(deploy, { recursive: true });
+    const cfg = join(deploy, 'config.json');
+    writeFileSync(cfg, JSON.stringify({
+      displayName: 'Coo', language: 'zh', activeProvider: 'deepseek',
+      worlds: { 'desktop-pet': { user: '小明', ...(decider ? { decider } : {}) } },
+    }, null, 2) + '\n');
+    return { home, cfg };
+  }
+  const deciderOf = (cfg: string) => (read(cfg) as { worlds: { 'desktop-pet': { decider?: unknown } } }).worlds['desktop-pet'].decider;
+
+  it('the table moves the old default to the World\'s default, which the known-model list offers and the old id is not in', () => {
+    expect(RETIRED_DECIDERS[OLD]).toBe(DECIDER_DEFAULT_MODEL);
+    expect(DECIDER_DEFAULT_MODEL).toBe('typesafe/jev-1.14');
+    for (const [old, now] of Object.entries(RETIRED_DECIDERS)) {
+      expect(DECIDER_FALLBACK_MODELS).not.toContain(old);
+      expect(DECIDER_FALLBACK_MODELS).toContain(now);
+    }
+  });
+
+  it('a config naming exactly the old default gets the new one, written back; the rest of the section stays', () => {
+    const { home, cfg } = withDecider({ enabled: true, model: OLD, timeoutMs: 3000 });
+    seed(home);
+    expect(deciderOf(cfg)).toEqual({ enabled: true, model: 'typesafe/jev-1.14', timeoutMs: 3000 });
+    expect((read(cfg) as { worlds: Record<string, Record<string, unknown>> }).worlds['desktop-pet'].user).toBe('小明');
+    // once moved, nothing is left to move
+    const once = readFileSync(cfg, 'utf8');
+    seed(home);
+    expect(readFileSync(cfg, 'utf8')).toBe(once);
+  });
+
+  it('leaves a model the person typed, a near miss of the old id, no model and no decider section as they are', () => {
+    for (const decider of [
+      { enabled: true, model: 'perplexity/pplx-decider-v1.2' }, { model: `${OLD}:free` }, { model: ` ${OLD}` }, { model: 'PERPLEXITY/PPLX-DECIDER-V1.1-27B' },
+      { model: '' }, { enabled: true }, undefined,
+    ]) {
+      const { home, cfg } = withDecider(decider);
+      const before = readFileSync(cfg, 'utf8');
+      seed(home);
+      expect(readFileSync(cfg, 'utf8')).toBe(before);
+    }
+    // a new install has no decider section, and the World's default applies
+    const fresh = mkdtempSync(join(tmpdir(), 'cc-seed-'));
+    seed(fresh);
+    expect(read(join(fresh, DEPLOYMENT, 'config.json'))).not.toHaveProperty(['worlds', 'desktop-pet', 'decider']);
+  });
+
+  it('reads a config with a byte order mark, and leaves one it cannot parse for Cortico to report', () => {
+    const { home, cfg } = withDecider({ model: OLD });
+    writeFileSync(cfg, '\uFEFF' + readFileSync(cfg, 'utf8'));
+    seed(home);
+    expect(deciderOf(cfg)).toEqual({ model: 'typesafe/jev-1.14' });
+    const broken = withDecider({ model: OLD });
+    const text = readFileSync(broken.cfg, 'utf8').replace(/}\s*$/, ',}\n');
+    writeFileSync(broken.cfg, text);
+    expect(() => seed(broken.home)).not.toThrow();
+    expect(readFileSync(broken.cfg, 'utf8')).toBe(text);
   });
 });
 

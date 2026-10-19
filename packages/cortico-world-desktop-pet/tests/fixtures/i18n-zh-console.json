@@ -349,7 +349,7 @@
      "worlds.desktop-pet.decider.model": {
       "type": "string",
       "title": "决策模型",
-      "description": "OpenRouter 上的决策模型 id,默认 perplexity/pplx-decider-v1.1-27b。",
+      "description": "OpenRouter 上的决策模型 id,默认 typesafe/jev-1.14。",
       "x-hot": true
      },
      "worlds.desktop-pet.decider.timeoutMs": {

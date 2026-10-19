@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
 import { parseActions, vocabId, type VocabWord } from '../src/script.ts';
 import {
-  PICK_DEFAULTS, buildQuestions, buildRequest, buildState, DECIDER_FALLBACK_MODELS, DECIDER_MIN_CONTEXT, DeciderClient, errorGist, failureText, LOCAL_FALLBACK, localPick, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
+  PICK_DEFAULTS, buildQuestions, buildRequest, buildState, DECIDER_DEFAULT_MODEL, DECIDER_FALLBACK_MODELS, DECIDER_MIN_CONTEXT, DeciderClient, errorGist, failureText, LOCAL_FALLBACK, localPick, modelGone, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
   QUESTION_IDS, stripMarkers, type Answer, type Question, type QuestionId,
 } from '../src/decider.ts';
 
@@ -388,6 +388,30 @@ describe('errors and fallbacks', () => {
     expect(r.ok).toBe(false);
     const text = failureText((r as { reason: 'http' }).reason, (r as { detail: string }).detail);
     expect(text).toMatch(/^决策模型返回错误\(HTTP 404 这个模型没有符合 OpenRouter 隐私和防护设置的服务端:ZDR violation \(guardrail\);/);
+  });
+
+  it('tells a model OpenRouter serves nowhere (its 404 "No endpoints found for <model>.") from other errors', async () => {
+    const GONE = 'No endpoints found for perplexity/pplx-decider-v1.1-27b.';
+    expect(modelGone(404, GONE)).toBe(true);
+    expect(modelGone(404, ` ${GONE}\n`)).toBe(true);
+    expect(modelGone(404, GUARDRAIL)).toBe(false);
+    expect(modelGone(404, 'No endpoints found matching your data policy (Free model publication). Configure: https://openrouter.ai/settings/privacy')).toBe(false);
+    expect(modelGone(500, GONE)).toBe(false);
+    expect(modelGone(400, 'x is not a valid model ID')).toBe(false);
+    expect(modelGone(404, '')).toBe(false);
+    const answer = (status: number, message: string) => (async () => new Response(JSON.stringify({ error: { message, code: status } }), { status })) as unknown as typeof fetch;
+    const c = new DeciderClient({ url: () => 'http://127.0.0.1:9/decisions', key: () => 'sk-or-test', timeoutMs: () => 1000, fetch: answer(404, GONE) });
+    expect(await c.decide({ model: 'perplexity/pplx-decider-v1.1-27b', state: 's', questions: {} })).toMatchObject({ ok: false, reason: 'http', gone: true, detail: `HTTP 404 ${GONE}` });
+    const g = new DeciderClient({ url: () => 'http://127.0.0.1:9/decisions', key: () => 'sk-or-test', timeoutMs: () => 1000, fetch: answer(404, GUARDRAIL) });
+    expect(await g.decide({ model: 'm', state: 's', questions: {} })).not.toHaveProperty('gone');
+  });
+
+  it('the default is typesafe/jev-1.14, first of the models offered when OpenRouter cannot be reached; the removed one is not offered', () => {
+    expect(DECIDER_DEFAULT_MODEL).toBe('typesafe/jev-1.14');
+    expect(DECIDER_FALLBACK_MODELS[0]).toBe(DECIDER_DEFAULT_MODEL);
+    expect(DECIDER_FALLBACK_MODELS).toContain('perplexity/pplx-decider-v1.2');
+    expect(DECIDER_FALLBACK_MODELS).not.toContain('perplexity/pplx-decider-v1.1-27b');
+    expect(new Set(DECIDER_FALLBACK_MODELS).size).toBe(DECIDER_FALLBACK_MODELS.length);
   });
 
   it('offers no free model when OpenRouter cannot be reached', () => {

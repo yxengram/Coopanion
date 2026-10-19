@@ -42,7 +42,7 @@ import { APPENDAGES, KNEEL_LEANS, channelsOf, estimateSeconds, firstName, lastin
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import {
-  DECIDER_FALLBACK_MODELS, DECIDER_HOLD_MS, DECIDER_MIN_CONTEXT, DECIDER_MODELS_URL, DECIDER_URL, DeciderClient, FEELING_MAX, LOCAL_FALLBACK, listDeciders, localPick, POSTURE_NAMES, buildQuestions, buildRequest, buildState, failureText, pickGroup, stripMarkers, topAnswers,
+  DECIDER_DEFAULT_MODEL, DECIDER_FALLBACK_MODELS, DECIDER_HOLD_MS, DECIDER_MIN_CONTEXT, DECIDER_MODELS_URL, DECIDER_URL, DeciderClient, FEELING_MAX, LOCAL_FALLBACK, listDeciders, localPick, POSTURE_NAMES, buildQuestions, buildRequest, buildState, failureText, pickGroup, stripMarkers, topAnswers,
   type DecideFailure, type DeciderModel, type DecisionRecord, type Posture, type QuestionId,
 } from './decider.ts';
 import { COO, figurePacks, lookOf, nameIn, packFor, unaliasSkin, type FigurePack } from './packs.ts';
@@ -477,6 +477,14 @@ export class DesktopPetWorld implements World {
   /** OpenRouter's listing of decision models, as last fetched (kept when a later fetch fails), and the fetch in flight. */
   private deciderList: { at: number; models: DeciderModel[] } | null = null;
   private deciderListing: Promise<DeciderModel[] | null> | null = null;
+  /**
+   * The chosen decision model OpenRouter said it serves nowhere (`gone`: HTTP 404 "No endpoints found for …", as for a
+   * model it removed): while it stays the chosen one, the default is asked instead for the rest of the run
+   * (`deciderModel`). A model chosen after it is asked as usual.
+   */
+  private deciderGone: string | null = null;
+  /** OpenRouter said the same of the default (cleared when a call to it answers): decisions fall back to `localPick`. */
+  private defaultGone = false;
   /**
    * Decisions run one after another, in the order the bot asked for them: each sees the one before it in 最近做过,
    * the repeat rule and her posture, and the page gets each bubble's words in order. `pet_say` and `pet_ask` do not
@@ -2306,6 +2314,28 @@ export class DesktopPetWorld implements World {
     try { return this.opts.deciderKey?.() ?? ''; } catch { return ''; }
   }
 
+  /**
+   * The decision model asked now: the chosen one (the default when none is set), or the default while the chosen one
+   * is one OpenRouter said it serves nowhere (`deciderGone`).
+   */
+  private deciderModel(): string {
+    const chosen = this.deciderCfg().model || DECIDER_DEFAULT_MODEL;
+    return chosen === this.deciderGone ? DECIDER_DEFAULT_MODEL : chosen;
+  }
+
+  /** OpenRouter serves `model` nowhere: the chosen one gives way to the default for the run, or the default is gone too; warned once each. */
+  private modelGone(model: string, detail: string): void {
+    if (model !== DECIDER_DEFAULT_MODEL) {
+      if (this.deciderGone === model) return;
+      this.deciderGone = model;
+      this.log?.warn(`决策模型 ${model} 在 OpenRouter 上已经没有了(${detail}),这次运行改用默认的 ${DECIDER_DEFAULT_MODEL}`);
+      return;
+    }
+    if (this.defaultGone) return;
+    this.defaultGone = true;
+    this.log?.warn(`默认的决策模型 ${model} 在 OpenRouter 上也没有了(${detail}),表情动作只按心情里写出的词挑,换一个决策模型试试`);
+  }
+
   /** The decider settings, with the defaults for a config written before they existed. */
   private deciderCfg(): DesktopPetConfigSection['decider'] {
     return { ...DESKTOP_PET_DEFAULTS.decider, ...this.cfg.decider };
@@ -2508,8 +2538,7 @@ export class DesktopPetWorld implements World {
       place: this.placeText(), facing: this.pose?.facing, time: this.timeText(),
       recent: this.recentPicks.map((r) => ({ words: r.words, agoMs: now - r.at })),
     });
-    const model = this.deciderCfg().model || DESKTOP_PET_DEFAULTS.decider.model;
-    return { vocab, pairs, questions, state, model, now };
+    return { vocab, pairs, questions, state, model: this.deciderModel(), now };
   }
 
   private recordBase(o: DecisionAsk, p: Prepared, ms: number) {
@@ -2587,9 +2616,19 @@ export class DesktopPetWorld implements World {
    * a group (`pickGroup`) and parsed as `pet_act` parses one. Failures come back with their reason; the mode stays.
    */
   private async decideFor(o: DecisionAsk): Promise<Decided> {
-    const prep = this.prepareDecision(o);
-    const { vocab, pairs, questions, state, model, now } = prep;
-    const res = await this.decider.decide(buildRequest(model, state, questions));
+    let prep = this.prepareDecision(o);
+    let res = await this.decider.decide(buildRequest(prep.model, prep.state, prep.questions));
+    // the model is served nowhere on OpenRouter: once with the default, which this run keeps using (`deciderGone`)
+    if (!res.ok && res.gone && prep.model !== DECIDER_DEFAULT_MODEL) {
+      this.modelGone(prep.model, res.detail);
+      prep = { ...prep, model: DECIDER_DEFAULT_MODEL };
+      res = await this.decider.decide(buildRequest(prep.model, prep.state, prep.questions));
+    }
+    if (prep.model === DECIDER_DEFAULT_MODEL) {
+      if (!res.ok && res.gone) this.modelGone(prep.model, res.detail);
+      else if (res.ok) this.defaultGone = false;
+    }
+    const { vocab, pairs, questions, model, now } = prep;
     if (!res.ok) return this.failedDecision(o, prep, res.reason, res.detail, res.ms);
     const base = this.recordBase(o, prep, res.ms);
     this.host?.reportUsage({ promptTokens: res.usage.inputTokens, completionTokens: res.usage.outputTokens, cacheHitTokens: 0, cacheMissTokens: res.usage.inputTokens }, { model, label: this.text().console.decider.usage });
@@ -2639,6 +2678,9 @@ export class DesktopPetWorld implements World {
     const last = this.decider.last;
     return {
       mode: this.mode, enabled: c.enabled, model: c.model, timeoutMs: c.timeoutMs, keySet: this.keyKnown,
+      // the model asked now, the chosen one OpenRouter serves nowhere (the default asked instead), and whether the default is gone too
+      effective: this.deciderModel(), defaultModel: DECIDER_DEFAULT_MODEL,
+      unavailable: (c.model || DECIDER_DEFAULT_MODEL) === this.deciderGone ? this.deciderGone : null, defaultGone: this.defaultGone,
       lent: !!this.opts.deciderKey, open: this.decider.open, last: last && !last.ok ? { ...last, reason: this.deciderFailure(language) } : last, calls: this.decider.calls,
       cost: Math.round(this.decider.cost * 1e6) / 1e6, overridden: this.mode === 'decider' && this.overridden(),
     };
@@ -2737,9 +2779,11 @@ export class DesktopPetWorld implements World {
     const last = this.decider.last;
     const reason = this.deciderFailure(language);
     const used = this.decider.calls ? t.used(this.decider.calls, this.decider.cost) : '';
-    if (this.decider.open) return { label: t.label, state: 'error', hint: t.paused(reason ?? '') };
-    if (!last) return { label: t.label, state: 'loading', hint: t.unused(c.model) };
-    return { label: t.label, state: 'online', hint: last.ok ? t.ok(c.model, last.ms, used) : t.bad(reason ?? '', used) };
+    const model = this.deciderModel();
+    const gone = (model !== (c.model || DECIDER_DEFAULT_MODEL) ? t.swapped(c.model, model) : '') + (this.defaultGone ? t.defaultGone(DECIDER_DEFAULT_MODEL) : '');
+    if (this.decider.open) return { label: t.label, state: 'error', hint: t.paused(reason ?? '') + gone };
+    if (!last) return { label: t.label, state: 'loading', hint: t.unused(model) + gone };
+    return { label: t.label, state: 'online', hint: (last.ok ? t.ok(model, last.ms, used) : t.bad(reason ?? '', used)) + gone };
   }
 
   private async invoke(panel: string, method: string, args: unknown[], language: Language = 'zh'): Promise<unknown> {

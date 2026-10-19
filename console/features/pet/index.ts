@@ -9,7 +9,8 @@
  * the decision model (picked from OpenRouter's public listing of decision models, which the World's `pet.deciders`
  * fetches and caches, with price per million input tokens and context; the ids we know when it cannot be reached)
  * and the timeout; it shows whether an OpenRouter key
- * is there (never the key) and the lamp's state, and a key typed in is saved as the `openrouter` endpoint's key
+ * is there (never the key) and the lamp's state (with a chosen model OpenRouter serves nowhere, which gives way to the
+ * default for the run, and a default gone too), and a key typed in is saved as the `openrouter` endpoint's key
  * (`saveVendorKey`: the endpoint is created or updated, not made active).
  * The 「主动闲聊」 card writes `smallTalk` (src/smalltalk.ts in the World; off by default): the switch, how often
  * (少/中/多 = at least 2 h / 1 h / 30 min apart) and the quiet hours.
@@ -32,7 +33,7 @@ const DECIDER_GROUP = 'world:desktop-pet:decider';
 const PET_PAGE = 'world:desktop-pet';
 const panelPath = (method: string) => `/api/webui/providers/${encodeURIComponent(PET_PAGE)}/panels/pet/${method}`;
 /** The World's default decision model (DECIDER_DEFAULT_MODEL). */
-const DEFAULT_DECIDER = 'perplexity/pplx-decider-v1.1-27b';
+const DEFAULT_DECIDER = 'typesafe/jev-1.14';
 const K = 'worlds.desktop-pet';
 /** The range of the bubble and text sizes, as BUBBLE_SIZE_MIN and BUBBLE_SIZE_MAX in the World's config.ts; 1 is the bubbles as pet.css draws them. */
 const BUBBLE_SIZE_MIN = .8, BUBBLE_SIZE_MAX = 1.6;
@@ -70,6 +71,11 @@ interface DeciderModel { id: string; name?: string; promptPerM: number | null; c
 interface DeciderState {
   mode?: 'classic' | 'decider'; enabled?: boolean; keySet?: boolean; open?: boolean; overridden?: boolean;
   last?: { ms: number; ok: boolean; reason?: string } | null; calls?: number; cost?: number;
+  /**
+   * The chosen model OpenRouter said it serves nowhere (HTTP 404 "No endpoints found for …"; the default is asked
+   * instead this run), whether it said so of the default too, and the default's id.
+   */
+  unavailable?: string | null; defaultGone?: boolean; defaultModel?: string;
 }
 
 /** The pet menu's actions in its order (the World's PET_ACTIONS), with the icon each shows. */
@@ -146,14 +152,15 @@ export const TEXT = {
     deciderOn: '交给决策模型挑表情动作',
     deciderHint: '默认关。打开并且有 OpenRouter 密钥时,Coo 说话只写一句心情,表情、动作和姿势由 OpenRouter 上的决策模型照这句话挑(很快、很便宜),走动由 Coo 自己按像素决定;省下整张词表,提示词更短。没有密钥或关掉时照旧由 Coo 自己写表情动作。',
     deciderModel: '决策模型',
-    deciderModelHint: `OpenRouter 上的决策模型,默认 ${DEFAULT_DECIDER}(便宜)。可以从列表里挑(列出价格和上下文长度),也可以直接填 id。`,
+    deciderModelHint: `OpenRouter 上的决策模型,默认 ${DEFAULT_DECIDER}(快、便宜)。可以从列表里挑(列出价格和上下文长度),也可以直接填 id。`,
     modelLive: 'OpenRouter 现有的决策模型;上下文装不下一次请求的不列出。',
     modelFallback: '连不上 OpenRouter,只列出已知的几个(价格未知)。',
     modelInfo: (price: string, ctx: string) => `这个模型:${price}${ctx ? `,${ctx}` : ''}。`,
     priceFree: '免费',
     pricePerM: (usd: string) => `每百万输入 token $${usd}`,
     ctxTokens: (k: string) => `上下文 ${k}`,
-    modelUnlisted: '这个模型不在 OpenRouter 的决策模型列表里(或上下文太短),确认 id 没写错。',
+    modelUnlisted: `这个模型不在 OpenRouter 的决策模型列表里(或上下文太短),确认 id 没写错;OpenRouter 下架了的模型(它回答「No endpoints found」)会改用默认的 ${DEFAULT_DECIDER}。`,
+    defaultUnlisted: '默认的决策模型现在不在 OpenRouter 的决策模型列表里(可能下架了),换一个列表里的模型试试。',
     deciderTimeout: '最多等多久',
     deciderTimeoutHint: '一次决策超过这个时间,这句话只按心情里直接写出的词做表情或头部动作,没写就只说话。',
     deciderKey: 'OpenRouter 密钥',
@@ -169,6 +176,8 @@ export const TEXT = {
     lastOk: (ms: number, n: number, cost: number) => `上次决策 ${ms} ms;本次运行 ${n} 次${cost ? `,约 $${cost.toFixed(5)}` : ''}。`,
     lastBad: (why: string) => `上次没成:${why}。`,
     breaker: '连续出错,暂停一会儿再试。',
+    modelGone: (model: string, fallback: string) => `${model} 在 OpenRouter 上用不了(没有提供它的服务端),这次运行改用默认的 ${fallback}。`,
+    defaultGone: (model: string) => `默认的 ${model} 在 OpenRouter 上也用不了,现在只按心情里直接写出的词做表情或头部动作;换一个列表里的模型试试。`,
     overridden: '你改过桌宠的环境说明(旧模式的版本),决策模式下它仍会生效;想用新说明,请在「提示词」页还原。',
   },
   en: {
@@ -235,14 +244,15 @@ export const TEXT = {
     deciderOn: 'Let a decision model pick faces and motions',
     deciderHint: 'Off by default. On, with an OpenRouter key: Coo writes only a line on how it feels, and a decision model on OpenRouter (fast and cheap) picks the faces, motions and postures from it; Coo decides its walks in pixels itself. The word list leaves the prompt. Without a key, or off, Coo writes its faces and motions itself as before.',
     deciderModel: 'Decision model',
-    deciderModelHint: `A decision model on OpenRouter; default ${DEFAULT_DECIDER} (cheap). Pick one from the list (with price and context length) or type an id.`,
+    deciderModelHint: `A decision model on OpenRouter; default ${DEFAULT_DECIDER} (fast and cheap). Pick one from the list (with price and context length) or type an id.`,
     modelLive: "OpenRouter's decision models now; those whose context cannot take a request are left out.",
     modelFallback: 'OpenRouter cannot be reached: only the models we know are listed (prices unknown).',
     modelInfo: (price: string, ctx: string) => `This model: ${price}${ctx ? `, ${ctx}` : ''}.`,
     priceFree: 'free',
     pricePerM: (usd: string) => `$${usd} per million input tokens`,
     ctxTokens: (k: string) => `${k} context`,
-    modelUnlisted: "This model is not in OpenRouter's list of decision models (or its context is too short); check the id.",
+    modelUnlisted: `This model is not in OpenRouter's list of decision models (or its context is too short); check the id. A model OpenRouter has removed (it answers "No endpoints found") gives way to the default ${DEFAULT_DECIDER}.`,
+    defaultUnlisted: "The default decision model is not in OpenRouter's list of decision models now (it may have been removed); try another model from the list.",
     deciderTimeout: 'Wait at most',
     deciderTimeoutHint: 'A decision that takes longer leaves that line with only a face or head move its feeling names outright, or none.',
     deciderKey: 'OpenRouter key',
@@ -258,6 +268,8 @@ export const TEXT = {
     lastOk: (ms: number, n: number, cost: number) => `Last decision ${ms} ms; ${n} this run${cost ? `, about $${cost.toFixed(5)}` : ''}.`,
     lastBad: (why: string) => `Last one failed: ${why}.`,
     breaker: 'Failing repeatedly; pausing a moment.',
+    modelGone: (model: string, fallback: string) => `${model} is not available on OpenRouter (no endpoint serves it); using the default ${fallback} this run.`,
+    defaultGone: (model: string) => `The default ${model} is not available on OpenRouter either; only a face or head move the feeling names outright is shown now. Try another model from the list.`,
     overridden: 'You edited the pet environment prompt (the classic version); it still applies in decider mode. Restore it on the System prompt page to use the new one.',
   },
 };
@@ -524,6 +536,8 @@ async function mount(ctx: FeatureContext): Promise<void> {
       if (d.open) parts.push(S.breaker);
       else if (d.last?.ok) parts.push(S.lastOk(d.last.ms, d.calls ?? 0, d.cost ?? 0));
       else if (d.last && !d.last.ok) parts.push(S.lastBad(d.last.reason ?? ''));
+      if (d.unavailable) parts.push(S.modelGone(d.unavailable, d.defaultModel ?? DEFAULT_DECIDER));
+      if (d.defaultGone) parts.push(S.defaultGone(d.defaultModel ?? DEFAULT_DECIDER));
       if (d.overridden) parts.push(S.overridden);
     }
     deciderStatus.textContent = parts.filter(Boolean).join(' ');
@@ -535,7 +549,8 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const renderModelNote = () => {
     const id = deciderModel.value.trim() || DEFAULT_DECIDER;
     const m = deciderModels?.get(id);
-    const about = m ? (priceText(m) || ctxText(m) ? S.modelInfo(priceText(m) || '?', ctxText(m)) : '') : deciderModels && listNote === S.modelLive ? S.modelUnlisted : '';
+    const about = m ? (priceText(m) || ctxText(m) ? S.modelInfo(priceText(m) || '?', ctxText(m)) : '')
+      : deciderModels && listNote === S.modelLive ? (id === DEFAULT_DECIDER ? S.defaultUnlisted : S.modelUnlisted) : '';
     modelNote.textContent = [about, listNote].filter(Boolean).join(' ');
   };
   // OpenRouter's decision models, once a mount (the World fetches the public listing, no key, and keeps it a while)

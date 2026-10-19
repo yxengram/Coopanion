@@ -97,7 +97,7 @@ function visible(root) {
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 
 /** A Core that answers the routes the pages read, and records what they send. */
-function fakeCore(language) {
+function fakeCore(language, { decider = { mode: 'classic', enabled: true, keySet: false }, deciderModel } = {}) {
   const sent = [];
   const reply = (path, method, body) => {
     if (method === 'POST') sent.push({ path, body });
@@ -107,11 +107,12 @@ function fakeCore(language) {
           { group: { id: 'companion' }, values: language ? { language } : {} },
           { group: { id: 'world:desktop-pet' }, values: { 'worlds.desktop-pet.user': 'Sam', 'worlds.desktop-pet.window.hideWhenFullscreen': true, 'worlds.desktop-pet.smallTalk.enabled': true } },
           { group: { id: 'world:cua' }, values: { 'worlds.cua.permission': 'ask-once', 'worlds.cua.grantMinutes': 30 } },
+          ...(deciderModel ? [{ group: { id: 'world:desktop-pet:decider' }, values: { 'worlds.desktop-pet.decider.enabled': true, 'worlds.desktop-pet.decider.model': deciderModel } }] : []),
         ],
       };
     }
-    if (path.endsWith('/panels/pet/state')) return { connected: false, url: null, dressUrl: null, decider: { mode: 'classic', enabled: true, keySet: false }, smallTalk: { enabled: true, presence: false } };
-    if (path.endsWith('/panels/pet/deciders')) return { models: [{ id: 'perplexity/pplx-decider-v1.1-27b', name: 'Decider', promptPerM: 0.1, context: 32768 }], source: 'live' };
+    if (path.endsWith('/panels/pet/state')) return { connected: false, url: null, dressUrl: null, decider, smallTalk: { enabled: true, presence: false } };
+    if (path.endsWith('/panels/pet/deciders')) return { models: [{ id: 'typesafe/jev-1.14', name: 'Decider', promptPerM: 0.042, context: 262144 }], source: 'live' };
     if (path === '/api/status') return { loop: { paused: false }, modelConnection: null };
     if (path === '/api/worlds') return { worlds: [{ id: 'cua', status: 'active' }] };
     if (path === '/api/config' && method === 'POST') return { result: body.group };
@@ -231,6 +232,37 @@ describe.skipIf(!STAGED && !process.env.CI)('console text in zh and en', () => {
     expect(ids.size).toBeGreaterThan(50);
     expect([...ids].filter((id) => !chat.MOOD_EN[id])).toEqual([]);
     for (const [id, name] of Object.entries(chat.MOOD_EN)) expect(name, id).not.toMatch(CJK);
+  });
+
+  it('the 习惯 card: a chosen model OpenRouter serves nowhere, the default used instead, and the default gone too', async () => {
+    const gone = { mode: 'decider', enabled: true, keySet: true, last: { ms: 480, ok: true }, calls: 2, cost: 0.00056, unavailable: 'nobody/no-such-decider', defaultGone: false, defaultModel: 'typesafe/jev-1.14' };
+    const texts = { zh: [], en: [] };
+    for (const language of ['zh', 'en']) {
+      fakeCore(language, { decider: gone, deciderModel: 'nobody/no-such-decider' });
+      const [ui, life, pet] = await load(language, ...BASE_MODS, 'features/pet/index.ts');
+      const { root, lifecycle } = await mount(pet.petFeature, [ui, life]);
+      await settle();
+      texts[language] = visible(root).join('\n');
+      lifecycle.dispose();
+      document.body.replaceChildren();
+      fakeCore(language, { decider: { ...gone, unavailable: null, defaultGone: true, last: { ms: 300, ok: false, reason: 'x' } }, deciderModel: 'typesafe/jev-1.14' });
+      const again = await mount(pet.petFeature, [ui, life]);
+      await settle();
+      texts[`${language}2`] = visible(again.root).join('\n');
+      again.lifecycle.dispose();
+      document.body.replaceChildren();
+    }
+    expect(texts.zh).toContain('nobody/no-such-decider 在 OpenRouter 上用不了(没有提供它的服务端),这次运行改用默认的 typesafe/jev-1.14。');
+    // not in the live list either
+    expect(texts.zh).toContain('这个模型不在 OpenRouter 的决策模型列表里');
+    expect(texts.zh).toContain('默认 typesafe/jev-1.14');
+    expect(texts.en).toContain('nobody/no-such-decider is not available on OpenRouter (no endpoint serves it); using the default typesafe/jev-1.14 this run.');
+    expect(texts.en).toContain("This model is not in OpenRouter's list of decision models");
+    expect(texts.zh2).toContain('默认的 typesafe/jev-1.14 在 OpenRouter 上也用不了');
+    expect(texts.zh2).not.toContain('这次运行改用默认的');
+    expect(texts.en2).toContain('The default typesafe/jev-1.14 is not available on OpenRouter either');
+    expect(texts.en.split('\n').filter((t) => CJK.test(t))).toEqual([]);
+    expect(texts.en2.split('\n').filter((t) => CJK.test(t))).toEqual([]);
   });
 
   it('an old config without a language shows Chinese on the 习惯 page', async () => {

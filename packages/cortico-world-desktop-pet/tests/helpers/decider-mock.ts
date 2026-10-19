@@ -1,6 +1,7 @@
 /**
  * A local stand-in for OpenRouter's `POST /api/alpha/decisions` (and `GET /api/v1/models`, the listing of models): records each request (body and Authorization
- * header) and answers with what `answer` returns for it; `delayMs` holds the answer, `status` fails it.
+ * header) and answers with what `answer` returns for it; `delayMs` holds the answer, `status` fails it, a model in
+ * `gone` gets OpenRouter's 404 for a model it serves nowhere.
  */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -15,7 +16,7 @@ export class DeciderMock {
   listStatus = 200;
   /** The listing, shaped as OpenRouter's GET /api/v1/models. */
   models: unknown[] = [
-    { id: 'perplexity/pplx-decider-v1.1-27b', name: 'Perplexity: Decider 27B', context_length: 32768, pricing: { prompt: '0.00000002', completion: '0' }, architecture: { output_modalities: ['decisions'] } },
+    { id: 'typesafe/jev-1.14', name: 'Typesafe: Jev 1.14', context_length: 262144, pricing: { prompt: '0.000000042', completion: '0' }, architecture: { output_modalities: ['decisions'] } },
     { id: 'mock/free-decider:free', name: 'Mock free', context_length: 16384, pricing: { prompt: '0', completion: '0' }, architecture: { output_modalities: ['decisions'] } },
     { id: 'mock/tiny', name: 'Mock tiny context', context_length: 2048, pricing: { prompt: '0.00000001' }, architecture: { output_modalities: ['decisions'] } },
     { id: 'mock/chat', name: 'Not a decider', context_length: 128000, pricing: { prompt: '0.000001' }, architecture: { output_modalities: ['text'] } },
@@ -23,6 +24,13 @@ export class DeciderMock {
   modelsUrl = '';
   delayMs = 0;
   status = 200;
+  /**
+   * Models OpenRouter serves nowhere (removed, or never there): a request for one gets the 404 OpenRouter sends then,
+   * `{"error":{"message":"No endpoints found for <model>.","code":404}}`.
+   */
+  readonly gone = new Set<string>();
+  /** With `status` not 200: the error message (OpenRouter's body shape, `code` the status). */
+  failMessage = 'mock failure';
   /** Per question, the option key and its probability; questions left out answer their keep option (the first). */
   answer: (req: MockRequest) => Record<string, [string, number] | Array<[string, number]>> = () => ({});
   private server: Server | null = null;
@@ -44,7 +52,12 @@ export class DeciderMock {
         this.requests.push(r);
         const send = () => {
           if (res.destroyed) return;
-          if (this.status !== 200) { res.writeHead(this.status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: { message: 'mock failure' } })); return; }
+          if (this.gone.has(r.body.model)) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: { message: `No endpoints found for ${r.body.model}.`, code: 404 } }));
+            return;
+          }
+          if (this.status !== 200) { res.writeHead(this.status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: { message: this.failMessage, code: this.status } })); return; }
           const picked = this.answer(r);
           const answers: Record<string, unknown> = {};
           for (const [q, def] of Object.entries(r.body.questions)) {

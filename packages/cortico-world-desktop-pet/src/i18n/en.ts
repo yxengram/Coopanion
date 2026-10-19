@@ -232,6 +232,8 @@ const en: PetText = {
       unused: (model: string) => `${model}, not used yet`,
       ok: (model: string, ms: number, used: string) => `${model}, last call ${ms} ms${used}`,
       bad: (reason: string, used: string) => `Last call failed: ${reason}${used}`,
+      swapped: (model: string, fallback: string) => `; ${model} is not available on OpenRouter, using the default ${fallback} this run`,
+      defaultGone: (model: string) => `; the default ${model} is not available on OpenRouter either, so only faces the feeling names are shown`,
     },
     noImage: 'No such image',
     noGuide: 'This app has no introduction',

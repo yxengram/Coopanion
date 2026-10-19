@@ -13,7 +13,8 @@
  *   that a posture she stays in wins over a face it cannot be shown with (on `pet_feel` over any part). The group then goes through
  *   `parseActions` as any other.
  * - `DeciderClient`: the HTTP call with a timeout, a circuit breaker and usage parsing; the key is read at each call
- *   and never kept, logged or put in an error.
+ *   and never kept, logged or put in an error. An answer saying OpenRouter serves the model nowhere is marked `gone`
+ *   (`modelGone`), and the World asks the default instead for the run.
  * - `localPick`: when a decision fails (timeout, an error status, an answer it cannot read, the breaker open), a face
  *   and a head move the feeling names outright, or a nod for a feeling that clearly agrees, or nothing.
  */
@@ -22,7 +23,12 @@ import {
   type Channel, type Pairs, type VocabWord,
 } from './script.ts';
 
-export const DECIDER_DEFAULT_MODEL = 'perplexity/pplx-decider-v1.1-27b';
+/**
+ * The default decision model. Until v0.10.0 it was `perplexity/pplx-decider-v1.1-27b`, which OpenRouter removed (every
+ * call: HTTP 404 "No endpoints found for …"); a saved config still naming it is moved here at start (core/seed.ts
+ * `moveRetiredDecider`), and a model OpenRouter no longer serves gives way to this one for the run (world.ts).
+ */
+export const DECIDER_DEFAULT_MODEL = 'typesafe/jev-1.14';
 export const DECIDER_URL = 'https://openrouter.ai/api/alpha/decisions';
 /**
  * Where OpenRouter lists its decision models: the public model list narrowed to those whose output is decisions
@@ -32,7 +38,7 @@ export const DECIDER_URL = 'https://openrouter.ai/api/alpha/decisions';
 export const DECIDER_MODELS_URL = 'https://openrouter.ai/api/v1/models?output_modalities=decisions';
 /**
  * The least context a decision model needs to take one of our requests. Measured: Claude-chan's four questions
- * (59 faces, 39 arm options…) came to 4.6k input tokens on pplx-decider-v1.1-27b, and the girls with a tail, ears or
+ * (59 faces, 39 arm options…) came to 4.6k input tokens on pplx-decider-v1.1-27b (the default then), and the girls with a tail, ears or
  * wings ask five or six questions; 8k leaves room for those, a longer state and a third-party pack's bigger list.
  */
 export const DECIDER_MIN_CONTEXT = 8192;
@@ -42,7 +48,7 @@ export const DECIDER_MIN_CONTEXT = 8192;
  * prompts (inception/mercury-decide:free failed every call that way).
  */
 export const DECIDER_FALLBACK_MODELS: readonly string[] = [
-  DECIDER_DEFAULT_MODEL, '~perplexity/pplx-decider-latest', 'typesafe/jev-1.14', 'liquid/d1',
+  DECIDER_DEFAULT_MODEL, 'perplexity/pplx-decider-v1.2', '~perplexity/pplx-decider-latest', 'liquid/d1',
 ];
 /** How long the pet page holds a bubble for its words before it starts typing anyway (`say` with `acts: 'pending'`). */
 export const DECIDER_HOLD_MS = 1100;
@@ -571,7 +577,17 @@ export type DecideFailure = 'nokey' | 'timeout' | 'http' | 'bad' | 'network' | '
 
 export type DecideResult =
   | { ok: true; answers: Record<string, Answer>; usage: DecisionUsage; ms: number }
-  | { ok: false; reason: DecideFailure; detail: string; ms: number };
+  /** `gone`: OpenRouter has no endpoint for the model at all (`modelGone`): it was removed or never existed. */
+  | { ok: false; reason: DecideFailure; detail: string; ms: number; gone?: boolean };
+
+/**
+ * Whether an error answer says OpenRouter serves the model nowhere: HTTP 404 with `No endpoints found for <model>.`
+ * (as for a model it removed). Its 404 "No endpoints found matching your guardrail restrictions and data policy" is
+ * about the person's privacy settings, not the model, and is not one.
+ */
+export function modelGone(status: number, message: string): boolean {
+  return status === 404 && /^no endpoints found for /i.test(message.trim());
+}
 
 export interface DeciderLog { info(msg: string): void; warn(msg: string): void; debug?(msg: string): void }
 
@@ -644,11 +660,11 @@ export class DeciderClient {
 
   async decide(body: DecisionRequest, outer?: AbortSignal): Promise<DecideResult> {
     const t0 = this.now();
-    const fail = (reason: DecideFailure, detail = ''): DecideResult => {
+    const fail = (reason: DecideFailure, detail = '', gone = false): DecideResult => {
       const ms = this.now() - t0;
       if (reason !== 'breaker' && reason !== 'nokey' && reason !== 'aborted') this.failed(reason, detail);
       this.last = { at: t0, ms, ok: false, reason: failureText(reason, detail), failure: { reason, detail } };
-      return { ok: false, reason, detail, ms };
+      return { ok: false, reason, detail, ms, ...(gone ? { gone } : {}) };
     };
     if (this.open) return fail('breaker');
     const key = this.o.key();
@@ -671,7 +687,7 @@ export class DeciderClient {
       if (!res.ok) {
         let msg = '';
         try { msg = String((JSON.parse(text) as { error?: { message?: unknown } }).error?.message ?? ''); } catch { /* not JSON */ }
-        return fail('http', this.scrub(`HTTP ${res.status}${msg ? ` ${errorGist(msg)}` : ''}`, key));
+        return fail('http', this.scrub(`HTTP ${res.status}${msg ? ` ${errorGist(msg)}` : ''}`, key), modelGone(res.status, msg));
       }
       let json: unknown;
       try { json = JSON.parse(text); } catch { return fail('bad'); }

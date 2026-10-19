@@ -235,7 +235,7 @@ describe('pet_say', () => {
     // the request: key in the header only, model, state with the feeling and the line, one question per part
     const req = m.mock.requests[0];
     expect(req.auth).toBe(`Bearer ${KEY}`);
-    expect(req.body.model).toBe('perplexity/pplx-decider-v1.1-27b');
+    expect(req.body.model).toBe('typesafe/jev-1.14');
     expect(req.body.state).toContain('她此刻的心情:见到你很高兴');
     expect(req.body.state).toContain('她正要说的话:你好呀');
     expect(req.body.state).toContain('她现在:站着,在屏幕偏右,面朝左');
@@ -732,7 +732,7 @@ describe('breaker and the key', () => {
     // cheapest first; the 2k-context one and the chat model are not offered
     expect(r.models).toEqual([
       { id: 'mock/free-decider:free', name: 'Mock free', promptPerM: 0, context: 16384 },
-      { id: 'perplexity/pplx-decider-v1.1-27b', name: 'Perplexity: Decider 27B', promptPerM: 0.02, context: 32768 },
+      { id: 'typesafe/jev-1.14', name: 'Typesafe: Jev 1.14', promptPerM: 0.042, context: 262144 },
     ]);
     expect(r.minContext).toBe(8192);
     expect(m.mock.listed).toEqual([{ url: '/api/v1/models?output_modalities=decisions', auth: undefined }]);
@@ -750,8 +750,8 @@ describe('breaker and the key', () => {
     n.mock.listStatus = 503;
     const fb = await n.world.webUi().invoke!('pet', 'deciders', []) as Listing;
     expect(fb.source).toBe('fallback');
-    expect(fb.models[0]).toEqual({ id: 'perplexity/pplx-decider-v1.1-27b', promptPerM: null, context: null });
-    expect(fb.models.map((x) => x.id)).toContain('liquid/d1');
+    expect(fb.models[0]).toEqual({ id: 'typesafe/jev-1.14', promptPerM: null, context: null });
+    expect(fb.models.map((x) => x.id)).toEqual(['typesafe/jev-1.14', 'perplexity/pplx-decider-v1.2', '~perplexity/pplx-decider-latest', 'liquid/d1']);
   });
 
   it('a key removed mid-session: bubbles go on without words until the mode switches back', async () => {
@@ -762,6 +762,108 @@ describe('breaker and the key', () => {
     expect(out).toContain('没有 OpenRouter 密钥');
     expect(await p.next((x) => x.t === 'say')).not.toHaveProperty('acts');
     expect(m.mock.requests).toHaveLength(0);
+  });
+});
+
+describe('a decision model OpenRouter serves nowhere (its 404 "No endpoints found for …", as for a removed one)', () => {
+  const DEFAULT = 'typesafe/jev-1.14';
+  const OLD = 'perplexity/pplx-decider-v1.1-27b';
+  const lamp = (m: Made, language: 'zh' | 'en' = 'zh') => m.world.webUi(language).lamps!.find((l) => l.label === (language === 'zh' ? '表情决策' : 'Expression decisions'))!;
+  const state = (m: Made) => m.world.deciderState() as { model: string; effective: string; defaultModel: string; unavailable: string | null; defaultGone: boolean };
+  const gone = (m: Made) => m.logs.filter((l) => l.startsWith('warn') && l.includes('在 OpenRouter 上'));
+
+  it('the chosen one (the old default, kept by a config the seed did not move): asked once more with the default, which the run keeps', async () => {
+    const m = await mounted({ patch: (c) => { c.decider.model = OLD; } });
+    const p = await page(m);
+    m.mock.gone.add(OLD);
+    m.mock.answer = () => ({ head: ['点头', .8] });
+    await tool(m.world, 'pet_say').handler({ text: '好呀', feeling: '同意' }, ctx);
+    expect((await p.next((x) => x.t === 'say-acts')).actions).toEqual(['nod']);
+    await m.world.decisionsIdle();
+    expect(m.mock.requests.map((r) => r.body.model)).toEqual([OLD, DEFAULT]);
+    // the same request, only the model changed
+    expect(m.mock.requests[1].body.state).toBe(m.mock.requests[0].body.state);
+    expect(m.records).toHaveLength(1);
+    expect(m.records[0]).toMatchObject({ ok: true, model: DEFAULT, actions: ['nod'] });
+    expect(gone(m)).toEqual([expect.stringContaining(`决策模型 ${OLD} 在 OpenRouter 上已经没有了(HTTP 404 No endpoints found for ${OLD}.),这次运行改用默认的 ${DEFAULT}`)]);
+    // the next decision goes to the default at once; the setting is not rewritten
+    await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+    expect(m.mock.requests.map((r) => r.body.model)).toEqual([OLD, DEFAULT, DEFAULT]);
+    expect(m.cfg.decider.model).toBe(OLD);
+    expect(state(m)).toMatchObject({ model: OLD, effective: DEFAULT, defaultModel: DEFAULT, unavailable: OLD, defaultGone: false });
+    expect(lamp(m)).toMatchObject({ state: 'online', hint: expect.stringContaining(`${DEFAULT},上次`) });
+    expect(lamp(m).hint).toContain(`;${OLD} 在 OpenRouter 上用不了,这次运行改用默认的 ${DEFAULT}`);
+    expect(lamp(m, 'en').hint).toContain(`; ${OLD} is not available on OpenRouter, using the default ${DEFAULT} this run`);
+    // another model chosen meanwhile is asked as itself; choosing the gone one again goes to the default, warned once
+    m.cfg.decider.model = 'perplexity/pplx-decider-v1.2';
+    await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+    expect(m.mock.requests.at(-1)!.body.model).toBe('perplexity/pplx-decider-v1.2');
+    expect(state(m)).toMatchObject({ effective: 'perplexity/pplx-decider-v1.2', unavailable: null });
+    expect(lamp(m).hint).not.toContain('用不了');
+    m.cfg.decider.model = OLD;
+    await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+    expect(m.mock.requests.at(-1)!.body.model).toBe(DEFAULT);
+    expect(m.mock.requests.filter((r) => r.body.model === OLD)).toHaveLength(1);
+    expect(gone(m)).toHaveLength(1);
+  });
+
+  it('the default gone too: the words the feeling names, as for any failure, and the console says so', async () => {
+    const m = await mounted({ patch: (c) => { c.decider.model = 'nobody/no-such-decider'; } });
+    const p = await page(m);
+    m.mock.gone.add('nobody/no-such-decider').add(DEFAULT);
+    await tool(m.world, 'pet_say').handler({ text: '嗯', feeling: '有点担心' }, ctx);
+    expect((await p.next((x) => x.t === 'say-acts')).actions).toEqual(['worried']);
+    await m.world.decisionsIdle();
+    expect(m.mock.requests.map((r) => r.body.model)).toEqual(['nobody/no-such-decider', DEFAULT]);
+    expect(m.records).toEqual([expect.objectContaining({
+      ok: false, model: DEFAULT, failure: `决策模型返回错误(HTTP 404 No endpoints found for ${DEFAULT}.)`, actions: ['worried'], fallback: { by: 'names', matched: ['担心'] },
+    })]);
+    // the receipt says it as any error status
+    expect(textOf(await tool(m.world, 'pet_set').handler({}, ctx))).toContain(`「嗯」担心(决策模型返回错误(HTTP 404 No endpoints found for ${DEFAULT}.),按心情里的词挑的)。`);
+    expect(state(m)).toMatchObject({ effective: DEFAULT, unavailable: 'nobody/no-such-decider', defaultGone: true });
+    expect(gone(m)).toHaveLength(2);
+    expect(gone(m)[1]).toContain(`默认的决策模型 ${DEFAULT} 在 OpenRouter 上也没有了`);
+    expect(lamp(m).hint).toContain(`;默认的 ${DEFAULT} 在 OpenRouter 上也用不了,只按心情里写出的词做表情`);
+    expect(lamp(m, 'en').hint).toContain(`; the default ${DEFAULT} is not available on OpenRouter either`);
+    expect(m.world.petMode).toBe('decider');
+    // the next one asks only the default; when it answers again, the console stops saying so
+    m.mock.gone.delete(DEFAULT);
+    await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+    expect(m.mock.requests.map((r) => r.body.model)).toEqual(['nobody/no-such-decider', DEFAULT, DEFAULT]);
+    expect(state(m)).toMatchObject({ unavailable: 'nobody/no-such-decider', defaultGone: false });
+    expect(lamp(m).hint).not.toContain('也用不了');
+  });
+
+  it('the default chosen and gone: not asked twice', async () => {
+    const m = await mounted();
+    await page(m);
+    m.mock.gone.add(DEFAULT);
+    await tool(m.world, 'pet_feel').handler({ feeling: '开心' }, ctx);
+    expect(m.mock.requests.map((r) => r.body.model)).toEqual([DEFAULT]);
+    expect(m.records[0]).toMatchObject({ ok: false, model: DEFAULT, actions: ['happy'] });
+    expect(state(m)).toMatchObject({ effective: DEFAULT, unavailable: null, defaultGone: true });
+    // still gone at the next decision: asked once more (it may come back), warned only once
+    await tool(m.world, 'pet_feel').handler({ feeling: '开心' }, ctx);
+    expect(m.mock.requests.map((r) => r.body.model)).toEqual([DEFAULT, DEFAULT]);
+    expect(gone(m)).toEqual([expect.stringContaining(`默认的决策模型 ${DEFAULT} 在 OpenRouter 上也没有了`)]);
+    expect(state(m)).toMatchObject({ defaultGone: true });
+  });
+
+  it('other errors are not a model gone: the guardrail 404, a 400 for a malformed id, a 500', async () => {
+    for (const [status, message] of [
+      [404, 'No endpoints found matching your guardrail restrictions and data policy. Configure: https://openrouter.ai/settings/privacy'],
+      [400, 'nobody/x is not a valid model ID'],
+      [500, 'No endpoints found for perplexity/pplx-decider-v1.2.'],
+    ] as const) {
+      const m = await mounted({ patch: (c) => { c.decider.model = 'perplexity/pplx-decider-v1.2'; } });
+      await page(m);
+      m.mock.status = status;
+      m.mock.failMessage = message;
+      await tool(m.world, 'pet_feel').handler({ feeling: '嗯' }, ctx);
+      expect(m.mock.requests.map((r) => r.body.model)).toEqual(['perplexity/pplx-decider-v1.2']);
+      expect(state(m)).toMatchObject({ effective: 'perplexity/pplx-decider-v1.2', unavailable: null, defaultGone: false });
+      expect(gone(m)).toEqual([]);
+    }
   });
 });
 

@@ -256,6 +256,10 @@ const zh = {
       unused: (model: string) => `${model},还没用过`,
       ok: (model: string, ms: number, used: string) => `${model},上次 ${ms} ms${used}`,
       bad: (reason: string, used: string) => `上次没成:${reason}${used}`,
+      /** The chosen model is served nowhere on OpenRouter (HTTP 404 "No endpoints found for …"): the default is used for the run. */
+      swapped: (model: string, fallback: string) => `;${model} 在 OpenRouter 上用不了,这次运行改用默认的 ${fallback}`,
+      /** The default too is served nowhere. */
+      defaultGone: (model: string) => `;默认的 ${model} 在 OpenRouter 上也用不了,只按心情里写出的词做表情`,
     },
     noImage: '没有这张图',
     noGuide: '这个应用没有引导',

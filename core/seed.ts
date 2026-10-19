@@ -18,6 +18,12 @@ const OLD_CONSTITUTION = 'cfcb7527cbf3518ab9f077ee711c86661a70613b9e5caeb992b30a
 export const SEED_DIR = fileURLToPath(new URL('./seed/', import.meta.url));
 /** The person's default name in a new install that is not in Chinese (the pet World's own default is 「伙伴」). */
 export const DEFAULT_USER_EN = 'Pal';
+/**
+ * Decision models (the pet World's decider mode) OpenRouter no longer serves, each with the one a saved config naming
+ * it exactly moves to (`moveRetiredDecider`): the old default, removed in October 2026, becomes the new default
+ * (DECIDER_DEFAULT_MODEL in packages/cortico-world-desktop-pet/src/decider.ts; tests/seed.test.ts checks they agree).
+ */
+export const RETIRED_DECIDERS: Readonly<Record<string, string>> = { 'perplexity/pplx-decider-v1.1-27b': 'typesafe/jev-1.14' };
 /** The languages SenseVoice (the default speech engine) recognizes, as the app languages name them. */
 const SPEECH_LANGUAGES: Readonly<Record<string, string>> = { zh: 'zh', 'zh-Hant': 'zh', en: 'en', ja: 'ja', ko: 'ko' };
 
@@ -73,7 +79,7 @@ export function languageSwitchPatch(pet: LanguagePetValues, from: string, to: st
  * Writes the first-run files that are missing; existing files are left as the operator made them,
  * except a self-description still exactly as an older version seeded it, which becomes the current
  * one, endpoints of the old `deepseek` module, which now belong to `coo`, and the names Cortico 0.2
- * changed (`moveTerminalToConsole`). A new deployment config
+ * changed (`moveTerminalToConsole`), and a decision model OpenRouter removed (`moveRetiredDecider`). A new deployment config
  * gets `language` (the system's, `newInstallLanguage` in language.ts) and, when that is not Chinese,
  * `newInstallWorlds`; an existing one keeps its own, or none, which reads as Chinese.
  */
@@ -108,6 +114,26 @@ export function seed(home: string, language = 'zh'): void {
   upgradeSeededConstitution(workspace);
   moveEndpointsToCoo(join(home, 'providers'));
   moveTerminalToConsole(deploy);
+  moveRetiredDecider(deploy);
+}
+
+/**
+ * A deployment config whose decision model (`worlds.desktop-pet.decider.model`) is exactly one OpenRouter no longer
+ * serves (`RETIRED_DECIDERS`, such as the default up to v0.10.0) gets its replacement, written back; any other id,
+ * one the person typed, stays. Runs at every start, after `moveTerminalToConsole`; once moved, nothing is left to move.
+ */
+function moveRetiredDecider(deploy: string): void {
+  const file = join(deploy, 'config.json');
+  let config: { worlds?: Record<string, { decider?: { model?: unknown } } | undefined> };
+  try {
+    config = JSON.parse(readText(file)) as typeof config;
+  } catch {
+    return;
+  }
+  const decider = config?.worlds?.['desktop-pet']?.decider;
+  if (!decider || typeof decider !== 'object' || typeof decider.model !== 'string' || !Object.hasOwn(RETIRED_DECIDERS, decider.model)) return;
+  decider.model = RETIRED_DECIDERS[decider.model];
+  writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
 }
 
 type Section = Record<string, unknown>;

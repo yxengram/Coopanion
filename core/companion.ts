@@ -74,6 +74,7 @@ import { noticeDefinition, type NoticeWorld } from './notice.ts';
 import { appLanguage, newInstallLanguage, replyLanguage } from './language.ts';
 import { CONSOLE_PORT, DEFAULT_USERS, DEPLOYMENT, DISPLAY_NAME, languageSwitchPatch, prefixFromBeforeConsole, SEED_DIR, seed, type LanguagePetValues } from './seed.ts';
 import { openRouterKey } from './decider-key.ts';
+import { withConsoleLast } from './prefix-order.ts';
 import { presenceFrom, type PresenceReport } from './presence.ts';
 import { crashFields, describeEndpoint, publicExtensionName, reportedLook, Telemetry, type Counter } from './telemetry.ts';
 
@@ -612,6 +613,8 @@ export async function main(): Promise<void> {
     }),
     build: (loaded, worlds) => {
       const parts = cormini.build(loaded, worlds);
+      // the console World's prefix block after the other Worlds', as before Cortico 0.2 renamed `terminal` (why: core/prefix-order.ts)
+      withConsoleLast(parts.persona);
       return {
         ...parts,
         webUi: {

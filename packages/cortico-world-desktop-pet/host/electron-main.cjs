@@ -267,6 +267,25 @@ function trayIcon() {
 function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   if (!url) throw new Error('pet host needs --pet-url');
   const origin = new URL(url).origin;
+  /** Whether `target` is a page of the World's own server, by its parsed origin (`127.0.0.1:7797@elsewhere` and `:77970` are not). */
+  const ours = (target) => { try { return new URL(target).origin === origin; } catch { return false; } };
+  /**
+   * A window the host opens shows only the World's pages: a link to one opens the dressing window, an http(s) link goes
+   * to the browser, anything else (file:, other apps' protocols) is dropped, and the window never navigates away (a
+   * link dropped on it included).
+   */
+  const guard = (wc) => {
+    wc.setWindowOpenHandler(({ url: target }) => {
+      if (ours(target)) openDress(target);
+      else if (/^https?:\/\//i.test(target)) void shell.openExternal(target);
+      return { action: 'deny' };
+    });
+    wc.on('will-navigate', (e, target) => { if (!ours(target)) e.preventDefault(); });
+  };
+  /** IPC from the pet window's own page only (its main frame on the World's server); the preload is loaded nowhere else. */
+  const fromPet = (e) => !!win && e.sender === win.webContents && ours(e.senderFrame?.url ?? '');
+  const onPet = (channel, fn) => ipcMain.on(channel, (e, ...args) => { if (fromPet(e)) fn(e, ...args); });
+  const handlePet = (channel, fn) => ipcMain.handle(channel, (e, ...args) => (fromPet(e) ? fn(e, ...args) : null));
   let win = null, tray = null, dress = null, cursor = null;
   /**
    * Who holds the mouse, and when it is given back (host/mouse-lease.cjs): the page's wish is a lease
@@ -326,11 +345,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     // on every Space, and over an app in full screen
     if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
     win.setIgnoreMouseEvents(true, { forward: true });
-    win.webContents.setWindowOpenHandler(({ url: target }) => {
-      if (target.startsWith(origin)) { openDress(target); return { action: 'deny' }; }
-      shell.openExternal(target);
-      return { action: 'deny' };
-    });
+    guard(win.webContents);
     win.once('ready-to-show', () => win.showInactive());
     // The page cannot tell for itself that it is hidden (background throttling is off, so it always reads as
     // visible and keeps drawing): the window tells it, and it stops drawing and keeps its sounds quiet meanwhile.
@@ -419,12 +434,13 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   const openDress = (target = `${origin}/dress`) => {
     if (dress) { dress.show(); dress.focus(); return; }
     dress = new BrowserWindow({ width: 980, height: 720, title: text().dressTitle, autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
+    guard(dress.webContents);
     dress.on('closed', () => { dress = null; });
     dress.loadURL(target);
   };
 
-  ipcMain.on('pet:interactive', (_e, on) => mouse.ask(on));
-  ipcMain.on('pet:focus', () => {
+  onPet('pet:interactive', (_e, on) => mouse.ask(on));
+  onPet('pet:focus', () => {
     if (!win) return;
     // Explicit text input activates this menu-bar process as well as its window.
     if (process.platform === 'darwin') app.focus({ steal: true });
@@ -432,7 +448,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
   });
   /** The window that had the keyboard before a question took it; it gets it back afterwards. */
   let lent = 0n;
-  ipcMain.on('pet:grabFocus', () => {
+  onPet('pet:grabFocus', () => {
     if (!win || !win.isVisible() || process.platform === 'darwin') return;
     if (foreground) {
       const own = hwndOf(win), cur = foreground.current();
@@ -440,7 +456,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     }
     win.focus();
   });
-  ipcMain.on('pet:releaseFocus', () => {
+  onPet('pet:releaseFocus', () => {
     const back = lent;
     lent = 0n;
     if (!win) return;
@@ -448,16 +464,16 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     if (foreground) { if (back && foreground.current() === hwndOf(win)) foreground.give(back); }
     else if (win.isFocused()) win.blur();
   });
-  ipcMain.on('pet:hide', () => { releaseAutoHidden(); if (win) win.hide(); });
-  ipcMain.on('pet:hideWhenFullscreen', (_e, on) => { hideWhenFullscreen = !!on; });
-  ipcMain.on('pet:openDress', () => openDress());
+  onPet('pet:hide', () => { releaseAutoHidden(); if (win) win.hide(); });
+  onPet('pet:hideWhenFullscreen', (_e, on) => { hideWhenFullscreen = !!on; });
+  onPet('pet:openDress', () => openDress());
   // the page's text follows the app language; the tray's menu goes with it (window titles come from the pages)
-  ipcMain.on('pet:language', (_e, code) => {
+  onPet('pet:language', (_e, code) => {
     if (typeof code !== 'string' || !/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(code) || code === language) return;
     language = code;
     drawTray();
   });
-  ipcMain.handle('pet:sampleBackdrop', (_e, query) => {
+  handlePet('pet:sampleBackdrop', (_e, query) => {
     try { return win ? sampleBackdrop(win, query || {}) : []; } catch { return []; }
   });
   /**
@@ -465,7 +481,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
    * window moves there and the page gets the cursor's spot in its new coordinates, its new size, and
    * how far a point on screen moved in page coordinates (`dx`, `dy`); null leaves it where it is.
    */
-  ipcMain.handle('pet:followCursor', () => {
+  handlePet('pet:followCursor', () => {
     if (!win) return null;
     const pt = cursor.read(), d = screen.getDisplayNearestPoint(pt);
     const fromDisplay = display();
@@ -485,7 +501,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
       await systemPreferences.askForMediaAccess('microphone').catch(() => false);
     }
     session.defaultSession.setPermissionRequestHandler((wc, permission, done) => {
-      done(permission === 'media' && wc.getURL().startsWith(origin));
+      done(permission === 'media' && ours(wc.getURL()));
     });
     session.defaultSession.setPermissionCheckHandler((wc, permission, requestingOrigin) => permission === 'media' && requestingOrigin === origin);
     create();

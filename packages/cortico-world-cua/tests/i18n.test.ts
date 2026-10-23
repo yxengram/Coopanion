@@ -32,7 +32,7 @@ function stubWorld(language: Language | undefined, permission: typeof CUA_DEFAUL
   const asked: string[] = [];
   const sent: Array<Record<string, unknown>> = [];
   const w = new CuaWorld({
-    cfg, timezone: 'Asia/Shanghai', botName: 'Bot',
+    cfg, timezone: 'Asia/Shanghai', botName: () => 'Bot',
     ...(language ? { language: () => language } : {}),
     // no pet page: the system dialog asks
     askPermission: async (q) => { asked.push(q); return null; },

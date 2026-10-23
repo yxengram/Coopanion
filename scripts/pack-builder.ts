@@ -54,11 +54,11 @@ export const packChannel = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform): 
 };
 
 /**
- * The runtime dependencies of build/app beyond the workspace packages' own: Core (express, ws), the TypeScript
- * loader, pnpm for extension installs, and the updater (app/updater.cjs), which the portable build, updated by hand,
- * does not carry.
+ * The runtime dependencies of build/app beyond the workspace packages' own: Core (express, ws, undici for the per-host
+ * system proxy, core/system-proxy.ts), the TypeScript loader, pnpm for extension installs, and the updater
+ * (app/updater.cjs), which the portable build, updated by hand, does not carry.
  */
 export const runtimeDeps = (channel: PackChannel): Record<string, string> => ({
-  express: '^4.22.3', ws: '^8.21.3', tsx: '^4.23.15', pnpm: '11.28.6',
+  express: '^4.22.3', ws: '^8.21.3', undici: '7.29.1', tsx: '^4.23.15', pnpm: '11.28.6',
   ...channel === 'portable' ? {} : { 'electron-updater': '^6.8.9' },
 });

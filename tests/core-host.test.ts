@@ -56,6 +56,8 @@ describe('Core host', () => {
 
   it('starts the Core with Node options the bundled Electron runtime accepts', async () => {
     expect(CORE_NODE_FLAGS).toContain('--use-system-ca');
+    // the desktop-pet World frees a stopped speech model at once (upstream #298)
+    expect(CORE_NODE_FLAGS).toContain('--expose-gc');
     // an unknown option makes the runtime exit 9 before anything runs
     const child = spawn(electron, [...CORE_NODE_FLAGS, '-e', 'process.exit(0)'], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
@@ -102,7 +104,8 @@ describe('Core host', () => {
       expect(last.missingModuleExits).toBe(1);
     } finally { await last.stop(); }
     const log = readFileSync(join(logDir, 'core.log'), 'utf8');
-    expect(log).toContain('proxy: system PROXY proxy.test:7890');
+    // the proxy is looked up per host as the Core's requests go out (core/system-proxy.ts), not once at the start
+    expect(log).toContain('proxy: system, looked up per host as requests go out');
     expect(log).toMatch(/exited before ready; app argv .*boot\.ts missing; .*loader\.mjs (exists|missing)/);
     expect(states.filter(([s]) => s === 'restarting').every(([, d]) => d === undefined)).toBe(true);
   });
@@ -149,6 +152,96 @@ describe('Core host', () => {
       // the next start (Restart in the tray) is not held by what the last child said
       expect(host.blocked).toBeNull();
     } finally { await host.stop(); }
+  });
+
+  // upstream #311: a Core that does not stop is killed and waited for, and that restart is no crash
+  it('stops a Core that exits on the shutdown request without killing it', async () => {
+    const appRoot = join(scratch, 'clean-stop');
+    mkdirSync(join(appRoot, 'core'), { recursive: true });
+    writeFileSync(join(appRoot, 'core', 'boot.ts'), [
+      "process.on('message', (m) => { if (m?.type === 'companion:shutdown') process.exit(0); });",
+      "process.send({ type: 'companion:ready', port: 1 });",
+    ].join('\n'));
+    const host = new CoreHost({ appRoot, logDir: join(scratch, 'logs'), execPath: electron, env: { PATH: process.env.PATH }, resolveProxy: async () => 'DIRECT' });
+    const states: string[] = [];
+    host.on('state', (state: string) => states.push(state));
+    const ready = new Promise((r) => host.once('ready', r));
+    await host.start();
+    await ready;
+    const child = host.child!;
+    const started = Date.now();
+    await host.stop();
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(child.signalCode).toBeNull();
+    expect(child.exitCode).toBe(0);
+    expect(states).toEqual(['starting', 'running', 'stopped']);
+    expect(host.crashes).toEqual([]);
+  });
+
+  it('kills a Core that ignores the shutdown request and SIGTERM, then restarts it without counting a crash', async () => {
+    const appRoot = join(scratch, 'hung-stop');
+    mkdirSync(join(appRoot, 'core'), { recursive: true });
+    // what a Core whose shutdown hangs does: it already treats SIGTERM as another shutdown request
+    writeFileSync(join(appRoot, 'core', 'boot.ts'), [
+      "process.on('SIGTERM', () => {});",
+      "process.on('message', () => {});",
+      "setInterval(() => {}, 1000);",
+      "process.send({ type: 'companion:ready', port: 1 });",
+    ].join('\n'));
+    const host = new CoreHost({ appRoot, logDir: join(scratch, 'logs'), execPath: electron, env: { PATH: process.env.PATH }, resolveProxy: async () => 'DIRECT' });
+    const states: string[] = [];
+    host.on('state', (state: string) => states.push(state));
+    const stop = host.stop.bind(host);
+    host.stop = (graceMs?: number) => stop(graceMs ?? 50);
+    // every child started, so a failing run (one that only sends SIGTERM) leaves none of them running
+    let first: ChildProcess | null = null;
+    try {
+      let ready = new Promise((r) => host.once('ready', r));
+      await host.start();
+      await ready;
+      first = host.child!;
+      ready = new Promise((r) => host.once('ready', r));
+      await host.restart();
+      await ready;
+      expect(first.signalCode).toBe('SIGKILL');
+      expect(host.child).not.toBe(first);
+      expect(host.crashes).toEqual([]);
+      await host.stop();
+      expect(host.child).toBeNull();
+      expect(states).toEqual(['starting', 'running', 'stopped', 'starting', 'running', 'stopped']);
+      expect(host.crashes).toEqual([]);
+    } finally { first?.kill('SIGKILL'); host.child?.kill('SIGKILL'); }
+  });
+
+  // upstream #331: the Core asks for the system proxy of each host it reaches; the app answers from resolveProxy
+  it('answers the Core\'s proxy questions from resolveProxy, per URL', async () => {
+    const appRoot = join(scratch, 'proxy-ask');
+    mkdirSync(join(appRoot, 'core'), { recursive: true });
+    writeFileSync(join(appRoot, 'core', 'boot.ts'), [
+      "const asked = ['https://api.deepseek.com', 'https://api.openai.com'];",
+      "const answers = [];",
+      "process.on('message', (m) => {",
+      "  if (m?.type !== 'companion:proxy') return;",
+      "  answers[m.id] = m;",
+      "  if (answers.filter(Boolean).length === asked.length) { console.log('answers ' + JSON.stringify(answers.filter(Boolean))); process.send({ type: 'companion:ready', port: 1 }); }",
+      "});",
+      "asked.forEach((url, i) => process.send({ type: 'companion:proxy', id: i, url }));",
+      "process.on('message', (m) => { if (m?.type === 'companion:shutdown') process.exit(0); });",
+    ].join('\n'));
+    const logDir = join(scratch, 'proxy-logs');
+    const seen: string[] = [];
+    const host = new CoreHost({ appRoot, logDir, execPath: electron, env: { PATH: process.env.PATH },
+      resolveProxy: async (url) => { seen.push(url); return url.includes('openai') ? 'PROXY 127.0.0.1:7897; DIRECT' : 'DIRECT'; } });
+    const ready = new Promise((r) => host.once('ready', r));
+    await host.start();
+    await ready;
+    await host.stop();
+    expect(seen).toEqual(['https://api.deepseek.com', 'https://api.openai.com']);
+    const line = readFileSync(join(logDir, 'core.log'), 'utf8').split('\n').find((l) => l.startsWith('answers '))!;
+    expect(JSON.parse(line.slice(8))).toEqual([
+      { type: 'companion:proxy', id: 0, proxy: null, rule: 'DIRECT' },
+      { type: 'companion:proxy', id: 1, proxy: 'http://127.0.0.1:7897', rule: 'PROXY 127.0.0.1:7897' },
+    ]);
   });
 
   // Windows does not keep the stderr pipe open through a grandchild that inherits it, so no exit is ever held there;

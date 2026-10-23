@@ -81,6 +81,11 @@ export interface DesktopPetConfigSection extends WorldSection {
     bubbleSize: number;
     /** The text in the bubbles and the icons on its lines, 1 = as drawn by pet.css; the bubbles keep their widths. */
     fontSize: number;
+    /**
+     * How fast the bot's bubbles type and how long they stay, as a multiplier (upstream #248): typing runs at 20 × this
+     * characters a second and every hold is divided by it. A setting only, not something the bot changes (`pet_set`).
+     */
+    bubbleSpeed: number;
     /** The pet page draws 60 frames a second at rest too; off, it drops to 30 while the body stands, sits, lies or sleeps. */
     lockFrameRate: boolean;
     /** Hide the pet window while a fullscreen window covers the display it is on. */
@@ -103,6 +108,8 @@ export interface DesktopPetConfigSection extends WorldSection {
   hoverButtons: string;
   /** Double-clicking the pet opens the typing box. */
   doubleClickChat: boolean;
+  /** Keep what the person typed, said or sent from the chat page above the pet until it replies (upstream #279); off, speech shows only while it is heard. */
+  saidBubbles: boolean;
   /** The bot may change its own looks and habits (src/self.ts), and asks before the rest. */
   selfAdjust: boolean;
   skin: PetSkin;
@@ -161,7 +168,7 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
   enabled: false,
   port: 7797,
   user: '伙伴',
-  window: { enabled: true, electronFile: '', scale: 1, bubbleSize: 1, fontSize: 1, lockFrameRate: false, hideWhenFullscreen: false },
+  window: { enabled: true, electronFile: '', scale: 1, bubbleSize: 1, fontSize: 1, bubbleSpeed: 1, lockFrameRate: false, hideWhenFullscreen: false },
   roam: 'calm',
   sound: true,
   sounds: { move: true, touch: true, face: true, snore: true, talk: true, ui: true, snoreSeconds: 0 },
@@ -170,6 +177,7 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
   petX: null,
   hoverButtons: 'chat,voice',
   doubleClickChat: false,
+  saidBubbles: true,
   selfAdjust: true,
   skin: {
     figure: 'coo', scheme: 'deepseek', palette: 'mint', head: 'none', side: 'none', glasses: 'none', neck: 'none',
@@ -197,6 +205,13 @@ export function bubbleFactor(v: unknown): number {
   if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
   return Math.round(Math.min(BUBBLE_SIZE_MAX, Math.max(BUBBLE_SIZE_MIN, v)) * 20) / 20;
 }
+/** The range of `window.bubbleSpeed` (the Habits page's slider, 50%–200%). */
+export const BUBBLE_SPEED_MIN = .5, BUBBLE_SPEED_MAX = 2;
+/** The bubble speed as the page and `estimateSeconds` take it: a number in range, in steps of 5%; anything else is 1 (a hand-edited 0 would hold a bubble forever). */
+export function bubbleSpeed(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 1;
+  return Math.round(Math.min(BUBBLE_SPEED_MAX, Math.max(BUBBLE_SPEED_MIN, v)) * 20) / 20;
+}
 
 const K = `worlds.${DESKTOP_PET_ID}`;
 
@@ -216,11 +231,13 @@ export function desktopPetConfigGroup(language: Language = 'zh'): ConfigGroup {
         [`${K}.rememberPosition`]: { type: 'boolean', title: c.rememberPosition.title, description: c.rememberPosition.description, 'x-hot': true },
         [`${K}.hoverButtons`]: { type: 'string', title: c.hoverButtons.title, description: c.hoverButtons.description(MAX_HOVER_BUTTONS, PET_ACTIONS.join(', ')), 'x-hot': true },
         [`${K}.doubleClickChat`]: { type: 'boolean', title: c.doubleClickChat.title, description: c.doubleClickChat.description, 'x-hot': true },
+        [`${K}.saidBubbles`]: { type: 'boolean', title: c.saidBubbles.title, description: c.saidBubbles.description, 'x-hot': true },
         [`${K}.selfAdjust`]: { type: 'boolean', title: c.selfAdjust.title, description: c.selfAdjust.description, 'x-hot': true },
         [`${K}.window.enabled`]: { type: 'boolean', title: c.windowEnabled.title, 'x-hot': false },
         [`${K}.window.scale`]: { type: 'number', title: c.scale.title, minimum: .5, maximum: 2, multipleOf: .05, 'x-hot': true },
         [`${K}.window.bubbleSize`]: { type: 'number', title: c.bubbleSize.title, description: c.bubbleSize.description, minimum: BUBBLE_SIZE_MIN, maximum: BUBBLE_SIZE_MAX, multipleOf: .05, 'x-hot': true },
         [`${K}.window.fontSize`]: { type: 'number', title: c.fontSize.title, description: c.fontSize.description, minimum: BUBBLE_SIZE_MIN, maximum: BUBBLE_SIZE_MAX, multipleOf: .05, 'x-hot': true },
+        [`${K}.window.bubbleSpeed`]: { type: 'number', title: c.bubbleSpeed.title, description: c.bubbleSpeed.description, minimum: BUBBLE_SPEED_MIN, maximum: BUBBLE_SPEED_MAX, multipleOf: .05, 'x-hot': true },
         [`${K}.window.lockFrameRate`]: { type: 'boolean', title: c.lockFrameRate.title, description: c.lockFrameRate.description, 'x-hot': true },
         // only the Windows window process tells another program's full screen (host/electron-main.cjs `fullscreen`); unregistered, the Habits page hides it too
         ...(process.platform === 'win32' ? {

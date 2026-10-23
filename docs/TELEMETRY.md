@@ -19,6 +19,8 @@
 
 第一次启动时随机生成一个 UUID，存在数据文件夹的 `home/companion/telemetry.json` 里，和账号、硬件都没有关联。删掉这个文件，下次启动会换一个新编号。统计开着的时候，同目录下还有一个 `telemetry-id`，里面只有这个编号（上游的 Windows 卸载程序读它来报告卸载，这个版本的卸载程序不读）。
 
+文件损坏时，原内容保留在 `telemetry.json.bad`，统计状态重新建立，不再发 `first_launch`；若 `telemetry-id` 还在，沿用其中的安装编号。缺的字段补默认值，只有类型不对才算损坏。状态通过同目录临时文件写入后替换，写入失败时保留原文件。
+
 ## 每次发送都带的字段
 
 | 字段 | 例子 | 说明 |
@@ -33,6 +35,8 @@
 ## 每日记录（`days`）
 
 每个本地日期一条，记录当天的计数和当时的设置。应用开着时每 30 分钟发一次，服务器只留同一天的最新一条。
+
+退出时，最后一次上报最多等待 5 秒，已经发送中的请求也受这个上限约束。超时会中止请求，未发送成功的事件留在本地，下次运行再发送。
 
 | 字段 | 说明 |
 |---|---|
@@ -76,7 +80,7 @@
 | `guide_finished` | | 引导走完 |
 | `guide_closed` | `step` | 引导在第几步被关掉 |
 | `extension_installed` / `extension_removed` | `name`、`version`、`kind` | 启动时发现扩展比上次多了或少了 |
-| `crash` | `where`，其余见下表 | Core 出错。`where` 是来源：`core`（未捕获的异常，Core 随后退出）、`core-rejection`（未处理的 promise 拒绝，Core 继续运行；同样的一条在一次运行里只报一次）、`core-exit`（Core 进程意外退出后被重启，由重启后的 Core 报告） |
+| `crash` | `where`，其余见下表 | Core 出错。`where` 是来源：`core`（未捕获的异常，Core 随后退出）、`core-rejection`（未处理的 promise 拒绝，Core 继续运行；同样的一条在一次运行里只报一次）、`core-loop`（Core 的主循环异常退出，比如落盘时文件被占用；Core 随后退出，由应用重启）、`core-exit`（Core 进程意外退出后被重启，由重启后的 Core 报告） |
 | `telemetry_disabled` / `telemetry_enabled` | | 关掉或重新打开统计 |
 | `uninstalled` | | 上游的 Windows 卸载程序发出；这个版本的卸载程序不发 |
 
@@ -84,7 +88,7 @@
 
 | 字段 | 例子 | 说明 |
 |---|---|---|
-| `error` | `TypeError` | 错误类名；抛出的不是错误对象时是它的类型（如 `string`）。`core` 和 `core-rejection` 才有 |
-| `code` | `ENOENT` | 错误自带的错误码，没有就不发 |
+| `error` | `TypeError` | 错误类名；抛出的不是错误对象时是它的类型（如 `string`）。`core`、`core-loop` 和 `core-rejection` 才有 |
+| `code` | `ENOENT` | 错误自带的错误码，没有就不发。`core-loop` 没有：Cortico 的日志只记下错误名、消息和调用栈 |
 | `frames` | `["core/guide.ts:212", "build/cortico/src/core/loop.ts:1043"]` | 调用栈最上面 3 处在程序目录里的位置：相对程序目录的文件路径和行号。程序目录以外的位置（你的文件、装的扩展、Node 自身）跳过 |
 | `exitCode` / `signal` | `1` / `null` | 只在 `core-exit`：上一个 Core 进程的退出码，或结束它的信号名 |

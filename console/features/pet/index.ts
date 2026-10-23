@@ -16,6 +16,8 @@
  * (少/中/多 = at least 2 h / 1 h / 30 min apart) and the quiet hours.
  * The first row is the app language (`language` in the Core's `companion` group, features/language.ts): 中文 or
  * English, and any other language the config holds; a change saves it and reloads the window in it.
+ * 「Coo 的名字」 is `displayName` in Core's own `core` group, the name the rail shows and renames (upstream #320): the
+ * pet menu, the chat page and computer use's question follow it at once; cleared, it saves Coopanion's default, Coo.
  */
 import { ICONS } from 'cortico-world-desktop-pet/web/ui.js';
 import { saveVendorKey } from 'cortico-provider-coo/src/connect.ts';
@@ -26,8 +28,13 @@ import { LANGUAGE, pick } from '../../core/language.ts';
 import { LANGUAGE_NAMES, languageTag, type Language } from '../../../../core/language.ts';
 import { APP_LANGUAGES, setAppLanguage, storedLanguage } from '../language.ts';
 import type { FeatureContext, FrameworkFeature } from '../feature.ts';
+import { announceName } from '../bot-name.ts';
 
 const GROUP = 'world:desktop-pet';
+/** The bot's name: a key of Core's own group; cleared, it is Coopanion's default (DISPLAY_NAME in core/seed.ts). */
+const NAME_GROUP = 'core';
+const NAME_KEY = 'displayName';
+const DEFAULT_NAME = 'Coo';
 const SOUND_GROUP = 'world:desktop-pet:sound';
 const DECIDER_GROUP = 'world:desktop-pet:decider';
 const PET_PAGE = 'world:desktop-pet';
@@ -37,6 +44,8 @@ const DEFAULT_DECIDER = 'typesafe/jev-1.14';
 const K = 'worlds.desktop-pet';
 /** The range of the bubble and text sizes, as BUBBLE_SIZE_MIN and BUBBLE_SIZE_MAX in the World's config.ts; 1 is the bubbles as pet.css draws them. */
 const BUBBLE_SIZE_MIN = .8, BUBBLE_SIZE_MAX = 1.6;
+/** The range of Coo's bubble speed, as BUBBLE_SPEED_MIN and BUBBLE_SPEED_MAX in the World's config.ts; at 1 a bubble types 20 characters a second. */
+const BUBBLE_SPEED_MIN = .5, BUBBLE_SPEED_MAX = 2;
 const KEYS = {
   user: `${K}.user`,
   roam: `${K}.roam`,
@@ -44,6 +53,7 @@ const KEYS = {
   scale: `${K}.window.scale`,
   bubbleSize: `${K}.window.bubbleSize`,
   fontSize: `${K}.window.fontSize`,
+  bubbleSpeed: `${K}.window.bubbleSpeed`,
   lockFps: `${K}.window.lockFrameRate`,
   hideFullscreen: `${K}.window.hideWhenFullscreen`,
   sound: `${K}.sound`,
@@ -51,6 +61,7 @@ const KEYS = {
   remember: `${K}.rememberPosition`,
   hover: `${K}.hoverButtons`,
   dblclick: `${K}.doubleClickChat`,
+  saidBubbles: `${K}.saidBubbles`,
   selfAdjust: `${K}.selfAdjust`,
   deciderOn: `${K}.decider.enabled`,
   deciderModel: `${K}.decider.model`,
@@ -96,6 +107,8 @@ export const TEXT = {
     user: '怎么称呼你',
     userPlaceholder: '伙伴',
     userHint: 'Coo 会用这个名字叫你。',
+    botName: 'Coo 的名字',
+    botNameHint: '左栏、「开始」页的标题、桌宠菜单、对话页和气泡里的提问用这个名字称呼 Coo。清空就是 Coo。',
     roam: '走动',
     roamFree: '常走动',
     roamCalm: '多待着',
@@ -108,6 +121,8 @@ export const TEXT = {
     bubbleSizeHint: '调整 Coo 和你的气泡的宽度、留白、圆角和尾巴,文字大小不变。',
     fontSize: '字体尺寸',
     fontSizeHint: '调整气泡里文字的大小,气泡宽度不变。',
+    bubbleSpeed: '气泡速度',
+    bubbleSpeedHint: '调整 Coo 的气泡逐字出现和停留的快慢,100% 为默认。',
     lockFps: '锁定 60 帧',
     lockFpsHint: '关着时 Coo 站着、坐着、趴着、睡着每秒画 30 帧,走动、被拎着、跳起时 60 帧,占用的 CPU 更少;打开后一直 60 帧。',
     hideFullscreen: '全屏时自动隐藏',
@@ -133,12 +148,14 @@ export const TEXT = {
     hover: '悬停按钮',
     hoverHint: (n: number) => `鼠标停在 Coo 身上时旁边出现的按钮,最多 ${n} 个。`,
     dblclick: '双击 Coo 打开打字框',
+    saidBubbles: '在 Coo 头顶显示你说的话',
+    saidBubblesHint: '打字、语音和「对话」页发出的消息留在 Coo 头顶,Coo 回复后淡出。关掉后,语音只在识别时显示,识别完就淡出。',
     selfAdjust: '允许 Coo 自己调整',
-    selfAdjustHint: 'Coo 可以自己换形象和装扮、改走动多少;改音效、大小、黑白模式、悬停按钮和对你的称呼前会先问你。关掉后这些它都改不了。',
+    selfAdjustHint: 'Coo 可以自己换形象和装扮、改走动多少;改音效、大小、黑白模式、悬停按钮和对你的称呼前会先问你。关掉后这些 Coo 都改不了。',
     actions: { chat: '打字', voice: '语音输入', roam: '行为模式', theme: '夜间模式', sound: '音效', dress: '装扮', hide: '隐藏桌宠' } as Record<string, string>,
     smallTalkTitle: '主动闲聊',
     smallTalk: '让 Coo 主动找你聊几句',
-    smallTalkHint: '默认关。打开后,你在电脑前却有一阵没和 Coo 说话,或者离开一会儿刚回来时,Coo 可能主动搭一两句:打个招呼、聊聊这个时间、接着之前的话题、提醒你喝水休息;也可能觉得没什么好说,就不出声。每次尝试都是一次模型调用,不出声也算。Coo 被隐藏或暂停、在安静或睡着、有全屏窗口(只有 Windows 判得出;macOS 和 Linux 上全屏演示、游戏时它也可能开口)、你正在打字或刚聊过、免打扰时段里都不会。',
+    smallTalkHint: '默认关。打开后,你在电脑前却有一阵没和 Coo 说话,或者离开一会儿刚回来时,Coo 可能主动搭一两句:打个招呼、聊聊这个时间、接着之前的话题、提醒你喝水休息;也可能觉得没什么好说,就不出声。每次尝试都是一次模型调用,不出声也算。Coo 被隐藏或暂停、在安静或睡着、有全屏窗口(只有 Windows 判得出;macOS 和 Linux 上全屏演示、游戏时 Coo 也可能开口)、你正在打字或刚聊过、免打扰时段里都不会。',
     smallTalkFreq: '多久一次',
     freqLow: '少', freqMid: '中', freqHigh: '多',
     smallTalkFreqHint: '少:两次至少隔 2 小时;中:1 小时;多:30 分钟。离上次聊天也至少隔这么久;刚回到电脑前的招呼不受这一条限制。',
@@ -164,7 +181,7 @@ export const TEXT = {
     deciderTimeout: '最多等多久',
     deciderTimeoutHint: '一次决策超过这个时间,这句话只按心情里直接写出的词做表情或头部动作,没写就只说话。',
     deciderKey: 'OpenRouter 密钥',
-    deciderKeyHint: '存成「开始」页的 OpenRouter 端点的密钥,不会切换你现在用的聊天模型,也不会替你打开上面的开关。开着时每句话都会把 Coo 说的话、它的心情、你最近说的一句话、它的姿势位置和时间发给 OpenRouter;不想发就关掉上面的开关。',
+    deciderKeyHint: '存成「开始」页的 OpenRouter 端点的密钥,不会切换你现在用的聊天模型,也不会替你打开上面的开关。开着时每句话都会把 Coo 说的话和心情、你最近说的一句话、Coo 的姿势位置和时间发给 OpenRouter;不想发就关掉上面的开关。',
     deciderKeySave: '保存密钥',
     deciderKeySaved: '密钥已保存,几秒内生效',
     keyHave: '用的是你 OpenRouter 端点的密钥。',
@@ -184,10 +201,12 @@ export const TEXT = {
     nav: 'Habits',
     settingsTitle: 'Habits',
     language: 'Language',
-    languageHint: "The settings window, menus and the pet's bubbles use this language, and so does Coo when it talks to you. The window reloads after a change.",
+    languageHint: "The settings window, menus and the pet's bubbles use this language, and so does Coo when talking to you. The window reloads after a change.",
     user: 'What to call you',
     userPlaceholder: 'Pal',
     userHint: 'Coo calls you by this name.',
+    botName: "Coo's name",
+    botNameHint: "The sidebar, the Start page's heading, the pet's menu, the Chat page and questions in the bubble call Coo by this name. Cleared, it is Coo.",
     roam: 'Walking',
     roamFree: 'Often',
     roamCalm: 'Now and then',
@@ -200,10 +219,12 @@ export const TEXT = {
     bubbleSizeHint: "Changes the width, padding, corners and tail of Coo's bubbles and yours; the text keeps its size.",
     fontSize: 'Text size',
     fontSizeHint: 'Changes the size of the text in the bubbles; the bubbles keep their width.',
+    bubbleSpeed: 'Bubble speed',
+    bubbleSpeedHint: "Changes how fast Coo's bubbles type out and how long they stay; 100% is the default.",
     lockFps: 'Lock to 60 fps',
     lockFpsHint: 'Off: Coo draws 30 frames a second while standing, sitting, lying or asleep and 60 while walking, carried or jumping, which uses less CPU. On: always 60.',
     hideFullscreen: 'Hide during full screen',
-    hideFullscreenHint: 'Coo steps away while a game, a video or a browser fills its screen, and comes back when full screen ends. A maximized window does not count.',
+    hideFullscreenHint: "Coo steps away while a game, a video or a browser fills Coo's screen, and comes back when full screen ends. A maximized window does not count.",
     soundTitle: 'Sounds',
     sound: 'Play sounds',
     soundHint: "The sound button in Coo's menu flips this too.",
@@ -223,14 +244,16 @@ export const TEXT = {
     remember: 'Remember where Coo stands',
     rememberHint: 'Saves how far across the screen Coo stands when the app quits; with several screens Coo always starts on the main one.',
     hover: 'Hover buttons',
-    hoverHint: (n: number) => `Buttons beside Coo while the pointer rests on it, up to ${n}.`,
+    hoverHint: (n: number) => `Buttons beside Coo while the pointer rests on Coo, up to ${n}.`,
     dblclick: 'Double-click Coo to open the typing box',
-    selfAdjust: 'Let Coo adjust itself',
-    selfAdjustHint: 'Coo may change its own figure, dress and how much it walks; it asks you before changing sounds, size, night or day look, hover buttons or what it calls you. When off, it can change none of these.',
+    saidBubbles: 'Show what you said above Coo',
+    saidBubblesHint: 'What you type, say or send from the Chat page stays above Coo until Coo has replied. When off, speech shows only while it is recognized and fades once done.',
+    selfAdjust: 'Let Coo change settings',
+    selfAdjustHint: 'Coo may change the figure, dress and how much Coo walks; Coo asks you before changing sounds, size, night or day look, hover buttons or what Coo calls you. When off, Coo can change none of these.',
     actions: { chat: 'Type', voice: 'Voice input', roam: 'Walking', theme: 'Night mode', sound: 'Sounds', dress: 'Dress up', hide: 'Hide pet' } as Record<string, string>,
     smallTalkTitle: 'Small talk',
     smallTalk: 'Let Coo start a chat now and then',
-    smallTalkHint: "Off by default. On: when you are at the computer but haven't talked to Coo for a while, or have just come back, Coo may say a line or two — a hello, something about the time of day, a follow-up on what you said earlier, a nudge to drink water or take a break — or keep quiet if it has nothing to say. Each attempt is one model call, even one where Coo stays quiet. Never while Coo is hidden or paused, keeping quiet or asleep, a window is full screen (only Windows can tell; on macOS and Linux it may speak over a full-screen presentation or game), you are typing or have just talked, or in quiet hours.",
+    smallTalkHint: "Off by default. On: when you are at the computer but haven't talked to Coo for a while, or have just come back, Coo may say a line or two — a hello, something about the time of day, a follow-up on what you said earlier, a nudge to drink water or take a break — or keep quiet when there is nothing to say. Each attempt is one model call, even one where Coo stays quiet. Never while Coo is hidden or paused, keeping quiet or asleep, a window is full screen (only Windows can tell; on macOS and Linux Coo may speak over a full-screen presentation or game), you are typing or have just talked, or in quiet hours.",
     smallTalkFreq: 'How often',
     freqLow: 'Low', freqMid: 'Medium', freqHigh: 'High',
     smallTalkFreqHint: 'Low: at least 2 hours apart; medium: 1 hour; high: 30 minutes. Also at least that long since you last talked, except for a hello when you come back.',
@@ -242,7 +265,7 @@ export const TEXT = {
     saveFailed: (why: string) => `Not saved: ${why}`,
     deciderTitle: 'Expression decisions',
     deciderOn: 'Let a decision model pick faces and motions',
-    deciderHint: 'Off by default. On, with an OpenRouter key: Coo writes only a line on how it feels, and a decision model on OpenRouter (fast and cheap) picks the faces, motions and postures from it; Coo decides its walks in pixels itself. The word list leaves the prompt. Without a key, or off, Coo writes its faces and motions itself as before.',
+    deciderHint: 'Off by default. On, with an OpenRouter key: Coo writes only a line on the feeling, and a decision model on OpenRouter (fast and cheap) picks the faces, motions and postures from it; Coo decides the walks in pixels. The word list leaves the prompt. Without a key, or off, Coo writes the faces and motions as before.',
     deciderModel: 'Decision model',
     deciderModelHint: `A decision model on OpenRouter; default ${DEFAULT_DECIDER} (fast and cheap). Pick one from the list (with price and context length) or type an id.`,
     modelLive: "OpenRouter's decision models now; those whose context cannot take a request are left out.",
@@ -256,13 +279,13 @@ export const TEXT = {
     deciderTimeout: 'Wait at most',
     deciderTimeoutHint: 'A decision that takes longer leaves that line with only a face or head move its feeling names outright, or none.',
     deciderKey: 'OpenRouter key',
-    deciderKeyHint: "Saved as the key of the Start page's OpenRouter endpoint; the chat model you use does not change, and the switch above is not turned on for you. While on, each line sends OpenRouter what Coo says, its feeling, the last thing you said, its posture and place and the time; switch it off above to stop that.",
+    deciderKeyHint: "Saved as the key of the Start page's OpenRouter endpoint; the chat model you use does not change, and the switch above is not turned on for you. While on, each line sends OpenRouter what Coo says and feels, the last thing you said, Coo's posture and place and the time; switch it off above to stop that.",
     deciderKeySave: 'Save key',
     deciderKeySaved: 'Key saved; it takes effect within seconds',
     keyHave: "Using your OpenRouter endpoint's key.",
     keyNone: 'No OpenRouter key yet: add one to use this.',
     modeDecider: 'Now: a decision model picks faces and motions.',
-    modeClassic: 'Now: Coo writes its own faces and motions.',
+    modeClassic: 'Now: Coo writes the faces and motions.',
     needSwitch: 'Turn on the switch above to use a decision model.',
     needKey: 'The switch is on but there is no OpenRouter key yet: add one and it is used.',
     lastOk: (ms: number, n: number, cost: number) => `Last decision ${ms} ms; ${n} this run${cost ? `, about $${cost.toFixed(5)}` : ''}.`,
@@ -318,6 +341,8 @@ async function mount(ctx: FeatureContext): Promise<void> {
   }, opts);
 
   const user = ui.input({ placeholder: S.userPlaceholder });
+  const botName = ui.input({ placeholder: DEFAULT_NAME });
+  botName.setAttribute('aria-label', S.botName);
   const roam = ui.segmented([
     { value: 'free', label: S.roamFree }, { value: 'calm', label: S.roamCalm }, { value: 'off', label: S.roamOff },
   ], { size: 'sm', onSelect: (v) => void save(KEYS.roam, v) });
@@ -330,11 +355,12 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const scaleText = ui.h('span', 'companion-rangeval');
   const scaleBox = ui.h('div', 'companion-rangebox');
   scaleBox.append(scale, scaleText);
-  // 气泡尺寸 and 字体尺寸: 80%–160% in steps of 5%, saved once a drag or a key press ends (the World's BUBBLE_SIZE_MIN/MAX)
-  const sizeSlider = (key: string) => {
+  // 气泡尺寸 and 字体尺寸 (80%–160%) and 气泡速度 (50%–200%, upstream #248): steps of 5%, saved once a drag or a key press
+  // ends (the World's BUBBLE_SIZE_MIN/MAX and BUBBLE_SPEED_MIN/MAX)
+  const percentSlider = (key: string, min = BUBBLE_SIZE_MIN, max = BUBBLE_SIZE_MAX) => {
     const input = ui.h('input', 'companion-range');
     input.type = 'range';
-    input.min = String(BUBBLE_SIZE_MIN); input.max = String(BUBBLE_SIZE_MAX); input.step = '0.05';
+    input.min = String(min); input.max = String(max); input.step = '0.05';
     const text = ui.h('span', 'companion-rangeval');
     const box = ui.h('div', 'companion-rangebox');
     box.append(input, text);
@@ -343,11 +369,13 @@ async function mount(ctx: FeatureContext): Promise<void> {
     input.addEventListener('change', () => { show(); void save(key, Number(input.value)); });
     return { key, input, box, show };
   };
-  const bubbleSize = sizeSlider(KEYS.bubbleSize), fontSize = sizeSlider(KEYS.fontSize);
+  const bubbleSize = percentSlider(KEYS.bubbleSize), fontSize = percentSlider(KEYS.fontSize);
+  const bubbleSpeed = percentSlider(KEYS.bubbleSpeed, BUBBLE_SPEED_MIN, BUBBLE_SPEED_MAX);
   const lockFps = ui.checkbox(S.lockFps, { onChange: (on) => void save(KEYS.lockFps, on) });
   const hideFullscreen = ui.checkbox(S.hideFullscreen, { onChange: (on) => void save(KEYS.hideFullscreen, on) });
   const remember = ui.checkbox(S.remember, { onChange: (on) => void save(KEYS.remember, on) });
   const dblclick = ui.checkbox(S.dblclick, { onChange: (on) => void save(KEYS.dblclick, on) });
+  const saidBubbles = ui.checkbox(S.saidBubbles, { onChange: (on) => void save(KEYS.saidBubbles, on) });
   const selfAdjust = ui.checkbox(S.selfAdjust, { onChange: (on) => void save(KEYS.selfAdjust, on) });
   // hover buttons: one round toggle per action, in the menu's order; picked ones are lit
   let picked: string[] = [];
@@ -394,16 +422,19 @@ async function mount(ctx: FeatureContext): Promise<void> {
   habits.body.append(
     row(S.language, language, S.languageHint),
     row(S.user, user, S.userHint),
+    row(S.botName, botName, S.botNameHint),
     row(S.roam, roam.el),
     row(S.theme, theme.el),
     row(S.scale, scaleBox),
     row(S.bubbleSize, bubbleSize.box, S.bubbleSizeHint),
     row(S.fontSize, fontSize.box, S.fontSizeHint),
+    row(S.bubbleSpeed, bubbleSpeed.box, S.bubbleSpeedHint),
     row('', lockFps.el, S.lockFpsHint),
     hideFullscreenRow,
     row('', remember.el, S.rememberHint),
     row(S.hover, hoverBox, S.hoverHint(MAX_HOVER)),
     row('', dblclick.el),
+    row('', saidBubbles.el, S.saidBubblesHint),
     row('', selfAdjust.el, S.selfAdjustHint),
     msg,
   );
@@ -564,15 +595,18 @@ async function mount(ctx: FeatureContext): Promise<void> {
   }).catch(() => {});
 
   /* ---------- behaviour ---------- */
-  const save = async (key: string, value: string | number | boolean, group = GROUP, line = msg) => {
+  /** Whether the value was saved. */
+  const save = async (key: string, value: string | number | boolean, group = GROUP, line = msg): Promise<boolean> => {
     try {
       await setConfig(group, { [key]: value }, opts);
       line.textContent = S.saved;
       line.classList.remove('bad');
+      return true;
     } catch (err) {
-      if (signal.aborted) return;
+      if (signal.aborted) return false;
       line.textContent = S.saveFailed(errText(err));
       line.classList.add('bad');
+      return false;
     }
   };
   const showScale = () => { scaleText.textContent = `${Math.round(Number(scale.value) * 100)}%`; };
@@ -594,6 +628,15 @@ async function mount(ctx: FeatureContext): Promise<void> {
   };
   user.addEventListener('change', saveUser);
   user.addEventListener('keydown', (e) => { if (e.key === 'Enter') user.blur(); });
+  botName.addEventListener('change', () => {
+    const name = botName.value.trim() || DEFAULT_NAME;
+    botName.value = name;
+    if (name === botName.dataset.saved) return;
+    botName.dataset.saved = name;
+    // not saved: the next read (within 3 s) shows the saved name again
+    void save(NAME_KEY, name, NAME_GROUP).then((saved) => { if (saved) announceName(name); });
+  });
+  botName.addEventListener('keydown', (e) => { if (e.key === 'Enter') botName.blur(); });
   snore.addEventListener('change', () => {
     const n = Math.round(Number(snore.value));
     if (snore.value === '' || !Number.isFinite(n) || n < 0 || n > 3600) { snore.value = snore.dataset.saved ?? '0'; return; }
@@ -606,6 +649,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     let values: Record<string, unknown> = {};
     let soundValues: Record<string, unknown> = {};
     let deciderValues: Record<string, unknown> = {};
+    let nameValues: Record<string, unknown> = {};
     let appLanguage: Language = 'zh';
     try {
       const d = await get<{ groups?: ConfigEntry[] }>('/api/config', opts);
@@ -613,6 +657,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
       values = d.groups?.find((g) => g.group.id === GROUP)?.values ?? {};
       soundValues = d.groups?.find((g) => g.group.id === SOUND_GROUP)?.values ?? {};
       deciderValues = d.groups?.find((g) => g.group.id === DECIDER_GROUP)?.values ?? {};
+      nameValues = d.groups?.find((g) => g.group.id === NAME_GROUP)?.values ?? {};
     } catch { return; }
     if (typeof deciderValues[KEYS.deciderOn] === 'boolean') deciderOn.setChecked(deciderValues[KEYS.deciderOn] as boolean);
     if (typeof deciderValues[KEYS.deciderModel] === 'string' && document.activeElement !== deciderModel) {
@@ -635,10 +680,14 @@ async function mount(ctx: FeatureContext): Promise<void> {
       user.value = values[KEYS.user] as string;
       user.dataset.saved = user.value;
     }
+    if (typeof nameValues[NAME_KEY] === 'string' && active !== botName) {
+      botName.value = nameValues[NAME_KEY] as string;
+      botName.dataset.saved = botName.value;
+    }
     if (typeof values[KEYS.roam] === 'string') roam.setValue(values[KEYS.roam] as string);
     if (typeof values[KEYS.theme] === 'string') theme.setValue(values[KEYS.theme] as string);
     if (typeof values[KEYS.scale] === 'number' && active !== scale) { scale.value = String(values[KEYS.scale]); showScale(); }
-    for (const sz of [bubbleSize, fontSize]) {
+    for (const sz of [bubbleSize, fontSize, bubbleSpeed]) {
       if (active !== sz.input) { sz.input.value = String(typeof values[sz.key] === 'number' ? values[sz.key] : 1); sz.show(); }
     }
     if (typeof soundValues[KEYS.sound] === 'boolean') sound.setChecked(soundValues[KEYS.sound] as boolean);
@@ -655,6 +704,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     if (typeof values[KEYS.hideFullscreen] === 'boolean') { hideFullscreen.setChecked(values[KEYS.hideFullscreen] as boolean); hideFullscreenRow.hidden = false; }
     if (typeof values[KEYS.remember] === 'boolean') remember.setChecked(values[KEYS.remember] as boolean);
     if (typeof values[KEYS.dblclick] === 'boolean') dblclick.setChecked(values[KEYS.dblclick] as boolean);
+    if (typeof values[KEYS.saidBubbles] === 'boolean') saidBubbles.setChecked(values[KEYS.saidBubbles] as boolean);
     if (typeof values[KEYS.selfAdjust] === 'boolean') selfAdjust.setChecked(values[KEYS.selfAdjust] as boolean);
     if (typeof values[KEYS.smallTalk] === 'boolean') smallTalk.setChecked(values[KEYS.smallTalk] as boolean);
     renderTalk();

@@ -13,6 +13,10 @@
  * A turn-on or turn-off still on its way (`pending`) is waited for when the page opens again.
  * The advanced mode's World page asks the same before its power button turns computer use on
  * (guardWorldsPage, wired in main.ts).
+ * A save that fails shows the mouse-and-keyboard switch, when to ask and how long a yes lasts as the Core has them
+ * then, read again (upstream #312 puts them back to the last saved values; Cortico's config API sets the live value
+ * before writing config.json, so after a failed write the Core may run the new one until it restarts), or as last
+ * saved when that read fails too; a failed turn-on or turn-off shows what the World list says.
  */
 import { get, post, setConfig } from '../../core/api.ts';
 import { pick } from '../../core/language.ts';
@@ -66,7 +70,7 @@ export const TEXT = {
     riskAfter: ',请确认你理解以下内容:',
     risks: [
       '屏幕截图(可能有你的隐私内容,如聊天记录)会发给你用的模型服务。',
-      'Coo 可能点错地方、打错字,或者进错窗口。确保你随时看得到它、能打断它。',
+      'Coo 可能点错地方、打错字,或者进错窗口。确保你随时看得到 Coo、能打断 Coo。',
       '付款、密码这类涉及敏感信息、现实中的操作或收不回的操作,不要交给 Coo。',
     ],
     riskNote: '你动鼠标或键盘时 Coo 会自动停下。这个功能随时可以关掉。',
@@ -86,8 +90,8 @@ export const TEXT = {
     permission: 'When to ask you',
     levels: { 'ask-each-turn': 'Every turn', 'ask-before-acting': 'Before acting', 'ask-once': 'Once', 'never-ask': 'Never' } as Record<Level, string>,
     levelHints: {
-      'ask-each-turn': 'Every turn, Coo asks in its bubble before it first looks at the screen or uses the mouse and keyboard.',
-      'ask-before-acting': 'Looking is not asked; every turn, Coo asks before it first uses the mouse and keyboard.',
+      'ask-each-turn': 'Every turn, Coo asks in the bubble before first looking at the screen or using the mouse and keyboard.',
+      'ask-before-acting': 'Looking is not asked; every turn, Coo asks before first using the mouse and keyboard.',
       'ask-once': 'Looking is not asked; Coo asks once before using the mouse and keyboard, and after a yes not again for as long as set below.',
       'never-ask': 'Coo never asks, neither to look nor to act.',
     } as Record<Level, string>,
@@ -105,10 +109,10 @@ export const TEXT = {
     riskAfter: '; make sure you understand the following:',
     risks: [
       'Screenshots, which may show private things such as your chats, are sent to the model service you use.',
-      'Coo may click the wrong place, mistype, or end up in the wrong window. Make sure you can always watch it and stop it.',
+      'Coo may click the wrong place, mistype, or end up in the wrong window. Make sure you can always watch and stop Coo.',
       'Do not hand Coo payments, passwords or anything else that involves sensitive information, real-world actions or cannot be undone.',
     ],
-    riskNote: 'Coo stops by itself when you use the mouse or keyboard. You can turn this off at any time.',
+    riskNote: 'Coo stops automatically when you use the mouse or keyboard. You can turn this off at any time.',
     riskOk: 'Turn on',
     riskCancel: 'Cancel',
     riskKeep: 'Keep it on',
@@ -278,12 +282,28 @@ async function mount(ctx: FeatureContext): Promise<void> {
     grantRow.hidden = v !== 'ask-once';
   };
 
+  /** The values as last read from or saved to the Core: a failed save shows them when the Core cannot be read either. */
+  const saved: Record<string, unknown> = {};
+  const readValues = async () => (await get<{ groups?: ConfigEntry[] }>('/api/config', opts).catch(() => null))?.groups?.find((g) => g.group.id === GROUP)?.values ?? null;
+  const show = (values: Record<string, unknown>) => {
+    if (typeof values[KEYS.control] === 'boolean') control.setChecked(values[KEYS.control] as boolean);
+    const current = LEVELS.find((l) => l === values[KEYS.permission]) ?? 'ask-each-turn';
+    level.setValue(current);
+    showLevel(current);
+    if (typeof values[KEYS.grantMinutes] === 'number') grant.value = String(values[KEYS.grantMinutes]);
+  };
   const save = async (key: string, value: string | number | boolean) => {
     try {
       await setConfig(GROUP, { [key]: value }, opts);
+      saved[key] = value;
       say(S.saved);
     } catch (err) {
-      if (!signal.aborted) say(S.saveFailed(errText(err)), true);
+      if (signal.aborted) return;
+      say(S.saveFailed(errText(err)), true);
+      const now = await readValues();
+      if (signal.aborted) return;
+      if (now) Object.assign(saved, now);
+      show(saved);
     }
   };
   const statusOn = (list: { worlds?: WorldEntry[] } | null) => list?.worlds?.find((w) => w.id === WORLD)?.status === 'active';
@@ -331,13 +351,8 @@ async function mount(ctx: FeatureContext): Promise<void> {
   };
   // The other rows do not wait for a pending turn-on or turn-off; the switch does.
   const worldsRead = readWorlds();
-  const config = await get<{ groups?: ConfigEntry[] }>('/api/config', opts).catch(() => null);
-  const values = config?.groups?.find((g) => g.group.id === GROUP)?.values ?? {};
-  if (typeof values[KEYS.control] === 'boolean') control.setChecked(values[KEYS.control] as boolean);
-  const current = LEVELS.find((l) => l === values[KEYS.permission]) ?? 'ask-each-turn';
-  level.setValue(current);
-  showLevel(current);
-  if (typeof values[KEYS.grantMinutes] === 'number') grant.value = String(values[KEYS.grantMinutes]);
+  Object.assign(saved, await readValues() ?? {});
+  show(saved);
   const worlds = await worldsRead;
   if (signal.aborted) return;
   const on = statusOn(worlds);

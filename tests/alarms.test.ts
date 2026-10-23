@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { mkdtempSync } from 'node:fs';
+import { afterEach, describe, expect, it } from 'vitest';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Alarms, dueTime, localLabel, localToEpoch, nextDay } from '../core/alarms.ts';
@@ -91,5 +91,110 @@ describe('nextAt', () => {
     expect(alarms.nextAt()).toBe(now + 10 * 60_000);
     alarms.takeDue(now + 10 * 60_000);
     expect(alarms.nextAt()).toBe(now + 90 * 60_000);
+  });
+});
+
+// upstream #307: a damaged alarms.json no longer stops the Core from starting
+describe('alarm state recovery', () => {
+  const dirs: string[] = [];
+  afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
+  const stateFile = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'coo-alarms-state-'));
+    dirs.push(dir);
+    return join(dir, 'alarms.json');
+  };
+  const tool = (alarms: Alarms, name: string, now = 0) => alarms.tools(() => now).find((t) => t.name === name)!;
+  const text = (out: unknown) => (typeof out === 'string' ? out : (out as { text: string }).text);
+  const listed = async (alarms: Alarms) => text(await tool(alarms, 'alarm_list').handler({}, {} as never));
+
+  it.each(['', '{"next":', 'null', '{"alarms":[]}', '{"next":0,"alarms":[]}'])('recovers invalid state %j', async (content) => {
+    const file = stateFile();
+    writeFileSync(file, content);
+    const alarms = new Alarms(file, 'UTC');
+    expect(await listed(alarms)).toBe('没有设着的唤醒器。');
+    expect(readFileSync(`${file}.bad`, 'utf8')).toBe(content);
+    const set = await tool(alarms, 'alarm_set').handler({ note: 'tea', in_minutes: 1 }, {} as never);
+    expect(text(set)).toBe('已设 a1:01-01 00:01。');
+    expect(await listed(new Alarms(file, 'UTC'))).toBe(await listed(alarms));
+  });
+
+  it('drops only the records that are not alarms, and keeps numbering after them', async () => {
+    const file = stateFile();
+    const tea = { id: 'a2', at: 60_000, note: 'tea', daily: false, setAt: 0 };
+    writeFileSync(file, JSON.stringify({ next: 3, alarms: [null, { id: 'a1', note: 'no time' }, { ...tea, id: 'a9', at: 'soon' }, tea] }));
+    const alarms = new Alarms(file, 'UTC');
+    expect(await listed(alarms)).toBe('- a2:01-01 00:01 tea');
+    expect(existsSync(`${file}.bad`)).toBe(false);
+    expect(text(await tool(alarms, 'alarm_set').handler({ note: 'nap', in_minutes: 5 }, {} as never))).toMatch(/^已设 a3:/);
+  });
+
+  it('a daily alarm whose saved clock is not HH:MM keeps its due time\'s wall clock', () => {
+    const file = stateFile();
+    const tz = 'Asia/Shanghai';
+    const at = localToEpoch(tz, 2026, 10, 5, 9, 0);
+    writeFileSync(file, JSON.stringify({ next: 2, alarms: [{ id: 'a1', at, note: 'stretch', daily: true, setAt: 0, clock: '25:99' }] }));
+    const alarms = new Alarms(file, tz);
+    const due = alarms.takeDue(at);
+    expect(due.map(({ alarm }) => alarm.note)).toEqual(['stretch']);
+    expect(localLabel(tz, alarms.nextAt()!)).toBe('10-06 09:00');
+    expect(JSON.parse(readFileSync(file, 'utf8')).alarms[0].clock).toBeUndefined();
+  });
+
+  it('sets a daily alarm saved long ago for its next time without stepping through every day since', () => {
+    const file = stateFile();
+    const tz = 'Asia/Shanghai';
+    const now = localToEpoch(tz, 2026, 10, 23, 12, 0);
+    writeFileSync(file, JSON.stringify({ next: 3, alarms: [
+      { id: 'a1', at: 0, note: 'epoch', daily: true, setAt: 0 },
+      { id: 'a2', at: localToEpoch(tz, 2019, 3, 1, 9, 30), note: 'old', daily: true, setAt: 0, clock: '09:30' },
+    ] }));
+    const alarms = new Alarms(file, tz);
+    const started = performance.now();
+    expect(alarms.takeDue(now).map(({ alarm, missed }) => [alarm.note, missed])).toEqual([['epoch', true], ['old', true]]);
+    expect(performance.now() - started).toBeLessThan(500);
+    const saved = JSON.parse(readFileSync(file, 'utf8')).alarms as Array<{ note: string; at: number }>;
+    // 1970-01-01T00:00Z is 08:00 in Shanghai
+    expect(saved.map((a) => [a.note, localLabel(tz, a.at)])).toEqual([['epoch', '10-24 08:00'], ['old', '10-24 09:30']]);
+  });
+
+  it('delivers a due alarm once in the running process when its next save fails', async () => {
+    const file = stateFile();
+    const alarms = new Alarms(file, 'UTC');
+    await tool(alarms, 'alarm_set').handler({ note: 'tea', in_minutes: 1 }, {} as never);
+    const previous = readFileSync(file, 'utf8');
+    // the write goes through `<file>.tmp`: a directory there makes it fail
+    mkdirSync(`${file}.tmp`);
+    expect(alarms.takeDue(60_000).map(({ alarm }) => alarm.note)).toEqual(['tea']);
+    expect(alarms.takeDue(60_001)).toEqual([]);
+    expect(readFileSync(file, 'utf8')).toBe(previous);
+  });
+
+  it('throws on a file it cannot read and leaves it in place', () => {
+    const file = stateFile();
+    mkdirSync(file);
+    expect(() => new Alarms(file, 'UTC')).toThrow(/EISDIR/);
+    expect(statSync(file).isDirectory()).toBe(true);
+    expect(existsSync(`${file}.bad`)).toBe(false);
+  });
+
+  it('replaces the file whole, leaving no temporary file', async () => {
+    const file = stateFile();
+    const alarms = new Alarms(file, 'UTC');
+    await tool(alarms, 'alarm_set').handler({ note: 'tea', in_minutes: 1 }, {} as never);
+    expect(JSON.parse(readFileSync(file, 'utf8')).alarms.map((a: { note: string }) => a.note)).toEqual(['tea']);
+    expect(existsSync(`${file}.tmp`)).toBe(false);
+  });
+});
+
+// upstream #312: a date that does not exist is refused, not carried into the next month
+describe('dueTime dates', () => {
+  const now = Date.UTC(2026, 0, 1);
+  it.each(['2026-02-30 08:00', '2026-13-01 08:00', '2026-00-10 08:00', '2026-04-31 08:00', '2026-03-01 24:00', '2026-03-01 08:60', '2026-03-00 08:00'])('refuses %s', (at) => {
+    expect(dueTime('UTC', now, at, undefined)).toBe(`at 应为 HH:MM 或 YYYY-MM-DD HH:MM,收到 ${JSON.stringify(at)}`);
+  });
+  it('takes the last day of a month and 29 February of a leap year', () => {
+    expect(localLabel('UTC', dueTime('UTC', now, '2026-04-30 23:59', undefined) as number)).toBe('04-30 23:59');
+    expect(localLabel('UTC', dueTime('UTC', now, '2028-02-29 08:00', undefined) as number)).toBe('02-29 08:00');
+    expect(dueTime('UTC', now, '2027-02-29 08:00', undefined)).toMatch(/^at 应为/);
   });
 });

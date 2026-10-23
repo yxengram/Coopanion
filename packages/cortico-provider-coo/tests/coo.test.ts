@@ -12,7 +12,8 @@ import type { Request } from 'cortico/protocol/open-responses/index.ts';
 import { functionCall, functionResult, message } from 'cortico/protocol/open-responses/context.ts';
 import { RESERVED_FRAME_NAMES } from 'cortico/core/loop.ts';
 import { blobLine } from 'cortico/core/blobs.ts';
-import COO, { OFF_PEAK, VENDORS, VENDOR_ICONS, protocolOf, vendorEntry, vendorOf } from '../src/index.ts';
+import COO, { OFF_PEAK, VENDORS, VENDOR_ICONS, plainRemote, protocolOf, vendorEntry, vendorOf } from '../src/index.ts';
+import { COO_TEXT } from '../src/strings.ts';
 import { connectVendor, saveVendorKey, testEndpoint, type ConsoleCall } from '../src/connect.ts';
 
 const entry = (patch: Partial<LLMProviderEntry> = {}): LLMProviderEntry => ({
@@ -45,6 +46,38 @@ async function stub(): Promise<{ url: string; seen: Array<{ path: string; auth: 
 }
 
 describe('Coo Pet Provider', () => {
+  it('takes http only for this computer and private networks', () => {
+    const check = (baseUrl: string) => () => COO.validateEntry(entry({ baseUrl }), 'en');
+    for (const local of ['http://localhost:11434/v1', 'http://127.0.0.1:8080', 'http://[::1]:1234', 'http://192.168.1.20:8000', 'http://10.0.0.5', 'http://172.20.1.1',
+      'http://100.101.102.103:11434', 'http://nas.local:8080', 'http://desktop:1234', 'http://[fd12::1]:80', 'http://[fe80::1]:80', 'http://169.254.1.2',
+      'http://box.lan', 'http://router.home.arpa', 'http://svc.internal', 'http://app.localhost:3000', 'https://relay.example.com/v1']) expect(check(local), local).not.toThrow();
+    for (const remote of ['http://relay.example.com/v1', 'http://8.8.8.8:3000', 'http://172.32.0.1', 'http://100.128.0.1', 'http://[2001:db8::1]', 'http://example.com'])
+      expect(check(remote), remote).toThrow('https');
+    expect(plainRemote('http://example.com')).toBe(true);
+    expect(plainRemote('not a url')).toBe(false);
+  });
+
+  it('says why an http remote address is refused in the console language, Chinese for zh and zh-Hant', () => {
+    const refuse = (language: string) => { try { COO.validateEntry(entry({ baseUrl: 'http://example.com/v1' }), language as never); } catch (e) { return (e as Error).message; } return null; };
+    expect(refuse('zh')).toBe(COO_TEXT.zh.httpRemote);
+    expect(refuse('zh-Hant')).toBe(COO_TEXT.zh.httpRemote);
+    expect(refuse('en')).toBe(COO_TEXT.en.httpRemote);
+    expect(refuse('ja')).toBe(COO_TEXT.en.httpRemote);
+  });
+
+  it('an http remote endpoint saved before the rule sends no request: fetch is never called', async () => {
+    const calls: unknown[] = [];
+    vi.stubGlobal('fetch', async (...args: unknown[]) => { calls.push(args); return new Response('{}'); });
+    try {
+      const instance = COO.create('relay', entry({ baseUrl: 'http://relay.example.com/v1' }), host() as never);
+      const request = { model: 'deepseek-flash', input: [] } as unknown as Request;
+      await expect(instance.client.respond(request, {})).rejects.toThrow('https');
+      expect(calls).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('passes the provider dry mount', () => {
     const report = dryMountProvider(COO, { scratchDir: mkdtempSync(join(tmpdir(), 'ds-dry-')) });
     expect(report.failures).toEqual([]);

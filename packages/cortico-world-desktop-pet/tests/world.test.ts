@@ -1,16 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dryMountWorld } from 'cortico/extensions/dry-mount.ts';
-import { DESKTOP_PET } from '../src/definition.ts';
+import { dryMountWorld, fakeWorldContext } from 'cortico/extensions/dry-mount.ts';
+import { DESKTOP_PET, desktopPetDefinition } from '../src/definition.ts';
 import { DESKTOP_PET_DEFAULTS, type DesktopPetConfigSection } from '../src/config.ts';
 import { DesktopPetWorld, type DesktopPetWorldOptions, type PetBotControls } from '../src/world.ts';
 import { INLINE_TAG_MAX } from '../src/script.ts';
 import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from '../src/tools.ts';
 import { FakeHost } from './helpers/fake-host.ts';
 import { FakePage } from './helpers/page.ts';
+import { HOST_ENV } from '../src/window-host.ts';
 
 const ctx = { role: 'main', log: new FakeHost().log };
 
@@ -47,6 +48,27 @@ async function mounted(patch?: (c: DesktopPetConfigSection) => void, extra?: Par
   await made.world.start(host);
   cleanup.push(() => made.world.stop());
   return { ...made, host };
+}
+
+/** The pet window as its host opens it: a local host process gets the launch URL, and the page connects with its key. */
+async function windowPage(world: DesktopPetWorld): Promise<FakePage> {
+  const dir = mkdtempSync(join(tmpdir(), 'pet-window-'));
+  const file = join(dir, 'url');
+  const previous = process.env[HOST_ENV];
+  process.env[HOST_ENV] = JSON.stringify([process.execPath, '-e',
+    'require("node:fs").writeFileSync(process.argv[1], process.argv.find(a => a.startsWith("--pet-url=")).slice(10)); setInterval(() => {}, 1000);', '--', file]);
+  try { world.openWindow(); } finally {
+    if (previous === undefined) delete process.env[HOST_ENV];
+    else process.env[HOST_ENV] = previous;
+  }
+  cleanup.push(async () => { rmSync(dir, { recursive: true, force: true }); });
+  await expect.poll(() => existsSync(file) && readFileSync(file, 'utf8').length > 0).toBe(true);
+  const url = new URL(readFileSync(file, 'utf8'));
+  const key = new URLSearchParams(url.hash.slice(1)).get('key');
+  expect(key).toBeTruthy();
+  expect(world.petUrl).toBe(`${url.origin}/pet`);
+  expect(JSON.stringify(world.petState())).not.toContain(key);
+  return FakePage.open(url.origin, new URLSearchParams({ role: 'pet', host: 'window', key: key! }).toString());
 }
 
 describe('definition', () => {
@@ -608,7 +630,7 @@ describe('with a pet page', () => {
 
   it('a browser tab only watches while the pet window is connected', async () => {
     const { world } = await mounted();
-    const win = await FakePage.open(origin(world), 'role=pet&host=window');
+    const win = await windowPage(world);
     cleanup.push(() => win.close());
     const tab = await FakePage.open(origin(world), 'role=pet&host=tab');
     cleanup.push(() => tab.close());
@@ -633,7 +655,7 @@ describe('with a pet page', () => {
 
   it('a watching tab still sends typed text and a theme switch, which reaches the pet window', async () => {
     const { world, host, persisted } = await mounted();
-    const win = await FakePage.open(origin(world), 'role=pet&host=window');
+    const win = await windowPage(world);
     cleanup.push(() => win.close());
     const tab = await FakePage.open(origin(world), 'role=pet&host=tab');
     cleanup.push(() => tab.close());
@@ -740,11 +762,11 @@ describe('with a pet page', () => {
     const dir = mkdtempSync(join(tmpdir(), 'pet-avatar-'));
     const avatarFile = join(dir, 'avatar.png');
     writeFileSync(avatarFile, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
-    const { world } = await mounted(undefined, { botName: 'Bot', avatarFile, controls });
+    const { world } = await mounted(undefined, { botName: () => 'Bot', avatarFile, controls });
     const res = await fetch(`${origin(world)}/api/avatar`);
     expect(res.headers.get('content-type')).toBe('image/png');
     expect([...new Uint8Array(await res.arrayBuffer())]).toEqual([0x89, 0x50, 0x4e, 0x47]);
-    const win = await FakePage.open(origin(world), 'role=pet&host=window');
+    const win = await windowPage(world);
     cleanup.push(() => win.close());
     const tab = await FakePage.open(origin(world), 'role=pet&host=tab');
     cleanup.push(() => tab.close());
@@ -761,8 +783,8 @@ describe('with a pet page', () => {
 
   it('the menu header shows only the controls the app lends', async () => {
     const calls: string[] = [];
-    const { world } = await mounted(undefined, { botName: 'Bot', controls: { openSettings: () => calls.push('settings') } });
-    const win = await FakePage.open(origin(world), 'role=pet&host=window');
+    const { world } = await mounted(undefined, { botName: () => 'Bot', controls: { openSettings: () => calls.push('settings') } });
+    const win = await windowPage(world);
     cleanup.push(() => win.close());
     const state = await (await fetch(`${origin(world)}/api/state`)).json() as { bot: Record<string, unknown> };
     expect(state.bot).toMatchObject({ controls: true, buttons: { pause: false, settings: true, dress: false, quit: false }, paused: null, quitLabel: '', quitPrompt: '' });
@@ -803,7 +825,7 @@ function chatSocket(world: DesktopPetWorld) {
 
 describe('chat page', () => {
   it('a typed message waits on the page until delivered; a withdrawn one leaves the history, the pet\'s lines stay', async () => {
-    const { world, host } = await mounted(undefined, { botName: 'Coo' });
+    const { world, host } = await mounted(undefined, { botName: () => 'Coo' });
     const page = await FakePage.open(origin(world));
     cleanup.push(() => page.close());
     const chat = chatSocket(world);
@@ -855,6 +877,35 @@ describe('chat page', () => {
     cfg.window.bubbleSize = 1.3;
     cfg.window.fontSize = 9;
     expect(await page.next((m) => m.t === 'prefs' && m.bubbleSize === 1.3)).toMatchObject({ fontSize: 1.6 });
+  });
+
+  it('the pet page gets the bubble speed, 1 by default and kept within 0.5–2, and the input bubbles switch (upstream #248, #279)', async () => {
+    const { world, cfg } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    expect(page.init).toMatchObject({ bubbleSpeed: 1, saidBubbles: true });
+    cfg.window.bubbleSpeed = 0;
+    cfg.saidBubbles = false;
+    expect(await page.next((m) => m.t === 'prefs' && m.saidBubbles === false)).toMatchObject({ bubbleSpeed: .5 });
+    cfg.window.bubbleSpeed = 1.53;
+    expect((await page.next((m) => m.t === 'prefs' && m.bubbleSpeed !== .5)).bubbleSpeed).toBe(1.55);
+    // neither is a setting the bot changes itself
+    const setProps = Object.keys((tool(world, 'pet_set').parameters as { properties: Record<string, unknown> }).properties);
+    expect(setProps.filter((k) => /speed|said/i.test(k))).toEqual([]);
+  });
+
+  it("pet_say's receipt counts the bubble's time at the bubble speed", async () => {
+    const { world, cfg } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const script = '这是一段明显更长的话,要多打一会儿字才能说完,再多说几句让它停得久一些。';
+    const secs = (out: unknown) => Number(/这段约 (\d+) 秒/.exec((out as { text: string }).text)?.[1]);
+    const normal = secs(await tool(world, 'pet_say').handler({ script }, ctx));
+    // the second waits for the first: the receipt says how long it is itself
+    cfg.window.bubbleSpeed = 2;
+    const fast = secs(await tool(world, 'pet_say').handler({ script }, ctx));
+    expect(normal).toBeGreaterThan(4);
+    expect(Math.abs(fast - normal / 2)).toBeLessThanOrEqual(1);
   });
 
   it('an interrupt while the page is asked where the pointer is stops pet_walk_to before it sets off', async () => {
@@ -916,5 +967,47 @@ describe('chat page', () => {
     expect(await page.next((m) => m.t === 'walk-stop')).toMatchObject({ id: walk.id });
     page.send({ t: 'interrupted', walkId: walk.id, x: .4, by: 'idle' });
     expect(await walking).toEqual({ text: '走到屏幕横向 40% 处停下了。' });
+  });
+});
+
+describe("the bot's name (upstream #320)", () => {
+  it('is read at each use: a rename reaches the menu header and an open chat page without a restart', async () => {
+    let name = 'Coo';
+    const def = desktopPetDefinition({ botName: () => name });
+    const wctx = fakeWorldContext(def, { scratchDir: mkdtempSync(join(tmpdir(), 'pet-name-')) });
+    Object.assign(wctx.cfg, { enabled: true, port: 0 });
+    wctx.cfg.window.enabled = false;
+    wctx.cfg.asr.enabled = false;
+    const world = def.create(wctx) as DesktopPetWorld;
+    const host = new FakeHost();
+    await world.start(host);
+    cleanup.push(() => world.stop());
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    expect(page.init.bot).toMatchObject({ name: 'Coo' });
+    const chat = chatSocket(world);
+    chat.send({ t: 'hello' });
+    await expect.poll(() => chat.last('init')?.bot).toBe('Coo');
+
+    name = 'Mochi';
+    // throws when no prefs frame with the new name arrives
+    await page.next((m) => m.t === 'prefs' && (m.bot as { name?: unknown }).name === 'Mochi');
+    await expect.poll(() => chat.last('bot')).toEqual({ t: 'bot', bot: 'Mochi' });
+    chat.send({ t: 'hello' });
+    await expect.poll(() => chat.last('init')?.bot).toBe('Mochi');
+  });
+
+  it('falls back to the name the World was mounted with when the app lends none', async () => {
+    const def = desktopPetDefinition();
+    const wctx = fakeWorldContext(def, { scratchDir: mkdtempSync(join(tmpdir(), 'pet-name-')) });
+    Object.assign(wctx.cfg, { enabled: true, port: 0 });
+    wctx.cfg.window.enabled = false;
+    wctx.cfg.asr.enabled = false;
+    const world = def.create(wctx) as DesktopPetWorld;
+    await world.start(new FakeHost());
+    cleanup.push(() => world.stop());
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    expect(page.init.bot).toMatchObject({ name: wctx.botName });
   });
 });

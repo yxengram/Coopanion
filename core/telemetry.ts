@@ -21,6 +21,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, release, totalmem } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { asRecord, field, isRecord, readState, writeState } from './state-file.ts';
 
 /** How often the day's record goes out while the app runs. */
 const SEND_MS = 30 * 60_000;
@@ -31,6 +32,8 @@ const TICK_GAP_MS = 3 * TICK_MS;
 /** One-off events kept while sends fail; the oldest go first past it. */
 const QUEUE_MAX = 300;
 const SEND_TIMEOUT_MS = 15_000;
+/** At shutdown the last send, one already under way included, is given this long (the app kills the Core 12 s after asking it to stop). */
+const STOP_TIMEOUT_MS = 5000;
 const STATE_FILE = 'telemetry.json';
 const ID_FILE = 'telemetry-id';
 
@@ -95,6 +98,56 @@ interface State {
   queue: TelemetryEvent[];
 }
 
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const isString = (value: unknown): value is string => typeof value === 'string';
+const isTally = (value: unknown): value is Record<string, number> => isRecord(value) && Object.values(value).every(finite);
+const ENDPOINT_KINDS: ReadonlyArray<unknown> = ['builtin', 'custom-remote', 'custom-local'] satisfies Array<ModelUse['endpointKind']>;
+const isEndpointKind = (value: unknown): value is ModelUse['endpointKind'] => ENDPOINT_KINDS.includes(value);
+
+function restoreModel(value: unknown): ModelUse {
+  const m = asRecord(value);
+  const n = (key: string) => field(m, key, finite, 0);
+  return {
+    vendor: field(m, 'vendor', isString), model: field(m, 'model', isString), endpointKind: field(m, 'endpointKind', isEndpointKind),
+    calls: n('calls'), failed: n('failed'), failedStatus: field(m, 'failedStatus', isTally, {}), aborted: n('aborted'),
+    tokensIn: n('tokensIn'), tokensOut: n('tokensOut'), tokensCached: n('tokensCached'),
+  };
+}
+
+function restoreDay(value: unknown): Day {
+  const d = asRecord(value);
+  const counts = field(d, 'counts', isRecord, {});
+  const day: Day = {
+    date: field(d, 'date', isString),
+    runningMinutes: field(d, 'runningMinutes', finite, 0),
+    minutes: field(d, 'minutes', (v): v is number[] => Array.isArray(v) && v.every(finite), []),
+    counts: Object.fromEntries(COUNTERS.map((c) => [c, field(counts, c, finite, 0)])) as Record<Counter, number>,
+    models: Object.fromEntries(Object.entries(field(d, 'models', isRecord, {})).map(([key, m]) => [key, restoreModel(m)])),
+  };
+  if (d.snapshot !== undefined) day.snapshot = field(d, 'snapshot', isRecord);
+  return day;
+}
+
+/**
+ * The state as read from the state file (upstream #307). A field the file lacks is taken from `fresh` or starts at 0
+ * or empty (a day carried over from 0.1.10 has no `failedStatus` or `aborted`); counters and model fields this version
+ * does not know are dropped. A field of the wrong type makes the content invalid: it is kept as `telemetry.json.bad`.
+ */
+function restoreState(value: unknown, fresh: State): State {
+  const s = asRecord(value);
+  return {
+    installId: field(s, 'installId', isString, fresh.installId),
+    firstDate: field(s, 'firstDate', isString, fresh.firstDate),
+    chatDays: field(s, 'chatDays', finite, fresh.chatDays),
+    lastChatDate: field(s, 'lastChatDate', (v): v is string | null => v === null || isString(v), fresh.lastChatDate),
+    enabled: field(s, 'enabled', (v): v is boolean => typeof v === 'boolean', fresh.enabled),
+    extensions: field(s, 'extensions', (v): v is string[] => Array.isArray(v) && v.every(isString), fresh.extensions),
+    day: s.day === undefined ? fresh.day : restoreDay(s.day),
+    days: field(s, 'days', Array.isArray, fresh.days).map(restoreDay),
+    queue: field(s, 'queue', (v): v is TelemetryEvent[] => Array.isArray(v) && v.every((e) => isRecord(e) && isString(e.type) && isString(e.ts)), fresh.queue),
+  };
+}
+
 export interface TelemetryOptions {
   /** The deployment directory. */
   dir: string;
@@ -122,6 +175,8 @@ export class Telemetry {
   private timers: NodeJS.Timeout[] = [];
   private lastTick: number;
   private sending: Promise<void> | null = null;
+  /** Aborts the send under way (`stop`). */
+  private sendAbort: AbortController | null = null;
   /** The last try seen of each model request not yet judged (`usage`). */
   private readonly lastTries = new Map<string, { m: ModelUse; try: ModelTry }>();
 
@@ -132,15 +187,19 @@ export class Telemetry {
     this.lastTick = this.now().getTime();
     const file = join(opts.dir, STATE_FILE);
     const today = localDate(this.now());
-    if (existsSync(file)) {
-      this.state = JSON.parse(readFileSync(file, 'utf8')) as State;
-    } else {
-      this.state = {
-        installId: randomUUID(), firstDate: today, chatDays: 0, lastChatDate: null, enabled: opts.enabled(),
-        extensions: [], day: newDay(today), days: [], queue: [],
-      };
-      this.event('first_launch', {});
+    const firstRun = !existsSync(file);
+    // a damaged state file is rebuilt under the id the uninstaller still has in `telemetry-id`, with no first_launch
+    let installId: string = randomUUID();
+    if (!firstRun) {
+      try { installId = readFileSync(join(opts.dir, ID_FILE), 'utf8').trim() || installId; }
+      catch { /* the id is absent when statistics are disabled */ }
     }
+    const fresh: State = {
+      installId, firstDate: today, chatDays: 0, lastChatDate: null, enabled: opts.enabled(),
+      extensions: [], day: newDay(today), days: [], queue: [],
+    };
+    this.state = readState(file, (value) => restoreState(value, fresh)) ?? fresh;
+    if (firstRun) this.event('first_launch', {});
   }
 
   get installId(): string { return this.state.installId; }
@@ -158,12 +217,14 @@ export class Telemetry {
     void this.send();
   }
 
-  /** Stops the timers and makes one last send, bounded by `SEND_TIMEOUT_MS`. */
+  /** Stops the timers and gives the final send at most `STOP_TIMEOUT_MS`, including one already in flight (upstream #311). */
   async stop(): Promise<void> {
     for (const t of this.timers) clearInterval(t);
     this.timers = [];
     this.tick();
-    await this.send();
+    const timer = setTimeout(() => this.sendAbort?.abort(), STOP_TIMEOUT_MS);
+    try { await this.send(); }
+    finally { clearTimeout(timer); }
   }
 
   count(name: Counter, by = 1): void {
@@ -195,9 +256,6 @@ export class Telemetry {
     this.rollDay();
     const key = `${use.vendor}\u0000${use.model}\u0000${use.endpointKind}`;
     const m = this.state.day.models[key] ??= { ...use, calls: 0, failed: 0, failedStatus: {}, aborted: 0, tokensIn: 0, tokensOut: 0, tokensCached: 0 };
-    // a day carried over from 0.1.10 has neither
-    m.failedStatus ??= {};
-    m.aborted ??= 0;
     m.calls += 1;
     m.tokensIn += rec.promptTokens;
     m.tokensOut += rec.completionTokens;
@@ -310,7 +368,7 @@ export class Telemetry {
 
   private save(): void {
     try {
-      writeFileSync(join(this.opts.dir, STATE_FILE), JSON.stringify(this.state) + '\n');
+      writeState(join(this.opts.dir, STATE_FILE), JSON.stringify(this.state) + '\n');
       const idFile = join(this.opts.dir, ID_FILE);
       if (this.state.enabled) writeFileSync(idFile, this.state.installId);
       else rmSync(idFile, { force: true });
@@ -344,13 +402,18 @@ export class Telemetry {
       events: queue,
       days: days.map((d) => this.dayRecord(d)),
     };
+    const abort = new AbortController();
+    this.sendAbort = abort;
     try {
       const res = await this.fetchImpl(this.url, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+        signal: AbortSignal.any([abort.signal, AbortSignal.timeout(SEND_TIMEOUT_MS)]),
       });
       if (!res.ok) return;
     } catch {
       return;
+    } finally {
+      this.sendAbort = null;
     }
     // what was queued meanwhile stays; closed days that went out are done
     this.state.queue.splice(0, queue.length);

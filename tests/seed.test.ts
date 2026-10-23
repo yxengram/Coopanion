@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CORE_DEFAULTS } from 'cortico/core/config.ts';
@@ -23,6 +23,12 @@ describe('first-run seed', () => {
     expect(read(join(home, 'providers', ENDPOINT, 'config.json'))).toMatchObject({ kind: 'coo', secret: KEY_NAME, multimodal: true });
     expect(readFileSync(join(home, DEPLOYMENT, 'workspace', 'CONSTITUTION.md'), 'utf8')).toContain('我叫 Coo');
     expect(readFileSync(join(home, DEPLOYMENT, 'avatar.png')).subarray(1, 4).toString()).toBe('PNG');
+  });
+
+  it.skipIf(process.platform === 'win32')('creates the endpoint folder, where the key will be saved, owner-only', () => {
+    const home = mkdtempSync(join(tmpdir(), 'cc-seed-'));
+    seed(home);
+    expect(statSync(join(home, 'providers', ENDPOINT)).mode & 0o777).toBe(0o700);
   });
 
   it('replaces a self-description still exactly as 0.1.1 seeded it, CRLF or LF', () => {

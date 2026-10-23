@@ -3,10 +3,11 @@
  * Nothing in the app shows them: when one is due Coo gets an internal event and is woken, as if it
  * had remembered on its own. They are kept in `alarms.json` in the deployment directory, so they
  * outlive a restart; one that fell due while the app was closed is delivered at the next start,
- * saying when it was meant for. A daily one is then set for its next day.
+ * saying when it was meant for. A daily one is then set for its next day. A damaged `alarms.json` is kept as
+ * `alarms.json.bad` and the list starts empty; records that are not alarms are dropped, the rest kept (`state-file.ts`).
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import type { ToolDef } from 'cortico/core/types.ts';
+import { asRecord, field, isRecord, readState, writeState } from './state-file.ts';
 
 export interface Alarm {
   id: string;
@@ -21,6 +22,27 @@ export interface Alarm {
 }
 
 interface Saved { next: number; alarms: Alarm[] }
+
+/** A daily alarm's `clock` as `nextDay` reads it. */
+const CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+function validAlarm(a: unknown): a is Alarm {
+  return isRecord(a) && typeof a.id === 'string' && typeof a.note === 'string' && typeof a.daily === 'boolean'
+    && typeof a.at === 'number' && Number.isFinite(a.at) && typeof a.setAt === 'number' && Number.isFinite(a.setAt);
+}
+
+/**
+ * The saved alarms; a record that is not an alarm is dropped and the others are kept (upstream #307). A `clock`
+ * that is not `HH:MM` is dropped too, so the alarm keeps `at`'s wall-clock time as one saved before `clock` was kept.
+ */
+function restoreSaved(value: unknown): Saved {
+  const saved = asRecord(value);
+  const records = field(saved, 'alarms', Array.isArray, []);
+  const alarms = records.filter(validAlarm);
+  if (alarms.length < records.length) console.warn('[alarms] dropped invalid records', records.length - alarms.length);
+  for (const a of alarms) if (a.clock !== undefined && !(typeof a.clock === 'string' && CLOCK.test(a.clock))) delete a.clock;
+  return { next: field(saved, 'next', (n): n is number => Number.isSafeInteger(n) && (n as number) >= 1), alarms };
+}
 
 /** A due alarm this much past its time was missed while the app was closed (the World looks every second). */
 const MISSED_AFTER_MS = 60_000;
@@ -87,7 +109,12 @@ export function dueTime(timezone: string, now: number, at: unknown, inMinutes: u
   if (typeof at !== 'string') return '要给 at 或 in_minutes';
   const full = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/.exec(at.trim());
   if (full) {
-    const ms = localToEpoch(timezone, +full[1]!, +full[2]!, +full[3]!, +full[4]!, +full[5]!);
+    const [, y, mo, d, h, mi] = full.map(Number);
+    // a date that does not exist (02-30, 13-01) or a time past 23:59 is refused, not carried into the next month (upstream #312)
+    if (mo! < 1 || mo! > 12 || d! < 1 || d! > new Date(Date.UTC(y!, mo!, 0)).getUTCDate() || h! > 23 || mi! > 59) {
+      return `at 应为 HH:MM 或 YYYY-MM-DD HH:MM,收到 ${JSON.stringify(at)}`;
+    }
+    const ms = localToEpoch(timezone, y!, mo!, d!, h!, mi!);
     return ms > now ? ms : `${at} 已经过去了`;
   }
   const clock = /^(\d{1,2}):(\d{2})$/.exec(at.trim());
@@ -108,11 +135,11 @@ export class Alarms {
   private saved: Saved;
 
   constructor(private readonly file: string, private readonly timezone: string) {
-    this.saved = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as Saved : { next: 1, alarms: [] };
+    this.saved = readState(file, restoreSaved) ?? { next: 1, alarms: [] };
   }
 
   private save(): void {
-    writeFileSync(this.file, `${JSON.stringify(this.saved, null, 2)}\n`);
+    writeState(this.file, `${JSON.stringify(this.saved, null, 2)}\n`);
   }
 
   /** When the next alarm is due (epoch ms), or null when none is set. */
@@ -128,10 +155,14 @@ export class Alarms {
     for (const a of due) {
       if (!a.daily) continue;
       let at = a.at;
+      // one saved long ago (or with a tiny `at` in a hand-edited file) starts two days back, not day by day from then
+      if (at < now - 2 * 86_400_000) at = nextDay(this.timezone, now - 2 * 86_400_000, a.clock ?? wallClock(this.timezone, a.at));
       while (at <= now) at = nextDay(this.timezone, at, a.clock);
       this.saved.alarms.push({ ...a, at });
     }
-    this.save();
+    // they are delivered all the same: a failed save may deliver them again after a restart (upstream #307)
+    try { this.save(); }
+    catch (error) { console.warn('[alarms] could not save due alarms', error); }
     return due.map((alarm) => ({ alarm, missed: now - alarm.at > MISSED_AFTER_MS }));
   }
 

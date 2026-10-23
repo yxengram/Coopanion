@@ -6,13 +6,17 @@ name: release
 # Run by hand (workflow_dispatch) it is a dry run of the packaging on every platform before tagging: it builds,
 # checks the portable zip and that every release file is there for package.json's version, writes SHA256SUMS.txt,
 # and keeps the builds and SHA256SUMS.txt as workflow artifacts; nothing is published.
+# Every job reads the repository only, except `publish`, which runs on a tag push alone, in the `release` environment
+# (where the repository can ask for an approval), with write access to contents. It never changes a published
+# release: it uploads only into a draft (a rerun after a failed upload overwrites the draft's files). Actions are
+# pinned by commit SHA and no checkout keeps its token (upstream #314).
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -39,11 +43,12 @@ jobs:
             files: dist/Coopanion-*-linux-x64.AppImage dist/Coopanion-*-linux-x64.deb dist/latest-linux.yml
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
+          persist-credentials: false
       - run: corepack enable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -62,20 +67,22 @@ jobs:
         run: |
           mkdir -p release-artifacts
           cp ${{ matrix.files }} release-artifacts/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           # two Windows x64 builds: the channel keeps their artifact names apart
           name: installers-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.channel || 'github' }}
           path: release-artifacts/*
           if-no-files-found: error
 
-  # on a tag push it publishes; run by hand it stops after the checks and keeps SHA256SUMS.txt as an artifact
-  publish:
+  # on a tag push and on a dry run alike: checks the release files and keeps SHA256SUMS.txt as an artifact
+  check:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: installers-*
           path: release-artifacts
@@ -94,14 +101,34 @@ jobs:
           if grep -q portable latest.yml; then echo "latest.yml names the portable zip"; exit 1; fi
           sha256sum "${files[@]}" > SHA256SUMS.txt
           cat SHA256SUMS.txt
-      - if: github.event_name != 'push'
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-dry-run-SHA256SUMS
+          name: release-SHA256SUMS
           path: release-artifacts/SHA256SUMS.txt
           if-no-files-found: error
+
+  # a tag push only: the one job that may write, in the release environment
+  publish:
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: installers-*
+          path: release-artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-SHA256SUMS
+          path: release-artifacts
       - name: Publish complete release
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -109,5 +136,7 @@ jobs:
           notes="docs/releases/${GITHUB_REF_NAME}.md"
           test -f "$notes"
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --verify-tag --draft --title "Coopanion $GITHUB_REF_NAME" --notes-file "$notes"
+          # a published release keeps its files; only a draft (a rerun after a failed upload) is overwritten
+          test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = true
           gh release upload "$GITHUB_REF_NAME" release-artifacts/* --clobber
           gh release edit "$GITHUB_REF_NAME" --draft=false --latest --notes-file "$notes"

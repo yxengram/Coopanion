@@ -96,6 +96,12 @@
       "description": "双击桌宠打开打字框。",
       "x-hot": true
      },
+     "worlds.desktop-pet.saidBubbles": {
+      "type": "boolean",
+      "title": "输入气泡",
+      "description": "打字、语音和对话页发出的消息显示在桌宠头顶,回复后淡出。关闭时语音只在识别中显示。",
+      "x-hot": true
+     },
      "worlds.desktop-pet.selfAdjust": {
       "type": "boolean",
       "title": "允许自己调整",
@@ -130,6 +136,15 @@
       "description": "气泡里文字的大小,1 为默认;气泡宽度不变。",
       "minimum": 0.8,
       "maximum": 1.6,
+      "multipleOf": 0.05,
+      "x-hot": true
+     },
+     "worlds.desktop-pet.window.bubbleSpeed": {
+      "type": "number",
+      "title": "气泡速度",
+      "description": "桌宠的气泡逐字出现和停留的速度,1 为默认,越大越快。",
+      "minimum": 0.5,
+      "maximum": 2,
       "multipleOf": 0.05,
       "x-hot": true
      },

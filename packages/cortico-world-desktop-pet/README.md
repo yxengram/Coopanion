@@ -84,6 +84,11 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 ## 桌宠窗口
 
 World 在 `127.0.0.1:7797`(被占向上顺延)起一个页面服务:`/pet` 是桌宠本身,`/dress` 是装扮页。
+浏览器的写请求(GET、HEAD 以外的请求)和 WebSocket 只接受本服务自己的 HTTP 源(含端口,`http://127.0.0.1:<端口>` 或 `http://localhost:<端口>`),
+别的源答 421;不带 Origin 的本机客户端可以连(引导在 Node 里 `POST /api/skin`)。读请求另收本机别的端口(控制台嵌桌宠页)和形象沙箱的不透明源。
+窗口进程启动时拿到的地址是 `PetServer.windowUrl`(`/pet#key=<随机凭据>`),桌宠窗口连 socket 时带上它(`host=window&key=…`),
+不带或不对答 403;`petUrl`、`petState().url` 和面板上的链接都不含凭据。窗口的连接被替换后会重新连,被替换的连接后来发的消息不再算数;
+窗口在线时,浏览器里的桌宠页只接收外观和偏好更新,仍可发送文字、修改偏好和使用运行控制。
 桌宠内置六个形象,在装扮页最上面一行选,存在配置 `skin.figure` 里:`coo` 是 Coo,`whale` 是 DeepSeek 大肥鱼
 (鲸鱼女仆,`web/whale`,用 `web/kit/rig.js` 画的 Live2D 式分件模型,八套配色存在 `skin.scheme`,见 [examples/whale](examples/whale/README.md)),
 `claude-chan` 是 Claude 娘(正面站着的 Q 版少女,`web/claude-chan`,同样是 rig 画的分件模型,一套配色 `original`;
@@ -129,17 +134,26 @@ Windows 上每 0.8 秒用 GDI 取一小块身体周围的屏幕像素来比,其�
 
 桌宠窗口里的页面用麦克风收音,16 kHz 单声道 PCM 经 WebSocket 送到 World,按能量门限切句
 (`src/asr/segmenter.ts`),交给识别引擎,繁体转简体、挡掉已知幻觉后作为 `desktop-pet.speech` 投递。
-说话时桌宠歪头倾听,虚线气泡里边说边显示听到的字,还没定下来的部分是灰色的;识别完成后这个气泡留在桌宠旁边(见下面「人说的话」)。
+说话时桌宠歪头倾听,头顶的灰底气泡里边说边显示听到的字,还没定下来的部分是浅灰的;识别完成后这个气泡留在桌宠头顶(见下面「人说的话」)。
 按键收音(`hold`、`toggle`)时气泡里有「取消」按钮:桌宠页发 `cancel`,World 丢掉这次收音手上的音频、转写队列和已识别的文字,在途的转写落地后也丢掉,发 `listen` 的 `none`,不投递事件;`toggle` 下同时关掉收音。
 
-人说的话留在桌宠旁边(`web/pet-app.js` 的 lines):打字框发出的、识别完成的语音、对话页发来的消息各成一个虚线气泡,最新的在最下面,
-放在桌宠背朝的一侧并让开它的气泡;那侧放不下换到另一侧,两侧都放不下就放到它的气泡上方。识别完成的语音前面画话筒,对话页来的画双向箭头,带图片的写张数。
+人说的话留在桌宠头顶(`web/pet-app.js` 的 lines,上游 #279):打字框发出的、识别完成的语音、对话页发来的消息各成一个灰底气泡(底色同对话页用户的气泡,`--said-bg`,不画边框和尾巴),
+最新的在最下面,居中叠在桌宠的气泡上方,没有气泡时在头顶;不看朝向,也没有连到桌宠的小圆点。识别完成的语音前面画话筒,对话页来的画双向箭头,带图片的写张数。
+「输入气泡」开关 `worlds.desktop-pet.saidBubbles`(默认开,即改即生效)关掉后,打字框和对话页发的不留气泡,已留着的立即淡出;语音的气泡识别时照常显示,识别完立即淡出。
 一条话由它之后桌宠开始的第一句说话或提问回答:回答的气泡还在时,或者还没回答而 bot 在想(`thinking`)、有说话在排队时,这条和更早的都不淡出;
 回答的气泡关掉 1 秒后淡出,没有回答的 8 秒后淡出。最多 3 条、合计 6 行,超出时最早的先淡出,即使还在等回答。点一下关掉一条,识别中的那条用「取消」。
 
-气泡尺寸 `window.bubbleSize` 缩放所有气泡的宽度、留白、圆角、尾巴、离头顶的距离和连到桌宠的小圆点,边框粗细不变;
+打字框(`openInput`)是多行的 textarea,随文字长高到六行后滚动;Enter 发送,Shift+Enter 换行,输入法选字时的 Enter(`isComposing` 或 keyCode 229)不发送。
+
+桌宠气泡和提问里写出的 http(s) 网址(`web/ui.js` 的 `urlRanges` / `linked`,上游 #297)打完字后变成链接,链接文字就是它打开的地址:
+只认写出来的裸网址,到空格或非 ASCII 字符为止,句末标点不算,网址自己开的括号留着;`[文字](网址)` 不渲染。链接 `target=_blank`,
+桌宠窗口里由宿主的 `guard` 交给系统浏览器(只放行 http(s))。带链接的气泡在指针停在上面时不收起。对话页用同一个 `linked`。
+
+气泡尺寸 `window.bubbleSize` 缩放所有气泡的宽度、留白、圆角、尾巴和离头顶的距离,边框粗细不变;
 字体尺寸 `window.fontSize` 缩放气泡里的字和同一行的小图标,气泡的宽度不变。两项都是 0.8–1.6 倍、每档 0.05,默认 1(页面这时不设 CSS 变量,样子和以前逐项相同),不随桌宠的大小变。
-它们只是设置(「习惯」页的「气泡尺寸」「字体尺寸」),不在 `pet_set` 里,环境提示词也不提。
+气泡速度 `window.bubbleSpeed`(上游 #248)是 0.5–2 倍、每档 0.05,默认 1:Coo 的气泡每秒打 20 乘以它个字,打完后的停留时间除以它(动作前的 0.45 秒不变),
+`pet_say` 回执报的显示时长(`estimateSeconds`)也按它算;World 把范围外或不是数的值当成范围内最近的一档(不是数时为 1)再发给页面,默认 1 时回执和以前一样。
+它们只是设置(「习惯」页的「气泡尺寸」「字体尺寸」「气泡速度」),不在 `pet_set` 里,环境提示词也不提。
 
 识别引擎存在 `asr.engine`:
 
@@ -149,6 +163,10 @@ Windows 上每 0.8 秒用 GDI 取一小块身体周围的屏幕像素来比,其�
 | `system` | Windows 自带的语音识别(SAPI 听写,System.Speech),不用下载,准确度低一些;其他系统上按 `funasr` 处理 |
 
 旧版本写下的 `auto`、`whisper` 都按 `funasr` 处理。
+
+关闭 `asr.enabled` 会停止正在运行的识别引擎:释放已载入的 FunASR 模型(进程带 `--expose-gc` 时当场做一次完整回收),或结束系统识别的 PowerShell 进程;再次开启时重新载入。
+停止期间来的启动等停止做完再开始,停止晚于启动时启动作废,所以快速关了又开不会同时留着两份模型或两个识别进程。
+「语音输入」面板的「启动」在关着时不可用;「停止」停的是正在运行的那个引擎,哪怕配置里刚换了引擎。
 
 `funasr`:`sherpa-onnx-node` 是本包的依赖,随包安装(Windows 约 24 MB,macOS 约 35 MB),不在运行时下载。
 只有模型要下载:「语音输入」面板(或应用的新手引导)点一下「下载」,
@@ -190,6 +208,8 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 包里的代码只在沙箱里跑:桌宠页把它放进 `/figure-frame`,这个页面的 CSP 把它设成不透明源、禁止一切网络连接,
 脚本和图片只能从桌宠服务读,和桌宠页之间只有 postMessage(`web/figure-frame.js`、`web/body-host.js`)。
 能嵌它的只有桌宠服务自己的页面和应用给的控制台源(`consoleOrigins`,控制台的开始页、装扮页在另一个端口嵌桌宠页);应用没给时,本机任意端口都可以。
+视频、音频元素和字体在沙箱里加载不了,`fetch` 也读不到包里的文件;包要出声就在 `figure.json` 的 `sounds` 里声明,由桌宠页播放。
+`/packs/<id>/` 下的文件都带 `sandbox allow-scripts; default-src 'none'` 的 CSP(和 `nosniff`),包里的 HTML、SVG 被单独打开时也在不透明源里,连不到网络。
 它连不到桌宠的 socket,也没法替对方说话或改设置。身体整个归包管:走、跳、被拎、表情、动作、画法都是包的代码,
 桌宠页只转发指针、下指令,读回它报告的位置和发生的事。多数包用 `web/kit/body.js` 这套现成的身体,只自己画。
 
@@ -220,6 +240,18 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 用 kit 的包只要 `kit.createBody(host, { figure, words })`:`figure` 每帧画一次,`words` 是 kit 本身没有的词怎么做。
 本仓库的桌宠页在 `talk` 里带上正在说的字(`talk(ch)`),kit 据此换口型;没带字的页面每次换下一种口型。
 `examples/whale/README.md` 是写形象包的完整说明,最后一节讲怎样把内置的大肥鱼(`pnpm run export:whale`)、Claude 娘(`pnpm run export:claude`)、GPT 娘(`pnpm run export:gpt`)、Gemini 娘(`pnpm run export:gemini`)和 Grok 娘(`pnpm run export:grok`)导出成别的 Coopanion 能装的包。20 秒内没准备好、或者跑的时候抛错,桌宠换回 Coo,并告诉 bot 现在按 Coo 的词表。
+
+### 导入和卸载
+
+装扮页形象那一行最后一格是「导入」:选一个 zip 或文件夹,或直接拖到页上(`src/pack-import.ts`),带 `figure.json` 的文件夹往下最多找 3 层,
+列出来让人勾选,装进数据目录的 `figures/<id>/`。要替换已装的同 id 包时,`POST /api/figures/import/install` 答 409 和 `{ conflicts: [id, …] }`,
+不改任何文件、暂存的导入保留;装扮页列出这些包,点「替换」后带同一个 `token` 和 `replace: [id, …]` 再装一次,取消则原样保留。
+同名文件夹里若是别的东西(另一个包、坏包),不算冲突也不动它,新包装到 `<id>-2/`。通过检查后 token 就用掉了,同时来的第二次安装会被拒。
+
+`/api/figures` 给每个包标上 `removable`:只有装在 `figures/`(`packDir`)里的包能卸载,内置形象和 `packRoots` 其余目录里的包不能。
+装扮页上能卸载的包,悬停或聚焦卡片时右上角出现删除按钮,确认后 `POST /api/figures/remove`(`{ id }`)删掉这个包所在的整个文件夹;
+删的是正在用的形象时,装扮页把装扮换回 Coo。内置的、不在 `packDir` 里的或不存在的 id 答 400 和原因,不删任何文件。直接构造 `DesktopPetWorld` 时不给 `packDir`,
+装扮页就不显示导入,也没有包能卸载。
 
 ## 自己调整
 
@@ -263,9 +295,10 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 
 - 页面发 `send` 的文字和图片作为 `desktop-pet.message` 投递;送达前在页面上排队,`now` 让它以 interrupt 立即送达,`withdraw` 撤回(需要宿主提供 `promotePending` / `withdrawPending`);World 的 `onEventsSettled` 告诉页面何时送达。
 - `pet_say` 的每一拍、`pet_ask` 的问题、两句话之间调用过的工具名记为 `desktop-pet.self` 事件,只落库不投递;`hello` 时 World 从事件库还原历史,排过队的消息放在送达的位置。`blob`(GET)取消息里的图片。
-- 页面发出的消息交给 bot 后,World 给桌宠页发 `said`(`via: 'chat'`、文字、图片数、事件游标),桌宠把它留在旁边;撤回时发 `said-withdrawn`,桌宠关掉那条。
+- 页面发出的消息交给 bot 后,World 给桌宠页发 `said`(`via: 'chat'`、文字、图片数、事件游标),桌宠把它留在头顶(「输入气泡」`saidBubbles` 关着时不留);撤回时发 `said-withdrawn`,桌宠关掉那条。
 - `pet_ask` 在页面上也能回答,回答后桌宠上的气泡关掉。页面还收到 Core 的运行阶段(`phase`)与暂停状态。
 - `controls.openChat` 借出后,打字气泡多一个展开钮,带着草稿打开对话页;环境提示词的 `{{pet.chat}}` 也只在这时说明对话页。
+- bot 的名字:`desktopPetDefinition({ botName })` 借出一个返回当前名字的函数时,菜单头、对话页(`init` 里的 `bot`,改名时推一帧 `{ t: 'bot', bot }`)和对话页的互动记录每次用时现读,改名不用重启 World;没借出时用挂载时的名字(`ctx.botName`)。
 
 形象的身体可以实现 `stopWalk(id)`:interrupt 停下 `pet_walk_to` 时页面经 `figure-frame` 调它;没实现时这次走路照常走完。
 

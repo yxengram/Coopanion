@@ -11,6 +11,8 @@ export { VENDOR_ICONS } from 'cortico-provider-coo/src/icons.ts';
 export { connectChatGPT, connectVendor, signOutChatGPT, testEndpoint, type ConnectResult };
 
 export interface Status {
+  /** The bot's name (Core's `displayName`); absent or empty: the default. */
+  displayName?: string;
   loop?: { paused?: boolean };
   modelConnection?: { ready: boolean; name: string; model: string | null; module?: string; moduleTitle: string; baseUrl?: string } | null;
 }

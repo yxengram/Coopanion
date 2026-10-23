@@ -260,6 +260,20 @@ describe('pet_say', () => {
     expect(m.mock.requests[1].body.state).toMatch(/最近做过\(从近到远\):招手\(\d+ 秒前\)/);
   });
 
+  it("counts the bubble's time at the bubble speed in the receipt, as the classic pet_say does (upstream #248)", async () => {
+    const m = await mounted();
+    await page(m);
+    const text = '这是一段明显更长的话,要多打一会儿字才能说完,再多说几句让它停得久一些。';
+    const secs = (out: string) => Number(/这段约 (\d+) 秒/.exec(out)?.[1]);
+    const normal = secs(textOf(await tool(m.world, 'pet_say').handler({ text, feeling: '平静' }, ctx)));
+    // the second waits for the first: the receipt says how long it is itself
+    m.cfg.window.bubbleSpeed = 2;
+    const fast = secs(textOf(await tool(m.world, 'pet_say').handler({ text, feeling: '平静' }, ctx)));
+    expect(normal).toBeGreaterThan(4);
+    expect(Math.abs(fast - normal / 2)).toBeLessThanOrEqual(1);
+    await m.world.decisionsIdle();
+  });
+
   it('a decision that times out: the bubble is freed with no words, and the receipt says why', async () => {
     const m = await mounted();
     const p = await page(m);

@@ -1,4 +1,4 @@
-<!-- Owner: src/definition.ts -->
+<!-- Owner: src/definition.ts, src/world.ts -->
 
 <p align="center">
   <picture>
@@ -47,6 +47,7 @@
 
 怎么问由内嵌应用决定:`cuaDefinition({ askPermission })` 传入一个函数(比如用桌宠的气泡问),返回 `yes` / `no` / `timeout`,
 返回 `null` 表示此刻问不了。没传或返回 `null` 时,弹一个置顶的系统对话框(Windows 上是 `MessageBoxTimeoutW`,macOS 上是 AppleScript 的 `display dialog`,Linux 上是 `zenity --question`)。
+问句里 bot 的名字每次提问时现读:内嵌应用可以传 `cuaDefinition({ botName })`,一个返回当前名字的函数,改名不用重启 World;没传时用挂载时的名字。
 
 ## 让位给使用者
 
@@ -78,7 +79,8 @@
 ## 实现
 
 操作系统调用都在引擎子进程(`src/engine-child.ts`)里,经 [koffi](https://koffi.dev/) 直接调系统接口,坐标都是主屏幕的物理像素。
-子进程崩溃只让在途的那次调用失败,下次调用重新拉起。
+子进程崩溃或请求超时让这个引擎的在途请求失败,超时的引擎被强制结束,下次调用重新拉起;被换下的引擎迟到的应答和退出不碰新引擎的请求。
+截图最后一个像素里的坐标换算后不会越过屏幕的最后一个像素。
 
 - Windows(`src/engine/win32.ts`):GDI `BitBlt`(带 `CAPTUREBLT`,透明与分层窗口也截得到)、`SendInput`、`EnumWindows`、
   `GetLastInputInfo`;子进程声明为 per-monitor DPI aware(v2)。

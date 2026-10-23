@@ -1,8 +1,9 @@
 /**
  * CuaWorld: the local desktop as a World. Tools take screenshots, move and click the mouse,
  * scroll, type, press keys, list and focus windows. All operating-system calls run in an
- * engine child process (`engine-child.ts`); a crash there fails the call in flight and the
- * next call starts a fresh engine.
+ * engine child process (`engine-child.ts`). A crash, or a request unanswered past its deadline, fails that
+ * engine's calls in flight; a timed-out engine is killed, and the next call starts a fresh one. Replies and the
+ * exit of an engine that was replaced reach only its own calls.
  *
  * Screenshots are scaled to fit `screenshot.maxWidth`×`maxHeight`; tool coordinates are
  * pixels of that scaled image and are mapped back to physical pixels here. Input tools
@@ -42,8 +43,8 @@ const PERMISSION_TIMEOUT_MS = 60_000;
 export interface CuaWorldOptions {
   cfg: CuaConfigSection;
   timezone: string;
-  /** Names the bot in the permission question. */
-  botName?: string;
+  /** Names the bot in the permission question; read at each question, so a rename needs no restart. */
+  botName?: () => string;
   /**
    * Asks the person whether the bot may use the computer this turn. null: this way of asking
    * is not available right now, and the system dialog asks instead.
@@ -97,7 +98,8 @@ export class CuaWorld implements World {
   private log: Logger | null = null;
   private engine: ChildProcess | null = null;
   private seq = 0;
-  private readonly pending = new Map<number, { done: (v: unknown) => void; fail: (e: Error) => void; timer: NodeJS.Timeout }>();
+  /** Calls waiting for an answer, each with the engine it was sent to. */
+  private readonly pending = new Map<number, { engine: ChildProcess; done: (v: unknown) => void; fail: (e: Error) => void; timer: NodeJS.Timeout }>();
   private screen: { width: number; height: number } | null = null;
   /** The receipt text (Chinese, for the bot) of the engine's last unexpected exit, and its exit code for the console. */
   private engineError: string | null = null;
@@ -146,17 +148,21 @@ export class CuaWorld implements World {
     child.stderr?.on('data', forward);
     child.on('message', (msg: ChildToMain) => {
       const p = this.pending.get(msg.id);
-      if (!p) return;
+      if (!p || p.engine !== child) return;
       this.pending.delete(msg.id);
       clearTimeout(p.timer);
       if (msg.ok) p.done(msg.value);
       else p.fail(new Error(msg.error));
     });
     child.on('exit', (code) => {
-      if (this.engine === child) this.engine = null;
-      this.engineError = code === 0 ? null : `引擎进程退出(退出码 ${code})`;
-      this.engineExit = code;
-      for (const [id, p] of this.pending) { clearTimeout(p.timer); p.fail(new Error(this.engineError ?? '引擎进程已退出')); this.pending.delete(id); }
+      const why = code === 0 ? null : `引擎进程退出(退出码 ${code})`;
+      // a replaced engine (timed out and killed) exiting late leaves the running one and the lamp alone
+      if (this.engine === child) {
+        this.engine = null;
+        this.engineError = why;
+        this.engineExit = code;
+      }
+      for (const [id, p] of this.pending) if (p.engine === child) { clearTimeout(p.timer); p.fail(new Error(why ?? '引擎进程已退出')); this.pending.delete(id); }
     });
     return child;
   }
@@ -175,8 +181,17 @@ export class CuaWorld implements World {
       const wait = 'yield' in req ? req.yield.maxWaitMs : req.op === 'confirm' ? req.timeoutMs : 0;
       const cancel = () => { if (engine.connected) engine.send({ cancel: id } satisfies MainToChild); };
       const unlisten = () => signal?.removeEventListener('abort', cancel);
-      const timer = setTimeout(() => { this.pending.delete(id); unlisten(); fail(new Error('引擎没有在期限内应答')); }, ENGINE_TIMEOUT_MS + wait);
-      this.pending.set(id, { done: (v) => { unlisten(); done(v as T); }, fail: (e) => { unlisten(); fail(e); }, timer });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        unlisten();
+        fail(new Error('引擎没有在期限内应答'));
+        // a hung engine is ended: the next call starts a fresh one instead of waiting on it again
+        if (this.engine === engine) {
+          this.engine = null;
+          engine.kill('SIGKILL');
+        }
+      }, ENGINE_TIMEOUT_MS + wait);
+      this.pending.set(id, { engine, done: (v) => { unlisten(); done(v as T); }, fail: (e) => { unlisten(); fail(e); }, timer });
       signal?.addEventListener('abort', cancel, { once: true });
       engine.send({ id, req } satisfies MainToChild);
     });
@@ -210,7 +225,7 @@ export class CuaWorld implements World {
 
   /** The question is asked in the app language, read now. */
   private async askPermission(level: PermissionLevel): Promise<Answer> {
-    const who = this.opts.botName || 'bot';
+    const who = this.opts.botName?.() || 'bot';
     const t = cuaText(this.opts.language?.() ?? 'zh').ask;
     const question = level === 'ask-each-turn' ? t.eachTurn(who) : level === 'ask-once' ? t.once(who, this.cfg.grantMinutes) : t.acting(who);
     const viaApp = await this.opts.askPermission?.(question) ?? null;
@@ -220,8 +235,13 @@ export class CuaWorld implements World {
 
   /* ---------- coordinates ---------- */
 
+  /** The screen as last reported; 1920×1080 before the engine said. */
+  private screenSize(): { width: number; height: number } {
+    return this.screen ?? { width: 1920, height: 1080 };
+  }
+
   private shotSize() {
-    const s = this.screen ?? { width: 1920, height: 1080 };
+    const s = this.screenSize();
     return fit(s.width, s.height, this.cfg.screenshot.maxWidth, this.cfg.screenshot.maxHeight);
   }
 
@@ -230,7 +250,9 @@ export class CuaWorld implements World {
     const size = this.shotSize();
     if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) return 'x、y 要是数字';
     if (x < 0 || y < 0 || x >= size.width || y >= size.height) return `(${x}, ${y}) 不在截图范围内(0–${size.width - 1}, 0–${size.height - 1})`;
-    return { x: Math.round(x / size.scale), y: Math.round(y / size.scale) };
+    // a point in the last screenshot pixel can round past the screen's last pixel
+    const s = this.screenSize();
+    return { x: Math.min(s.width - 1, Math.round(x / size.scale)), y: Math.min(s.height - 1, Math.round(y / size.scale)) };
   }
 
   private toShot(p: { x: number; y: number }): string {

@@ -7,10 +7,12 @@
  * `/socket?role=dress`.
  * The figure row ends in an import tile: a figure pack picked as a zip or a folder, or dropped on the page, is sent to
  * `POST /api/figures/import` (src/pack-import.ts), which lists the packs it found; the ones ticked are installed into
- * the data directory's `figures/` and the row is read again.
+ * the data directory's `figures/` and the row is read again. Replacing an installed pack asks first (the server answers
+ * 409 with the ids it would replace). A pack the server lists as `removable` has a trash button on its tile, which
+ * asks and then uninstalls it (`POST /api/figures/remove`); the pet wearing it changes back to Coo.
  * The page's text follows the app language the World sends (`language` in `init` and `prefs`, i18n.js).
  */
-import { applyTheme } from './ui.js';
+import { applyTheme, ICONS } from './ui.js';
 import { applyText, cooLabel, nameIn, setLanguage, t } from './i18n.js';
 import { createSfx, OWN_PACKS } from './sound.js';
 import {
@@ -171,6 +173,7 @@ const thumbOf = (pack, picks) => {
 };
 
 /* ---------- importing figure packs (src/pack-import.ts) ---------- */
+// (tests/pet-import.test.js runs the page's code from here to the files of a dropped folder)
 
 /** The page's framing of a folder's files (pack-import.ts BUNDLE_TYPE). */
 const BUNDLE_TYPE = 'application/x-figure-files';
@@ -193,6 +196,8 @@ importStyle.textContent = `
 .imp .imp-meta{color:var(--muted); font-size:12px; line-height:1.5}
 .imp .imp-warn{color:#D9822B; font-size:12px; line-height:1.5}
 .imp .imp-bad{color:#E5484D; font-size:12px; line-height:1.5}
+.imp button.danger{background:var(--anger); border-color:var(--anger); color:#fff; font-weight:600}
+.imp .imp-list{margin:0; padding-left:20px; color:var(--text); line-height:1.6}
 .imp details{font-size:12px; color:var(--muted)}
 body.dress-page.dropping main{outline:2px dashed var(--accent); outline-offset:6px; border-radius:14px}
 `;
@@ -309,23 +314,9 @@ function importPick({ token, packs: found, problems }) {
     const go = el('button', 'primary', null); go.textContent = t('import.install');
     const sync = () => { go.disabled = !ticks.some(([t]) => t.checked); };
     for (const [t] of ticks) t.addEventListener('change', sync);
-    go.addEventListener('click', async () => {
+    go.addEventListener('click', () => {
       go.disabled = true;
-      const dirs = ticks.filter(([t]) => t.checked).map(([, d]) => d);
-      try {
-        const r = await fetch('/api/figures/import/install', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, dirs }) });
-        const out = await r.json();
-        if (out.error) return importFailed(out.error);
-        const names = out.installed.map((id) => nameOf(found.find((p) => p.id === id)?.name) || id).join(t('import.nameSep'));
-        const done = line('p', '', t('import.done', { names }));
-        importShow(done);
-        loadPacks();
-        sfx.sparkle();
-        // the note folds away by itself unless something else has taken the box since
-        setTimeout(() => { if (!importBox.hidden && importBox.firstChild === done) importClose(); }, 6000);
-      } catch {
-        importFailed(t('import.offline'));
-      }
+      void importInstall(token, found, ticks.filter(([t]) => t.checked).map(([, d]) => d));
     });
     acts.append(go);
   } else {
@@ -335,6 +326,88 @@ function importPick({ token, packs: found, problems }) {
   }
   acts.append(cancel);
   importShow(line('p', '', found.length ? t('import.found', { n: found.length }) : t('import.none')), ...nodes, acts);
+}
+
+/**
+ * Installs the packs found at `dirs`. One that would replace an installed pack is not installed until the person says
+ * yes: the server answers with their ids and keeps the import, and `replace` names them on the second try.
+ */
+async function importInstall(token, found, dirs, replace = []) {
+  let out;
+  try {
+    const r = await fetch('/api/figures/import/install', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, dirs, replace }) });
+    out = await r.json();
+  } catch {
+    return importFailed(t('import.offline'));
+  }
+  if (out.error) return importFailed(out.error);
+  if (out.conflicts) return importConfirm(token, found, dirs, out.conflicts);
+  const names = out.installed.map((id) => nameOf(found.find((p) => p.id === id)?.name) || id).join(t('import.nameSep'));
+  const done = line('p', '', t('import.done', { names }));
+  importShow(done);
+  // the pack on screen was replaced: the preview loads its new files
+  const worn = out.installed.includes(skin.figure);
+  if (worn) { body?.dispose(); body = null; }
+  await loadPacks();
+  if (worn) void showFigure(skin);
+  sfx.sparkle();
+  // the note folds away by itself unless something else has taken the box since
+  setTimeout(() => { if (!importBox.hidden && importBox.firstChild === done) importClose(); }, 6000);
+}
+/** Asks before replacing the installed packs `conflicts`; cancelling keeps them and drops the import. */
+function importConfirm(token, found, dirs, conflicts) {
+  const list = el('ul', 'imp-list');
+  for (const id of conflicts) {
+    const p = found.find((x) => x.id === id);
+    list.append(line('li', '', p ? `${nameOf(p.name)} (${id})` : id));
+  }
+  const cancel = el('button', '', null); cancel.textContent = t('import.cancel');
+  cancel.addEventListener('click', () => { importClose(); fetch('/api/figures/import/cancel', { method: 'POST' }).catch(() => {}); });
+  const go = el('button', 'danger', null); go.textContent = t('import.replace');
+  go.addEventListener('click', () => { go.disabled = true; void importInstall(token, found, dirs, conflicts); });
+  const acts = el('div', 'imp-acts'); acts.append(go, cancel);
+  importShow(line('p', 'imp-name', t('import.replaceTitle')), line('p', '', t('import.replaceText')), list, acts);
+}
+
+/* ---------- uninstalling figure packs ---------- */
+
+/** The trash button in the corner of an installed pack's tile, shown while the tile is hovered or focused; it asks first. */
+function removeButton(pack) {
+  const b = el('button', 'pack-erase', ICONS.trash);
+  b.type = 'button';
+  b.title = t('remove.label', { name: nameOf(pack.name) });
+  b.setAttribute('aria-label', b.title);
+  b.addEventListener('click', () => { sfx.tick(); removeAsk(pack); });
+  return b;
+}
+function removeAsk(pack) {
+  const cancel = el('button', '', null); cancel.textContent = t('import.cancel');
+  cancel.addEventListener('click', importClose);
+  const go = el('button', 'danger', null); go.textContent = t('remove.go');
+  go.addEventListener('click', () => { go.disabled = true; void removePack(pack); });
+  const acts = el('div', 'imp-acts'); acts.append(go, cancel);
+  importShow(line('p', 'imp-name', t('remove.title', { name: nameOf(pack.name) })), line('p', '', t('remove.lead')), acts);
+}
+async function removePack(pack) {
+  let out;
+  try {
+    const r = await fetch('/api/figures/remove', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: pack.id }) });
+    out = await r.json();
+  } catch {
+    out = { error: t('import.offline') };
+  }
+  if (out.error) {
+    const close = el('button', '', null); close.textContent = t('import.fold');
+    close.addEventListener('click', importClose);
+    const acts = el('div', 'imp-acts'); acts.append(close);
+    return importShow(line('p', 'imp-bad', t('remove.failed', { why: out.error })), acts);
+  }
+  // the pet wearing it changes back to Coo
+  if (skin.figure === pack.id) apply({ ...skin, figure: 'coo' }, true);
+  const done = line('p', '', t('remove.done', { name: nameOf(pack.name) }));
+  importShow(done);
+  await loadPacks();
+  setTimeout(() => { if (!importBox.hidden && importBox.firstChild === done) importClose(); }, 6000);
 }
 
 /** The files under a dropped folder, each path starting with the folder's name. */
@@ -387,7 +460,11 @@ function renderFigure() {
       apply({ ...skin, figure: c.id, ...(pack && c.id !== 'coo' ? { scheme: schemeOf(pack, picksOf(pack, '')) } : {}) }, true);
       sfx.sparkle(); body?.cue('cheer');
     });
-    opts.appendChild(b);
+    const pack = packs.find((p) => p.id === c.id);
+    if (pack?.removable) {
+      const tile = opts.appendChild(el('span', 'figure-tile'));
+      tile.append(b, removeButton(pack));
+    } else opts.appendChild(b);
   }
   if (importable) {
     const b = el('button', 'opt wide figure import');

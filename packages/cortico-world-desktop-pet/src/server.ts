@@ -6,22 +6,33 @@
  *   the figure; in a browser tab it draws a floor.
  * - `/dress`: the dressing page; changes go through `POST /api/skin` and `POST /api/prefs`.
  * - `/api/avatar`: the bot's avatar for the menu header, 404 until one exists.
- * - `/api/figures`: the figure packs (src/packs.ts) the pages may load, Coo's first; `/packs/<id>/…`:
- *   an installed pack's files (a built-in one is under `/web/`). `/api/figures/import` (`GET`: whether packs can be
- *   imported here; `POST`: a zip, or the dressing page's framing of a folder's files), `…/import/install` and
- *   `…/import/cancel`: the dressing page imports packs into the data directory (src/pack-import.ts).
+ * - `/api/figures`: the figure packs (src/packs.ts) the pages may load, Coo's first, each with whether it can be
+ *   uninstalled (`removable`); `/packs/<id>/…`: an installed pack's files (a built-in one is under `/web/`), sent with
+ *   a CSP that sandboxes any of them opened as a page (`PACK_CSP`). `/api/figures/import` (`GET`: whether packs can be
+ *   imported here; `POST`: a zip, or the dressing page's framing of a folder's files), `…/import/install` (409 with
+ *   the conflicting ids until `replace` names them) and `…/import/cancel`: the dressing page imports packs into the
+ *   data directory; `POST /api/figures/remove` (`{ id }`) uninstalls one (src/pack-import.ts).
  * - `/figure-frame`: the sandbox a pack's code runs in. Its own CSP sandboxes it (an opaque
  *   origin) and denies it every connection; scripts and images come from this server only; only
  *   this server's pages and the console's (`consoleOrigins`) may frame it. Files
  *   under `/web/` and `/packs/` answer that opaque origin's CORS requests; nothing else does,
  *   and a write (`POST`, the socket) from it is refused.
  * - `/socket?role=pet|dress&host=window|tab`: one live pet connection plus any number of
- *   pages that only receive skin and preference updates. A newer pet connection replaces the
+ *   pages that only receive skin and preference updates. The window authenticates with the key its host was given
+ *   in `windowUrl`'s fragment (`&key=…`); without it, or with another, `host=window` is answered 403. A newer pet
+ *   connection replaces the
  *   live one, except that a browser tab only watches while the pet window is connected. A
  *   watching tab still sends typed text, preference changes and run-control clicks.
- *   Binary frames from the pet connection are 16 kHz mono PCM16 microphone audio.
+ *   Binary frames from the pet connection are 16 kHz mono PCM16 microphone audio; a replaced connection's late
+ *   messages are dropped.
+ *
+ * Browser writes (any method but GET and HEAD, and the socket) need this server's own HTTP origin, its port included
+ * (`http://127.0.0.1:<port>` or `http://localhost:<port>`), and are answered 421 otherwise; a local client that sends
+ * no Origin (core/guide.ts puts a look on from Node) is let through. Reads also allow other loopback origins and the
+ * figure frame's opaque one.
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -47,6 +58,13 @@ const PAGES: Record<string, string> = { '/pet': 'pet.html', '/dress': 'dress.htm
 const PAGE_TITLES: Record<string, string> = { '/pet': 'pet.title', '/dress': 'dress.title' };
 const LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
 const PORT_ATTEMPTS = 10;
+/**
+ * A pack's files: the figure frame imports its scripts and loads its images, which this does not restrict; a pack's
+ * HTML or SVG opened as a page runs in an opaque origin with no network (no socket, no import).
+ */
+const PACK_CSP = "sandbox allow-scripts; default-src 'none'";
+/** The pages' own CSP. */
+const PAGE_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; frame-ancestors 'self' http://127.0.0.1:* http://localhost:*";
 /** What a watching pet page may still send: input that is the person's whichever page it came from. */
 const WATCHER_MESSAGES = new Set(['text', 'prefs', 'control']);
 
@@ -87,6 +105,8 @@ export class PetServer {
   /** Dressing pages and pet pages that only watch. */
   private readonly dressers = new Set<WebSocket>();
   private boundPort = 0;
+  /** The pet window's launch credential: only the window host is given it (`windowUrl`). */
+  private readonly windowKey = randomUUID();
   /** Installs the packs the dressing page sends (src/pack-import.ts). */
   private readonly importer: PackImporter;
 
@@ -104,6 +124,11 @@ export class PetServer {
 
   get origin(): string {
     return this.boundPort ? `http://127.0.0.1:${this.boundPort}` : '';
+  }
+
+  /** The pet page's URL for the window host, with its credential in the fragment, which stays out of requests and referrers. */
+  get windowUrl(): string {
+    return `${this.origin}/pet#key=${this.windowKey}`;
   }
 
   get petConnected(): boolean {
@@ -131,7 +156,12 @@ export class PetServer {
       this.boundPort = typeof addr === 'object' && addr ? addr.port : 0;
       this.wss = new WebSocketServer({ noServer: true });
       server.on('upgrade', (req, socket, head) => {
-        if (!this.allowed(req, true) || !(req.url ?? '').startsWith('/socket')) { socket.destroy(); return; }
+        if (!this.allowed(req, true)) { socket.end('HTTP/1.1 421 Misdirected Request\r\nConnection: close\r\n\r\n'); return; }
+        const url = new URL(req.url ?? '/', 'http://x');
+        if (url.pathname !== '/socket') { socket.destroy(); return; }
+        if (url.searchParams.get('host') === 'window' && url.searchParams.get('key') !== this.windowKey) {
+          socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return;
+        }
         this.wss!.handleUpgrade(req, socket, head, (ws) => this.accept(ws, req));
       });
       return this.boundPort;
@@ -168,12 +198,16 @@ export class PetServer {
     for (const ws of [this.pet, ...this.dressers]) if (ws && ws.readyState === ws.OPEN) ws.send(text);
   }
 
-  /** A loopback Host, and a loopback or absent Origin; an opaque origin (the figure frame) only reads. */
+  /**
+   * A loopback Host, and an absent Origin (a local client), or for a write this server's own HTTP origin; reads also
+   * take any loopback origin and the figure frame's opaque one.
+   */
   private allowed(req: IncomingMessage, write: boolean): boolean {
     if (!LOOPBACK.test(req.headers.host ?? '')) return false;
     const origin = req.headers.origin;
     if (origin === 'null') return !write;
     if (!origin) return true;
+    if (write) return origin === this.origin || origin === `http://localhost:${this.boundPort}`;
     try {
       return LOOPBACK.test(new URL(origin).host);
     } catch {
@@ -194,6 +228,8 @@ export class PetServer {
       if (old) old.close(4000, 'replaced');
       this.opts.onPetConnect();
       ws.on('message', (data, isBinary) => {
+        // a connection replaced meanwhile no longer speaks for the pet
+        if (this.pet !== ws) return;
         if (isBinary) {
           const buf = data as Buffer;
           if (buf.length % 2 === 0) this.opts.onAudio(new Int16Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length)));
@@ -225,13 +261,24 @@ export class PetServer {
     const url = new URL(req.url ?? '/', 'http://x');
     const path = url.pathname;
     if (req.method === 'GET' && path === '/api/figures') {
-      return json(res, 200, (this.opts.packs?.() ?? []).map(({ id, base, manifest: m }) => ({
-        id, base, name: m.name, thumb: m.thumb ?? null, entry: m.entry, export: m.export, model: m.model ?? null, axes: m.axes, presets: m.presets,
-        vocab: m.vocab.map(({ id: w, kind, seconds, lasting }) => ({ id: w, kind, seconds, ...(lasting ? { lasting } : {}) })), sounds: m.sounds, can: m.can,
-      })));
+      return json(res, 200, (this.opts.packs?.() ?? []).map((pack) => {
+        const { id, base, manifest: m } = pack;
+        return {
+          id, base, name: m.name, thumb: m.thumb ?? null, entry: m.entry, export: m.export, model: m.model ?? null, axes: m.axes, presets: m.presets,
+          vocab: m.vocab.map(({ id: w, kind, seconds, lasting }) => ({ id: w, kind, seconds, ...(lasting ? { lasting } : {}) })), sounds: m.sounds, can: m.can,
+          removable: this.importer.removable(pack),
+        };
+      }));
     }
     if (req.method === 'GET' && path === '/api/figures/import') return json(res, 200, { importable: this.importer.importable, max: IMPORT_MAX, depth: PACK_DEPTH });
     if (req.method === 'POST' && path.startsWith('/api/figures/import')) return this.importRequest(req, res, path);
+    if (req.method === 'POST' && path === '/api/figures/remove') {
+      const body = await readBody(req);
+      const msg = body ? parse(body) : null;
+      if (typeof msg?.id !== 'string') return json(res, 400, { error: 'bad json' });
+      const out = await this.importer.remove(msg.id);
+      return json(res, 'error' in out ? 400 : 200, out);
+    }
     if (req.method === 'GET' && path === '/figure-frame') {
       const self = `http://${req.headers.host}`;
       return this.sendFile(res, join(this.opts.webDir, 'figure-frame.html'), [
@@ -245,7 +292,7 @@ export class PetServer {
       const pack = (this.opts.packs?.() ?? []).find((p) => p.id === id && !p.builtin);
       const full = pack ? packFile(pack, decodeURIComponent(rest.join('/'))) : null;
       if (!full) { res.writeHead(404).end(); return; }
-      return this.sendFile(res, full, null, req.headers.origin === 'null');
+      return this.sendFile(res, full, PACK_CSP, req.headers.origin === 'null');
     }
     if (req.method === 'GET' && path === '/api/state') return json(res, 200, this.opts.snapshot());
     if (req.method === 'GET' && path === '/api/avatar') {
@@ -291,8 +338,9 @@ export class PetServer {
     const body = await readBody(req);
     const msg = body ? parse(body) : null;
     if (path === '/api/figures/import/install' && msg && typeof msg.token === 'string' && Array.isArray(msg.dirs)) {
-      const out = await this.importer.install(msg.token, msg.dirs.filter((d): d is string => typeof d === 'string'));
-      return json(res, 'error' in out ? 400 : 200, out);
+      const replace = Array.isArray(msg.replace) ? msg.replace.filter((id): id is string => typeof id === 'string') : [];
+      const out = await this.importer.install(msg.token, msg.dirs.filter((d): d is string => typeof d === 'string'), replace);
+      return json(res, 'error' in out ? 400 : 'conflicts' in out ? 409 : 200, out);
     }
     if (path === '/api/figures/import/cancel') { await this.importer.cancel(); return json(res, 200, { ok: true }); }
     return json(res, 400, { error: 'bad request' });
@@ -321,7 +369,8 @@ export class PetServer {
     res.writeHead(200, {
       'content-type': MIME[extname(full)] ?? 'application/octet-stream',
       'cache-control': 'no-cache',
-      'content-security-policy': csp ?? "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; frame-ancestors 'self' http://127.0.0.1:* http://localhost:*",
+      'content-security-policy': csp ?? PAGE_CSP,
+      'x-content-type-options': 'nosniff',
       ...(frame ? { 'access-control-allow-origin': 'null' } : {}),
     });
     res.end(bytes);

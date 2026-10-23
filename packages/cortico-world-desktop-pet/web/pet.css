@@ -3,6 +3,7 @@
   --accent:#00A870;
   --skin-ink:#1B1626; --skin-eye:#00A870;
   --wall:#E8E6EE; --dot:#CFCBD9; --shadow:rgba(27,22,38,.12);
+  --said-bg:#E6E9E7; --said-ink:#1F2221;
   --blush:#FF8FA8; --tear:#5AAEF0; --anger:#E5484D; --heart:#F0567A; --dust:#A39DB0;
 }
 @media (prefers-color-scheme: dark){
@@ -12,6 +13,7 @@
     --accent:#2FD59B;
     --skin-ink:#FFFFFF; --skin-eye:#2FD59B;
     --wall:#10151C; --dot:#232B37; --shadow:rgba(0,0,0,.32);
+    --said-bg:#2C3230; --said-ink:#E6EAE8;
     --blush:#FF7F9E; --tear:#6BBDF7; --anger:#FF6369; --heart:#FF6F93; --dust:#5B6472;
   }
 }
@@ -21,6 +23,7 @@
   --accent:#2FD59B;
   --skin-ink:#FFFFFF; --skin-eye:#2FD59B;
   --wall:#10151C; --dot:#232B37; --shadow:rgba(0,0,0,.32);
+  --said-bg:#2C3230; --said-ink:#E6EAE8;
   --blush:#FF7F9E; --tear:#6BBDF7; --anger:#FF6369; --heart:#FF6F93; --dust:#5B6472;
 }
 *{box-sizing:border-box}
@@ -70,9 +73,9 @@ body.desk .floor{display:none}
 }
 .bubble::before{background:var(--skin-ink); clip-path:path('M0.75 1.25 L8.9 9.4 Q11 11.5 13.1 9.4 L21.25 1.25 Z')}
 .bubble::after{background:var(--surface); clip-path:path('M3.04 0 L9.6 6.56 Q11 7.96 12.4 6.56 L18.96 0 Z')}
-.bubble.heard{border-style:dashed; box-shadow:none; max-width:min(calc(260px * var(--bubble-size, 1)), calc(100vw - 20px))}
+.bubble.heard{background:var(--said-bg); color:var(--said-ink); border-color:transparent; box-shadow:0 4px 14px var(--shadow); max-width:min(calc(260px * var(--bubble-size, 1)), calc(100vw - 20px))}
 .bubble.heard::before, .bubble.heard::after{display:none}
-/* what the person said, beside the pet (pet-app.js lines): a settled one closes on a click, lit in the eye colour on
+/* what the person said, above the pet (pet-app.js lines; grey as the chat page's own bubbles, upstream #279): a settled one closes on a click, lit in the eye colour on
    hover; older ones step back; a fading one lets the pointer through. Its text shows six rows at most. */
 .bubble.said{transition:opacity .4s ease, border-color .15s}
 .bubble.said.settled{cursor:pointer; user-select:none; -webkit-user-select:none}
@@ -90,6 +93,8 @@ body.desk .floor{display:none}
 /* a word longer than the line (a link such as the issues page in the failure bubble) breaks instead of running out of the bubble */
 .b-text{margin:0; min-height:1.55em; white-space:pre-wrap; text-wrap:pretty; overflow-wrap:anywhere}
 .b-text .interim{color:var(--muted)}
+/* an address written out in Coo's words (ui.js linked, upstream #297) */
+.b-text a{color:var(--skin-eye); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere}
 .caret{display:inline-block; width:2px; height:1.05em; margin-left:2px; vertical-align:-2px; background:var(--skin-eye); animation:caret 1s steps(1) infinite}
 @keyframes caret{50%{opacity:0}}
 .b-hint{display:block; margin-top:2px; font-size:calc(12px * var(--bubble-font, 1)); color:var(--muted)}
@@ -113,9 +118,11 @@ body.desk .floor{display:none}
   flex:none; display:grid; place-items:center; width:calc(20px * var(--bubble-font, 1)); height:calc(20px * var(--bubble-font, 1)); border-radius:50%;
   border:2px solid var(--skin-eye); font:500 calc(11px * var(--bubble-font, 1))/1 ui-monospace,Consolas,monospace; color:var(--text);
 }
-.b-own{display:flex; align-items:center; gap:6px; padding:3px 3px 3px 10px; border-radius:11px; border:1.5px dashed var(--line); background:var(--bg)}
+.b-own{display:flex; align-items:flex-end; gap:6px; padding:3px 3px 3px 10px; border-radius:11px; border:1.5px dashed var(--line); background:var(--bg)}
 .b-own:focus-within, .b-own.chosen{border-style:solid; border-color:var(--skin-eye)}
-.b-own input{flex:1; min-width:0; border:0; background:transparent; font:inherit; font-size:calc(14px * var(--bubble-font, 1)); color:var(--text); outline:none; padding:4px 0}
+.b-own input, .b-own textarea{flex:1; min-width:0; border:0; background:transparent; font:inherit; font-size:calc(14px * var(--bubble-font, 1)); color:var(--text); outline:none; padding:4px 0}
+/* the typing box grows with its text up to six rows, then scrolls (upstream #279) */
+.b-own textarea{resize:none; field-sizing:content; line-height:1.4; max-height:calc(6 * 1.4em + 8px); overflow-y:auto; overflow-wrap:anywhere}
 .b-own button[type="submit"]{flex:none; font:inherit; font-size:calc(12.5px * var(--bubble-font, 1)); padding:4px 10px; border-radius:8px; border:0; background:var(--text); color:var(--surface); cursor:pointer}
 .b-expand{flex:none; display:grid; place-items:center; width:26px; height:26px; padding:0; border:0; border-radius:50%; background:none; color:var(--muted); cursor:pointer}
 .b-expand:hover{color:var(--text)}
@@ -183,7 +190,7 @@ body.desk .floor{display:none}
 .d-cardic svg{width:24px; height:24px; display:block}
 .d-cardimg{width:28px; height:28px; display:block; padding:3px; border-radius:7px; background:#fff; box-sizing:border-box}
 .d-card.on .d-cardimg{animation:card-bob .5s cubic-bezier(.3,1.5,.5,1)}
-.d-cardlbl{font-size:calc(13px * var(--bubble-font, 1)); color:var(--text)}
+.d-cardlbl{font-size:calc(13px * var(--bubble-font, 1)); line-height:1.25; overflow-wrap:anywhere; color:var(--text)}
 .d-level{
   position:absolute; top:-7px; right:-5px; min-width:18px; padding:0 4px; border-radius:7px; border:1.5px solid var(--surface);
   background:var(--muted); color:var(--surface); font:700 calc(10px * var(--bubble-font, 1))/calc(15px * var(--bubble-font, 1)) system-ui,sans-serif;
@@ -215,11 +222,6 @@ body.desk .floor{display:none}
 @keyframes bar-slide{from{left:-35%} to{left:100%}}
 .d-barlbl{display:flex; justify-content:space-between; gap:8px; font-size:calc(12px * var(--bubble-font, 1)); color:var(--muted)}
 .d-barlbl b{font-weight:600; font-variant-numeric:tabular-nums; color:var(--text)}
-.trail{position:fixed; inset:0; pointer-events:none; z-index:3}
-.trail i{position:absolute; border-radius:50%; border:2.5px solid var(--skin-ink); background:var(--surface); animation:trail-bob 1.2s ease-in-out infinite}
-.trail i:nth-child(2){animation-delay:.15s}
-.trail i:nth-child(3){animation-delay:.3s}
-@keyframes trail-bob{50%{transform:translateY(-3px)}}
 
 /* context menu: the bot and its run controls on top, the actions as icon tiles below */
 .menu{
@@ -299,4 +301,4 @@ body.desk .floor{display:none}
 .tool.sent{animation:tool-sent .36s cubic-bezier(.3,1.5,.5,1)}
 @keyframes tool-sent{45%{transform:scale(1.2)}}
 @media (prefers-reduced-motion: reduce){.bubble.said{transition:none}}
-@media (prefers-reduced-motion: reduce){.bubble.pop, .b-opt, .b-own, .d-body > *, .d-card, .d-key, .d-key.taps, .d-bar.wait i, .d-card.on .d-cardic, .d-field.shake, .d-pill.chosen, .trail i, .caret, .menu, .tools, .tool.holding::after, .tool.sent, .m-tile, .m-tile::before, .m-tile::after, .m-tile .ic, .m-tile .ic::before{animation:none}}
+@media (prefers-reduced-motion: reduce){.bubble.pop, .b-opt, .b-own, .d-body > *, .d-card, .d-key, .d-key.taps, .d-bar.wait i, .d-card.on .d-cardic, .d-field.shake, .d-pill.chosen, .caret, .menu, .tools, .tool.holding::after, .tool.sent, .m-tile, .m-tile::before, .m-tile::after, .m-tile .ic, .m-tile .ic::before{animation:none}}

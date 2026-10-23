@@ -138,4 +138,14 @@ export default {
   'import.done': 'Imported: {names}. Pick it among the figures above to wear it.',
   'import.found': 'Figure packs found: {n}. Tick the ones to import:',
   'import.none': 'No figure pack here can be imported.',
+  'import.replaceTitle': 'Replace existing figure packs?',
+  'import.replaceText': 'Replacing them deletes their existing files in the installation folder.',
+  'import.replace': 'Replace',
+  // the dressing page: uninstalling figure packs
+  'remove.label': 'Uninstall {name}',
+  'remove.title': 'Uninstall {name}?',
+  'remove.lead': "The pack's files are deleted; import it again to use it. A pet wearing this pack changes back to Coo.",
+  'remove.go': 'Uninstall',
+  'remove.failed': 'Not uninstalled: {why}',
+  'remove.done': 'Uninstalled: {name}',
 };

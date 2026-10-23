@@ -23,7 +23,8 @@
  * `~/.config/Coopanion` (an AppImage is mounted read-only, a deb installs under /opt); from
  * source `build/data`; or `CORTICO_COMPANION_DATA`. It holds `home/` (deployment, endpoint,
  * Memory), `extensions/` (Worlds and providers installed from npm), `logs/`, `tmp/` (the process
- * temp directory), `pnpm/` (store and caches for extension installs),
+ * temp directory), `pnpm/` (store and caches for extension installs; for the installed build in
+ * `%LOCALAPPDATA%\Coopanion\pnpm` when the data directory's volume holds no junctions, see channel.cjs),
  * and the Chromium profiles.
  *
  * On macOS the app lives in the menu bar (the Info.plist sets LSUIElement): no Dock icon, except
@@ -37,7 +38,7 @@
  * only changed the console's look and gives way to it.
  */
 const { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, powerMonitor, session, shell } = require('electron');
-const { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
+const { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, symlinkSync, writeFileSync } = require('node:fs');
 const { delimiter, dirname, join } = require('node:path');
 const { askDataLocation, bindDataLocation, locateData, readRecord, samePath, strandedAction, writeRecord } = require('./data-dir.cjs');
 const { buildChannel, channelRules, loginItemOn } = require('./channel.cjs');
@@ -53,14 +54,18 @@ if (LINUX) app.commandLine.appendSwitch('ozone-platform', 'x11');
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 const APP_ROOT = app.getAppPath();
 const ICONS = join(__dirname, 'icons');
+/** Window icon: on Windows the .ico, so the taskbar picks the size it draws instead of scaling a 512 px PNG. */
+const WINDOW_ICON = join(ICONS, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+const APP_ID = 'ai.pal.coopanion';
 const PET_HOST = process.argv.includes('--pet-host');
 const PROGRAM_DIR = dirname(process.execPath);
 /** The build's channel (see the module header); from source there is none, which reads as `github`. */
 const CHANNEL = buildChannel(JSON.parse(readFileSync(join(APP_ROOT, 'package.json'), 'utf8')));
-const RULES = channelRules({
+const RULE_INPUT = {
   channel: CHANNEL, platform: process.platform, isPackaged: app.isPackaged, dataOverride: !!process.env.CORTICO_COMPANION_DATA,
   canUpdate: require('./updater.cjs').canUpdate(), programDir: PROGRAM_DIR,
-});
+};
+const RULES = channelRules(RULE_INPUT);
 /** The Windows installed build, whose data directory data-dir.cjs finds from the program's directory. */
 const INSTALLED = RULES.installed;
 const BESIDE = join(PROGRAM_DIR, 'data');
@@ -99,19 +104,23 @@ if (located?.ask && !PET_HOST) {
     if (data) {
       try {
         bindDataLocation(data, { recordFile: DATA_RECORD, record, programDir: PROGRAM_DIR, beside: BESIDE, strandedData: STRANDED_DATA });
-      } catch {
-        // quit rather than stay running with no window; a new one beside a program in a directory that needs
-        // administrator rights (Program Files) says why, as dataNotWritable below does
+      } catch (err) {
+        // quit rather than stay running with no window, saying why: a new one beside a program in a directory that
+        // needs administrator rights (Program Files) as dataNotWritable below does, anything else with the error itself
         if (samePath(data, BESIDE)) {
           const suggested = join(process.env.LOCALAPPDATA ?? app.getPath('home'), 'Programs', 'Coopanion');
           dialog.showErrorBox('Coopanion', textOf(language).dataNotWritable(data, suggested));
-        }
+        } else dialog.showErrorBox('Coopanion', String(err?.message ?? err));
         app.exit(1);
         return;
       }
       app.relaunch();
     }
     app.exit(0);
+  }).catch((err) => {
+    // anything else that fails here (reading the language, the dialogs) quits the same way, never with no window
+    dialog.showErrorBox('Coopanion', String(err?.message ?? err));
+    app.exit(1);
   });
   return;
 }
@@ -185,6 +194,22 @@ app.setPath('crashDumps', join(DATA, 'Crashpad'));
 process.env.TEMP = process.env.TMP = process.env.TMPDIR = join(DATA, 'tmp');
 mkdirSync(process.env.TEMP, { recursive: true });
 
+/**
+ * Whether the data directory's volume holds junctions; FAT, exFAT and most network shares do not (upstream #301).
+ * Asked on Windows only, where pnpm links with junctions; what follows from it is channel.cjs's.
+ */
+function dataHoldsLinks() {
+  if (process.platform !== 'win32') return true;
+  const probe = join(DATA, 'tmp', `link-probe-${process.pid}`);
+  try {
+    symlinkSync(DATA, probe, 'junction');
+  } catch {
+    return false;
+  }
+  try { rmdirSync(probe); } catch { /* left for the next start's temp directory */ }
+  return true;
+}
+
 /* ---------- pet window mode ---------- */
 if (PET_HOST) {
   const arg = (name) => { const hit = process.argv.find((a) => a.startsWith(`--${name}=`)); return hit ? hit.slice(name.length + 3) : ''; };
@@ -212,10 +237,14 @@ const { configuredLanguage, systemLanguage, textOf } = require('./i18n/index.cjs
 const { trayTemplate } = require('./tray-menu.cjs');
 const { RELEASES_URL, startUpdater } = require('./updater.cjs');
 const { startPresence } = require('./presence.cjs');
+const { isLoopback, navigateRule, openRule, webOrigin, withSettingsCsp } = require('./settings-guard.cjs');
 
 const userData = app.getPath('userData');
 const shimDir = join(__dirname, 'shims');
 const petHost = app.isPackaged ? [process.execPath, '--pet-host'] : [process.execPath, APP_ROOT, '--pet-host'];
+/** pnpm's layout and where its store goes, for this data directory's volume (channel.cjs). */
+const STORE = channelRules({ ...RULE_INPUT, holdsLinks: dataHoldsLinks() });
+const PNPM_DIR = STORE.pnpmLocal ? join(process.env.LOCALAPPDATA ?? app.getPath('temp'), 'Coopanion', 'pnpm') : join(DATA, 'pnpm');
 
 /** The app language, set once the app is ready (see the module header); Chinese until then. */
 let language = 'zh';
@@ -235,11 +264,12 @@ const core = new CoreHost({
     CORTICO_START_PAUSED: '0',
     CORTICO_DESKTOP_PET_HOST: JSON.stringify(petHost),
     // pnpm keeps its store and caches in LOCALAPPDATA unless told otherwise; pnpm 11 reads the pnpm_config_ prefix
-    pnpm_config_store_dir: join(DATA, 'pnpm', 'store'),
-    pnpm_config_cache_dir: join(DATA, 'pnpm', 'cache'),
-    pnpm_config_state_dir: join(DATA, 'pnpm', 'state'),
-    // the portable build installs extensions in pnpm's hoisted layout, which survives copying the folder (channel.cjs)
-    ...RULES.coreEnv,
+    pnpm_config_store_dir: join(PNPM_DIR, 'store'),
+    pnpm_config_cache_dir: join(PNPM_DIR, 'cache'),
+    pnpm_config_state_dir: join(PNPM_DIR, 'state'),
+    // the portable build, and a data directory on a volume without junctions, install extensions in pnpm's hoisted
+    // layout, which survives copying the folder and needs no links (channel.cjs)
+    ...STORE.coreEnv,
     // extension installs call `corepack pnpm`; the shim (corepack.cmd, or corepack on macOS) runs the bundled pnpm on this runtime
     PATH: `${shimDir}${delimiter}${process.env.PATH ?? ''}`,
     CORTICO_NODE_EXE: process.execPath,
@@ -254,6 +284,8 @@ let tray = null;
 /** Builds the tray menu again (its labels, the Core's state, the login item); set once the tray exists. */
 let refreshTray = () => {};
 let quitting = false;
+/** The quit was asked for from the pet's update bubble: the updated app starts once installed. */
+let restartAfterUpdate = false;
 let updater = null;
 /** The updater's last step, told again to a Core that starts after it (`core/companion.ts` says it in the bubble). */
 let updateStep = null;
@@ -261,6 +293,46 @@ let updateStep = null;
 const updateLine = () => updateStep && { phase: updateStep.phase, version: updateStep.version };
 
 const consoleUrl = (path = '') => (core.port ? `http://127.0.0.1:${core.port}/${path}` : null);
+const coreOrigin = () => (core.port ? `http://127.0.0.1:${core.port}` : null);
+
+/** The desktop-pet World's server, as its panel reports it; asked again at each ready Core and when a window names another loopback origin. */
+let petOrigin = null;
+async function learnPetOrigin() {
+  const state = await panel('world:desktop-pet', 'pet', 'state').catch(() => null);
+  petOrigin = (state?.url && webOrigin(state.url)) || null;
+  return petOrigin;
+}
+
+const APP_WINDOW = { autoHideMenuBar: true, icon: WINDOW_ICON };
+
+/**
+ * The settings window's rules (settings-guard.cjs) on `contents` and on every window it opens: app windows only for
+ * the Core's origin and the pet's server, other http(s) addresses in the system browser, nothing else; pages stay on
+ * their own origin and the Core's. A pet page asked for before its origin is known is opened once it is.
+ */
+function guardWindow(contents) {
+  contents.setWindowOpenHandler(({ url }) => {
+    const rule = openRule(url, { core: coreOrigin(), pet: petOrigin });
+    if (rule === 'window') return { action: 'allow', overrideBrowserWindowOptions: APP_WINDOW };
+    if (rule === 'external' && isLoopback(url)) {
+      // perhaps the pet's server, on a port learnt after it changed: asked, then opened here or in the browser
+      void learnPetOrigin().then((pet) => {
+        if (openRule(url, { core: coreOrigin(), pet }) !== 'window') { void shell.openExternal(url); return; }
+        const win = new BrowserWindow({ ...APP_WINDOW, webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false } });
+        guardWindow(win.webContents);
+        void win.loadURL(url);
+      });
+    } else if (rule === 'external') void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  contents.on('will-navigate', (e, url) => {
+    const rule = navigateRule(url, { core: coreOrigin(), pet: petOrigin, current: contents.getURL() });
+    if (rule === 'stay') return;
+    e.preventDefault();
+    if (rule === 'external') void shell.openExternal(url);
+  });
+  contents.on('did-create-window', (child) => guardWindow(child.webContents));
+}
 
 function loadingPage(text) {
   // with lang set, Chromium takes the system's Chinese font for Chinese
@@ -281,20 +353,18 @@ function openSettings(path = '') {
   }
   settings = new BrowserWindow({
     width: 1180, height: 800, minWidth: 880, minHeight: 600,
-    title: 'Coopanion', icon: join(ICONS, 'icon.png'), autoHideMenuBar: true, show: false,
+    title: 'Coopanion', icon: WINDOW_ICON, autoHideMenuBar: true, show: false,
     backgroundColor: '#f4f5f4',
     webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false, preload: join(__dirname, 'settings-preload.cjs') },
   });
+  // the taskbar button takes its icon and relaunch target from the running program, not from a pinned
+  // shortcut to the same app id whose program has moved (a reinstall elsewhere, a new portable folder)
+  if (process.platform === 'win32' && app.isPackaged) {
+    settings.setAppDetails({ appId: APP_ID, appIconPath: process.execPath, appIconIndex: 0, relaunchCommand: `"${process.execPath}"`, relaunchDisplayName: 'Coopanion' });
+  }
   settings.once('ready-to-show', () => settings.show());
   settings.on('page-title-updated', (e) => e.preventDefault());
-  settings.webContents.setWindowOpenHandler(({ url }) => {
-    const origin = core.port ? `http://127.0.0.1:${core.port}` : null;
-    const local = /^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(url);
-    if (local) return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: join(ICONS, 'icon.png') } };
-    if (origin && url.startsWith(origin)) return { action: 'allow' };
-    shell.openExternal(url);
-    return { action: 'deny' };
-  });
+  guardWindow(settings.webContents);
   settings.on('close', (e) => {
     if (quitting) return;
     e.preventDefault();
@@ -310,7 +380,8 @@ function openSettings(path = '') {
 async function panel(pageId, panelId, method) {
   const url = consoleUrl(`api/webui/providers/${encodeURIComponent(pageId)}/panels/${panelId}/${method}`);
   if (!url) return null;
-  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ args: [] }) });
+  // a Core that stopped answering does not hold the tray's 显示桌宠 or a second start forever
+  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ args: [] }), signal: AbortSignal.timeout(5000) });
   return res.ok ? res.json() : null;
 }
 
@@ -358,9 +429,11 @@ function buildTray() {
   tray = new Tray(icon);
   tray.setToolTip('Coopanion');
   const refresh = () => {
+    // the tray is taken down as the app quits, while the Core's last states still come in
+    if (!tray) return;
     tray.setContextMenu(Menu.buildFromTemplate(trayTemplate(T(), { running: core.state === 'running', login: loginItem.get(), packaged: app.isPackaged }, {
       openSettings: () => openSettings(),
-      showPet: () => void showPet(),
+      showPet: () => void showPet().catch(() => { /* Core went away meanwhile */ }),
       setLogin: (on) => { loginItem.set(on); noteAutostart(); refresh(); },
       restart: () => void core.restart(),
       quit: () => app.quit(),
@@ -374,6 +447,7 @@ function buildTray() {
 }
 
 core.on('ready', () => {
+  void learnPetOrigin();
   if (settings) settings.loadURL(consoleUrl());
   if (updateStep) core.send(updateStep);
 });
@@ -391,13 +465,19 @@ core.on('language', (next) => {
 ipcMain.on('settings:language', (e) => { e.returnValue = language; });
 // whether this build updates itself (then the version line shows the updater's steps), and its last step
 ipcMain.on('settings:update', (e) => { e.returnValue = { auto: RULES.selfUpdate, step: updateLine() }; });
-core.on('update-install', () => updater?.installNow());
+// the quit stops the Core and takes the tray icon down before the installer runs; the installer kills a
+// Coopanion still running, which would leave its icon in the notification area
+core.on('update-install', () => {
+  if (!updater?.hasUpdate()) return;
+  restartAfterUpdate = true;
+  app.quit();
+});
 core.on('releases', () => void shell.openExternal(RELEASES_URL));
 // the ChatGPT sign-in page the pet's bubble sends to the system browser; core-host.cjs hands on no other address
 core.on('browse', (url) => { if (isSignInPage(url)) void shell.openExternal(url); });
 core.on('state', (state, detail) => {
   if (!detail) return;
-  if (Notification.isSupported()) new Notification({ title: 'Coopanion', body: detail, icon: join(ICONS, 'icon.png') }).show();
+  if (Notification.isSupported()) new Notification({ title: 'Coopanion', body: detail, icon: WINDOW_ICON }).show();
   if (state === 'failed') dialog.showErrorBox('Coopanion', detail);
 });
 
@@ -421,9 +501,11 @@ app.on('before-quit', (e) => {
   if (quitting) return;
   quitting = true;
   e.preventDefault();
+  tray?.destroy();
+  tray = null;
   void core.stop().finally(() => {
     // a downloaded update installs now; its quit comes back here with quitting set and goes through
-    if (updater?.installOnQuit()) setTimeout(() => app.exit(0), 10_000);
+    if (updater?.installOnQuit(restartAfterUpdate)) setTimeout(() => app.exit(0), 10_000);
     else app.exit(0);
   });
 });
@@ -448,7 +530,13 @@ function askRestoreStranded() {
 }
 
 app.whenReady().then(() => {
-  app.setAppUserModelId('ai.pal.coopanion');
+  app.setAppUserModelId(APP_ID);
+  // the settings window's documents from the Core run only the Core's scripts (settings-guard.cjs); the window has
+  // no session of its own, so the rule is scoped to the Core's origin, asked at each response since its port changes
+  session.defaultSession.webRequest.onHeadersReceived((details, answer) => {
+    const responseHeaders = withSettingsCsp(details, coreOrigin());
+    answer(responseHeaders ? { responseHeaders } : {});
+  });
   // the system's language is known from here on: a new install starts in it (core/seed.ts)
   const system = systemLanguage(app);
   Object.assign(core.opts.env, systemLanguageEnvironment(system));

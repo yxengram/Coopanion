@@ -17,10 +17,10 @@ const require = createRequire(import.meta.url);
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const read = (...p: string[]) => readFileSync(join(ROOT, ...p), 'utf8');
 
-interface Rules { installed: boolean; besideOnly: boolean; selfUpdate: boolean; loginName: string | null; coreEnv: Record<string, string> }
+interface Rules { installed: boolean; besideOnly: boolean; selfUpdate: boolean; loginName: string | null; coreEnv: Record<string, string>; pnpmLocal: boolean }
 const { buildChannel, channelRules, loginItemOn } = require('../app/channel.cjs') as {
   buildChannel(manifest: unknown): 'github' | 'portable';
-  channelRules(at: { channel: string; platform: string; isPackaged: boolean; dataOverride: boolean; canUpdate: boolean; programDir: string }): Rules;
+  channelRules(at: { channel: string; platform: string; isPackaged: boolean; dataOverride: boolean; canUpdate: boolean; programDir: string; holdsLinks?: boolean }): Rules;
   loginItemOn(settings: { openAtLogin?: boolean; launchItems?: Array<{ name: string }> }, loginName: string | null): boolean;
 };
 const zh = require('../app/i18n/zh.cjs') as Record<string, (...a: string[]) => string>;
@@ -40,7 +40,7 @@ describe('the channel (app/channel.cjs)', () => {
 
   it('the installed Windows build keeps the data-location record, the updater and the default login item', () => {
     expect(channelRules({ ...win, channel: 'github' })).toEqual({
-      installed: true, besideOnly: false, selfUpdate: true, loginName: null, coreEnv: {},
+      installed: true, besideOnly: false, selfUpdate: true, loginName: null, coreEnv: {}, pnpmLocal: false,
     });
     // a data directory named in the environment is not the installed layout
     expect(channelRules({ ...win, channel: 'github', dataOverride: true }).installed).toBe(false);
@@ -55,12 +55,20 @@ describe('the channel (app/channel.cjs)', () => {
       selfUpdate: false,
       loginName: 'Coopanion D:\\Pets\\Coopanion',
       coreEnv: { pnpm_config_node_linker: 'hoisted' },
+      pnpmLocal: false,
     });
     // a copy of the folder is another login item
     expect(channelRules({ ...win, channel: 'portable', programDir: 'E:\\Coopanion 2' }).loginName).toBe('Coopanion E:\\Coopanion 2');
     // off Windows (a portable manifest on a Mac): no named login item, whose launchItems only Windows has
     expect(channelRules({ ...win, channel: 'portable', platform: 'darwin' })).toMatchObject({ besideOnly: false, loginName: null });
     expect(channelRules({ ...win, channel: 'portable', dataOverride: true }).besideOnly).toBe(false);
+  });
+
+  // upstream #301: a data volume without junctions (FAT, exFAT, a network share)
+  it('a data directory on a volume without junctions installs hoisted; the installed build moves pnpm\'s store out, the portable one keeps it beside', () => {
+    expect(channelRules({ ...win, channel: 'github', holdsLinks: true })).toMatchObject({ coreEnv: {}, pnpmLocal: false });
+    expect(channelRules({ ...win, channel: 'github', holdsLinks: false })).toMatchObject({ coreEnv: { pnpm_config_node_linker: 'hoisted' }, pnpmLocal: true });
+    expect(channelRules({ ...win, channel: 'portable', holdsLinks: false })).toMatchObject({ coreEnv: { pnpm_config_node_linker: 'hoisted' }, pnpmLocal: false, besideOnly: true });
   });
 
   it('reads the login item back: openAtLogin for the default one, the named value among launchItems', () => {
@@ -93,7 +101,12 @@ describe('main.cjs uses the channel', () => {
     expect(main).toMatch(/if \(RULES\.selfUpdate\) updater = startUpdater\(/);
     expect(main).toMatch(/'settings:update', \(e\) => \{ e\.returnValue = \{ auto: RULES\.selfUpdate,/);
     expect(main).not.toMatch(/canUpdate\(\), step/);
-    expect(main).toMatch(/\.\.\.RULES\.coreEnv,/);
+    // pnpm's layout and store for the data directory's volume: the same rules, asked again once the probe ran
+    expect(main).toMatch(/const STORE = channelRules\(\{ \.\.\.RULE_INPUT, holdsLinks: dataHoldsLinks\(\) \}\);/);
+    expect(main).toMatch(/const RULES = channelRules\(RULE_INPUT\);/);
+    expect(main).toMatch(/\.\.\.STORE\.coreEnv,/);
+    expect(main).toMatch(/const PNPM_DIR = STORE\.pnpmLocal \? join\(process\.env\.LOCALAPPDATA/);
+    expect(main).toMatch(/pnpm_config_store_dir: join\(PNPM_DIR, 'store'\)/);
     expect(main).toMatch(/name: RULES\.loginName/);
     expect(main).toMatch(/loginItemOn\(app\.getLoginItemSettings\(/);
     expect(main).toMatch(/\(INSTALLED \|\| RULES\.besideOnly\) && !dataWritable\(\)/);
@@ -117,6 +130,8 @@ describe('building the portable zip (scripts/pack-builder.ts, electron-builder.y
     expect(runtimeDeps('portable')).toEqual(rest);
     // the bundled pnpm is the repository's
     expect(runtimeDeps('portable').pnpm).toBe(JSON.parse(read('package.json')).dependencies.pnpm);
+    // the per-host system proxy's dispatcher (core/system-proxy.ts) ships in every build, at the repository's version
+    expect(runtimeDeps('portable').undici).toBe(JSON.parse(read('package.json')).dependencies.undici);
     expect(builderArgs('win32', 'x64', [], 'portable').slice(0, 3)).toEqual(['--win', 'zip', '--x64']);
     expect(builderArgs('win32', 'x64', []).slice(0, 2)).toEqual(['--win', '--x64']);
     const pack = read('scripts', 'pack.ts');
@@ -183,7 +198,8 @@ describe('checking the zip (scripts/portable-zip.ts)', () => {
 
 describe('the release workflow (.github/workflows/release.yml)', () => {
   const yml = read('.github', 'workflows', 'release.yml');
-  const build = yml.slice(yml.indexOf('\n  build:'), yml.indexOf('\n  publish:'));
+  const build = yml.slice(yml.indexOf('\n  build:'), yml.indexOf('\n  check:'));
+  const check = yml.slice(yml.indexOf('\n  check:'), yml.indexOf('\n  publish:'));
   const publish = yml.slice(yml.indexOf('\n  publish:'));
   /** The matrix entries as `key: value` maps. */
   const entries = build.split(/\n {10}- /).slice(1).map((chunk) => Object.fromEntries(
@@ -209,16 +225,40 @@ describe('the release workflow (.github/workflows/release.yml)', () => {
   });
 
   it('checks the release files on a tag push and on a dry run alike; only a push publishes', () => {
-    expect(publish).not.toMatch(/^ {4}if:/m);
-    const check = /- name: Check the release files[^\n]*\n(?: {8}.*\n)*/.exec(publish)?.[0] ?? '';
-    expect(check).not.toMatch(/if:/);
-    expect(check).toContain('"Coopanion-${version}-win-x64-portable.zip"');
-    expect(/- name: Publish complete release\n {8}if: github\.event_name == 'push'/.test(publish)).toBe(true);
+    expect(check).not.toMatch(/^ {4}if:/m);
+    const step = /- name: Check the release files[^\n]*\n(?: {8}.*\n)*/.exec(check)?.[0] ?? '';
+    expect(step).not.toMatch(/if:/);
+    expect(step).toContain('"Coopanion-${version}-win-x64-portable.zip"');
+    expect(check).toMatch(/name: release-SHA256SUMS\n/);
+    expect(publish).toMatch(/^ {4}needs: check\n {4}if: github\.event_name == 'push'\n/m);
+    expect(publish).toMatch(/name: release-SHA256SUMS\n/);
+  });
+
+  // upstream #314: only the publishing job may write, in the release environment, and never over a published release
+  it('reads only, except the publishing job; pins every Action by SHA and keeps no checkout token', () => {
+    expect(yml).toMatch(/^permissions:\n {2}contents: read\n/m);
+    expect(build + check).not.toMatch(/permissions:|contents: write|environment:/);
+    expect(publish).toMatch(/^ {4}environment: release\n {4}permissions:\n {6}contents: write\n/m);
+    const ci = read('.github', 'workflows', 'ci.yml');
+    expect(ci).toMatch(/^permissions:\n {2}contents: read\n/m);
+    for (const text of [yml, ci]) {
+      const uses = [...text.matchAll(/uses: (\S+)/g)].map((m) => m[1]);
+      expect(uses.length).toBeGreaterThan(0);
+      for (const use of uses) expect(use).toMatch(/@[0-9a-f]{40}$/);
+      const checkouts = text.split('uses: actions/checkout@').slice(1);
+      for (const c of checkouts) expect(c.split('\n- ')[0]).toMatch(/^[^\n]*\n(?: {8,}.*\n)*? {10}persist-credentials: false\n/);
+    }
+    // the release must still be a draft when files go up; a published one is never overwritten
+    const upload = publish.indexOf('gh release upload');
+    const draft = publish.indexOf("--json isDraft --jq .isDraft)\" = true");
+    expect(draft).toBeGreaterThan(0);
+    expect(draft).toBeLessThan(upload);
+    expect(publish.indexOf('--draft=false')).toBeGreaterThan(upload);
   });
 
   // the check step's own script, run in bash on files named as the build jobs leave them
   const checkScript = () => {
-    const block = /- name: Check the release files[^\n]*\n {8}run: \|\n((?: {10}.*\n|\n)*)/.exec(publish)?.[1] ?? '';
+    const block = /- name: Check the release files[^\n]*\n {8}run: \|\n((?: {10}.*\n|\n)*)/.exec(check)?.[1] ?? '';
     return block.split('\n').map((l) => l.slice(10)).join('\n');
   };
   const runCheck = (files: string[], env: Record<string, string>, latest = 'version: 1.2.3\npath: Coopanion-Setup-1.2.3.exe\n') => {

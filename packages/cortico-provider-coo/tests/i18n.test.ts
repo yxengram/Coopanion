@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import COO, { VENDORS, vendorById, vendorKeyHint, vendorName } from '../src/index.ts';
+import { COO_TEXT } from '../src/strings.ts';
 import { CONNECT_TEXT, saveVendorKey, testEndpoint, type ConsoleCall } from '../src/connect.ts';
 
 /** Chinese and Japanese characters, CJK punctuation and full-width forms. */
@@ -33,6 +34,12 @@ describe('the text people see', () => {
   it('has the same connect messages in zh and en', () => {
     expect(Object.keys(CONNECT_TEXT.en)).toEqual(Object.keys(CONNECT_TEXT.zh));
     for (const s of Object.values(CONNECT_TEXT.en)) expect(s).not.toMatch(CJK);
+  });
+
+  it("has the same module messages in zh and en", () => {
+    expect(Object.keys(COO_TEXT.en)).toEqual(Object.keys(COO_TEXT.zh));
+    for (const s of Object.values(COO_TEXT.en)) expect(s).not.toMatch(CJK);
+    for (const s of Object.values(COO_TEXT.zh)) expect(s).toMatch(CJK);
   });
 
   it('says why a connection failed in the language asked for, Chinese by default', async () => {

@@ -3,12 +3,12 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import jpeg from 'jpeg-js';
-import { dryMountWorld } from 'cortico/extensions/dry-mount.ts';
+import { dryMountWorld, fakeWorldContext } from 'cortico/extensions/dry-mount.ts';
 import { parseKeys } from '../src/engine/keys.ts';
 import { appleString, dialogAnswer, macKey, unicodeChunks } from '../src/engine/mac-keys.ts';
 import { linuxKeysym, zenityAnswer } from '../src/engine/linux-keys.ts';
 import { downscale, drawCursor, encodeJpeg, fit } from '../src/engine/image.ts';
-import { CUA } from '../src/definition.ts';
+import { CUA, cuaDefinition } from '../src/definition.ts';
 import { CUA_DEFAULTS, type CuaConfigSection } from '../src/config.ts';
 import { CuaWorld } from '../src/world.ts';
 import { FakeHost } from './helpers/fake-host.ts';
@@ -88,7 +88,8 @@ describe('CuaWorld without the engine', () => {
   it('asks once per turn before touching the screen; a refusal fails every call of that turn', async () => {
     const asked: string[] = [];
     let answer: 'no' | 'timeout' = 'no';
-    const w = new CuaWorld({ cfg: structuredClone(CUA_DEFAULTS), timezone: 'Asia/Shanghai', botName: 'Bot', askPermission: async (q) => { asked.push(q); return answer; } });
+    let name = 'Bot';
+    const w = new CuaWorld({ cfg: structuredClone(CUA_DEFAULTS), timezone: 'Asia/Shanghai', botName: () => name, askPermission: async (q) => { asked.push(q); return answer; } });
     const shot = await call(w, 'cua_screenshot', {});
     const click = await call(w, 'cua_click', { x: 1, y: 1 });
     expect([shot.failed, click.failed]).toEqual([true, true]);
@@ -97,8 +98,30 @@ describe('CuaWorld without the engine', () => {
     expect(asked[0]).toContain('Bot');
     w.onTurnEnded();
     answer = 'timeout';
+    // renamed between turns: the next question uses the name the bot has then (upstream #320)
+    name = 'Mochi';
     expect((await call(w, 'cua_windows', {})).text).toContain('没有回应');
     expect(asked).toHaveLength(2);
+    expect(asked[1]).toContain('Mochi');
+  });
+
+  it("the definition reads the app's bot name at each question, and falls back to the name it was mounted with", async () => {
+    const make = (assembly: Parameters<typeof cuaDefinition>[0]) => {
+      const asked: string[] = [];
+      const def = cuaDefinition({ ...assembly, askPermission: async (q) => { asked.push(q); return 'no'; } });
+      const ctx = fakeWorldContext(def, { scratchDir: mkdtempSync(join(tmpdir(), 'cua-name-')) });
+      return { w: def.create(ctx) as CuaWorld, asked, ctx };
+    };
+    let name = 'Mochi';
+    const lent = make({ botName: () => name });
+    await call(lent.w, 'cua_screenshot', {});
+    lent.w.onTurnEnded();
+    name = 'Pip';
+    await call(lent.w, 'cua_screenshot', {});
+    expect(lent.asked.map((q) => q.includes('Mochi') ? 'Mochi' : q.includes('Pip') ? 'Pip' : q)).toEqual(['Mochi', 'Pip']);
+    const own = make({});
+    await call(own.w, 'cua_screenshot', {});
+    expect(own.asked[0]).toContain(own.ctx.botName);
   });
 
   it('checks arguments before asking', async () => {
@@ -177,6 +200,25 @@ describe('CuaWorld without the engine', () => {
       await see(w);
       expect('blobs' in await wait()).toBe(true);
       expect(asked).toHaveLength(1);
+    });
+
+    it('maps a point in the last screenshot pixel onto the screen\'s last pixel, not past it', async () => {
+      const { w } = levelWorld('never-ask', []);
+      const sent: Array<{ op: string; x?: number; y?: number }> = [];
+      const inner = w as unknown as { spawn: () => { send: (m: { id: number; req: { op: string } }) => void } };
+      const spawn = inner.spawn;
+      inner.spawn = () => {
+        const engine = spawn();
+        const send = engine.send;
+        engine.send = (m) => { sent.push(m.req); send(m); };
+        return engine;
+      };
+      // 1920×1080 shown at 1280×720: 1279.9 × 1.5 rounds to 1920
+      await see(w);
+      expect((await call(w, 'cua_click', { x: 1279.9, y: 719.9 })).failed).toBeUndefined();
+      expect(sent.find((r) => r.op === 'click')).toMatchObject({ x: 1919, y: 1079 });
+      await call(w, 'cua_move', { x: 640, y: 360 });
+      expect(sent.find((r) => r.op === 'move')).toMatchObject({ x: 960, y: 540 });
     });
 
     it('never-ask never asks', async () => {

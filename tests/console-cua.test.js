@@ -17,7 +17,7 @@ const STAGED = existsSync(`${CLIENT}features/cua/index.ts`);
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 /** The page mounted over a fetch that answers the World list and config and keeps what was posted. */
-async function mounted({ active = false, world = null, fresh = true } = {}) {
+async function mounted({ active = false, world = null, fresh = true, config = null } = {}) {
   if (fresh) vi.resetModules();
   const posts = [];
   const fetch = vi.fn(async (path, init = {}) => {
@@ -28,9 +28,16 @@ async function mounted({ active = false, world = null, fresh = true } = {}) {
     if (world?.error && !read && String(path).includes('/api/worlds/activation')) {
       return new Response(JSON.stringify({ error: world.error }), { status: 500, headers: { 'content-type': 'application/json' } });
     }
+    // `config`: the cua group's values, and whether a write of it fails
+    if (config && !read && String(path).endsWith('/api/config')) {
+      // `applies`: as Cortico does, the live value is set before config.json is written
+      if (config.reject && config.applies) Object.assign(config.values, body.values);
+      if (config.reject) return new Response(JSON.stringify({ error: 'write failed' }), { status: 500, headers: { 'content-type': 'application/json' } });
+      Object.assign(config.values, body.values);
+    }
     const status = world ? world.status() : active ? 'active' : 'inactive';
     const json = String(path).includes('/api/worlds') && read ? { worlds: [{ id: 'cua', status }] }
-      : String(path).includes('/api/config') && read ? { groups: [] } : {};
+      : String(path).includes('/api/config') && read ? { groups: config ? [{ group: { id: 'world:cua' }, values: config.values }] : [] } : {};
     return new Response(JSON.stringify(json), { status: 200, headers: { 'content-type': 'application/json' } });
   });
   vi.stubGlobal('fetch', fetch);
@@ -47,7 +54,10 @@ async function mounted({ active = false, world = null, fresh = true } = {}) {
   const dialog = () => document.querySelector('.modal');
   const button = (label) => [...(dialog()?.querySelectorAll('button') ?? [])].find((b) => b.textContent === label);
   await settle();
-  return { S: TEXT.zh, RISKS_SEEN, posts, box, toggle, dialog, button, settle, life, activations: () => posts.filter((p) => p.path.includes('/api/worlds/activation')).map((p) => p.body) };
+  const boxes = [...root.querySelectorAll('input[type="checkbox"]')];
+  const grant = root.querySelector('input[type="number"]');
+  const level = (name) => [...root.querySelectorAll('button')].find((b) => b.textContent === TEXT.zh.levels[name]);
+  return { S: TEXT.zh, RISKS_SEEN, posts, box, toggle, dialog, button, settle, life, root, control: boxes[1], grant, level, activations: () => posts.filter((p) => p.path.includes('/api/worlds/activation')).map((p) => p.body) };
 }
 
 /** Browser storage: Node's own `localStorage` global (unusable without a file) hides jsdom's. */
@@ -235,6 +245,36 @@ describe.skipIf(!STAGED && !process.env.CI)("the 电脑操作 page's risk dialog
     const seen = await mounted({ active: true });
     expect(seen.dialog()).toBeNull();
     expect(seen.activations()).toEqual([]);
+  });
+
+  it('a save that fails puts the mouse-and-keyboard switch, when to ask and how long a yes lasts back to their saved values (upstream #312)', async () => {
+    const config = { values: { 'worlds.cua.control': true, 'worlds.cua.permission': 'ask-once', 'worlds.cua.grantMinutes': 30 }, reject: false };
+    const p = await mounted({ config });
+    expect([p.control.checked, p.grant.value, p.level('ask-once').classList.contains('active')]).toEqual([true, '30', true]);
+    // one save that works: it is what a later failure goes back to
+    p.level('never-ask').click();
+    await vi.waitFor(() => expect(config.values['worlds.cua.permission']).toBe('never-ask'));
+    config.reject = true;
+    p.control.click();
+    await vi.waitFor(() => expect(p.root.textContent).toContain(p.S.saveFailed('write failed')));
+    expect(p.control.checked).toBe(true);
+    p.level('ask-each-turn').click();
+    await vi.waitFor(() => expect(p.level('never-ask').classList.contains('active')).toBe(true));
+    expect(p.root.textContent).toContain(p.S.levelHints['never-ask']);
+    p.grant.value = '75';
+    p.grant.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(p.grant.value).toBe('30'));
+    expect(config.values).toEqual({ 'worlds.cua.control': true, 'worlds.cua.permission': 'never-ask', 'worlds.cua.grantMinutes': 30 });
+  });
+
+  it('a save that fails while the Core took the value anyway (Cortico sets it before writing config.json) shows what the Core runs', async () => {
+    const config = { values: { 'worlds.cua.control': true, 'worlds.cua.permission': 'ask-each-turn', 'worlds.cua.grantMinutes': 30 }, reject: true, applies: true };
+    const p = await mounted({ config });
+    p.level('never-ask').click();
+    await vi.waitFor(() => expect(p.root.textContent).toContain(p.S.saveFailed('write failed')));
+    await p.settle();
+    expect(p.level('never-ask').classList.contains('active')).toBe(true);
+    expect(p.root.textContent).toContain(p.S.levelHints['never-ask']);
   });
 
   it('English has the same dialog', async () => {

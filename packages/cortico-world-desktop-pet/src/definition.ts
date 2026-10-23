@@ -13,6 +13,8 @@ import { petText } from './i18n/index.ts';
 const AVATAR_FILE = 'avatar.png';
 
 export interface DesktopPetAssembly {
+  /** The bot's name as it is now, read at each use, so a rename needs no restart; the name at mount (`ctx.botName`) when absent. */
+  botName?(): string;
   /** Run controls for the menu header; see `PetBotControls`. */
   controls?: PetBotControls;
   /** Called with each World instance Core creates, for an app that calls `confirm` on it. */
@@ -78,7 +80,7 @@ export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDe
         },
         runtimesRoot,
         modelsDir: () => modelsDirFor(modelsRoot()),
-        botName: ctx.botName,
+        botName: () => assembly.botName?.() ?? ctx.botName,
         avatarFile: join(ctx.botDir, AVATAR_FILE),
         controls: assembly.controls,
         packRoots: () => [join(ctx.dataDir, 'figures'), ...assembly.packRoots?.() ?? []],

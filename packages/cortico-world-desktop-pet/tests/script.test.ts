@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BUBBLE_SPEED_MAX, DESKTOP_PET_DEFAULTS } from '../src/config.ts';
 import { figurePacks } from '../src/packs.ts';
 import { CHANNELS, channelsOf, clashes, estimateSeconds, lastingNote, type Channel, pairKey, partsNote, parseActions as actionsIn, parseScript as scriptIn, vocabId, vocabTable, INLINE_TAG_MAX, type Pairs, type VocabWord } from '../src/script.ts';
 
@@ -188,7 +189,18 @@ describe('vocabulary', () => {
   });
 
   it('estimates longer display for longer text', () => {
-    expect(estimateSeconds(parseScript('短').beats)).toBeLessThan(estimateSeconds(parseScript('这是一段明显更长的话,要多打一会儿字才能说完。').beats));
+    const speed = DESKTOP_PET_DEFAULTS.window.bubbleSpeed;
+    expect(estimateSeconds(parseScript('短').beats, speed)).toBeLessThan(estimateSeconds(parseScript('这是一段明显更长的话,要多打一会儿字才能说完。').beats, speed));
+    // at the default speed the estimate is what it was before there was a speed (the pet_say receipt is unchanged)
+    expect(estimateSeconds(parseScript('【开心】你好呀').beats, speed)).toBe(estimateSeconds(parseScript('【开心】你好呀').beats));
+  });
+
+  it('divides the typing and reading time of text by the bubble speed, as the page does (upstream #248)', () => {
+    const { beats } = parseScript('这是一段明显更长的话,要多打一会儿字才能说完,再多说几句让它停得久一些。');
+    expect(estimateSeconds(beats, DESKTOP_PET_DEFAULTS.window.bubbleSpeed) / estimateSeconds(beats, BUBBLE_SPEED_MAX)).toBeCloseTo(BUBBLE_SPEED_MAX / DESKTOP_PET_DEFAULTS.window.bubbleSpeed, 1);
+    // the lead before a bubble's words does not scale
+    const lead = parseScript('【开心】').beats;
+    expect(estimateSeconds(lead, BUBBLE_SPEED_MAX)).toBe(estimateSeconds(lead, 1));
   });
 });
 

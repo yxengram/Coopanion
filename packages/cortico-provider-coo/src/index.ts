@@ -26,6 +26,7 @@ import { ClaudeProvider } from './anthropic/client.ts';
 import { GeminiProvider, listGeminiModels } from './gemini/client.ts';
 import { vendorPrices } from './pricing.ts';
 import { VendorResponses } from './responses.ts';
+import { cooText } from './strings.ts';
 import { TIERS } from './tiers.ts';
 import { VENDORS, effortOf, protocolOf, vendorOf } from './vendors.ts';
 
@@ -36,6 +37,33 @@ function contextOverflow(error: { status: number; body: string }): boolean {
   return isContextOverflow(error)
     || (error.status === 400 && /prompt is too long|exceeds? the (model's )?context|input token count.*exceeds the maximum/i.test(error.body));
 }
+
+/** An http address outside this computer and the private networks: what is sent there, the key included, is readable on the way. */
+export function plainRemote(baseUrl: string): boolean {
+  let url: URL;
+  try { url = new URL(baseUrl); } catch { return false; }
+  return url.protocol === 'http:' && !privateHost(url.hostname);
+}
+
+/**
+ * This computer and the private networks: loopback, RFC 1918, link-local, the 100.64/10 shared range
+ * (Tailscale and carrier NAT), IPv6 unique-local and link-local, and LAN names (one label, or .local,
+ * .lan, .home.arpa, .internal).
+ */
+function privateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || /\.(local|lan|home\.arpa|internal)$/.test(host)) return true;
+  const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(host);
+  if (v4) {
+    const a = Number(v4[1]), b = Number(v4[2]);
+    return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127);
+  }
+  if (host.includes(':')) return host === '::1' || /^f[cd]/.test(host) || /^fe[89ab]/.test(host);
+  return !host.includes('.');
+}
+
+/** The longest Anthropic model list read; listing stops there. */
+const MODELS_MAX = 2000;
 
 export const COO = {
   id: 'coo',
@@ -52,10 +80,19 @@ export const COO = {
   baseUrlSuggestions: VENDORS.map((v) => v.baseUrl),
   reasoningTiers: TIERS.en,
   serviceTiers: [],
+  validateEntry(entry, language) {
+    if (plainRemote(entry.baseUrl)) throw new Error(cooText(language).httpRemote);
+  },
   accepts: (entry, spec, mime) => entry.multimodal === true && mime.startsWith('image/') && readsImages(entry, spec.model),
   prices: (entry, _request, at) => vendorPrices(vendorOf(entry.baseUrl)?.id, at.startedAt),
   contextOverflow,
   create(name: string, entry: LLMProviderEntry, host): ProviderInstance {
+    if (plainRemote(entry.baseUrl)) {
+      // an endpoint saved before the rule stays listed; each request fails before anything is sent
+      const client = new VendorResponses({ baseUrl: entry.baseUrl, log: host.log }, () => undefined);
+      client.respond = () => Promise.reject(new Error(cooText('en').httpRemote));
+      return { client };
+    }
     const apiKey = entry.secret ? host.secret(entry.secret) : undefined;
     const current = () => host.currentEntry?.() ?? entry;
     const headers: Record<string, string> = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
@@ -73,6 +110,8 @@ export const COO = {
         listModels: async () => {
           const models = [];
           for await (const model of client.client().models.list()) {
+            // the SDK pages on while the service says there is more
+            if (models.length >= MODELS_MAX) break;
             const row = model as typeof model & { max_input_tokens?: number; max_tokens?: number };
             windows.set(model.id, row.max_input_tokens);
             models.push({ id: model.id, displayName: model.display_name,

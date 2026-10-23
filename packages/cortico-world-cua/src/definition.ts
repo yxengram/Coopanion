@@ -3,8 +3,14 @@ import { CUA_DEFAULTS, CUA_ID, type CuaConfigSection } from './config.ts';
 import { cuaText } from './strings.ts';
 import { CuaWorld, type CuaWorldOptions } from './world.ts';
 
-/** The definition, with how an embedding app asks the person for permission and its language (see `CuaWorldOptions`). */
-export function cuaDefinition(assembly: Pick<CuaWorldOptions, 'askPermission' | 'language' | 'labelLanguage'> = {}): WorldDefinition<CuaConfigSection> {
+/**
+ * What an embedding app lends the World (see `CuaWorldOptions`): how it asks the person for permission, its language,
+ * and the bot's name as it is now (read at each question; the name the World was mounted with when absent).
+ */
+export type CuaAssembly = Pick<CuaWorldOptions, 'askPermission' | 'language' | 'labelLanguage'> & { botName?: () => string };
+
+/** The definition, with what the embedding app lends (`CuaAssembly`). */
+export function cuaDefinition(assembly: CuaAssembly = {}): WorldDefinition<CuaConfigSection> {
   return {
     id: CUA_ID,
     get label() { return cuaText(assembly.labelLanguage?.() ?? 'zh').console.label; },
@@ -16,7 +22,7 @@ export function cuaDefinition(assembly: Pick<CuaWorldOptions, 'askPermission' | 
       if (!['win32', 'darwin', 'linux'].includes(process.platform)) throw new Error(t.unsupported);
     },
     // ctx.cfg is the live `worlds.cua` section: every key is read at use
-    create: (ctx) => new CuaWorld({ cfg: ctx.cfg, timezone: ctx.timezone, botName: ctx.botName, askPermission: assembly.askPermission, language: assembly.language }),
+    create: (ctx) => new CuaWorld({ cfg: ctx.cfg, timezone: ctx.timezone, botName: () => assembly.botName?.() ?? ctx.botName, askPermission: assembly.askPermission, language: assembly.language }),
   };
 }
 

@@ -310,12 +310,15 @@ export function parseScript(script: string, vocab: readonly VocabWord[], pairs: 
   return { beats, dropped, notes };
 }
 
-/** Seconds a script stays on screen: typing at ~20 chars/s, plus reading time per bubble. */
-export function estimateSeconds(beats: readonly Beat[]): number {
+/**
+ * Seconds a script stays on screen: typing at ~20 × `speed` chars/s, plus reading time per bubble divided by `speed`
+ * (`window.bubbleSpeed`, as web/pet-app.js types and holds); the lead before the words stays as it is.
+ */
+export function estimateSeconds(beats: readonly Beat[], speed = 1): number {
   let s = 0;
   for (const b of beats) {
     if (b.actions.length) s += .5;
-    if (b.text) s += b.text.length / 20 + 1.6 + b.text.length * .07;
+    if (b.text) s += (b.text.length / 20 + 1.6 + b.text.length * .07) / speed;
   }
   return Math.round(s * 10) / 10;
 }

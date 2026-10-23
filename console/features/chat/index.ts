@@ -6,19 +6,42 @@
  * once (`interrupt`) or taken back.
  *
  * Everything shown comes from the World's stream (packages/cortico-world-desktop-pet/src/chat.ts);
- * the phase line is Core's RunPhase as the World passes it on.
+ * the phase line is Core's RunPhase as the World passes it on. Written-out http(s) addresses in Coo's
+ * lines and questions are links, as in the pet's bubbles (the pet's web/ui.js `linked`, upstream #297).
+ * The ring in the composer (context.ts, upstream #318) reads `/api/status` when the page opens, at each
+ * phase change and every few seconds while the window is visible.
+ * What is typed and not sent outlives leaving the page and the window (upstream #256, text only: the
+ * composer is Cortico's, whose attached images this page cannot read), under DRAFT_KEY in localStorage.
  */
+import { linked } from 'cortico-world-desktop-pet/web/ui.js';
 import { panelRoute, panelStreamRoute } from '../../../shared/webui-protocol.ts';
 import type { WebUiImageAttachment } from '../../../shared/client-panel.ts';
 import { languageTag } from '../../../../core/language.ts';
+import { get } from '../../core/api.ts';
 import { LANGUAGE, pick } from '../../core/language.ts';
 import { openStream } from '../../core/stream.ts';
 import { browserSocketEnv } from '../../core/websocket.ts';
 import type { FeatureContext, FrameworkFeature } from '../feature.ts';
 import { BASE } from '../language.ts';
 import { requestMode } from '../mode.ts';
+import { contextGauge, contextRing, type ContextGauge, type ContextStatus } from './context.ts';
 
 const PET_PAGE = 'world:desktop-pet';
+/** How often the context ring reads `/api/status` while the window is visible, besides each phase change. */
+const CONTEXT_POLL_MS = 5000;
+/** Where the unsent text waits (upstream's key, so a later move to its composer keeps it). */
+export const DRAFT_KEY = 'cortico.console.draft.chat';
+
+const readDraft = (): string => {
+  try { return localStorage.getItem(DRAFT_KEY) ?? ''; } catch { return ''; }
+};
+/** Keeps `text` as the draft; empty removes it. Storage that is full or unavailable keeps nothing. */
+const writeDraft = (text: string): void => {
+  try {
+    if (text) localStorage.setItem(DRAFT_KEY, text);
+    else localStorage.removeItem(DRAFT_KEY);
+  } catch { /* storage unavailable */ }
+};
 
 interface WireImage { ref: string; mime: string; name?: string }
 interface SayBeat { text: string; mood?: Record<string, string> }
@@ -48,6 +71,10 @@ export const TEXT = {
     doing: (what: string) => `正在${what}`,
     retry: (at: string) => `模型没有应答,${at} 重试`,
     handoff: '在整理之前的对话',
+    contextUsed: (used: string, limit: string) => `约 ${used} / ${limit} token`,
+    contextTokens: (used: string) => `约 ${used} token`,
+    contextLimit: (limit: string) => `到 ${limit} 时整理之前的对话`,
+    contextLast: (when: string) => `上次整理:${when}`,
     paused: '已暂停 · 消息在继续后送达',
     queued: (bot: string) => `排队中,${bot} 做完这一步就看`,
     queuedPaused: '已暂停,继续后送达',
@@ -80,6 +107,10 @@ export const TEXT = {
     doing: (what: string) => `Busy: ${what}`,
     retry: (at: string) => `The model did not answer; retrying at ${at}`,
     handoff: 'Tidying up the earlier conversation',
+    contextUsed: (used: string, limit: string) => `About ${used} / ${limit} tokens`,
+    contextTokens: (used: string) => `About ${used} tokens`,
+    contextLimit: (limit: string) => `The earlier conversation is tidied up at ${limit}`,
+    contextLast: (when: string) => `Last tidied up: ${when}`,
     paused: 'Paused · messages arrive once resumed',
     queued: (bot: string) => `Queued; ${bot} reads it after this step`,
     queuedPaused: 'Paused; delivered once resumed',
@@ -105,12 +136,12 @@ export const STEP_TEXT = {
   zh: {
     cua_screenshot: '截屏', cua_click: '点击', cua_move: '移动鼠标', cua_drag: '拖动', cua_scroll: '滚动', cua_type: '打字',
     cua_key: '按键', cua_windows: '查看窗口', cua_focus: '切换窗口', cua_wait: '等待',
-    pet_walk_to: '走动', pet_walk: '走动', pet_act: '做动作', pet_feel: '流露心情', pet_set: '调整自己', pet_quiet: '安静一会儿',
+    pet_walk_to: '走动', pet_walk: '走动', pet_act: '做动作', pet_feel: '流露心情', pet_set: '调整设置', pet_quiet: '安静一会儿',
   } as Record<string, string>,
   en: {
     cua_screenshot: 'Screenshot', cua_click: 'Click', cua_move: 'Move the mouse', cua_drag: 'Drag', cua_scroll: 'Scroll', cua_type: 'Type',
     cua_key: 'Press keys', cua_windows: 'List windows', cua_focus: 'Switch window', cua_wait: 'Wait',
-    pet_walk_to: 'Walk', pet_walk: 'Walk', pet_act: 'Move about', pet_feel: 'Show a feeling', pet_set: 'Adjust itself', pet_quiet: 'Keep quiet',
+    pet_walk_to: 'Walk', pet_walk: 'Walk', pet_act: 'Move about', pet_feel: 'Show a feeling', pet_set: 'Adjust settings', pet_quiet: 'Keep quiet',
   } as Record<string, string>,
 };
 const STEP = pick(STEP_TEXT);
@@ -199,11 +230,14 @@ async function mount(ctx: FeatureContext): Promise<void> {
 
   const dock = ui.h('div', 'chat-dock');
   const queueBox = ui.h('div', 'chat-queue');
+  const ring = contextRing(ui, view, ctx.signal, S);
   const composer = ui.promptInput({
     label: S.title,
     placeholder: S.connecting,
     images: { max: 8 },
+    tools: ring.el,
     onSubmit: (text, images) => {
+      writeDraft('');
       const id = nextSend++;
       sentById.set(id, { text, images });
       stream.send(JSON.stringify({ t: 'send', id, text, images: images.map((i) => ({ mime: i.mime, base64: i.base64, name: i.name })) }));
@@ -213,6 +247,16 @@ async function mount(ctx: FeatureContext): Promise<void> {
   });
   dock.append(queueBox, composer.el);
   view.append(top, scroll, dock);
+
+  // ---- draft: kept as it is typed; text put back into the box (a withdrawn message, the pet's typing box) is kept
+  // when the page goes, from the box itself (a detached text area keeps its value)
+  const draftBox = composer.el.querySelector('textarea');
+  composer.el.addEventListener('input', (e) => { if (draftBox && e.target === draftBox) writeDraft(draftBox.value); }, { signal: ctx.signal });
+  const keepDraft = (): void => { if (draftBox) writeDraft(draftBox.value); };
+  ctx.signal.addEventListener('abort', keepDraft, { once: true });
+  window.addEventListener('pagehide', keepDraft, { signal: ctx.signal });
+  const saved = readDraft();
+  if (saved) composer.restore(saved);
 
   // ---- phase line
   const syncPhase = (): void => {
@@ -225,7 +269,25 @@ async function mount(ctx: FeatureContext): Promise<void> {
     else if (p?.state === 'handoff') { state = 'busy'; text = S.handoff; }
     phaseEl.dataset.state = state;
     phaseText.textContent = text;
+    ring.paint(gauge, p?.state === 'handoff');
   };
+
+  // ---- context ring: one request at a time; a read asked for meanwhile runs after it
+  let gauge: ContextGauge | null = null;
+  let reading = false;
+  let readAgain = false;
+  const readContext = (): void => {
+    if (reading) { readAgain = true; return; }
+    reading = true;
+    void get<ContextStatus>('/api/status', { signal: ctx.signal }).then(
+      (st) => { gauge = contextGauge(st); syncPhase(); },
+      () => { /* the last reading stays */ },
+    ).finally(() => {
+      reading = false;
+      if (readAgain && !ctx.signal.aborted) { readAgain = false; readContext(); }
+    });
+  };
+  ctx.lifecycle.interval(() => { if (!doc.hidden) readContext(); }, CONTEXT_POLL_MS);
 
   // ---- rendering
   const avatar = (): HTMLElement => {
@@ -268,7 +330,9 @@ async function mount(ctx: FeatureContext): Promise<void> {
 
   const askNode = (it: Extract<ChatItem, { kind: 'ask' }>, open: boolean): HTMLElement => {
     const box = ui.h('div', 'pet-bubble ask');
-    box.append(ui.h('p', 'b-text', it.question));
+    const question = ui.h('p', 'b-text');
+    question.append(linked(it.question, undefined, doc));
+    box.append(question);
     const answer = [...items.values()].find((x): x is Extract<ChatItem, { kind: 'answer' }> => x.kind === 'answer' && x.askId === it.askId);
     if (answer) box.classList.add('answered');
     const opts = ui.h('div', 'b-opts');
@@ -354,7 +418,9 @@ async function mount(ctx: FeatureContext): Promise<void> {
         const body = cooBody();
         for (const beat of it.beats) {
           const row = ui.h('div', 'sayrow');
-          row.append(ui.h('div', 'pet-bubble say', beat.text));
+          const said = ui.h('div', 'pet-bubble say');
+          said.append(linked(beat.text, undefined, doc));
+          row.append(said);
           if (beat.mood) row.append(ui.h('span', 'mood', moodName(beat.mood)));
           body.append(row);
         }
@@ -497,9 +563,11 @@ async function mount(ctx: FeatureContext): Promise<void> {
             return;
           }
           case 'notice': ui.toast(String(f.text ?? '')); renderQueue(); return;
-          case 'phase': phase = f.phase as RunPhase; refresh(); return;
+          case 'phase': phase = f.phase as RunPhase; refresh(); readContext(); return;
           case 'activity': live = Array.isArray(f.steps) ? { steps: f.steps as string[], startedAt: f.startedAt as number } : null; render(); return;
           case 'paused': paused = f.paused === true; refresh(); return;
+          // the bot was renamed (「Coo 的名字」 or the rail): the thinking line, the queue notes and the input's hint follow
+          case 'bot': bot = typeof f.bot === 'string' && f.bot ? f.bot : bot; composer.setPlaceholder(S.placeholder(bot)); refresh(); return;
           case 'draft': if (typeof f.text === 'string' && f.text) composer.restore(f.text); composer.focus(); return;
         }
       },
@@ -507,6 +575,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
   }));
 
   syncPhase();
+  readContext();
   thread.append(ui.h('div', 'chat-empty', S.connecting));
 }
 

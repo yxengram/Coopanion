@@ -62,7 +62,7 @@ function fakeElectron({ display, cursor = { x: 5, y: 5 }, emitShow = true }) {
         on: listen(wcEvents),
         emit: (e, ...args) => fire(wcEvents, e, ...args),
         send: (ch, v, ...more) => { this.sent.push([ch, v, ...more]); fire(toRenderer, ch, {}, v, ...more); },
-        setWindowOpenHandler() {},
+        setWindowOpenHandler: (f) => { this.openHandler = f; },
         setZoomLevel: (z) => { this.zoom = z; },
         getURL: () => this.url,
       };
@@ -86,6 +86,9 @@ function fakeElectron({ display, cursor = { x: 5, y: 5 }, emitShow = true }) {
     blur() {}
   }
   const state = { cursor };
+  /** An IPC event as the pet window's own page sends it (host/electron-main.cjs takes no other). */
+  const fromPet = () => ({ sender: wins[0]?.webContents, senderFrame: { url: wins[0]?.url ?? '' } });
+  const opened = [];
   const electron = {
     app: { whenReady: () => Promise.resolve(), once() {}, on() {}, quit: vi.fn(), focus() {}, dock: { hide() {} } },
     BrowserWindow,
@@ -101,17 +104,17 @@ function fakeElectron({ display, cursor = { x: 5, y: 5 }, emitShow = true }) {
       on() {},
     },
     session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {} } },
-    shell: { openExternal() {} },
+    shell: { openExternal: (u) => { opened.push(u); return Promise.resolve(); } },
     systemPreferences: { getMediaAccessStatus: () => 'granted', askForMediaAccess: async () => true },
     // the preload's side, wired to the window above
     contextBridge: { exposeInMainWorld: (_name, api) => { state.petHost = api; } },
     ipcRenderer: {
-      send: (ch, v) => ipc.get(ch)?.({}, v),
+      send: (ch, v) => ipc.get(ch)?.(fromPet(), v),
       on: listen(toRenderer),
-      invoke: async (ch, q) => handles.get(ch)?.({}, q),
+      invoke: async (ch, q) => handles.get(ch)?.(fromPet(), q),
     },
   };
-  return { electron, wins, ipc, state };
+  return { electron, wins, ipc, handles, state, fromPet, opened };
 }
 
 /** koffi whose functions are looked up by name in `fns`; any other is a no-op returning 0. */
@@ -181,7 +184,7 @@ async function startHost({ platform, koffi = null, display = FULL_HD, emitShow =
   return {
     ...fake,
     win,
-    send: (ch, v) => fake.ipc.get(ch)({}, v),
+    send: (ch, v) => fake.ipc.get(ch)(fake.fromPet(), v),
     tick: (ms) => vi.advanceTimersByTime(ms),
     shown: () => win.sent.filter(([c]) => c === 'pet:shown').map(([, v]) => v),
     cursors: () => win.sent.filter(([c]) => c === 'pet:cursor').map(([, v]) => v),
@@ -509,5 +512,58 @@ describe('Linux/X11: the cursor from the X server, and the mouse lease', () => {
     h.tick(100);
     // over the panel, off the window
     expect(h.cursors().at(-1)).toBeNull();
+  });
+});
+
+describe('the windows the host opens stay on the World\'s pages (upstream #321)', () => {
+  const ORIGIN = 'http://127.0.0.1:9';
+  const navigate = (win, target) => { const e = { preventDefault: vi.fn() }; win.webContents.emit('will-navigate', e, target); return e.preventDefault.mock.calls.length === 0; };
+
+  it('a link to the World\'s server opens the dressing window, http(s) goes to the browser, any other scheme is dropped', async () => {
+    const h = await startHost({ platform: 'darwin' });
+    const open = (target) => h.win.openHandler({ url: target });
+    expect(open(`${ORIGIN}/dress`)).toEqual({ action: 'deny' });
+    expect(h.wins).toHaveLength(2);
+    expect(h.wins[1].url).toBe(`${ORIGIN}/dress`);
+    // the server's address with something after it is not the server
+    for (const target of [`${ORIGIN}@evil.example/`, 'http://127.0.0.1:90/dress', 'https://example.com/a']) expect(open(target)).toEqual({ action: 'deny' });
+    for (const target of ['file:///etc/passwd', 'javascript:alert(1)', 'ms-settings:', 'vscode://x', 'not a url']) expect(open(target)).toEqual({ action: 'deny' });
+    expect(h.opened).toEqual([`${ORIGIN}@evil.example/`, 'http://127.0.0.1:90/dress', 'https://example.com/a']);
+    expect(h.wins).toHaveLength(2);
+    // the dressing window is guarded the same way
+    expect(h.wins[1].openHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' });
+    h.wins[1].openHandler({ url: 'https://example.org/' });
+    expect(h.opened.at(-1)).toBe('https://example.org/');
+  });
+
+  it('neither window navigates away from the server, a dropped link included', async () => {
+    const h = await startHost({ platform: 'win32' });
+    h.win.openHandler({ url: `${ORIGIN}/dress` });
+    for (const win of [h.win, h.wins[1]]) {
+      expect(navigate(win, `${ORIGIN}/pet#key=x`)).toBe(true);
+      expect(navigate(win, `${ORIGIN}/dress`)).toBe(true);
+      for (const target of ['https://example.com/', `${ORIGIN}@evil.example/`, 'http://127.0.0.1:90/pet', 'file:///C:/x.html']) expect(navigate(win, target), target).toBe(false);
+    }
+  });
+
+  it('takes IPC from the pet window\'s own page only', async () => {
+    const h = await startHost({ platform: 'win32' });
+    h.win.url = `${ORIGIN}/pet#key=k`;
+    h.win.visible = true;
+    const before = h.wins.length;
+    const others = [{}, { sender: h.win.webContents, senderFrame: { url: 'https://example.com/' } }, { sender: h.win.webContents, senderFrame: null }];
+    h.win.openHandler({ url: `${ORIGIN}/dress` });
+    others.push({ sender: h.wins.at(-1).webContents, senderFrame: { url: `${ORIGIN}/dress` } });
+    const dressCount = h.wins.length;
+    for (const e of others) {
+      h.ipc.get('pet:hide')(e);
+      expect(h.win.visible).toBe(true);
+      expect(await h.handles.get('pet:followCursor')(e)).toBeNull();
+      expect(await h.handles.get('pet:sampleBackdrop')(e, {})).toBeNull();
+    }
+    expect(h.wins.length).toBe(dressCount);
+    expect(dressCount).toBe(before + 1);
+    h.send('pet:hide');
+    expect(h.win.visible).toBe(false);
   });
 });

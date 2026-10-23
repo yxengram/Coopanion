@@ -88,7 +88,8 @@ export function seed(home: string, language = 'zh'): void {
   const endpoint = join(home, 'providers', ENDPOINT);
   const workspace = join(deploy, 'workspace');
   mkdirSync(workspace, { recursive: true });
-  mkdirSync(endpoint, { recursive: true });
+  // owner-only, as Cortico 0.2.6 makes the endpoint folders it creates: the key is saved into it
+  mkdirSync(endpoint, { recursive: true, mode: 0o700 });
   const write = (file: string, value: unknown) => { if (!existsSync(file)) writeFileSync(file, JSON.stringify(value, null, 2) + '\n'); };
   write(join(deploy, 'deployment.json'), { bot: 'cormini' });
   write(join(deploy, 'config.json'), {

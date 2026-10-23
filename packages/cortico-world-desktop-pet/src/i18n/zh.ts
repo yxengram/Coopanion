@@ -173,6 +173,14 @@ const zh = {
     overLimit: (mb: number) => `超过 ${mb} MB`,
   },
 
+  /** Uninstalling packs on the dressing page. */
+  removing: {
+    notInstalled: (id: string) => `没有 id 为 ${id} 的形象包`,
+    builtin: (id: string) => `${id} 是内置形象,不能卸载`,
+    elsewhere: (id: string) => `${id} 不在形象包的安装目录里,不能在这里卸载`,
+    failed: (why: string) => `没能删除:${why}`,
+  },
+
   /** Why the World fails to start when every page port is taken. */
   portsTaken: (from: number, to: number, why: string) => `端口 ${from}–${to} 都被占用:${why}`,
 
@@ -289,11 +297,13 @@ const zh = {
     rememberPosition: { title: '记住位置', description: '退出时记下桌宠的横向位置,下次启动落回那里;有多块屏幕时总在主屏上启动。' },
     hoverButtons: { title: '悬停按钮', description: (max: number, ids: string) => `鼠标停在桌宠身上时旁边出现的按钮,最多 ${max} 个,逗号分隔:${ids}。` },
     doubleClickChat: { title: '双击打字', description: '双击桌宠打开打字框。' },
+    saidBubbles: { title: '输入气泡', description: '打字、语音和对话页发出的消息显示在桌宠头顶,回复后淡出。关闭时语音只在识别中显示。' },
     selfAdjust: { title: '允许自己调整', description: '桌宠可以自己换形象和装扮、改走动和呼噜;改音效、大小、黑白模式、悬停按钮和对你的称呼前先问你。关掉后这些它都改不了。' },
     windowEnabled: { title: '启动时打开桌宠窗口' },
     scale: { title: '大小' },
     bubbleSize: { title: '气泡尺寸', description: '桌宠和你的气泡的宽度、留白、圆角和尾巴,1 为默认;字号不变。' },
     fontSize: { title: '字体尺寸', description: '气泡里文字的大小,1 为默认;气泡宽度不变。' },
+    bubbleSpeed: { title: '气泡速度', description: '桌宠的气泡逐字出现和停留的速度,1 为默认,越大越快。' },
     lockFrameRate: { title: '锁定 60 帧', description: '一直按每秒 60 帧画桌宠。关着时站着、坐着、趴着、睡着降到每秒 30 帧,走动、被拎着、跳起时仍是 60 帧。' },
     hideWhenFullscreen: { title: '全屏时自动隐藏', description: '开着时,前台窗口全屏铺满桌宠所在的那块屏(游戏、全屏视频、浏览器全屏)就把它藏起来,退出全屏放回来;最大化的窗口不算。关着时一直浮在上面。' },
     electronFile: { title: 'Electron 程序', description: '留空时依次用 CORTICO_DESKTOP_PET_HOST 和面板里安装的运行时。' },

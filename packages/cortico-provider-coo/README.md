@@ -49,6 +49,14 @@ Coo Pet Provider:[Cortico](https://github.com/Pal-AI-Lab/Cortico) 的一个 prov
 - **重试**(Anthropic):SDK 自己不重试(`maxRetries: 0`),由 `ClaudeProvider` 照框架的约定最多重试三次(有 `Retry-After` 按它等),
   连接错误、408、409、429、5xx、529 重试,已经流出不可撤回的内容后不重试,API 已经答完但停止原因不认识的也不重试(再问一次还要再计费);每次请求记一个 `ProviderAttempt`。
 - **不读 shell 的 Anthropic 设置**:Core 继承 app 启动时的环境,SDK 不取 `ANTHROPIC_AUTH_TOKEN`(`authToken: null`)、`ANTHROPIC_LOG`、`ANTHROPIC_CUSTOM_HEADERS`(建客户端时暂时藏起来),只发端点自己的密钥。
+- **远程地址只收 https**(上游 #327):`validateEntry` 拒收 http 的远程地址(`plainRemote`),提示在 `COO_TEXT.httpRemote`(zh/en);
+  http 只留给本机和局域网:回环、`localhost` 和 `*.localhost`、10/8、172.16/12、192.168/16、169.254/16、100.64/10(Tailscale、运营商 NAT)、
+  IPv6 的 `::1`、`fc00::/7`、`fe80::/10`,以及局域网名字(不带点的单名,或 `.local`、`.lan`、`.home.arpa`、`.internal` 结尾)。
+  规则之前存下的 http 远程端点仍列着,但 `create` 给它一个每次请求都在发出前失败的客户端(错误固定英文,`create` 拿不到界面语言)。
+- **模型列表有上限,带 Key 的请求不跟重定向**(上游 #325):Gemini 的 `GET /models` 最多读 `MODEL_PAGES_MAX`(20)页、整体 60 秒,
+  翻页令牌重复就停;Anthropic 的列表读满 2000 个就停(SDK 在 `has_more` 一直为真时会一直翻)。`listGeminiModels` 和 Anthropic SDK 的
+  `fetch`(在 `withoutShellHeaders` 里一起传)都设 `redirect: 'error'`:`x-goog-api-key`、`x-api-key` 不是标准认证头,跨源重定向会跟着发过去。
+  Responses 和 Gemini 对话走 Cortico 的传输层,由 Cortico 0.2.6 不跟重定向;别家的模型目录(Cortico 的 `ModelCatalog`)仍跟重定向,但 Key 在 `Authorization: Bearer` 里,fetch 跨源重定向时会去掉它。
 - **价目**:DeepSeek(错峰价,两个高峰时段按两倍计)、OpenAI、Anthropic、Gemini(付费档)和 xAI 内置(`src/pricing.ts`,
   长提示词按各家的第二档计;Anthropic 的新输入、缓存写入、缓存读取分别计价);别家没有内置价目。
 - **标志**:`src/icons.ts`,取自 [@lobehub/icons-static-svg](https://github.com/lobehub/lobe-icons)(MIT)。标志归各自的公司所有,只用来标明是哪一家。
@@ -78,7 +86,7 @@ Coo Pet Provider:[Cortico](https://github.com/Pal-AI-Lab/Cortico) 的一个 prov
 `127.0.0.1` 上系统挑的端口;第一次登录动态注册 `dynamic_agent_client`,之后沿用发下来的 client id),要拿到
 `chatgpt.tokens.use.direct` 授权才算登录上。令牌存在端点目录的 `.env`(`CHATGPT_*` 几行,整份写临时文件再替换),提前 5 分钟或被拒一次后刷新,
 刷新令牌每次轮换。请求只发 `https://api.openai.com/v1`(`normalize` 把地址钉死),每次都流式、`store: false`,去掉套餐路由不收的参数,
-函数工具放进一个命名空间。套餐用量到上限时客户端自己停 5 分钟再试,不算失败;连接测试直接报 429。
+函数工具放进一个命名空间(没写 `strict` 的函数工具发 `strict: false`,上游 #255:省略时路由会把可选参数归成必填)。套餐用量到上限时客户端自己停 5 分钟再试,不算失败;连接测试直接报 429。
 
 - **服务表**:`CHATGPT` 用 OpenAI 的模型、思考换算和上下文长度,不在 `VENDORS` 里(地址和 OpenAI 一样,`vendorOf` 按地址认会认成 OpenAI);
   端点按模块认(`connectionVendor` 读 `/api/status` 的 `module`,`endpointVendor` 读端点的 `kind`)。没有价目。标志沿用 OpenAI 的「O」方框。

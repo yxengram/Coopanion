@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# the jobs only read the repository; Actions are pinned by commit SHA (upstream #314)
+permissions:
+  contents: read
+
 jobs:
   check:
     strategy:
@@ -13,20 +17,24 @@ jobs:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
+          # no token left in .git/config for the dependencies' install scripts and the tests to read
+          persist-credentials: false
       # tests/pet-actions.test.js compares the kit's non-plus frames with upstream's v0.1.17 kit read from the tag
       - run: git fetch --depth=1 origin tag v0.1.17
       # tests/pack-export-upstream.test.js reads upstream's current release's pack reader: fetched under its own ref, since
       # the fork's own tags v0.2.x have upstream's names (tests/helpers/upstream-packs.js)
       - run: git fetch --depth=1 --no-tags https://github.com/Pal-AI-Lab/Coopanion refs/tags/v0.2.3:refs/upstream-tags/v0.2.3
       - run: corepack enable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Electron fetches its binary on first require; parallel test workers doing that at once overwrite it under each other
+      - run: node node_modules/electron/install.js
       - run: pnpm run build:cortico
       - run: pnpm run typecheck
       - run: pnpm run typecheck:web

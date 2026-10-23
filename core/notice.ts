@@ -22,7 +22,7 @@
  * The last version told is kept in `notice.json` in the deployment directory, written when the
  * event is delivered, so an update told while events are held (no key yet) is told on a later start.
  */
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -30,11 +30,17 @@ import type { ToolDef, World, WorldWebUiDecl, WorldHost } from 'cortico/core/typ
 import { pick, type Language } from 'cortico/core/language.ts';
 import type { WorldDefinition, WorldSection } from 'cortico/world.ts';
 import { Alarms } from './alarms.ts';
+import { asRecord, field, readState, writeState } from './state-file.ts';
 import type { GuideEnd } from './guide.ts';
 
 export const NOTICE_ID = 'coopanion';
 /** How often the watched settings are compared with the last look. */
 const LOOK_EVERY_MS = 1000;
+/**
+ * The longest a change is held back while `inEffect` says it has not taken effect yet (a World switched on but still
+ * starting): longer than the computer-use engine's 30 s first answer. After it the change is told anyway.
+ */
+const HOLD_MAX_MS = 40_000;
 /** The template of the reply-language line. */
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./NOTICE_ENV_PROMPT.md', import.meta.url));
 /** The reply-language template on the WebUI's prompts page. */
@@ -68,6 +74,12 @@ export interface NoticeAssembly {
   replyLanguage?: () => string | null;
   /** The language of the World's name, read at each use: see `DesktopPetAssembly.labelLanguage`. Without it, Chinese. */
   labelLanguage?: () => Language;
+  /**
+   * Whether computer use is as its switch now says: switched on, mounted with its tools in the prefix; switched off,
+   * gone from it. While the switch changed and this is not so, the change is not told yet (at most HOLD_MAX_MS), so
+   * Coo never hears that computer use is on before its tools are there (upstream #243). Absent: always.
+   */
+  inEffect?: () => boolean;
 }
 
 /** The World's name in the settings window. */
@@ -150,6 +162,7 @@ const onOff = (v: unknown) => (v ? '开' : '关');
 const named = (table: Record<string, string>) => (v: unknown) => table[String(v)] ?? String(v);
 const PET = 'worlds.desktop-pet';
 const CUA = 'worlds.cua';
+const CUA_ENABLED = `${CUA}.enabled`;
 
 const WATCHED: Watched[] = [
   { path: `${PET}.user`, name: '你对对方的称呼' },
@@ -225,6 +238,8 @@ export class NoticeWorld implements World {
   private told: Look = {};
   private seen: Look = {};
   private wasGuiding = false;
+  /** Since when a change has been held back for `inEffect`; null while nothing is. */
+  private heldSince: number | null = null;
   /** The version Coo is to hear about, until the pet page connects. */
   private update: { from: string | null; to: string } | null = null;
 
@@ -273,11 +288,10 @@ export class NoticeWorld implements World {
   private pendingUpdate(): { from: string | null; to: string } | null {
     const to = this.a.version;
     if (!parseVersion(to)) return null;
-    const last = existsSync(this.a.stateFile)
-      ? (JSON.parse(readFileSync(this.a.stateFile, 'utf8')) as { version?: unknown }).version
-      : undefined;
-    if (last === undefined && this.a.newInstall()) { this.record(to); return null; }
-    if (typeof last !== 'string') return { from: null, to };
+    // a damaged notice.json is kept as notice.json.bad and read as no version told (upstream #307)
+    const last = readState(this.a.stateFile, (value) => field(asRecord(value), 'version', (v): v is string => typeof v === 'string'));
+    if (last === null && this.a.newInstall()) { this.record(to); return null; }
+    if (last === null) return { from: null, to };
     const from = parseVersion(last);
     if (from && compare(parseVersion(to)!, from) > 0) return { from: last, to };
     if (last !== to) this.record(to);
@@ -295,7 +309,7 @@ export class NoticeWorld implements World {
   }
 
   private record(version: string): void {
-    writeFileSync(this.a.stateFile, `${JSON.stringify({ version }, null, 2)}\n`);
+    writeState(this.a.stateFile, `${JSON.stringify({ version }, null, 2)}\n`);
   }
 
   private tick(): void {
@@ -320,13 +334,23 @@ export class NoticeWorld implements World {
         render: () => { this.record(to); return updatedText(from, to, releaseNotes(this.a.notesDir, from, to)); },
       }, { trigger: 'flush' });
     }
-    if (JSON.stringify(now) === JSON.stringify(this.seen)) return;
+    if (JSON.stringify(now) === JSON.stringify(this.seen)) { this.heldSince = null; return; }
+    // computer use switched on or off is told once that is so (mounted with its tools in the prefix, or gone); the next
+    // look tries again (other changes made meanwhile wait with it, at most HOLD_MAX_MS). A change that leaves the switch
+    // alone is never held: a cua World that cannot run here never settles.
+    if (this.a.inEffect && now[CUA_ENABLED] !== this.seen[CUA_ENABLED] && !this.a.inEffect()) {
+      this.heldSince ??= Date.now();
+      if (Date.now() - this.heldSince < HOLD_MAX_MS) return;
+    }
+    this.heldSince = null;
     this.seen = now;
-    // each change pushes again so the debounce waits for the last; the first render tells them all, the rest render nothing
+    // each change pushes again so the debounce waits for the last; the first render tells them all, the rest render nothing.
+    // A render tells what the looks have let through (`seen`), not the settings as they are when it is delivered: an item
+    // pushed before a computer-use switch flip that is still held must not tell the flip early.
     host.pushDeferred({
       type: 'coopanion.settings-changed', origin: 'internal',
       render: () => {
-        const current = look(this.a.read);
+        const current = this.seen;
         const lines = settingChanges(this.told, current, this.labels);
         this.told = current;
         return lines.length ? changedText(lines) : null;

@@ -182,7 +182,7 @@ function fakeElectron() {
     }
     on() {} once() {} setBounds() {} getBounds() { return { x: 0, y: 0, width: 1, height: 1 }; }
     setAlwaysOnTop() {} setVisibleOnAllWorkspaces() {} setIgnoreMouseEvents() {} showInactive() {} hide() {}
-    isVisible() { return false; } loadURL() {} show() {} focus() {}
+    isVisible() { return false; } loadURL(u) { this.url = u; } show() {} focus() {}
   }
   class Tray {
     constructor() { trays.push(this); }
@@ -202,7 +202,8 @@ function fakeElectron() {
     shell: { openExternal() {} },
     systemPreferences: { getMediaAccessStatus: () => 'granted' },
     contextBridge: { exposeInMainWorld: (_name, api) => { state.petHost = api; } },
-    ipcRenderer: { send: (ch, v) => ipc.get(ch)?.({}, v), on() {}, invoke: async () => null },
+    // as the pet window's own page sends it (the host takes IPC from no other)
+    ipcRenderer: { send: (ch, v) => ipc.get(ch)?.({ sender: wins[0]?.webContents, senderFrame: { url: wins[0]?.url ?? '' } }, v), on() {}, invoke: async () => null },
   };
   return { electron, ipc, wins, trays, state };
 }
@@ -228,7 +229,10 @@ describe('the pet window process in the app language', () => {
     expect(tray.tip).toBe('Cortico desktop pet');
     expect(labels()).toEqual(['Show pet', 'Hide pet', 'Dress up…', 'Close the pet window']);
     for (const l of labels()) expect(l).not.toMatch(CJK);
+    // (upstream #321) a message from anything but the pet window's own page is not heard
     fake.ipc.get('pet:openDress')({});
+    expect(fake.wins).toHaveLength(1);
+    fake.ipc.get('pet:openDress')({ sender: fake.wins[0].webContents, senderFrame: { url: fake.wins[0].url } });
     expect(fake.wins[1].opts.title).toBe('Dress up');
 
     // not a language: kept as it was; back to Chinese

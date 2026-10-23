@@ -10,6 +10,9 @@
  *
  * Under Electron's Node the addon refuses external buffers; only Float32Array samples go in and
  * JSON comes back, which does not touch them.
+ *
+ * A stop (voice input switched off) drops the recognizer and frees the model's memory at once where the
+ * process exposes `gc` (`--expose-gc`, as the app starts Core); see `release`.
  */
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
@@ -75,6 +78,8 @@ export class FunAsrRecognizer {
   private detail: string | null = null;
   private loaded = '';
   private starting: Promise<void> | null = null;
+  /** Decodes under way; a dropped recognizer is collected after they end. */
+  private readonly decoding = new Set<Promise<unknown>>();
 
   constructor(private readonly opts: FunAsrOptions) {}
 
@@ -113,10 +118,12 @@ export class FunAsrRecognizer {
     if (this.phase === 'running' && !this.configChanged) return;
     const files = this.opts.model();
     // no model yet is not a failure: voice input waits for the download
-    if ('missing' in files) { this.rec = null; this.phase = 'stopped'; this.detail = files.missing; return; }
+    if ('missing' in files) { await this.release(); this.phase = 'stopped'; this.detail = files.missing; return; }
     if (!existsSync(files.model) || !existsSync(files.tokens)) { this.phase = 'error'; this.detail = this.t.incomplete; return; }
     this.phase = 'starting';
     this.detail = null;
+    // the model loaded for another language or thread count goes first, so the two are never held at once
+    await this.release();
     const started = Date.now();
     try {
       const sherpa = (this.opts.load ?? loadSherpa)();
@@ -143,8 +150,21 @@ export class FunAsrRecognizer {
 
   async stop(): Promise<void> {
     await this.starting;
-    this.rec = null;
     if (this.phase !== 'error') this.phase = 'stopped';
+    await this.release();
+  }
+
+  /**
+   * Drops the recognizer and, once its decodes end, collects it. sherpa-onnx-node has no call that frees a
+   * recognizer: its finalizer does, and for a wrapper that has lived a while that waits for a full GC, so the
+   * model's hundreds of MB would stay until then. Where the process exposes `gc` (`--expose-gc`) a full GC
+   * runs here; elsewhere the memory comes back at the next one.
+   */
+  private async release(): Promise<void> {
+    if (!this.rec) return;
+    this.rec = null;
+    await Promise.allSettled(this.decoding);
+    (globalThis as { gc?: () => void }).gc?.();
   }
 
   /** One finished utterance to text. */
@@ -160,7 +180,9 @@ export class FunAsrRecognizer {
     try {
       const stream = rec.createStream();
       stream.acceptWaveform({ sampleRate: SAMPLE_RATE, samples: toFloat(pcm) });
-      const r = await rec.decodeAsync(stream);
+      const run: Promise<{ text?: string }> = rec.decodeAsync(stream).finally(() => this.decoding.delete(run));
+      this.decoding.add(run);
+      const r = await run;
       return { text: (r.text ?? '').trim(), ms: 0, error: null };
     } catch (err) {
       return { text: '', ms: 0, error: (err as Error).message };

@@ -50,6 +50,7 @@ import { cuaFeature, guardWorldsPage } from './features/cua/index.ts';
 import { chatFeature } from './features/chat/index.ts';
 import { promptsWithClearFeature } from './features/clear-session.ts';
 import { mountRelease } from './features/release.ts';
+import { onNameSaved } from './features/bot-name.ts';
 import { onModeRequest, readMode, writeMode, type ConsoleMode } from './features/mode.ts';
 import { routeLanguageButtons } from './features/language.ts';
 import { icon } from './ui/icons.ts';
@@ -283,6 +284,8 @@ export function boot(doc: Document = document): { dispose(): void } {
   };
   buildShell();
   onModeRequest(setMode, shellLife.signal);
+  // the Habits page's 「Coo 的名字」 saved: the rail shows it at once (a rename in the rail itself reaches that page with its next read)
+  onNameSaved((name) => shell.setBrand(name), shellLife.signal);
   const offNav = host.onNavChange(() => shell.setPages(visiblePages()));
 
   /**

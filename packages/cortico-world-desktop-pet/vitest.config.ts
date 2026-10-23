@@ -21,6 +21,8 @@ export default defineConfig({
     // 控制台语言是按进程读一次的系统事实;测试断言中文文案,与跑测试的机器区域无关。
     env: { CORTICO_LANGUAGE: 'zh' },
     testTimeout: 20000,
+    // 忙的 Windows 机器上 1 s 的默认值等不到轮询的结果(上游 #329)
+    expect: { poll: { timeout: 10_000 } },
     pool: 'forks',
     maxWorkers: 2,
     minWorkers: 1,

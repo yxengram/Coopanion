@@ -12,8 +12,10 @@
  * same lock or ports. A child that exits unasked before it is ready leaves the app's arguments, its parent PID and whether the
  * entry and tsx are on disk in the log. A start after the host gave up (`failed`) begins with a full budget. The next
  * child started after an unexpected exit gets its exit code or signal in `COOPANION_CORE_EXIT`, for
- * the usage statistics. Every start looks up the system proxy again (systemProxyEnvironment) and hands
- * it to the child as proxy variables unless the environment already has its own.
+ * the usage statistics. The child asks for the system proxy per host as its requests go out (`companion:proxy`,
+ * answered by lookupProxy), unless the environment has proxy variables of its own. A stop asks the child to shut
+ * down, kills it after the grace period and waits up to STOP_KILL_WAIT_MS more for its exit; a child stopped so is
+ * never counted as a crash.
  *
  * Events: `ready` ({ port, keyMissing, language }), `language` (the app language, from each ready child and after
  * each change it reports with `companion:language`), `state` (state, detail in the app language), and the
@@ -21,7 +23,7 @@
  * open in the system browser: only an `https://auth.openai.com/` address is handed on, see `isSignInPage`).
  */
 const { fork } = require('node:child_process');
-const { coreEnvironment, systemProxyEnvironment } = require('./core-env.cjs');
+const { coreEnvironment, lookupProxy, proxySource } = require('./core-env.cjs');
 const { EventEmitter } = require('node:events');
 const { createWriteStream, existsSync, mkdirSync, renameSync, statSync } = require('node:fs');
 const { join } = require('node:path');
@@ -43,9 +45,12 @@ const MISSING_MODULE = /MODULE_NOT_FOUND|Cannot find (?:package|module)/;
 const TSX_ENTRY = ['node_modules', 'tsx', 'dist', 'loader.mjs'];
 /**
  * Node options of the Core. --use-system-ca: TLS trusts the operating system's certificate store as well as Node's
- * bundled one (company or antivirus root certificates); certificates are still checked.
+ * bundled one (company or antivirus root certificates); certificates are still checked. --expose-gc: the desktop-pet
+ * World can free a speech model as soon as it stops it.
  */
-const CORE_NODE_FLAGS = ['--use-env-proxy', '--use-system-ca'];
+const CORE_NODE_FLAGS = ['--use-env-proxy', '--use-system-ca', '--expose-gc'];
+/** After the kill a stop waits this long for the exit; a child that is still there then is let go as stopped. */
+const STOP_KILL_WAIT_MS = 5000;
 const LOG_ROTATE_BYTES = 5 * 1024 * 1024;
 
 /** Whether a piece of stderr says a module or package could not be found. */
@@ -91,8 +96,6 @@ class CoreHost extends EventEmitter {
     this.keyMissing = false;
     this.restartAsked = false;
     this.stopping = false;
-    /** The system proxy lookup before a start is running. */
-    this.launching = false;
     this.crashes = [];
     /** Missing-module exits before ready since the last ready child: the index into MISSING_MODULE_DELAYS_MS. */
     this.missingModuleExits = 0;
@@ -117,22 +120,18 @@ class CoreHost extends EventEmitter {
   }
 
   async start() {
-    if (this.child || this.launching) return;
-    this.launching = true;
-    const proxy = await systemProxyEnvironment(this.opts.env, this.opts.resolveProxy);
-    this.launching = false;
-    if (this.stopping) return;
+    if (this.child || this.stopping) return;
     if (this.state === 'failed') { this.crashes = []; this.missingModuleExits = 0; }
     mkdirSync(this.opts.logDir, { recursive: true });
     const logFile = join(this.opts.logDir, 'core.log');
     if (existsSync(logFile) && statSync(logFile).size > LOG_ROTATE_BYTES) renameSync(logFile, join(this.opts.logDir, 'core.old.log'));
     const log = createWriteStream(logFile, { flags: 'a' });
-    log.write(`\n===== ${new Date().toISOString()} start =====\n${proxy.note}\n`);
+    log.write(`\n===== ${new Date().toISOString()} start =====\n${proxySource(this.opts.env)}\n`);
     const child = fork(join(this.opts.appRoot, 'core', 'boot.ts'), [], {
       cwd: this.opts.appRoot,
       execPath: this.opts.execPath ?? process.execPath,
       execArgv: [...CORE_NODE_FLAGS, '--import', 'tsx'],
-      env: coreEnvironment({ ...this.opts.env, ...proxy.vars, ...(this.unexpectedExit === null ? {} : { COOPANION_CORE_EXIT: String(this.unexpectedExit) }) }),
+      env: coreEnvironment({ ...this.opts.env, ...(this.unexpectedExit === null ? {} : { COOPANION_CORE_EXIT: String(this.unexpectedExit) }) }),
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     });
     this.unexpectedExit = null;
@@ -161,6 +160,10 @@ class CoreHost extends EventEmitter {
         if (typeof msg.language === 'string') this.emit('language', msg.language);
         this.emit('ready', { port: msg.port, keyMissing: this.keyMissing, language: this.language });
         this.emit('state', this.state);
+      } else if (msg?.type === 'companion:proxy' && typeof msg.url === 'string') {
+        void lookupProxy(msg.url, this.opts.resolveProxy).then(({ proxy, rule }) => {
+          try { child.send({ type: 'companion:proxy', id: msg.id, proxy, rule }); } catch { /* channel closing */ }
+        });
       } else if (msg?.type === 'cortico:ready') {
         this.dataDir = msg.dataDir;
       } else if (msg?.type === 'companion:locked') {
@@ -253,7 +256,7 @@ class CoreHost extends EventEmitter {
     try { this.child?.send(msg); } catch { /* channel closing */ }
   }
 
-  /** Asks for a clean shutdown; kills the child if it has not exited within `graceMs`. */
+  /** Asks for a clean shutdown, then forces termination after `graceMs` and waits up to STOP_KILL_WAIT_MS for the exit. */
   async stop(graceMs = 12_000) {
     this.stopping = true;
     const child = this.child;
@@ -261,9 +264,24 @@ class CoreHost extends EventEmitter {
     // a child that exited already may still be held while its last stderr lines are read: it is let go as stopped
     if (child.exitCode !== null || child.signalCode !== null) { await this.settling; return; }
     const exited = new Promise((r) => child.once('exit', r));
+    const within = (ms) => {
+      let timer;
+      return Promise.race([
+        exited.then(() => true),
+        new Promise((r) => { timer = setTimeout(() => r(false), ms); }),
+      ]).finally(() => clearTimeout(timer));
+    };
     try { child.send({ type: 'companion:shutdown' }); } catch { /* channel already closed */ }
-    const done = await Promise.race([exited.then(() => true), new Promise((r) => setTimeout(() => r(false), graceMs))]);
-    if (!done) child.kill();
+    if (await within(graceMs)) return;
+    // Core treats SIGTERM as another shutdown request and ignores it once shutdown is under way
+    child.kill('SIGKILL');
+    if (await within(STOP_KILL_WAIT_MS)) return;
+    if (this.child === child) {
+      this.child = null;
+      this.port = null;
+      this.state = 'stopped';
+      this.emit('state', this.state);
+    }
   }
 
   /** Restart on demand (tray menu). */
@@ -274,4 +292,4 @@ class CoreHost extends EventEmitter {
   }
 }
 
-module.exports = { CoreHost, CORE_NODE_FLAGS, MISSING_MODULE_DELAYS_MS, isMissingModule, isSignInPage, missingModuleDelay };
+module.exports = { CoreHost, CORE_NODE_FLAGS, MISSING_MODULE_DELAYS_MS, STOP_KILL_WAIT_MS, isMissingModule, isSignInPage, missingModuleDelay };

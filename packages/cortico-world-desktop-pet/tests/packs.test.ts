@@ -476,14 +476,20 @@ describe('importing figure packs from the dressing page', () => {
     expect(readdirSync(packDir)).toEqual([]);
   });
 
-  it('replaces the installed pack with that id whatever its folder is called, and refuses a path that climbs out before writing anything', async () => {
+  it('replaces the installed pack with that id whatever its folder is called, only once that is approved, and refuses a path that climbs out before writing anything', async () => {
     const { imp, packDir } = importer();
     mkdirSync(join(packDir, 'old-name'));
     writeFileSync(join(packDir, 'old-name', 'figure.json'), JSON.stringify({ ...base, version: '0.9.0' }));
+    writeFileSync(join(packDir, 'old-name', 'kept.txt'), 'original');
     const staged = await imp.stage(files(filesFromBundle(bundle(robotFiles('picked/', 'robot', { version: '1.0.0' })))), true);
     if ('error' in staged) throw new Error(staged.error);
     expect(staged.packs.map((p) => [p.dir, p.installed])).toEqual([['picked', '0.9.0']]);
-    await imp.install(staged.token, ['picked']);
+    // (upstream #306) not without a yes for that id: nothing changes and the token stays good
+    expect(await imp.install(staged.token, ['picked'])).toEqual({ conflicts: ['robot'] });
+    expect(await imp.install(staged.token, ['picked'], ['another-id'])).toEqual({ conflicts: ['robot'] });
+    expect(readdirSync(packDir)).toEqual(['old-name']);
+    expect(readFileSync(join(packDir, 'old-name', 'kept.txt'), 'utf8')).toBe('original');
+    expect(await imp.install(staged.token, ['picked'], ['robot'])).toEqual({ installed: ['robot'] });
     expect(readdirSync(packDir)).toEqual(['robot']);
     expect(JSON.parse(readFileSync(join(packDir, 'robot', 'figure.json'), 'utf8')).version).toBe('1.0.0');
 
@@ -552,7 +558,8 @@ describe('importing figure packs from the dressing page', () => {
     const again = await imp.stage(files(filesFromZip(zipSync(robotFiles('foo/', 'foo', { version: '2.0.0' })))), false);
     if ('error' in again) throw new Error(again.error);
     expect(again.packs[0]!.installed).toBe('0.0.0');
-    await imp.install(again.token, ['foo']);
+    expect(await imp.install(again.token, ['foo'])).toEqual({ conflicts: ['foo'] });
+    expect(await imp.install(again.token, ['foo'], ['foo'])).toEqual({ installed: ['foo'] });
     const after = figurePacks([packDir]).packs;
     expect(after.find((p) => p.id === 'bar')).toBeTruthy();
     expect(after.find((p) => p.id === 'foo')!.manifest.version).toBe('2.0.0');
@@ -571,7 +578,7 @@ describe('importing figure packs from the dressing page', () => {
     if ('error' in staged) throw new Error(staged.error);
     // the staged copy goes away under it: copying fails
     rmSync((imp as unknown as { staged: { root: string } }).staged.root, { recursive: true, force: true });
-    expect(await imp.install(staged.token, ['robot'])).toMatchObject({ error: expect.stringContaining('robot') });
+    expect(await imp.install(staged.token, ['robot'], ['robot'])).toMatchObject({ error: expect.stringContaining('robot') });
     expect(readdirSync(packDir)).toEqual(['robot']);
     expect(JSON.parse(readFileSync(join(packDir, 'robot', 'figure.json'), 'utf8')).version).toBe('0.9.0');
   });
@@ -589,6 +596,63 @@ describe('importing figure packs from the dressing page', () => {
     expect(one).toEqual({ installed: ['beta'] });
     expect(two).toMatchObject({ error: expect.stringContaining('过期') });
     expect(readdirSync(packDir)).toEqual(['beta']);
+  });
+
+  it('checks every chosen pack before writing, and sees a pack installed after the import was staged (upstream #306)', async () => {
+    const { imp, packDir } = importer();
+    const staged = await imp.stage(files(filesFromZip(zipSync({ ...robotFiles('one/', 'robot'), ...robotFiles('two/', 'second') }))), false);
+    if ('error' in staged) throw new Error(staged.error);
+    expect(staged.packs.map((p) => [p.id, p.installed])).toEqual([['robot', null], ['second', null]]);
+    mkdirSync(join(packDir, 'old-name'));
+    writeFileSync(join(packDir, 'old-name', 'figure.json'), JSON.stringify({ ...base, version: '0.9.0' }));
+    expect(await imp.install(staged.token, ['one', 'two'])).toEqual({ conflicts: ['robot'] });
+    expect(readdirSync(packDir)).toEqual(['old-name']);
+    // a cancelled import cannot be installed afterwards, approved or not
+    await imp.cancel();
+    expect(await imp.install(staged.token, ['one', 'two'], ['robot'])).toMatchObject({ error: expect.stringContaining('过期') });
+    expect(readdirSync(packDir)).toEqual(['old-name']);
+  });
+
+  it('a pack installed by another route is no conflict when its folder is not one (the fork\'s <id>-2 rule), and an approved token is spent once', async () => {
+    const { imp, packDir } = importer();
+    mkdirSync(join(packDir, 'robot'));
+    writeFileSync(join(packDir, 'robot', 'notes.txt'), 'not a pack');
+    const staged = await imp.stage(files(filesFromZip(zipSync(robotFiles('robot/')))), false);
+    if ('error' in staged) throw new Error(staged.error);
+    const [one, two] = await Promise.all([imp.install(staged.token, ['robot']), imp.install(staged.token, ['robot'])]);
+    expect(one).toEqual({ installed: ['robot'] });
+    expect(two).toMatchObject({ error: expect.stringContaining('过期') });
+    expect(readdirSync(packDir).sort()).toEqual(['robot', 'robot-2']);
+    expect(readFileSync(join(packDir, 'robot', 'notes.txt'), 'utf8')).toBe('not a pack');
+  });
+
+  it('uninstalls a pack in the pack directory only, whatever its folder is called (upstream #317)', async () => {
+    const packDir = mkdtempSync(join(tmpdir(), 'figures-'));
+    const other = mkdtempSync(join(tmpdir(), 'figures-other-'));
+    mkdirSync(join(packDir, 'old-name'));
+    writeFileSync(join(packDir, 'old-name', 'figure.json'), JSON.stringify(base));
+    mkdirSync(join(other, 'elsewhere'));
+    writeFileSync(join(other, 'elsewhere', 'figure.json'), JSON.stringify({ ...base, id: 'elsewhere' }));
+    const packs = () => figurePacks([packDir, other]).packs;
+    const imp = new PackImporter({ packDir: () => packDir, packs });
+    const listed = packs();
+    expect(listed.filter((p) => imp.removable(p)).map((p) => p.id)).toEqual(['robot']);
+    expect(listed.find((p) => p.id === 'whale')!.builtin).toBe(true);
+    expect(await imp.remove('whale')).toMatchObject({ error: expect.stringContaining('内置') });
+    expect(await imp.remove('coo')).toMatchObject({ error: expect.stringContaining('内置') });
+    expect(await imp.remove('elsewhere')).toMatchObject({ error: expect.stringContaining('安装目录') });
+    expect(await imp.remove('nobody')).toMatchObject({ error: expect.stringContaining('nobody') });
+    expect(readdirSync(other)).toEqual(['elsewhere']);
+    expect(await imp.remove('robot')).toEqual({ removed: 'robot' });
+    expect(readdirSync(packDir)).toEqual([]);
+    expect(packs().map((p) => p.id)).not.toContain('robot');
+    // without a pack directory nothing is removable
+    const none = new PackImporter({ packDir: () => null, packs });
+    expect(packs().some((p) => none.removable(p))).toBe(false);
+    expect(await none.remove('elsewhere')).toMatchObject({ error: expect.any(String) });
+    // in English
+    const en = new PackImporter({ packDir: () => packDir, packs, language: () => 'en' });
+    expect(await en.remove('whale')).toEqual({ error: 'whale is a built-in figure and cannot be uninstalled' });
   });
 
   it('the pet server takes a zip from its own pages only, and installs it where it is told packs go', async () => {

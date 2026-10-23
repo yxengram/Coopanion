@@ -1,9 +1,18 @@
 /**
- * What the provider's `chatgpt` module says to the person, in Chinese and English: its description in the console,
- * why its endpoint is not ready, the page the browser shows after the sign-in, and what the sign-in's failure codes
- * mean. `language` is Cortico's `Language`: zh and zh-Hant read the Chinese, every other language the English. Like
- * vendors.ts this file imports nothing, so the settings window can use it.
+ * What the provider says to the person, in Chinese and English. `COO_TEXT`: why the `coo` module refuses an
+ * endpoint's base URL. `CHATGPT_TEXT`: the `chatgpt` module's description in the console, why its endpoint is not
+ * ready, the page the browser shows after the sign-in, and what the sign-in's failure codes mean. `language` is
+ * Cortico's `Language`: zh and zh-Hant read the Chinese, every other language the English. Like vendors.ts this file
+ * imports nothing, so the settings window can use it.
  */
+
+export const COO_TEXT = {
+  zh: { httpRemote: '远程地址只能用 https。http 不加密,API Key 和对话会明文传输;本机和局域网的地址可以用 http。' },
+  en: { httpRemote: 'A remote address must use https: http is not encrypted, so the API Key and the conversation would travel in plain text. Addresses on this computer or the local network may use http.' },
+};
+
+/** The `coo` module's text in `language`. */
+export const cooText = (language: string): typeof COO_TEXT.zh => (language === 'zh' || language === 'zh-Hant' ? COO_TEXT.zh : COO_TEXT.en);
 
 const zh = {
   /** The module's description. */

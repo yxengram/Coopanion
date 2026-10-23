@@ -159,6 +159,14 @@ const en: PetText = {
     overLimit: (mb: number) => `Over ${mb} MB`,
   },
 
+  /** Uninstalling packs on the dressing page. */
+  removing: {
+    notInstalled: (id: string) => `No figure pack has id ${id}`,
+    builtin: (id: string) => `${id} is a built-in figure and cannot be uninstalled`,
+    elsewhere: (id: string) => `${id} is not in the figure pack installation folder and cannot be uninstalled here`,
+    failed: (why: string) => `Could not delete it: ${why}`,
+  },
+
   portsTaken: (from: number, to: number, why: string) => `Ports ${from}–${to} are all taken: ${why}`,
 
   consent: {
@@ -208,10 +216,10 @@ const en: PetText = {
     panels: {
       pet: { title: 'Desktop pet', description: 'The window, the dress and the window runtime.' },
       voice: { title: 'Voice input', description: 'Recognition engine, input level and what was heard.' },
-      chat: { title: 'Chat', description: 'The chat page: type and send images to it, and see what it said and did.' },
+      chat: { title: 'Chat', description: 'The chat page: type and send images to Coo, and see what Coo said and did.' },
     },
-    envPrompt: { title: 'Desktop pet environment', description: "Describes the pet's body, its tools and its input events." },
-    envPromptDecider: { title: 'Desktop pet environment (decision model)', description: "Describes the pet's body, its tools and its input events; used while a decision model picks the expressions and motions." },
+    envPrompt: { title: 'Desktop pet environment', description: "Describes the pet's body, tools and input events." },
+    envPromptDecider: { title: 'Desktop pet environment (decision model)', description: "Describes the pet's body, tools and input events; used while a decision model picks the expressions and motions." },
     vars: {
       'pet.user': 'What the bot calls the person',
       'pet.vocab': "The current figure's expressions and motions (opening with an example written in them)",
@@ -258,19 +266,21 @@ const en: PetText = {
     user: { title: 'Your name', description: 'The name voice, typing and touch events call you by.' },
     roam: { title: 'Walking', description: 'free walks about often; calm stays put most of the time; off moves only when asked.' },
     theme: { title: 'Night mode', description: 'dark is night: a light body and dark bubbles; light is day: a dark body and light bubbles.' },
-    rememberPosition: { title: 'Remember position', description: 'Saves how far across the screen the pet stands when the app quits, and starts there next time; with several screens it always starts on the main one.' },
-    hoverButtons: { title: 'Hover buttons', description: (max: number, ids: string) => `Buttons beside the pet while the pointer rests on it, up to ${max}, separated by commas: ${ids}.` },
+    rememberPosition: { title: 'Remember position', description: 'Saves how far across the screen the pet stands when the app quits, and starts there next time; with several screens Coo always starts on the main one.' },
+    hoverButtons: { title: 'Hover buttons', description: (max: number, ids: string) => `Buttons beside the pet while the pointer rests on Coo, up to ${max}, separated by commas: ${ids}.` },
     doubleClickChat: { title: 'Double-click to type', description: 'Double-clicking the pet opens the typing box.' },
-    selfAdjust: { title: 'Self-adjustment', description: 'The pet may change its own figure and dress, its walking and its snoring; it asks you before changing sounds, size, night mode, hover buttons or what it calls you. Off, it can change none of these.' },
+    saidBubbles: { title: 'Input bubbles', description: 'What the person types, says or sends from the chat page shows above the pet until Coo replies. When off, speech shows only while it is recognized.' },
+    selfAdjust: { title: 'Self-adjustment', description: 'The pet may change the figure and dress, walking and snoring; Coo asks you before changing sounds, size, night mode, hover buttons or what Coo calls you. Off, Coo can change none of these.' },
     windowEnabled: { title: 'Open the pet window at start' },
     scale: { title: 'Size' },
     bubbleSize: { title: 'Bubble size', description: "Width, padding, corners and tail of the pet's bubbles and yours, 1 being the default; the text keeps its size." },
     fontSize: { title: 'Text size', description: 'Size of the text in the bubbles, 1 being the default; the bubbles keep their width.' },
-    lockFrameRate: { title: 'Lock to 60 fps', description: 'Always draws the pet at 60 frames a second. Off, it drops to 30 while standing, sitting, lying or asleep, and stays at 60 while walking, carried or jumping.' },
-    hideWhenFullscreen: { title: 'Hide during full screen', description: 'On, the pet hides while the window in front fills the screen it is on (a game, a full-screen video, a browser in full screen) and comes back when full screen ends; a maximized window does not count. Off, it always stays on top.' },
+    bubbleSpeed: { title: 'Bubble speed', description: "How fast the pet's bubbles type out and how long they stay, 1 being the default; higher is faster." },
+    lockFrameRate: { title: 'Lock to 60 fps', description: 'Always draws the pet at 60 frames a second. Off, the rate drops to 30 while standing, sitting, lying or asleep, and stays at 60 while walking, carried or jumping.' },
+    hideWhenFullscreen: { title: 'Hide during full screen', description: 'On, the pet hides while the window in front fills the screen Coo is on (a game, a full-screen video, a browser in full screen) and comes back when full screen ends; a maximized window does not count. Off, Coo always stays on top.' },
     electronFile: { title: 'Electron executable', description: 'Empty uses CORTICO_DESKTOP_PET_HOST, then the runtime installed from the panel.' },
     port: { title: 'Page port', description: 'Moves up to the next free port when taken.' },
-    smallTalk: { title: 'Small talk', description: 'Off by default. On, when you are at the computer but have not talked to the pet for a while, or have just come back, it may start a line or two (a greeting, the time of day, the earlier topic, a reminder to drink water or rest), or say nothing; each try is one model call, saying nothing included. Never while the pet is hidden, paused, quiet or asleep, while a window is full screen (only Windows can tell), while you type, or right after a chat.' },
+    smallTalk: { title: 'Small talk', description: 'Off by default. On, when you are at the computer but have not talked to the pet for a while, or have just come back, Coo may start a line or two (a greeting, the time of day, the earlier topic, a reminder to drink water or rest), or say nothing; each try is one model call, saying nothing included. Never while the pet is hidden, paused, quiet or asleep, while a window is full screen (only Windows can tell), while you type, or right after a chat.' },
     smallTalkFrequency: { title: 'Small talk frequency', description: 'low: at least 2 hours apart; mid: 1 hour; high: 30 minutes. At least as long after the last chat too (except the greeting when you come back).' },
     quietFrom: { title: 'Quiet hours start', description: 'Local time HH:MM; no small talk from then until quiet hours end. It may span midnight; the same two times mean no quiet hours. Anything other than HH:MM reads as 23:00.' },
     quietTo: { title: 'Quiet hours end', description: 'Local time HH:MM; anything other than HH:MM reads as 08:00.' },

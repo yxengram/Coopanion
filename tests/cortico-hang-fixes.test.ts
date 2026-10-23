@@ -11,16 +11,21 @@
  *   rejects with a 400 when it did not issue it. In this app that is switching between Responses-protocol
  *   vendors (DeepSeek, OpenAI, xAI...: the origin is the endpoint name and its base URL); Gemini and
  *   Anthropic have their own wire code in cortico-provider-coo.
+ * - Cortico #293 / upstream Coopanion #270: a main loop that stops (a state write that fails, as a file held
+ *   by antivirus or a sync tool on Windows makes it) used to leave the process alive and deaf. Core now logs
+ *   `loop-exit`, and `onLoopExit` (core/companion.ts) turns it into a crash report and a shutdown.
  *
  * Cortico's own tests: vendor/cortico/tests/core/loop.test.ts (#245, #246; it needs the minecraft
  * World's dependencies, so it only runs in a Cortico checkout) and
  * vendor/cortico/tests/providers/transport/responses-input.test.ts (#249).
  */
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createBot, type Bot, type BotDefinition } from 'cortico/bot.ts';
+import { Runlog } from 'cortico/core/util.ts';
+import { onLoopExit } from '../core/companion.ts';
 import { CORE_DEFAULTS, type LoadedConfig } from 'cortico/core/config.ts';
 import type { BlobStore, CoreApi, CoreConfig, Persona, PrefixSegment, SessionDecl, SystemPrefixContext, ToolDef, World } from 'cortico/core/types.ts';
 import { responsesInput } from 'cortico/providers/transport/responses-input.ts';
@@ -90,7 +95,7 @@ function newRoot(): string {
   return root;
 }
 
-async function startBot(root: string, model: ScriptedModel): Promise<Bot<CoreConfig>> {
+async function startBot(root: string, model: ScriptedModel, before?: (bot: Bot<CoreConfig>) => void): Promise<Bot<CoreConfig>> {
   const base: BotDefinition<CoreConfig> = {
     id: 'hang',
     declares: ['hang'],
@@ -114,6 +119,7 @@ async function startBot(root: string, model: ScriptedModel): Promise<Bot<CoreCon
   };
   const bot = createBot(loaded, definition);
   bots.push(bot);
+  before?.(bot);
   await bot.start();
   return bot;
 }
@@ -194,5 +200,39 @@ describe('Cortico hang fixes as the app runs them', () => {
     expect(calls[0]).not.toHaveProperty('id');
     expect(calls[1]).not.toHaveProperty('id');
     expect(calls[2].id).toBe('fc_own');
+  });
+
+  it('#293: a main loop that stops logs loop-exit, and onLoopExit hands its error on once', async () => {
+    const model = new ScriptedModel(() => ({ calls: [{ name: 'end_turn' }] }));
+    const exits: Array<Error | undefined> = [];
+    const bot = await startBot(newRoot(), model, (b) => {
+      onLoopExit(b.core.runlog, (err) => exits.push(err));
+      // the state file cannot be replaced: the loop's first state write throws (Cortico's own test does the same)
+      mkdirSync(join(b.core.loaded.dataDir, 'core-state.json'), { recursive: true });
+      const stale = Date.now() - 2 * 60 * 60_000;
+      (b.core.state.data as { llmStall?: unknown }).llmStall = { since: stale, at: [stale] };
+    });
+    await until(() => exits.length > 0);
+    expect(exits).toHaveLength(1);
+    expect(exits[0]).toBeInstanceOf(Error);
+    expect(exits[0]?.message).toMatch(/core-state\.json/);
+    expect(exits[0]?.stack).toBeTruthy();
+    expect(bot.core.loop.getStatus().running).toBe(false);
+  });
+
+  it('onLoopExit ignores every other log line, errors included', () => {
+    const runlog = new Runlog(null, { stdout: false });
+    const exits: Array<Error | undefined> = [];
+    onLoopExit(runlog, (err) => exits.push(err));
+    const log = runlog.logger('core');
+    log.info('core已启动', { event: 'started' });
+    log.emit('error', '未处理的 promise 拒绝', { event: 'unhandled-rejection', err: new Error('elsewhere') });
+    log.emit('error', '没有 event 的错误', { err: new Error('plain') });
+    expect(exits).toEqual([]);
+    const cause = new Error('EBUSY: resource busy or locked, rename');
+    log.emit('error', '主循环异常退出', { event: 'loop-exit', err: cause });
+    expect(exits).toHaveLength(1);
+    expect(exits[0]?.message).toBe(cause.message);
+    expect(exits[0]?.stack).toBe(cause.stack);
   });
 });

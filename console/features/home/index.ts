@@ -6,7 +6,8 @@
  * voice input and computer use have their own pages (features/dress, features/voice, features/cua); the link
  * to other model services shows with or without a key, and in the normal mode asks before it
  * switches to the advanced mode, where the model pages are; 「使用引导」 at the top has Coo run its
- * introduction again on the desktop (the app's Core holds it; this window steps aside for it).
+ * introduction again on the desktop (the app's Core holds it; this window steps aside for it). The heading is the bot's
+ * name (`displayName`), following a rename.
  * A ChatGPT plan (testing) is signed in instead of a key: its card, next to OpenAI's, hides the model and key boxes,
  * and 「使用 ChatGPT 继续」 opens the sign-in in the system browser (features/chatgpt) and connects the plan the same
  * way; connected, the plan's line has a sign-out button.
@@ -18,6 +19,7 @@ import { post } from '../../core/api.ts';
 import { LANGUAGE, pick } from '../../core/language.ts';
 import type { FeatureContext, FrameworkFeature } from '../feature.ts';
 import { readMode, requestMode } from '../mode.ts';
+import { onNameSaved } from '../bot-name.ts';
 import { signInReason } from 'cortico-provider-coo/src/strings.ts';
 import { S as CHATGPT_TEXT, openInBrowser } from '../chatgpt/index.ts';
 import {
@@ -52,7 +54,7 @@ export const TEXT = {
     testing: '正在测试…',
     testOk: (ms: number | null) => `连接正常${ms !== null ? `,耗时 ${ms} ms` : ''}`,
     testFail: (why: string) => `连接失败:${why}`,
-    started: '好了,Coo 醒了。',
+    started: (name: string) => `好了,${name} 醒了。`,
     petTitle: '桌宠',
     petShown: '在桌面上',
     petHidden: '没有显示',
@@ -60,7 +62,7 @@ export const TEXT = {
     dress: '装扮',
     petNote: '鼠标停在桌宠身上会出现打字和麦克风两个按钮;右键打开菜单;按住可以拎起来。',
     guide: '使用引导',
-    guideHint: '让 Coo 在屏幕底边再带你走一遍',
+    guideHint: (name: string) => `让 ${name} 在屏幕底边再带你走一遍`,
   },
   en: {
     nav: 'Start',
@@ -84,7 +86,7 @@ export const TEXT = {
     testing: 'Testing…',
     testOk: (ms: number | null) => `Connection works${ms !== null ? `, ${ms} ms` : ''}`,
     testFail: (why: string) => `Connection failed: ${why}`,
-    started: 'Done. Coo is awake.',
+    started: (name: string) => `Done. ${name} is awake.`,
     petTitle: 'Desktop pet',
     petShown: 'On the desktop',
     petHidden: 'Not shown',
@@ -92,7 +94,7 @@ export const TEXT = {
     dress: 'Dress up',
     petNote: 'Hover the pet for the typing and microphone buttons; right-click for the menu; hold it to pick it up.',
     guide: 'Guide',
-    guideHint: 'Coo walks you through it again at the bottom of the screen',
+    guideHint: (name: string) => `${name} walks you through it again at the bottom of the screen`,
   },
 };
 const S = pick(TEXT);
@@ -116,9 +118,18 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const title = ui.h('h1', 'home-title', S.title);
   const state = ui.pill('—', 'plain');
   const guide = ui.button(S.guide, { size: 'sm', onClick: () => { void post(panelPath(PET_PAGE, 'pet', 'guide'), { args: [] }, opts).catch((err) => ui.toast(String(err instanceof Error ? err.message : err))); } });
-  guide.title = S.guideHint;
   head.append(title, state, ui.h('span', 'grow'), guide);
   root.append(head);
+  /** The bot's name (`displayName`, upstream #320): the heading, the guide's hint and the started line follow a rename. */
+  let botName = S.title;
+  const showName = (name: unknown) => {
+    botName = typeof name === 'string' && name.trim() ? name.trim() : S.title;
+    title.textContent = botName;
+    guide.title = S.guideHint(botName);
+  };
+  showName(null);
+  // saved on the Habits page: at once; renamed in the rail: with the next status read
+  onNameSaved(showName, signal);
 
   /* ---------- model ---------- */
   const model = ui.sheet({ title: S.modelTitle });
@@ -226,6 +237,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
 
   const renderStatus = (st: Status) => {
     status = st;
+    showName(st.displayName);
     const paused = st.loop?.paused === true;
     const mc = st.modelConnection;
     if (!mc?.ready) { state.textContent = S.noModel; state.className = 'pill off'; }
@@ -268,7 +280,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
       if (stop.signal.aborted) { modelMsg.textContent = ''; return; }
       editingKey = editingKey && !r.ok;
       showTest({ ...r, why: r.why && signInReason(r.why, LANGUAGE) });
-      if (r.ok) modelMsg.textContent = S.started;
+      if (r.ok) modelMsg.textContent = S.started(botName);
       await refreshModel();
       return;
     }
@@ -282,7 +294,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
       keyInput.value = '';
       editingKey = false;
       showTest(r);
-      if (r.ok) modelMsg.textContent = S.started;
+      if (r.ok) modelMsg.textContent = S.started(botName);
       await refreshModel();
     } catch (err) {
       modelMsg.textContent = errText(err);

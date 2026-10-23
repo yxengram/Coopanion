@@ -55,7 +55,7 @@ import { GenerationError } from 'cortico/core/generation.ts';
 import { LANGUAGES, LANGUAGE_NAMES, pick, type Language } from 'cortico/core/language.ts';
 import { secretReader } from 'cortico/core/secrets.ts';
 import type { Core } from 'cortico/core/core.ts';
-import type { CoreConfig, UsageRecord } from 'cortico/core/types.ts';
+import type { CoreConfig, LogRecord, UsageRecord } from 'cortico/core/types.ts';
 import { loadDeployment } from 'cortico/deploy.ts';
 import { loadExtensions, readInstalled, type ExtensionSet } from 'cortico/extensions.ts';
 import { deploymentRoot, providersRoot, repoRoot } from 'cortico/paths.ts';
@@ -127,7 +127,7 @@ export const SETTINGS_TEXT = {
   },
   en: {
     language: { title: 'Language', description: 'The app\'s own text in the settings window, the tray menu and the pet\'s bubble is in this language; when it is not Chinese, Coo talks to you in it too.' },
-    roundsSoft: { title: 'Wrap-up reminder', suffix: 'requests', description: 'After this many model requests in one wake-up, Coo is reminded to finish what it is doing and end the turn.' },
+    roundsSoft: { title: 'Wrap-up reminder', suffix: 'requests', description: 'After this many model requests in one wake-up, Coo is reminded to finish the current task and end the turn.' },
     roundsHard: { title: 'Requests per wake-up', suffix: 'requests', description: 'The most model requests in one wake-up; the turn ends when it is reached.' },
   },
 };
@@ -273,6 +273,47 @@ const REASON_MAX = 200;
  * (`Vendor.syntheticReasoning: false`) wants one after all.
  */
 export const SYNTHETIC_REASONING_OFF = 'sendSyntheticReasoning is off';
+
+/**
+ * Coo's default context stages (upstream #288): a 128k stage budget and a quarter kept at a handoff, over
+ * Cormini's 64k and a third. Only the default: what 「上下文与交接」 saved in config.json stays as it is.
+ */
+export function cooContext(base: CoreConfig['context']): CoreConfig['context'] & { maxTokens: number; keepRatio: number } {
+  return { ...base, maxTokens: 128_000, keepRatio: 0.25 };
+}
+
+/** Coo's defaults over Cormini's own (`cormini.defaults()`); config.json and the console's saves go over these. */
+export function cooDefaults(own: CoreConfig): CoreConfig {
+  return {
+    ...own,
+    displayName: DISPLAY_NAME,
+    web: { port: CONSOLE_PORT, theme: 'mint' },
+    // Cormini's 6/12 end a computer-use task partway through; 20/40 are the caps the cua and
+    // desktop-pet e2e harnesses give their persona
+    rounds: { soft: 20, hard: 40 },
+    context: cooContext(own.context),
+    companion: { telemetry: true },
+  } as CoreConfig;
+}
+
+/**
+ * Whether computer use is as its switch says: switched on, the cua World is mounted and the prefix has its tools;
+ * switched off, it is gone (Cortico's `worldVisibility`: the mounted Worlds, and those the prefix has not caught up with).
+ */
+export function cuaSettled(worlds: { visibility: Record<string, boolean>; driftedWorlds: string[] }, enabled: boolean): boolean {
+  return ('cua' in worlds.visibility) === enabled && !worlds.driftedWorlds.includes('cua');
+}
+
+/**
+ * Calls `exit` once Core logs that its main loop stopped (`event: 'loop-exit'`, Cortico #293), with the error it
+ * logged. The loop delivers nothing after that while the process lives on; the app restarts a Core that exits.
+ */
+export function onLoopExit(runlog: { onWrite(cb: (entry: LogRecord) => void): void }, exit: (err: Error | undefined) => void): void {
+  runlog.onWrite((entry) => {
+    if (entry.event !== 'loop-exit') return;
+    exit(entry.err && Object.assign(new Error(entry.err.message), entry.err));
+  });
+}
 
 /** Where the person reports what only a change to Coopanion fixes. */
 const ISSUES_URL = 'https://github.com/yxengram/Coopanion/issues';
@@ -525,6 +566,8 @@ export async function main(): Promise<void> {
   let presence: PresenceReport | null = null;
   /** Rebuilds the system prefix once the bot has started (the pet's decider mode switched on or off). */
   let reloadPrefix: (() => Promise<void>) | null = null;
+  /** Whether computer use is as `worlds.cua.enabled` says, mounted and in the prefix (the notice waits for it); set once the bot exists. */
+  let cuaInEffect: (() => boolean) | null = null;
   /** The app language as the live config has it; Chinese before the config is loaded. */
   const language = () => appLanguage(config?.language);
   /**
@@ -538,7 +581,10 @@ export async function main(): Promise<void> {
     guiding = true;
     try { await runGuide(deps); } finally { guiding = false; }
   };
+  /** `displayName` of the live config: a rename reaches the pet menu, the chat page and computer use's question without a restart (upstream #320). */
+  const botName = () => config?.displayName || DISPLAY_NAME;
   const DESKTOP_PET = desktopPetDefinition({
+    botName,
     // the menu's header lends pause/resume, settings and quit; its dress tile opens the settings window's dress page, the typing bubble's expand button its chat page
     controls: {
       isPaused: () => bus?.isPaused() ?? false,
@@ -570,6 +616,7 @@ export async function main(): Promise<void> {
     consoleOrigins: () => consoleOrigins(config?.web ?? { port: CONSOLE_PORT }, consolePort),
   });
   const CUA = cuaDefinition({
+    botName,
     askPermission: async (question) => {
       const S = cuaText(language()).ask.bubble;
       const answer = await pet?.confirm(question, [S.yes, S.no]) ?? 'unavailable';
@@ -597,20 +644,13 @@ export async function main(): Promise<void> {
     // the one prefix line naming the language to talk in; none in Chinese
     replyLanguage: () => replyLanguage(config?.language),
     labelLanguage,
+    inEffect: () => cuaInEffect?.() ?? true,
   });
   const cormini = await corminiDefinition();
   const base: BotDefinition<CoreConfig> = {
     ...cormini,
     declares: [CONSOLE.id, DESKTOP_PET.id, CUA.id, NOTICE.id],
-    defaults: () => ({
-      ...cormini.defaults(),
-      displayName: DISPLAY_NAME,
-      web: { port: CONSOLE_PORT, theme: 'mint' },
-      // Cormini's 6/12 end a computer-use task partway through; 20/40 are the caps the cua and
-      // desktop-pet e2e harnesses give their persona
-      rounds: { soft: 20, hard: 40 },
-      companion: { telemetry: true },
-    }),
+    defaults: () => cooDefaults(cormini.defaults()),
     build: (loaded, worlds) => {
       const parts = cormini.build(loaded, worlds);
       // the console World's prefix block after the other Worlds', as before Cortico 0.2 renamed `terminal` (why: core/prefix-order.ts)
@@ -661,6 +701,7 @@ export async function main(): Promise<void> {
   const bot = createBot(loaded, definition, { extensions });
   assembled = true;
   bus = bot.core.bus;
+  cuaInEffect = () => cuaSettled(bot.core.worldVisibility(), getByPath(loaded.config as unknown as Record<string, unknown>, 'worlds.cua.enabled') === true);
   // usage statistics only go to a server named here (a local telemetry-server in development); this build has none,
   // so by default nothing is counted, written or sent
   const statsUrl = process.env.COOPANION_TELEMETRY_URL;
@@ -675,6 +716,33 @@ export async function main(): Promise<void> {
   telemetry = stats;
   if (stats) countUse(bot.core, loaded.config, stats);
   hintFailures(bot.core, loaded.config, () => pet);
+  let stopping = false;
+  const shutdown = async (reason: string) => {
+    if (stopping) return;
+    stopping = true;
+    const done = await Promise.race([
+      Promise.all([bot.shutdown(reason), stats?.stop()]).then(() => true),
+      new Promise<false>((r) => setTimeout(() => r(false), 30_000)),
+    ]);
+    process.exit(done ? 0 : 1);
+  };
+  const log = bot.core.runlog.logger('process');
+  // a rejection that repeats on a timer would fill the event queue and push the other events out: each distinct one is reported once a run
+  const reported = new Set<string>();
+  const crash = (where: string, err: unknown) => {
+    const fields = { where, ...crashFields(err, APP_ROOT, [extensions.dir]) };
+    const key = JSON.stringify(fields);
+    if (reported.has(key)) return;
+    reported.add(key);
+    stats?.event('crash', fields);
+  };
+  // a stopped main loop takes no more messages: the Core exits and the app starts it again (counted as a crash),
+  // and the new one delivers what was still queued. Listened to before `bot.start()`, unlike upstream: a loop that
+  // fails at its first state write logs loop-exit inside the start
+  onLoopExit(bot.core.runlog, (err) => {
+    crash('core-loop', err);
+    void shutdown('主循环异常退出');
+  });
   // set by app/core-host.cjs when this Core replaces one that exited unasked
   const exited = process.env.COOPANION_CORE_EXIT;
   delete process.env.COOPANION_CORE_EXIT;
@@ -723,16 +791,6 @@ export async function main(): Promise<void> {
     bot.core.runlog.logger('process').emit('error', '引导出错', { event: 'guide-error', err });
   });
 
-  let stopping = false;
-  const shutdown = async (reason: string) => {
-    if (stopping) return;
-    stopping = true;
-    const done = await Promise.race([
-      Promise.all([bot.shutdown(reason), stats?.stop()]).then(() => true),
-      new Promise<false>((r) => setTimeout(() => r(false), 30_000)),
-    ]);
-    process.exit(done ? 0 : 1);
-  };
   const update = sayUpdates(loaded.config, () => pet, () => guiding);
   process.on('message', (msg: { type?: string } & Partial<UpdateStep>) => {
     if (msg?.type === 'companion:shutdown') void shutdown('应用退出');
@@ -744,16 +802,6 @@ export async function main(): Promise<void> {
   process.on('disconnect', () => void shutdown('应用进程已退出'));
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
-  const log = bot.core.runlog.logger('process');
-  // a rejection that repeats on a timer would fill the event queue and push the other events out: each distinct one is reported once a run
-  const reported = new Set<string>();
-  const crash = (where: string, err: unknown) => {
-    const fields = { where, ...crashFields(err, APP_ROOT, [extensions.dir]) };
-    const key = JSON.stringify(fields);
-    if (reported.has(key)) return;
-    reported.add(key);
-    stats?.event('crash', fields);
-  };
   process.on('uncaughtException', (err) => {
     log.emit('error', '未捕获异常,正在关机', { event: 'uncaught-exception', err });
     crash('core', err);

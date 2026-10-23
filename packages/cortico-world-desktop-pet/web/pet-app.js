@@ -9,7 +9,7 @@
  * window ignores the mouse except over the figure, a bubble, the menu or the hover buttons.
  * Colors follow the World's `theme` through `data-theme` on the root element.
  */
-import { applyTheme, clamp, f, ICONS } from './ui.js';
+import { applyTheme, clamp, f, ICONS, linked } from './ui.js';
 import { createSfx, OWN_PACKS } from './sound.js';
 import { COO_CSS, mini, normalizeSkin, skinCss } from './coo/coo.js';
 import { afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold } from './body-host.js';
@@ -19,10 +19,12 @@ import { accentColors, accentCss } from './accent.js';
 
 const $ = (s) => document.querySelector(s);
 const host = window.petHost || null;
+/** The window's launch credential, from the fragment of the URL its host loads (PetServer.windowUrl); a tab has none. */
+const windowKey = host ? new URLSearchParams(location.hash.slice(1)).get('key') : null;
 document.body.classList.add(host ? 'desk' : 'tab');
 
 const stage = $('#stage');
-const bubble = $('#bubble'), trail = $('#trail'), menu = $('#menu');
+const bubble = $('#bubble'), menu = $('#menu');
 const tools = $('#tools');
 // Coo's drawing classes for the menu's avatar; the bubbles and buttons take their colours from Coo's palette, and
 // another pack's body sets the theme colour instead (accentStyle, after skinStyle so it wins: accent.js)
@@ -31,7 +33,7 @@ cooStyle.textContent = COO_CSS;
 document.head.append(cooStyle, skinStyle, accentStyle);
 
 const prefs = {
-  roam: 'calm', sound: true, theme: document.documentElement.dataset.theme, scale: 1, bubbleSize: 1, fontSize: 1, user: '伙伴', mic: false, micDevice: '', bot: null,
+  roam: 'calm', sound: true, theme: document.documentElement.dataset.theme, scale: 1, bubbleSize: 1, fontSize: 1, bubbleSpeed: 1, user: '伙伴', mic: false, micDevice: '', bot: null,
   /** Voice input: switched on, recognizer ready, why not, how to talk, and the mode in force. */
   voice: { enabled: false, ready: false, detail: null, hint: '', mode: 'hold' },
   /** The actions shown as buttons beside the pet on hover. */
@@ -39,6 +41,8 @@ const prefs = {
   rememberPosition: false,
   /** Double-clicking the pet opens the typing box. */
   doubleClickChat: false,
+  /** What the person typed, said or sent from the chat page stays above Coo (see lines); off, speech shows only while it is heard. */
+  saidBubbles: true,
   /** Draw at the moving frame rate while the body rests too. */
   lockFrameRate: false,
 };
@@ -98,16 +102,21 @@ function reportFocus(force = false) {
 let ws = null, backoff = 500, watching = false;
 function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 function connect() {
-  ws = new WebSocket(`ws://${location.host}/socket?role=pet&host=${host ? 'window' : 'tab'}`);
+  const params = new URLSearchParams({ role: 'pet', host: host ? 'window' : 'tab' });
+  if (windowKey) params.set('key', windowKey);
+  ws = new WebSocket(`ws://${location.host}/socket?${params}`);
   ws.binaryType = 'arraybuffer';
-  ws.onopen = () => { backoff = 500; send({ t: 'hello', screen: { w: innerWidth, h: innerHeight }, host: host ? 'window' : 'tab' }); reportPose(true); reportFocus(true); };
+  // a connection starts as the pet; the server says `watching` when it is not
+  ws.onopen = () => { backoff = 500; watching = false; send({ t: 'hello', screen: { w: innerWidth, h: innerHeight }, host: host ? 'window' : 'tab' }); reportPose(true); reportFocus(true); };
   ws.onmessage = (e) => { try { onOrder(JSON.parse(e.data)); } catch (err) { console.error(err); } };
   ws.onclose = (e) => {
     ws = null;
     stopMic();
     // the World gave up on these steps when the page went; it asks again once the page is back
     dropDialogs();
-    if (e.code === 4000) return; // replaced by a newer pet page
+    // a tab replaced by a newer pet page stays away; the window connects again (a page of its own reloaded, or a stray
+    // connection that took its place)
+    if (e.code === 4000 && !host) return;
     setTimeout(connect, backoff);
     backoff = Math.min(8000, backoff * 2);
   };
@@ -236,12 +245,16 @@ function applyPrefs(p) {
   if (typeof p.scale === 'number') { prefs.scale = p.scale; body?.set({ bounds: bounds() }); }
   if (typeof p.bubbleSize === 'number') { prefs.bubbleSize = p.bubbleSize; sizeVar('--bubble-size', p.bubbleSize); }
   if (typeof p.fontSize === 'number') { prefs.fontSize = p.fontSize; sizeVar('--bubble-font', p.fontSize); }
+  // the World sends it within 0.5–2 (config.ts bubbleSpeed); anything else leaves the speed as it was
+  if (typeof p.bubbleSpeed === 'number' && p.bubbleSpeed > 0) prefs.bubbleSpeed = p.bubbleSpeed;
   if (typeof p.rememberPosition === 'boolean') { prefs.rememberPosition = p.rememberPosition; reportPosition(); }
   if (typeof p.user === 'string') prefs.user = p.user;
   if (typeof p.micDevice === 'string' && p.micDevice !== prefs.micDevice) { prefs.micDevice = p.micDevice; stopMic(); }
   if (typeof p.mic === 'boolean') { prefs.mic = p.mic; p.mic && !watching ? startMic() : stopMic(); }
   if (p.voice && typeof p.voice === 'object') prefs.voice = { ...prefs.voice, ...p.voice };
   if (typeof p.doubleClickChat === 'boolean') prefs.doubleClickChat = p.doubleClickChat;
+  // switched off: the lines up now fade at once; one still being heard stays until it is recognized
+  if (typeof p.saidBubbles === 'boolean') { prefs.saidBubbles = p.saidBubbles; if (!p.saidBubbles) for (const line of lines) if (!line.live) fadeLine(line); }
   if (typeof p.lockFrameRate === 'boolean') prefs.lockFrameRate = p.lockFrameRate;
   // the window process does the hiding; the page only passes the setting on
   if (typeof p.hideWhenFullscreen === 'boolean') host?.hideWhenFullscreen?.(p.hideWhenFullscreen);
@@ -274,7 +287,7 @@ function onOrder(m) {
     case 'act': actAfterBubbles(m.actions); holdRoam(20); break;
     case 'listen': onListen(m); break;
     // a message sent from the chat page, once the bot has it, and one taken back before delivery
-    case 'said': addLine('chat', typeof m.text === 'string' ? m.text : '', false, { images: Number(m.images) || 0, cursor: m.cursor ?? null }); break;
+    case 'said': if (prefs.saidBubbles) addLine('chat', typeof m.text === 'string' ? m.text : '', false, { images: Number(m.images) || 0, cursor: m.cursor ?? null }); break;
     case 'said-withdrawn': withdrawLine(m.cursor); break;
     case 'thinking': setBody({ thinking: !!m.on }); break;
     case 'dialog': queue.push({ kind: 'dialog', id: m.id, d: m }); holdRoam(20); break;
@@ -437,7 +450,8 @@ function stepDialog(dt) {
     // decider mode: the bubble waits a moment for the words picked for it (acts.js sayHeld)
     if (it.i < 0 && sayHeld(it, T)) return;
     if (it.i < 0 || it.beatDone) {
-      if (it.beatDone && T < it.holdUntil) return;
+      // a bubble with a link stays while the pointer is on it, so the link can be clicked (upstream #297)
+      if (it.beatDone && (T < it.holdUntil || (bubble.matches(':hover') && bubble.querySelector('a')))) return;
       it.i++;
       it.beatDone = false;
       if (it.i >= it.beats.length) { closeBubble(); return; }
@@ -453,13 +467,13 @@ function stepDialog(dt) {
     if (!b.text) {
       // inline words with no typing to reach them start with the beat (the World already folds them in)
       for (const a of b.anchors || []) acts.push(...a.actions);
-      it.beatDone = true; it.holdUntil = T + .8; return;
+      it.beatDone = true; it.holdUntil = T + .8 / prefs.bubbleSpeed; return;
     }
     typeText(it, b.text, dt, b.anchors || []);
     if (it.shown >= b.text.length && !it.beatDone) {
       it.beatDone = true;
       const last = it.i === it.beats.length - 1;
-      it.holdUntil = T + (last ? 1.6 + b.text.length * .07 : .9 + b.text.length * .03);
+      it.holdUntil = T + (last ? 1.6 + b.text.length * .07 : .9 + b.text.length * .03) / prefs.bubbleSpeed;
     }
     return;
   }
@@ -473,7 +487,8 @@ function stepDialog(dt) {
 function typeText(it, text, dt, anchors) {
   const p = bubble.querySelector('.b-text');
   if (!p || it.shown >= text.length) return;
-  it.acc += dt * 20;
+  // estimateSeconds in src/script.ts mirrors this rate and the holds in stepDialog (window.bubbleSpeed, upstream #248)
+  it.acc += dt * 20 * prefs.bubbleSpeed;
   while (it.acc >= 1 && it.shown < text.length) {
     const ch = text[it.shown++];
     it.acc -= PAUSE.test(ch) ? 5 : 1;
@@ -481,7 +496,7 @@ function typeText(it, text, dt, anchors) {
     while (it.fired < anchors.length && anchors[it.fired].at <= it.shown) acts.push(...anchors[it.fired++].actions);
   }
   if (it.marks?.length) p.innerHTML = marked(text, it.shown, it.marks);
-  else p.textContent = text.slice(0, it.shown);
+  else p.replaceChildren(linked(text, it.shown));
 }
 
 /** The first `n` characters of `text`, escaped, with every one of `words` in it wrapped for the theme color. */
@@ -583,7 +598,7 @@ function stepTalk(it, dt) {
   if (it.shown < it.text.length) { typeText(it, it.text, dt, []); return; }
   if (it.bodyShown) return;
   it.bodyShown = true;
-  if (!it.d.input) { it.readUntil = T + 1.4 + it.text.length * .05; return; }
+  if (!it.d.input) { it.readUntil = T + (1.4 + it.text.length * .05) / prefs.bubbleSpeed; return; }
   showDialogInput(it);
 }
 
@@ -801,8 +816,14 @@ function openInput() {
   const expand = prefs.bot?.buttons?.chat
     ? `<button class="b-expand" type="button" aria-label="${esc(t('bubble.expand'))}" title="${esc(t('bubble.expand'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg></button>`
     : '';
-  openBubble('ask', `<button class="b-close" type="button" aria-label="${esc(t('bubble.close'))}">×</button><form class="b-own"><input type="text" maxlength="500" autocomplete="off" placeholder="${esc(t('bubble.typePlaceholder'))}" aria-label="${esc(t('bubble.typeLabel'))}">${expand}<button type="submit">${esc(t('bubble.send'))}</button></form>`);
-  const form = bubble.querySelector('form'), input = form.querySelector('input');
+  openBubble('ask', `<button class="b-close" type="button" aria-label="${esc(t('bubble.close'))}">×</button><form class="b-own"><textarea rows="1" maxlength="500" autocomplete="off" placeholder="${esc(t('bubble.typePlaceholder'))}" aria-label="${esc(t('bubble.typeLabel'))}"></textarea>${expand}<button type="submit">${esc(t('bubble.send'))}</button></form>`);
+  const form = bubble.querySelector('form'), input = form.querySelector('textarea');
+  // Enter sends, Shift+Enter starts a new line; an Enter that confirms an input method's text does neither (upstream #279)
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    form.requestSubmit();
+  });
   bubble.querySelector('.b-close').addEventListener('click', () => closeBubble());
   // the chat page takes longer text and images; the draft goes with it
   bubble.querySelector('.b-expand')?.addEventListener('click', () => {
@@ -816,7 +837,7 @@ function openInput() {
     send({ t: 'text', text: v });
     sfx.select(); body?.cue('cheer');
     closeBubble();
-    addLine('type', v);
+    if (prefs.saidBubbles) addLine('type', v);
   });
   host?.focus?.();
   setTimeout(() => input.focus(), 30);
@@ -846,10 +867,12 @@ function onListen(m) {
     listen.interim = m.interim || '';
     showHeard();
   } else if (m.phase === 'heard') {
-    // what was heard stays beside Coo as a settled line, like what is typed
+    // what was heard stays above Coo as a settled line, like what is typed
     const line = listen.line ?? addLine('voice', '', true);
     endListen();
     settleLine(line, m.text || '');
+    // with input bubbles off, speech shows only while it is heard
+    if (!prefs.saidBubbles) fadeLine(line);
     sfx.listenEnd();
     body?.cue('heard');
   } else if (m.phase === 'none') {
@@ -878,7 +901,7 @@ function showHeard() {
 
 /*
  * ---------- what the person said: typed in the box, heard, or sent from the chat page ----------
- * Each line stays beside Coo as a bubble of the heard kind (dashed, no tail), the newest at the bottom. A line is
+ * Each line stays above Coo as a bubble of the heard kind (grey, no tail), the newest at the bottom. A line is
  * answered by the first speech or question Coo starts after it settled; until that reply's bubble has closed (and,
  * for a line not answered yet, while Coo thinks or has speech queued) the line and those before it stay, and they
  * fade REPLIED_FADE seconds after it closes. A line Coo does not answer fades UNANSWERED_FADE seconds after it was
@@ -896,8 +919,6 @@ const MARKS = { voice: ICONS.mic, chat: ICONS.expand };
  * answers it; `fadeAt` once it fades; `ox`, `oy`, its eased offset from Coo's head; `images` and `cursor`, a chat line's.
  */
 const lines = [];
-/** The side of Coo the stack sits on (-1 left, 1 right), picked when the first line comes and kept until the last goes. */
-let linesSide = 0;
 
 function addLine(src, text, live = false, extra = {}) {
   const el = document.createElement('div');
@@ -975,7 +996,6 @@ function stepLines() {
     fadeLine(line);
   }
   for (const line of [...lines]) if (line.fadeAt !== null && T - line.fadeAt >= LINE_FADE) dropLine(line);
-  if (!lines.length) linesSide = 0;
 }
 
 /* ---------- microphone: open while `prefs.mic`, which the World turns on and off with a held talk key in hold mode (openOnPress) ---------- */
@@ -1480,7 +1500,7 @@ document.addEventListener('keydown', (e) => {
     else if (item && item.kind === 'input') closeBubble();
     return;
   }
-  const typing = e.target.closest && e.target.closest('input');
+  const typing = e.target.closest && e.target.closest('input, textarea');
   // the digit row or the number pad, whether or not Num Lock is on
   const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code) || /^([1-9])$/.exec(e.key);
   if (item && item.kind === 'ask' && item.optsShown && !item.answered && !typing && digit && !e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -1529,36 +1549,28 @@ function layout(dt = 0) {
   // choice cards keep their bubble where it was; its tail follows Coo along the bottom edge
   if (!bubble.hidden && item?.kind === 'dialog' && item.pinX !== undefined) sayBox = placeTalk(item, a);
   else if (!bubble.hidden) sayBox = place(bubble, a, 18 * prefs.bubbleSize);
-  placeLines(l, a, sayBox, dt);
+  placeLines(a, sayBox, dt);
 }
 
-/** From Coo's head to the newest line's bottom edge, between lines, and from Coo's bubble beside them, in pixels at bubble size 1. */
-const LINES_UP = 46, LINES_GAP = 8, LINES_BESIDE = 12;
+/** From Coo's head to the newest line's bottom edge, and between lines, in pixels at bubble size 1. */
+const LINES_UP = 46, LINES_GAP = 8;
 /**
- * The person's lines beside Coo: newest at the bottom, nearest the head, older ones above it, on the side Coo
- * faces away from and clear of Coo's own bubble (`box`). Where that side has no room the stack moves to the
- * other, and where neither has it goes above Coo's bubble. Each line eases to its place over `dt`, so a new
- * line pushes the others up and a closed one is closed over; a fading line stays where it was.
+ * The person's lines above Coo (upstream #279): newest at the bottom, older ones above it, centred over Coo's own
+ * bubble (`box`) while it is up and over Coo's head otherwise. Each line eases to its place over `dt`, so a new line
+ * pushes the others up and a closed one is closed over; a fading line stays where it was.
  */
-function placeLines(l, a, box, dt) {
-  if (!lines.length) { trail.hidden = true; return; }
-  const W = innerWidth, size = prefs.bubbleSize;
-  const rise = LINES_UP * size, gap = LINES_GAP * size, beside = LINES_BESIDE * size;
-  const widest = Math.max(...lines.map((line) => line.el.offsetWidth));
-  if (!linesSide) linesSide = -(l.facing || 1);
-  // where the stack starts on each side: past Coo's bubble, or beside Coo's head
-  const inner = (s) => (box ? (s < 0 ? box.left - beside : box.left + box.bw + beside) : a.x + s * 10);
-  const fits = (s) => (s < 0 ? inner(s) - widest >= 10 : inner(s) + widest <= W - 10);
-  if (!fits(linesSide) && fits(-linesSide)) linesSide = -linesSide;
-  const above = !fits(linesSide);
-  let bottom = above && box ? box.top - gap : a.y - rise;
+function placeLines(a, box, dt) {
+  if (!lines.length) return;
+  const W = innerWidth, size = prefs.bubbleSize, gap = LINES_GAP * size;
+  const cx = box ? box.left + box.bw / 2 : a.x;
+  let bottom = box ? box.top - gap : a.y - LINES_UP * size;
   const k = dt > 0 ? Math.min(1, dt * 12) : 1;
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i], el = line.el;
     el.classList.toggle('older', i !== lines.length - 1);
     if (line.fadeAt === null || line.ox === null) {
       const bw = el.offsetWidth, bh = el.offsetHeight;
-      const left = clamp(above ? a.x - bw / 2 : linesSide < 0 ? inner(linesSide) - bw : inner(linesSide), 10, Math.max(10, W - bw - 10));
+      const left = clamp(cx - bw / 2, 10, Math.max(10, W - bw - 10));
       const top = Math.max(8, bottom - bh);
       if (line.ox === null) { line.ox = left - a.x; line.oy = top - a.y; }
       else { line.ox += (left - a.x - line.ox) * k; line.oy += (top - a.y - line.oy) * k; }
@@ -1567,16 +1579,6 @@ function placeLines(l, a, box, dt) {
     el.style.left = f(a.x + line.ox) + 'px';
     el.style.top = f(a.y + line.oy) + 'px';
   }
-  // three dots from Coo's head to the newest line
-  const last = lines[lines.length - 1];
-  trail.hidden = last.fadeAt !== null;
-  const bx = a.x + last.ox + last.el.offsetWidth / 2, by = a.y + last.oy + last.el.offsetHeight;
-  [...trail.children].forEach((d, i) => {
-    const kk = [.22, .5, .78][i], sz = [7, 10, 13][i] * size;
-    d.style.width = d.style.height = sz + 'px';
-    d.style.left = f(a.x + (bx - a.x) * kk - sz / 2) + 'px';
-    d.style.top = f(a.y - 4 + (by + 4 - a.y + 4) * kk - sz / 2) + 'px';
-  });
 }
 
 /* ---------- backdrop: a light gray halo when the body melts into what is behind it ---------- */

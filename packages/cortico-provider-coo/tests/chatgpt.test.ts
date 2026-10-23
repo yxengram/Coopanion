@@ -23,7 +23,7 @@ import {
   usageLimited, vendorById, vendorName, vendorOf,
 } from '../src/index.ts';
 import { CHATGPT_RESOURCE, CHATGPT_SCOPES, PLAN_SCOPE, accountAt, endpointOf, readStored, signedIn, type ChatGPTService } from '../src/chatgpt/auth.ts';
-import { TOOL_NAMESPACE } from '../src/chatgpt/client.ts';
+import { TOOL_NAMESPACE, namespaced } from '../src/chatgpt/client.ts';
 import { SIGN_IN_CANCELLED, chatgptName, connectChatGPT, signInChatGPT, type ConsoleCall } from '../src/connect.ts';
 import { CHATGPT_TEXT, chatgptText, signInReason } from '../src/strings.ts';
 
@@ -298,6 +298,15 @@ async function signedInEndpoint(api: (req: IncomingMessage, res: ServerResponse,
 const stream = (res: ServerResponse, body: string) => res.writeHead(200, { 'content-type': 'text/event-stream' }).end(body);
 
 describe('requests billed to a ChatGPT plan', () => {
+  it('gives a function tool without strict strict:false, and leaves custom tools and stated strict as they are', () => {
+    const fn = { type: 'function', name: 'say', parameters: { type: 'object', properties: {} } };
+    const loose = { ...fn, name: 'note', strict: false };
+    const custom = { type: 'custom', name: 'patch', description: 'Applies a patch' };
+    const web = { type: 'web_search' };
+    const body = namespaced({ tools: [fn, loose, custom, web], input: [] });
+    expect(body.tools).toEqual([web, { type: 'namespace', ...TOOL_NAMESPACE, tools: [{ ...fn, strict: false }, loose, custom] }]);
+  });
+
   it('streams with store off, instructions for system text, no sampling or output caps, tools and past calls in one namespace', async () => {
     const seen: Array<{ auth?: string; body: Record<string, unknown> }> = [];
     const { create } = await signedInEndpoint((req, res, body) => {
@@ -306,8 +315,9 @@ describe('requests billed to a ChatGPT plan', () => {
       if (req.headers.authorization === 'Bearer at-1') return res.writeHead(401, { 'content-type': 'application/json' }).end('{"detail":"expired"}');
       stream(res, COMPLETED);
     });
-    const tool = { type: 'function', name: 'say', description: 'Says a line', parameters: { type: 'object', properties: {} }, strict: false };
-    const request = { model: 'm', tools: [tool], max_output_tokens: 100, temperature: 0.5, top_p: 0.9, service_tier: 'priority' } as unknown as Request;
+    const tool = { type: 'function', name: 'say', description: 'Says a line', parameters: { type: 'object', properties: {} } };
+    const strictTool = { ...tool, name: 'ask', strict: true };
+    const request = { model: 'm', tools: [tool, strictTool], max_output_tokens: 100, temperature: 0.5, top_p: 0.9, service_tier: 'priority' } as unknown as Request;
     const out = await create().client.respond(request, {
       context: [message('system', 'be brief'), message('user', 'hi'), functionCall('call_1', 'say', '{}'), functionResult('call_1', 'said')],
     });
@@ -316,7 +326,8 @@ describe('requests billed to a ChatGPT plan', () => {
     const body = seen[1]!.body;
     expect(body).toMatchObject({ model: 'm', store: false, stream: true, instructions: 'be brief' });
     for (const key of ['max_output_tokens', 'temperature', 'top_p', 'service_tier', 'previous_response_id']) expect(body, key).not.toHaveProperty(key);
-    expect(body.tools).toEqual([{ type: 'namespace', ...TOOL_NAMESPACE, tools: [tool] }]);
+    // an omitted strict would let the route make optional parameters required
+    expect(body.tools).toEqual([{ type: 'namespace', ...TOOL_NAMESPACE, tools: [{ ...tool, strict: false }, strictTool] }]);
     const input = body.input as Array<Record<string, unknown>>;
     expect(input.some((item) => item.role === 'system' || item.role === 'developer')).toBe(false);
     expect(input.find((item) => item.type === 'function_call')).toMatchObject({ name: 'say', namespace: TOOL_NAMESPACE.name });

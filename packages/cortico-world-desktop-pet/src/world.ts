@@ -25,6 +25,7 @@ import { isLanguage, type Language } from 'cortico/core/language.ts';
 import type { DeepPartial } from 'cortico/world.ts';
 import {
   bubbleFactor,
+  bubbleSpeed,
   DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, MAX_HOVER_BUTTONS, PET_ACTIONS, desktopPetConfigGroups, hoverButtonList,
   type AsrEngine, type DesktopPetConfigSection, type MicMode, type PetSkin, type PetTheme, type RoamMode,
 } from './config.ts';
@@ -227,8 +228,8 @@ export interface DesktopPetWorldOptions {
   loadSherpa?: () => SherpaModule;
   /** The speech model to download; tests pass a small one. */
   funasrModel?: ModelSpec;
-  /** Shown in the menu header. */
-  botName?: string;
+  /** The bot's name for the menu header, the chat page and the touch lines there; read at each use, so a rename needs no restart. */
+  botName?: () => string;
   /** PNG shown as the avatar in the menu header, when it exists. */
   avatarFile?: string;
   controls?: PetBotControls;
@@ -394,6 +395,12 @@ export class DesktopPetWorld implements World {
   private runningEngine: AsrEngine | null = null;
   /** The app language at the engine's last start: why it is not running (`detail`) is written in it. */
   private voiceLanguage: Language | null = null;
+  /** Counts stops: a start that a stop overtook ends without starting anything. */
+  private voiceGeneration = 0;
+  /** The stop under way; a start waits for it, so a model is unloaded before it loads again. */
+  private voiceStopping: Promise<void> | null = null;
+  /** `asr.enabled` as syncPrefs last saw it: switching it off stops the engine and frees its model, on starts it. */
+  private voiceEnabled = false;
   /** The person asked to send what was heard now, without waiting for the pause that ends a sentence. */
   private committing = false;
   private readonly segmenter: Segmenter;
@@ -446,6 +453,8 @@ export class DesktopPetWorld implements World {
   /** Text the bubble's expand button carried, until a chat page takes it. */
   private draft: string | null = null;
   private pausedShown: boolean | null = null;
+  /** The bot's name as the open chat pages last heard it: a rename sends them a `bot` frame. */
+  private botShown: string | null = null;
 
   /* decider mode (src/decider.ts) */
   /** The mode the prompt and tools were last built for; changed only by `refreshMode`. */
@@ -724,6 +733,7 @@ export class DesktopPetWorld implements World {
       spawnImpl: this.opts.spawnSystemRecognizer,
       text: () => this.text(),
     });
+    this.voiceEnabled = this.cfg.asr.enabled;
     if (this.cfg.asr.enabled) void this.startVoiceBackend();
     await this.syncHotkey();
     this.prefsKey = this.prefsSignature();
@@ -742,6 +752,8 @@ export class DesktopPetWorld implements World {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.voiceGeneration++;
+    this.runningEngine = null;
     this.decider.abortAll();
     this.unreported = [];
     this.poseArmedAt = null;
@@ -846,7 +858,7 @@ export class DesktopPetWorld implements World {
         this.chat.send(socket, {
           t: 'init', ...page, pending: [...this.pendingChat], phase: this.phase,
           activity: this.activity.steps.length ? { steps: this.activity.steps, startedAt: this.activity.startedAt } : null,
-          paused: this.opts.controls?.isPaused?.() ?? false, user: this.cfg.user, bot: this.opts.botName ?? '',
+          paused: this.opts.controls?.isPaused?.() ?? false, user: this.cfg.user, bot: this.botName(),
           imagesSeen: host?.modelFacts.accepts('image/jpeg') ?? false,
         });
         if (this.draft !== null) { this.chat.send(socket, { t: 'draft', text: this.draft }); this.draft = null; }
@@ -910,6 +922,7 @@ export class DesktopPetWorld implements World {
 
   /* ---------- window ---------- */
 
+  /** The pet page's address for people and panels; the window host alone gets the one with its credential (`PetServer.windowUrl`). */
   get petUrl(): string {
     return `${this.server.origin}/pet`;
   }
@@ -917,7 +930,7 @@ export class DesktopPetWorld implements World {
   openWindow(): void {
     if (!this.windowHost || !this.server.port) return;
     const managed = this.store.electron.executable();
-    this.windowHost.start(resolveHostCommand(this.petUrl, this.cfg.window.electronFile, managed, this.text().window));
+    this.windowHost.start(resolveHostCommand(this.server.windowUrl, this.cfg.window.electronFile, managed, this.text().window));
   }
 
   /* ---------- page protocol ---------- */
@@ -947,9 +960,11 @@ export class DesktopPetWorld implements World {
       startX: this.cfg.rememberPosition ? this.cfg.petX : null,
       hoverButtons: hoverButtonList(this.cfg.hoverButtons),
       doubleClickChat: this.cfg.doubleClickChat,
+      saidBubbles: this.cfg.saidBubbles !== false,
       scale: this.cfg.window.scale,
       bubbleSize: bubbleFactor(this.cfg.window.bubbleSize),
       fontSize: bubbleFactor(this.cfg.window.fontSize),
+      bubbleSpeed: bubbleSpeed(this.cfg.window.bubbleSpeed),
       lockFrameRate: this.cfg.window.lockFrameRate,
       hideWhenFullscreen: this.cfg.window.hideWhenFullscreen,
       user: this.cfg.user,
@@ -961,6 +976,10 @@ export class DesktopPetWorld implements World {
     };
   }
 
+  private botName(): string {
+    return this.opts.botName?.() ?? '';
+  }
+
   private botInfo(): Record<string, unknown> {
     const c = this.opts.controls;
     let avatar: string | null = null;
@@ -969,7 +988,7 @@ export class DesktopPetWorld implements World {
     const menu = this.text().menu;
     const quitLabel = c?.quit ? c.quitLabel || menu.quit : '';
     return {
-      name: this.opts.botName ?? '',
+      name: this.botName(),
       avatar,
       controls: !!c,
       buttons: { pause, settings: !!c?.openSettings, dress: !!c?.openDress, quit: !!c?.quit, chat: !!c?.openChat },
@@ -991,7 +1010,11 @@ export class DesktopPetWorld implements World {
   private syncPrefs(): void {
     this.refreshMode();
     this.segmenter.configure(this.segmentConfig());
-    if (this.cfg.asr.enabled && this.runningEngine && this.runningEngine !== this.engine()) void this.startVoiceBackend();
+    const turnedOn = this.cfg.asr.enabled && !this.voiceEnabled;
+    this.voiceEnabled = this.cfg.asr.enabled;
+    // voice input switched off stops the engine (the model is freed, the Windows helper ends); on starts it again
+    if (!this.cfg.asr.enabled && this.runningEngine) void this.stopVoiceBackend();
+    else if (turnedOn || (this.cfg.asr.enabled && this.runningEngine && this.runningEngine !== this.engine())) void this.startVoiceBackend();
     // the system recognizer serves one language; a new one needs a new helper
     else if (this.cfg.asr.enabled && this.runningEngine === 'system' && this.system?.languageChanged) void this.startVoiceBackend();
     // FunASR loads the model for one language and thread count
@@ -1003,6 +1026,8 @@ export class DesktopPetWorld implements World {
     if (this.quiet && (this.cfg.sound !== this.quiet.base.sound || this.cfg.roam !== this.quiet.base.roam)) this.endQuiet();
     const paused = this.opts.controls?.isPaused?.() ?? false;
     if (paused !== this.pausedShown) { this.pausedShown = paused; this.chat.broadcast({ t: 'paused', paused }); }
+    const bot = this.botName();
+    if (bot !== this.botShown) { this.botShown = bot; this.chat.broadcast({ t: 'bot', bot }); }
     const key = this.prefsSignature();
     if (key === this.prefsKey) return;
     this.prefsKey = key;
@@ -1330,7 +1355,7 @@ export class DesktopPetWorld implements World {
 
   /** The touch as the chat page tells it to the person, in the app language when it happened (the event keeps it). */
   private touchLine(t: TouchBatch): string {
-    const b = this.opts.botName || 'Coo';
+    const b = this.botName() || 'Coo';
     const say = this.text().chat.touch;
     switch (t.kind) {
       case 'poke': return say.poke(b, t.count, t.woke);
@@ -1412,26 +1437,44 @@ export class DesktopPetWorld implements World {
     return (this.engine() === 'system' ? this.system?.state() : this.funasr?.state()) ?? null;
   }
 
-  /** Starts the engine in force and stops the other one. */
+  private recognizer(engine: AsrEngine): FunAsrRecognizer | SystemRecognizer | null {
+    return engine === 'system' ? this.system : this.funasr;
+  }
+
+  /**
+   * Starts the engine in force and stops the other one; nothing while voice input is off. A stop under way is
+   * waited for first, and a stop that comes while this waits ends it.
+   */
   async startVoiceBackend(): Promise<FunAsrState | SystemRecognizerState | null> {
     if (!this.funasr || !this.system) return null;
+    const generation = this.voiceGeneration;
+    await this.voiceStopping;
+    if (generation !== this.voiceGeneration || !this.cfg.asr.enabled) return this.backendState();
     const engine = this.engine();
     if (this.runningEngine !== engine) {
-      if (this.runningEngine === 'system') await this.system.stop();
-      else if (this.runningEngine === 'funasr') await this.funasr.stop();
+      if (this.runningEngine) await this.recognizer(this.runningEngine)?.stop();
+      if (generation !== this.voiceGeneration || !this.cfg.asr.enabled || engine !== this.engine()) return this.backendState();
       this.runningEngine = engine;
     }
     this.voiceLanguage = this.appLanguage();
-    if (engine === 'system') await this.system.start();
-    else await this.funasr.start();
-    this.syncPrefs();
+    await this.recognizer(engine)?.start();
+    if (generation === this.voiceGeneration) this.syncPrefs();
     return this.backendState();
   }
 
-  private async stopVoiceBackend(): Promise<void> {
-    if (this.engine() === 'system') await this.system?.stop();
-    else await this.funasr?.stop();
-    this.syncPrefs();
+  /** Stops the engine that runs (not the one the config names now); a second stop joins the first. */
+  private stopVoiceBackend(): Promise<void> {
+    this.voiceGeneration++;
+    if (this.voiceStopping) return this.voiceStopping;
+    const engine = this.runningEngine;
+    this.runningEngine = null;
+    const stopped = ((engine ? this.recognizer(engine)?.stop() : undefined) ?? Promise.resolve()).finally(() => {
+      this.voiceStopping = null;
+      // a stop that ends after the World stopped tells nobody
+      if (!this.stopped) this.syncPrefs();
+    });
+    this.voiceStopping = stopped;
+    return stopped;
   }
 
   /* ---------- talk key ---------- */
@@ -1764,7 +1807,7 @@ export class DesktopPetWorld implements World {
     void this.closeActivity();
     void this.record({ kind: 'say', beats: beats.map((b) => ({ text: b.text, ...moodOf(b.actions, this.vocab()) })) }, beats.map((b) => b.text).join(''));
     const now = Date.now();
-    const selfSec = estimateSeconds(beats);
+    const selfSec = estimateSeconds(beats, bubbleSpeed(this.cfg.window.bubbleSpeed));
     const waitSec = Math.max(0, (this.busyUntil - now) / 1000);
     this.busyUntil = Math.max(now, this.busyUntil) + selfSec * 1000;
     const replaced = this.ask ? `替换了还没回答的提问「${this.ask.question}」。` : '';
@@ -1800,7 +1843,7 @@ export class DesktopPetWorld implements World {
     if (!this.server.sendPet({ t: 'say', id, beats, ...(deciding ? { acts: 'pending', holdMs: DECIDER_HOLD_MS } : {}) })) return this.notConnected('pet_say');
     if (local?.actions.length) this.notePosture(local.actions);
     const now = Date.now();
-    const selfSec = estimateSeconds(beats);
+    const selfSec = estimateSeconds(beats, bubbleSpeed(this.cfg.window.bubbleSpeed));
     const waitSec = Math.max(0, (this.busyUntil - now) / 1000);
     this.busyUntil = Math.max(now, this.busyUntil) + selfSec * 1000;
     const replaced = this.ask ? `替换了还没回答的提问「${this.ask.question}」。` : '';

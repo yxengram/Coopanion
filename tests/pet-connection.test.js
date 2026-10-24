@@ -44,10 +44,13 @@ function page({ host = false, hash = '' } = {}) {
   win.deps = {
     applyTheme, clamp, f, ICONS, linked: (text, n) => linked(text, n, win.document), COO_CSS, mini, normalizeSkin, skinCss, OWN_PACKS,
     createSfx: () => new Proxy({}, { get: () => () => {} }),
+    // the speech stays off: the bubbles babble (tests/pet-speech.test.js covers the voice)
+    createSpeech: () => ({ configure() {}, begin() {}, reveal() { return false; }, stop() {}, active: false }),
+    textSteps: () => 1,
     afterBubbles, dropActs, leftActs, loadBody: async () => body, pageLoop, slices, STEP_MAX, takeDeferred, walkHold,
     attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss,
   };
-  win.eval(`const { applyTheme, clamp, f, ICONS, linked, COO_CSS, mini, normalizeSkin, skinCss, OWN_PACKS, createSfx, afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold, attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss } = window.deps;\n${source}\n`
+  win.eval(`const { applyTheme, clamp, f, ICONS, linked, COO_CSS, mini, normalizeSkin, skinCss, OWN_PACKS, createSfx, createSpeech, textSteps, afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold, attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss } = window.deps;\n${source}\n`
     + 'window.page = { onOrder, watching: () => watching };');
   return { ...win.page, sockets, timers, win };
 }

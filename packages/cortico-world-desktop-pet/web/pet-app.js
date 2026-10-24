@@ -11,6 +11,7 @@
  */
 import { applyTheme, clamp, f, ICONS, linked } from './ui.js';
 import { createSfx, OWN_PACKS } from './sound.js';
+import { createSpeech, textSteps } from './speech.js';
 import { COO_CSS, mini, normalizeSkin, skinCss } from './coo/coo.js';
 import { afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold } from './body-host.js';
 import { attachSayActs, createActs, sayHeld } from './acts.js';
@@ -47,6 +48,10 @@ const prefs = {
   lockFrameRate: false,
 };
 const sfx = createSfx();
+// Coo's speech stands in for the babble while it is on (upstream #263); its units move the mouth, a shape each
+const speech = createSpeech(sfx, { onUnit: () => body?.talk() });
+/** Whether the 说话 kind is on (the World's `sounds.talk`); with `prefs.sound`, whether the speech can be heard. */
+let talkOn = true;
 if (host) sfx.unlock();
 else ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, () => sfx.unlock(), { capture: true }));
 
@@ -124,7 +129,7 @@ function connect() {
 connect();
 // the page always reads as visible (its window does not throttle it): the window process says when it is hidden, and
 // meanwhile sounds keep quiet and the body is not drawn (the loop below); until it says, the page is shown
-host?.onShown?.((shown) => { sfx.setShown(shown); setDrawn(shown); petFocus.shown = shown; reportFocus(); });
+host?.onShown?.((shown) => { sfx.setShown(shown); if (!shown) hushSpeech(); setDrawn(shown); petFocus.shown = shown; reportFocus(); });
 host?.onFullscreen?.((on) => { petFocus.fullscreen = on; reportFocus(); });
 
 /*
@@ -239,8 +244,16 @@ function applyPrefs(p) {
   if (typeof p.language === 'string') host?.setLanguage?.(p.language);
   if (p.skin) { skin = normalizeSkin(p.skin); skinStyle.textContent = skinCss(skin); void applyFigure(skin); }
   if (p.roam) { prefs.roam = p.roam; body?.set({ roam: p.roam }); }
+  const heard = prefs.sound && talkOn;
   if (typeof p.sound === 'boolean') { prefs.sound = p.sound; sfx.set(p.sound); }
-  if (p.sounds && typeof p.sounds === 'object') sfx.configure({ kinds: p.sounds, snoreSeconds: p.sounds.snoreSeconds });
+  if (p.sounds && typeof p.sounds === 'object') { sfx.configure({ kinds: p.sounds, snoreSeconds: p.sounds.snoreSeconds }); talkOn = p.sounds.talk !== false; }
+  // sounds or the 说话 kind just switched off: what the speech scheduled stops too, as when hidden
+  if (heard && !(prefs.sound && talkOn)) hushSpeech();
+  if (p.speech && typeof p.speech === 'object') {
+    speech.configure(p.speech);
+    // switched off it stopped and forgot the text: the bubble typing now asks for it again if it comes back on (typeText)
+    if (item) item.spoken = null;
+  }
   if (p.theme === 'dark' || p.theme === 'light') { prefs.theme = p.theme; applyTheme(p.theme); body?.set({ theme: p.theme }); }
   if (typeof p.scale === 'number') { prefs.scale = p.scale; body?.set({ bounds: bounds() }); }
   if (typeof p.bubbleSize === 'number') { prefs.bubbleSize = p.bubbleSize; sizeVar('--bubble-size', p.bubbleSize); }
@@ -411,6 +424,17 @@ function closeBubble() {
   // the lines it answered fade a moment after (stepLines)
   if (item) item.endedAt = T;
   item = null;
+  speech.stop();
+}
+
+/**
+ * Hidden, or with sounds or the 说话 kind switched off, the speech stops what it has scheduled (up to a couple of seconds
+ * ahead) as the other sounds do; the bubble typing meanwhile babbles (silent then), and once it can be heard again its
+ * next characters are spoken.
+ */
+function hushSpeech() {
+  speech.stop();
+  if (item) item.spoken = null;
 }
 
 /**
@@ -487,12 +511,16 @@ function stepDialog(dt) {
 function typeText(it, text, dt, anchors) {
   const p = bubble.querySelector('.b-text');
   if (!p || it.shown >= text.length) return;
-  // estimateSeconds in src/script.ts mirrors this rate and the holds in stepDialog (window.bubbleSpeed, upstream #248)
+  if (it.spoken !== text) { it.spoken = text; speech.begin(text); }
+  // with speech (upstream #263), each pause mark waits its own time, letters type faster, and the voice makes the sound;
+  // estimateSeconds in src/script.ts mirrors these steps, this rate and the holds in stepDialog (window.bubbleSpeed, upstream #248)
+  const spoken = speech.active;
   it.acc += dt * 20 * prefs.bubbleSpeed;
   while (it.acc >= 1 && it.shown < text.length) {
     const ch = text[it.shown++];
-    it.acc -= PAUSE.test(ch) ? 5 : 1;
-    if (!SILENT.test(ch)) { sfx.babble(ch); body?.talk(ch); }
+    it.acc -= spoken ? textSteps(ch) : PAUSE.test(ch) ? 5 : 1;
+    if (spoken) speech.reveal(it.shown - 1);
+    else if (!SILENT.test(ch)) { sfx.babble(ch); body?.talk(ch); }
     while (it.fired < anchors.length && anchors[it.fired].at <= it.shown) acts.push(...anchors[it.fired++].actions);
   }
   if (it.marks?.length) p.innerHTML = marked(text, it.shown, it.marks);

@@ -32,6 +32,11 @@
 .companion-rangebox > input[type=number] { width: 96px; }
 /* 音效:每类一个勾选框,一行放不下就折行 */
 .companion-checks { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-top: 6px; }
+/* 说话声的音高、语速(上游 #263、#299):档位下面是自定义的数值,只在选中「自定义」时出现;听不见说话声时这两行变灰 */
+.companion-steps > .companion-rangebox { margin-top: 8px; }
+.companion-steps > .companion-rangebox[hidden] { display: none; }
+.companion-steps > .companion-rangebox > input[type=number] { flex: none; width: 96px; }
+.companion-row.is-off > .companion-label { opacity: .5; }
 .companion-dressframe { display: block; width: 100%; height: 620px; margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; background: transparent; }
 /* 悬停按钮:每个动作一个圆形开关,选中的点亮 */
 .companion-hoverpick { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 2px; }

@@ -2,5 +2,6 @@ node_modules/
 build/
 dist/
 scratch/
+packages/cortico-world-desktop-pet/scripts/speech-bank/.cache/
 *.log
 .DS_Store

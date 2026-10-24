@@ -908,6 +908,19 @@ describe('chat page', () => {
     expect(Math.abs(fast - normal / 2)).toBeLessThanOrEqual(1);
   });
 
+  it("pet_say's receipt counts the speech's typing steps while 说话声 is on (upstream #263)", async () => {
+    const { world, cfg } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const script = 'What a lovely morning it is out there today and the birds are singing in every single tree along the road';
+    const secs = (out: unknown) => Number(/这段约 (\d+) 秒/.exec((out as { text: string }).text)?.[1]);
+    const off = secs(await tool(world, 'pet_say').handler({ script }, ctx));
+    // letters type faster for the voice (web/speech.js textSteps)
+    cfg.speech.enabled = true;
+    const on = secs(await tool(world, 'pet_say').handler({ script }, ctx));
+    expect(off - on).toBeGreaterThanOrEqual(3);
+  });
+
   it('an interrupt while the page is asked where the pointer is stops pet_walk_to before it sets off', async () => {
     const { world } = await mounted();
     const page = await FakePage.open(origin(world));

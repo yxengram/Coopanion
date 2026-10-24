@@ -54,7 +54,8 @@ const skip = (base: string) => (src: string) => {
   const rel = relative(base, src).split(sep);
   // the top-level extensions/ of the staged Cortico is a junction to the developer's own data
   if (rel[0] === 'extensions') return false;
-  if (rel.some((p) => ['node_modules', '.git', 'tests', 'scratch'].includes(p))) return false;
+  // .cache: e.g. the pet's scripts/speech-bank/.cache/, raw TTS recordings that build.py keeps (gitignored, not shipped)
+  if (rel.some((p) => ['node_modules', '.git', 'tests', 'scratch', '.cache'].includes(p))) return false;
   // source maps of the WebUI bundles (build/cortico/dist, the pet's dist/): nothing loads them but DevTools
   return !src.endsWith('.map');
 };

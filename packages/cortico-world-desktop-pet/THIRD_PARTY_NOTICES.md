@@ -88,6 +88,32 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
+## 说话声
+
+说话声的代码、音节库和读音数据取自上游 [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion)(上游 v0.2.7 首次发布:#263,350bbbd;
+日语读音改用 IPADIC、常用漢字表付表与 Unihan:#265,b94a705),文件与上游逐字节相同;
+本项目另在 `src/speech/data/` 里附上了 pypinyin 与 pinyin-data 的许可全文。
+
+`web/speech/zh.ogg` 与 `zh.json` 的音节由 Microsoft Edge 的朗读服务以 `zh-CN-XiaoyiNeural` 声音逐个念出,
+再由 `scripts/speech-bank/build.py` 切短、定调、均衡后拼成。这些录音不是本项目创作的,不在本包的 AGPL 授权范围内,随 Coopanion 分发。
+
+`src/speech/data/en.tsv.gz` 取自 [CMU Pronouncing Dictionary](https://github.com/cmusphinx/cmudict)(经 Python 包 cmudict 1.1.3),
+Copyright (C) 1993-2015 Carnegie Mellon University,BSD 式许可,全文见 [`src/speech/data/CMUDICT-LICENSE`](src/speech/data/CMUDICT-LICENSE)。
+
+`src/speech/data/ja-ipadic.tsv.gz` 由 `scripts/speech-bank/dicts.py` 从 [mecab-ipadic](https://taku910.github.io/mecab/) 2.7.0-20070801 导出(含汉字的词条及其发音)。
+Copyright 2000, 2001, 2002, 2003 Nara Institute of Science and Technology,许可允许使用、复制、修改和分发,条件是附上版权声明与许可条款(含 ICOT 的条款与免责声明),
+全文见 [`src/speech/data/IPADIC-COPYING`](src/speech/data/IPADIC-COPYING)。
+
+`src/speech/data/ja-unihan.tsv.gz` 由同一脚本从 Unicode 18.0.0 Unihan 数据库的 `kJapanese` 字段导出。Copyright © 1991-2026 Unicode, Inc.,
+UNICODE LICENSE V3,全文见 [`src/speech/data/UNICODE-LICENSE`](src/speech/data/UNICODE-LICENSE)。
+
+`src/speech/jukujikun.ts` 是常用漢字表(平成 22 年内阁告示第 2 号)付表里的熟字训与读音;告示不受日本著作权法保护(第 13 条)。
+
+`src/speech/data/zh.json` 由 `scripts/speech-bank/build.py` 用 [pypinyin](https://github.com/mozillazg/python-pinyin) 0.55.0 生成
+(MIT,Copyright (c) 2016 mozillazg, 闲耘,全文见 [`src/speech/data/PYPINYIN-LICENSE`](src/speech/data/PYPINYIN-LICENSE)),
+读音数据来自 [pinyin-data](https://github.com/mozillazg/pinyin-data)(MIT,Copyright (c) 2016 mozillazg,全文见 [`src/speech/data/PINYIN-DATA-LICENSE`](src/speech/data/PINYIN-DATA-LICENSE)),
+源自 Unicode 的 Unihan 数据库([Unicode 许可](https://www.unicode.org/license.txt))。
+
 ## 其他运行时依赖
 
 - `ws`:MIT
@@ -95,5 +121,6 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 
 ## 本包的许可
 
-AGPL-3.0-or-later,见 [`LICENSE`](LICENSE);`web/whale/`、`web/claude-chan/`、`web/gpt-chan/`、`web/gemini-chan/` 和 `web/grok-chan/` 的贴图除外,见上。
+AGPL-3.0-or-later,见 [`LICENSE`](LICENSE);`web/whale/`、`web/claude-chan/`、`web/gpt-chan/`、`web/gemini-chan/` 和 `web/grok-chan/` 的贴图除外,见上;`web/speech/` 的说话声音节库(`zh.ogg` 的录音及其清单 `zh.json`)来自 Microsoft Edge 的朗读服务,不在本包 AGPL 授权范围内,见上;
+说话声的读音数据(`src/speech/data/`、`src/speech/jukujikun.ts`)各随上面写明的许可。
 并入 Coopanion 之前的版本(独立仓库 `Pal-AI-Lab/cortico-world-desktop-pet` 里的历史)是 MIT。

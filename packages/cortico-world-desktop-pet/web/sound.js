@@ -384,6 +384,15 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
       shown = !!v;
       if (!shown && !given) for (const name of Object.keys(held)) hush(name);
     },
+    /**
+     * The audio context and the gain a sound of `kind` plays into, or null while it would not be heard: sound off,
+     * the kind switched off, the window hidden or not unlocked yet (the speech, web/speech.js; upstream #263).
+     */
+    output(kind) {
+      if (muted.has(kind)) return null;
+      const c = ready();
+      return c ? { ctx: c, master } : null;
+    },
     /** `kinds`: kind → on (SOUND_KINDS); `snoreSeconds`: snoring stops this long into a sleep, 0 = never. */
     configure({ kinds, snoreSeconds: s } = {}) {
       if (kinds) muted = new Set(Object.keys(SOUND_KINDS).filter((k) => kinds[k] === false));

@@ -274,6 +274,18 @@ describe('pet_say', () => {
     await m.world.decisionsIdle();
   });
 
+  it("counts the speech's typing steps in the receipt while 说话声 is on, as the classic pet_say does (upstream #263)", async () => {
+    const m = await mounted();
+    await page(m);
+    const text = 'What a lovely morning it is out there today and the birds are singing in every single tree along the road';
+    const secs = (out: string) => Number(/这段约 (\d+) 秒/.exec(out)?.[1]);
+    const off = secs(textOf(await tool(m.world, 'pet_say').handler({ text, feeling: '平静' }, ctx)));
+    m.cfg.speech.enabled = true;
+    const on = secs(textOf(await tool(m.world, 'pet_say').handler({ text, feeling: '平静' }, ctx)));
+    expect(off - on).toBeGreaterThanOrEqual(3);
+    await m.world.decisionsIdle();
+  });
+
   it('a decision that times out: the bubble is freed with no words, and the receipt says why', async () => {
     const m = await mounted();
     const p = await page(m);

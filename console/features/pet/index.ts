@@ -4,7 +4,11 @@
  * of the same values, so they are read again every few seconds. Dressing up has its own page
  * (features/dress). The hover buttons are picked from the pet menu's own actions, drawn with the
  * pet page's icons. The 「音效」 card below writes the World's sound group: the master switch
- * (the same one the pet menu flips), each kind of sound, and how long Coo snores in each sleep.
+ * (the same one the pet menu flips), each kind of sound, and how long Coo snores in each sleep. 「说话声」 (upstream #263,
+ * #299) writes the same group: the speech that replaces the babble, and its pitch and speed, each a step or 自定义;
+ * picking 自定义 shows its number under the steps, starting from the step picked before. The speech switch is disabled
+ * while sounds are off, and pitch and speed are greyed while the speech cannot be heard (sounds, the 说话 kind or the
+ * speech itself off), as the kinds are while sounds are off.
  * The 「表情决策」 card writes the decider group (decider mode, src/decider.ts in the World; off by default): the switch,
  * the decision model (picked from OpenRouter's public listing of decision models, which the World's `pet.deciders`
  * fetches and caches, with price per million input tokens and context; the ids we know when it cannot be reached)
@@ -58,6 +62,11 @@ const KEYS = {
   hideFullscreen: `${K}.window.hideWhenFullscreen`,
   sound: `${K}.sound`,
   snoreSeconds: `${K}.sounds.snoreSeconds`,
+  speech: `${K}.speech.enabled`,
+  speechPitch: `${K}.speech.pitch`,
+  speechPitchHz: `${K}.speech.pitchHz`,
+  speechSpeed: `${K}.speech.speed`,
+  speechRate: `${K}.speech.unitsPerSecond`,
   remember: `${K}.rememberPosition`,
   hover: `${K}.hoverButtons`,
   dblclick: `${K}.doubleClickChat`,
@@ -95,6 +104,10 @@ const ACTIONS: ReadonlyArray<[id: string, icon: string]> = [
 ];
 /** Kinds of sound (the World's SOUND_KINDS), each under `worlds.desktop-pet.sounds.<kind>`. */
 const SOUND_KINDS = ['move', 'touch', 'face', 'snore', 'talk', 'ui'] as const;
+/** The speech's steps, their numbers and the range of a custom one (SPEECH_LEVELS, SPEECH_PITCH_HZ, SPEECH_RATE in the World's config.ts). */
+const SPEECH_LEVELS = ['low', 'mid', 'high', 'custom'] as const;
+const SPEECH_PITCH = { steps: { low: 300, mid: 400, high: 500 } as Record<string, number>, min: 200, max: 700 };
+const SPEECH_RATE = { steps: { low: 10, mid: 13, high: 16 } as Record<string, number>, min: 6, max: 20 };
 /** Most hover buttons (the World's MAX_HOVER_BUTTONS). */
 const MAX_HOVER = 6;
 
@@ -143,6 +156,14 @@ export const TEXT = {
     snore: '呼噜打多久',
     snoreUnit: '秒',
     snoreHint: '每次睡着后打这么久呼噜就安静下来,Z 照样飘。0 = 一直打到醒。',
+    speechTitle: '说话声',
+    speech: '念出气泡文字',
+    speechHint: '默认关。每个字念成一个短音节,代替「说话」类音效;「说话」类关掉时不出声。中文按拼音念,英文查发音词典,一句话里有假名时按日语念。',
+    speechPitch: '音高',
+    speechSpeed: '语速',
+    speechPitchLevels: { low: '低', mid: '中', high: '高', custom: '自定义' } as Record<string, string>,
+    speechSpeedLevels: { low: '低', mid: '中', high: '高', custom: '自定义' } as Record<string, string>,
+    speechRateUnit: '音节/秒',
     remember: '记住位置',
     rememberHint: '退出时记下 Coo 的横向位置,下次启动回到那里;有多块屏幕时总在主屏上启动。',
     hover: '悬停按钮',
@@ -241,6 +262,14 @@ export const TEXT = {
     snore: 'Snore for',
     snoreUnit: 's',
     snoreHint: "In each sleep Coo goes quiet after snoring this long; the z's keep floating. 0 = snore until waking.",
+    speechTitle: 'Speech',
+    speech: 'Read bubbles aloud',
+    speechHint: 'Off by default. Each character is read as a short syllable, in place of the Talking sounds; silent while Talking is off. Chinese is read by its pinyin, English by a pronouncing dictionary, and a sentence with kana as Japanese.',
+    speechPitch: 'Pitch',
+    speechSpeed: 'Speed',
+    speechPitchLevels: { low: 'Low', mid: 'Medium', high: 'High', custom: 'Custom' } as Record<string, string>,
+    speechSpeedLevels: { low: 'Slow', mid: 'Medium', high: 'Fast', custom: 'Custom' } as Record<string, string>,
+    speechRateUnit: 'syllables/s',
     remember: 'Remember where Coo stands',
     rememberHint: 'Saves how far across the screen Coo stands when the app quits; with several screens Coo always starts on the main one.',
     hover: 'Hover buttons',
@@ -475,11 +504,11 @@ async function mount(ctx: FeatureContext): Promise<void> {
   /* ---------- sounds ---------- */
   const sounds = ui.sheet({ title: S.soundTitle });
   const soundMsg = ui.msgline('');
-  const sound = ui.checkbox(S.sound, { onChange: (on) => { void save(KEYS.sound, on, SOUND_GROUP, soundMsg); renderKinds(); } });
+  const sound = ui.checkbox(S.sound, { onChange: (on) => { void save(KEYS.sound, on, SOUND_GROUP, soundMsg); renderKinds(); renderSpeech(); } });
   const kindBox = ui.h('div', 'companion-checks');
   const kinds = SOUND_KINDS.map((kind) => {
     const [label, what] = S.kinds[kind] ?? [kind, ''];
-    const c = ui.checkbox(label, { title: what, onChange: (on) => void save(`${K}.sounds.${kind}`, on, SOUND_GROUP, soundMsg) });
+    const c = ui.checkbox(label, { title: what, onChange: (on) => { void save(`${K}.sounds.${kind}`, on, SOUND_GROUP, soundMsg); renderSpeech(); } });
     kindBox.append(c.el);
     return [kind, c] as const;
   });
@@ -496,6 +525,71 @@ async function mount(ctx: FeatureContext): Promise<void> {
     soundMsg,
   );
   root.append(sounds.el);
+
+  /* ---------- speech (upstream #263, #299) ---------- */
+  const speechSheet = ui.sheet({ title: S.speechTitle });
+  const speechMsg = ui.msgline('');
+  const speech = ui.checkbox(S.speech, { onChange: (on) => { void save(KEYS.speech, on, SOUND_GROUP, speechMsg); renderSpeech(); } });
+  /** A step picker with the custom number under it, shown while 自定义 is picked. */
+  const stepPicker = (labels: Record<string, string>, levelKey: string, numKey: string, range: typeof SPEECH_PITCH, unit: string) => {
+    let level = 'mid';
+    const num = ui.input({ type: 'number' });
+    num.min = String(range.min); num.max = String(range.max); num.step = '1';
+    const numBox = ui.h('div', 'companion-rangebox');
+    numBox.append(num, ui.h('span', 'companion-rangeval', unit));
+    const seg = ui.segmented(SPEECH_LEVELS.map((v) => ({ value: v, label: labels[v] ?? v })), {
+      size: 'sm',
+      onSelect: (v) => {
+        if (v === 'custom') {
+          // the custom number starts from the step it leaves
+          num.value = num.dataset.saved = String(range.steps[level] ?? range.steps.mid);
+          void saveAll({ [levelKey]: v, [numKey]: Number(num.value) }, SOUND_GROUP, speechMsg);
+        } else void save(levelKey, v, SOUND_GROUP, speechMsg);
+        level = v;
+        numBox.hidden = v !== 'custom';
+      },
+    });
+    num.addEventListener('change', () => {
+      const n = Math.round(Number(num.value));
+      if (num.value === '' || !Number.isFinite(n) || n < range.min || n > range.max) { num.value = num.dataset.saved ?? ''; return; }
+      num.value = String(n);
+      if (num.value !== num.dataset.saved) { num.dataset.saved = num.value; void save(numKey, n, SOUND_GROUP, speechMsg); }
+    }, { signal });
+    num.addEventListener('keydown', (e) => { if (e.key === 'Enter') num.blur(); }, { signal });
+    const box = ui.h('div', 'companion-steps');
+    box.append(seg.el, numBox);
+    numBox.hidden = true;
+    const sync = (values: Record<string, unknown>) => {
+      if (typeof values[levelKey] === 'string') { level = values[levelKey] as string; seg.setValue(level); numBox.hidden = level !== 'custom'; }
+      if (typeof values[numKey] === 'number' && document.activeElement !== num) num.value = num.dataset.saved = String(values[numKey]);
+    };
+    const setEnabled = (on: boolean) => {
+      for (const b of seg.el.querySelectorAll('button')) b.disabled = !on;
+      num.disabled = !on;
+    };
+    return { box, sync, setEnabled };
+  };
+  const pitch = stepPicker(S.speechPitchLevels, KEYS.speechPitch, KEYS.speechPitchHz, SPEECH_PITCH, 'Hz');
+  const speed = stepPicker(S.speechSpeedLevels, KEYS.speechSpeed, KEYS.speechRate, SPEECH_RATE, S.speechRateUnit);
+  const pitchRow = row(S.speechPitch, pitch.box);
+  const speedRow = row(S.speechSpeed, speed.box);
+  // the speech only plays while sounds and the 说话 kind are on; pitch and speed only matter while it plays
+  const renderSpeech = () => {
+    speech.input.disabled = !sound.checked;
+    const talk = kinds.find(([kind]) => kind === 'talk')![1];
+    const audible = sound.checked && talk.checked && speech.checked;
+    for (const [r, picker] of [[pitchRow, pitch], [speedRow, speed]] as const) {
+      picker.setEnabled(audible);
+      r.classList.toggle('is-off', !audible);
+    }
+  };
+  speechSheet.body.append(
+    row('', speech.el, S.speechHint),
+    pitchRow,
+    speedRow,
+    speechMsg,
+  );
+  root.append(speechSheet.el);
 
   /* ---------- expression decisions ---------- */
   const decider = ui.sheet({ title: S.deciderTitle });
@@ -596,9 +690,11 @@ async function mount(ctx: FeatureContext): Promise<void> {
 
   /* ---------- behaviour ---------- */
   /** Whether the value was saved. */
-  const save = async (key: string, value: string | number | boolean, group = GROUP, line = msg): Promise<boolean> => {
+  const save = (key: string, value: string | number | boolean, group = GROUP, line = msg): Promise<boolean> => saveAll({ [key]: value }, group, line);
+  /** Saves several keys of one group at once (a speech step and its custom number); whether they were saved. */
+  async function saveAll(values: Record<string, string | number | boolean>, group = GROUP, line = msg): Promise<boolean> {
     try {
-      await setConfig(group, { [key]: value }, opts);
+      await setConfig(group, values, opts);
       line.textContent = S.saved;
       line.classList.remove('bad');
       return true;
@@ -608,7 +704,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
       line.classList.add('bad');
       return false;
     }
-  };
+  }
   const showScale = () => { scaleText.textContent = `${Math.round(Number(scale.value) * 100)}%`; };
   // saved while the slider moves, so the pet on the desktop grows and shrinks with it
   let scaleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -696,6 +792,10 @@ async function mount(ctx: FeatureContext): Promise<void> {
       if (typeof v === 'boolean') c.setChecked(v);
     }
     renderKinds();
+    if (typeof soundValues[KEYS.speech] === 'boolean') speech.setChecked(soundValues[KEYS.speech] as boolean);
+    pitch.sync(soundValues);
+    speed.sync(soundValues);
+    renderSpeech();
     if (typeof soundValues[KEYS.snoreSeconds] === 'number' && active !== snore) {
       snore.value = String(soundValues[KEYS.snoreSeconds]);
       snore.dataset.saved = snore.value;

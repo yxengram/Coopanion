@@ -26,10 +26,11 @@ import type { DeepPartial } from 'cortico/world.ts';
 import {
   bubbleFactor,
   bubbleSpeed,
-  DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, MAX_HOVER_BUTTONS, PET_ACTIONS, desktopPetConfigGroups, hoverButtonList,
+  DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, MAX_HOVER_BUTTONS, PET_ACTIONS, desktopPetConfigGroups, hoverButtonList, speechFor,
   type AsrEngine, type DesktopPetConfigSection, type MicMode, type PetSkin, type PetTheme, type RoamMode,
 } from './config.ts';
 import { petText, type PetText } from './i18n/index.ts';
+import { SpeechText, speechTextSteps } from './speech/index.ts';
 import { PetServer, type PageMessage } from './server.ts';
 import { WindowHost, resolveHostCommand } from './window-host.ts';
 import { RuntimeStore, type ModelSpec } from './runtime/store.ts';
@@ -63,6 +64,7 @@ export function desktopPetPanelDecls(language: Language = 'zh'): WorldPanelDecl[
 export const DESKTOP_PET_PANEL_DECLS: readonly WorldPanelDecl[] = desktopPetPanelDecls('zh');
 
 const WEB_DIR = fileURLToPath(new URL('../web/', import.meta.url));
+const SPEECH_DATA = fileURLToPath(new URL('./speech/data/', import.meta.url));
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
 const ENV_PROMPT_DECIDER_FILE = fileURLToPath(new URL('./ENV_PROMPT_DECIDER.md', import.meta.url));
 /** How often decider mode looks again whether the app has an OpenRouter key (it reads a small file). */
@@ -386,6 +388,8 @@ export class DesktopPetWorld implements World {
   private host: WorldHost | null = null;
   private log: Logger | null = null;
   private readonly cfg: DesktopPetConfigSection;
+  /** The syllables of the pet page's speech (upstream #263); its dictionaries load the first time a text needs them. */
+  private readonly speechText = new SpeechText(SPEECH_DATA, join(WEB_DIR, 'speech', 'zh.json'));
   private readonly server: PetServer;
   private windowHost: WindowHost | null = null;
   private readonly store: RuntimeStore;
@@ -550,6 +554,7 @@ export class DesktopPetWorld implements World {
       packs: () => this.packs(),
       packDir: () => this.opts.packDir?.() ?? null,
       language: () => this.appLanguage(),
+      speech: (text) => this.speechText.units(text, this.appLanguage()),
       ...(opts.consoleOrigins ? { consoleOrigins: () => opts.consoleOrigins!() } : {}),
     });
   }
@@ -954,6 +959,7 @@ export class DesktopPetWorld implements World {
       roam: this.quiet?.roam ?? this.cfg.roam,
       sound: this.quiet?.sound ?? this.cfg.sound,
       sounds: this.cfg.sounds,
+      speech: speechFor(this.cfg.speech),
       theme: this.cfg.theme,
       rememberPosition: this.cfg.rememberPosition,
       // read by the page from `init` only
@@ -1807,7 +1813,7 @@ export class DesktopPetWorld implements World {
     void this.closeActivity();
     void this.record({ kind: 'say', beats: beats.map((b) => ({ text: b.text, ...moodOf(b.actions, this.vocab()) })) }, beats.map((b) => b.text).join(''));
     const now = Date.now();
-    const selfSec = estimateSeconds(beats, bubbleSpeed(this.cfg.window.bubbleSpeed));
+    const selfSec = estimateSeconds(beats, bubbleSpeed(this.cfg.window.bubbleSpeed), this.cfg.speech?.enabled ? speechTextSteps : undefined);
     const waitSec = Math.max(0, (this.busyUntil - now) / 1000);
     this.busyUntil = Math.max(now, this.busyUntil) + selfSec * 1000;
     const replaced = this.ask ? `替换了还没回答的提问「${this.ask.question}」。` : '';
@@ -1843,7 +1849,7 @@ export class DesktopPetWorld implements World {
     if (!this.server.sendPet({ t: 'say', id, beats, ...(deciding ? { acts: 'pending', holdMs: DECIDER_HOLD_MS } : {}) })) return this.notConnected('pet_say');
     if (local?.actions.length) this.notePosture(local.actions);
     const now = Date.now();
-    const selfSec = estimateSeconds(beats, bubbleSpeed(this.cfg.window.bubbleSpeed));
+    const selfSec = estimateSeconds(beats, bubbleSpeed(this.cfg.window.bubbleSpeed), this.cfg.speech?.enabled ? speechTextSteps : undefined);
     const waitSec = Math.max(0, (this.busyUntil - now) / 1000);
     this.busyUntil = Math.max(now, this.busyUntil) + selfSec * 1000;
     const replaced = this.ask ? `替换了还没回答的提问「${this.ask.question}」。` : '';

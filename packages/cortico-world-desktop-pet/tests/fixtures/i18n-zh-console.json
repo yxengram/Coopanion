@@ -276,6 +276,52 @@
       "title": "按钮与提示",
       "description": "点按钮、气泡弹出、选中、开始和结束听你说话。",
       "x-hot": true
+     },
+     "worlds.desktop-pet.speech.enabled": {
+      "type": "boolean",
+      "title": "说话声",
+      "description": "开启后气泡逐字冒出时念出音节,代替「说话」类的叽咕声;「说话」类关掉时也不出声。",
+      "x-hot": true
+     },
+     "worlds.desktop-pet.speech.pitch": {
+      "type": "string",
+      "title": "说话声音高",
+      "enum": [
+       "low",
+       "mid",
+       "high",
+       "custom"
+      ],
+      "description": "low、mid、high 依次为 300、400、500 Hz;custom 用自定义音高。",
+      "x-hot": true
+     },
+     "worlds.desktop-pet.speech.pitchHz": {
+      "type": "integer",
+      "title": "自定义音高",
+      "minimum": 200,
+      "maximum": 700,
+      "x-suffix": "Hz",
+      "x-hot": true
+     },
+     "worlds.desktop-pet.speech.speed": {
+      "type": "string",
+      "title": "说话声语速",
+      "enum": [
+       "low",
+       "mid",
+       "high",
+       "custom"
+      ],
+      "description": "每秒最多念几个音节:low、mid、high 依次为 10、13、16;custom 用自定义语速。比文字慢时,声音在文字打完后才念完。",
+      "x-hot": true
+     },
+     "worlds.desktop-pet.speech.unitsPerSecond": {
+      "type": "integer",
+      "title": "自定义语速",
+      "minimum": 6,
+      "maximum": 20,
+      "x-suffix": "音节/秒",
+      "x-hot": true
      }
     }
    }

@@ -13,6 +13,8 @@
  * by any of their names; unknown words are dropped and reported back. An inline marker longer than
  * `INLINE_TAG_MAX` or spanning a line is text. Inline markers in a bubble with no text (`【开心】<眨眼>`,
  * or a script of `<眨眼>` alone) have nothing to wait for: they join the bubble's blocking words, in order.
+ * An HTML tag in the text (`<br>`, `<b>…</b>`, `<span class="x">`; HTML_TAGS) is not a marker and drops no word:
+ * `<br>` becomes a line break, the others go.
  *
  * What goes to the page is a list of entries: a word's id, or a group's ids joined by '+' (ids are [a-z0-9-]), body
  * and stance first, then arms, head, face (`sit+wave+happy`). A name with a plus in it is looked up whole first, so
@@ -106,12 +108,14 @@ const ALL: readonly Channel[] = ['face', 'head', 'arm', 'body', 'stance', ...APP
  */
 export const CHANNELS: Record<string, readonly Channel[]> = {
   nod: ['head'], shake: ['head'], sigh: ['head'], tilt: ['head'], droop: ['head'], blink: ['head'],
+  lookup: ['head'], pant: ['head'], closeeyes: ['head'], sneeze: ['head'],
   // a tail, ears, wings: each its own part, beside everything else
-  wag: ['tail'], earflick: ['ears'], earsup: ['ears'], earsdown: ['ears'], wingbeat: ['wings'],
+  wag: ['tail'], earflick: ['ears'], earsup: ['ears'], earsdown: ['ears'], wingbeat: ['wings'], puff: ['tail'],
   wave: ['arm'], shiver: ['arm'], heart: ['arm'], serve: ['arm'], salute: ['arm'], vsign: ['arm'], point: ['arm'],
   cover: ['arm'], cross: ['arm'], stretch: ['arm'], pray: ['arm'], scratch: ['arm'], idea: ['arm'], hug: ['arm'], hips: ['arm'],
   spout: ['arm'], sip: ['arm'], read: ['arm'], muse: ['arm'], fist: ['arm'], jot: ['arm'], twiddle: ['arm'],
-  clap: ['arm'], shrug: ['arm'], headhold: ['arm'], raise: ['arm'], thumbs: ['arm'], shush: ['arm'], wipe: ['arm'],
+  clap: ['arm'], shrug: ['arm'], headhold: ['arm'], raise: ['arm'], thumbs: ['arm'], shush: ['arm'], wipe: ['arm'], oops: ['arm'],
+  weep: ['arm'], hideface: ['arm'], pat: ['arm'],
   // gestures that need her still (standing or seated): they cannot go with a walk, a dance, a look, a jump
   song: ['arm', 'stance'], bow: ['arm', 'stance'], flinch: ['arm', 'stance'], peek: ['arm', 'stance'], away: ['arm', 'stance'],
   spin: ['arm', 'stance'], cheer: ['arm', 'stance'], turn: ['stance'],
@@ -262,6 +266,23 @@ function words(inner: string, dropped: string[], notes: string[], vocab: readonl
   return tightPlus(inner).split(/[,，、\s]+/).flatMap((t) => (t ? groupToken(t, dropped, notes, vocab, pairs) : []));
 }
 
+/** The HTML tags a bot writes into a bubble's text out of habit (classic `parseScript` reads them as text, not words). */
+const HTML_TAGS: ReadonlySet<string> = new Set([
+  'br', 'wbr', 'hr', 'p', 'div', 'span', 'b', 'i', 'u', 's', 'em', 'strong', 'small', 'big', 'sub', 'sup', 'mark',
+  'del', 'ins', 'strike', 'font', 'code', 'q', 'a', 'center',
+]);
+const HTML_TAG = /^\/?([a-zA-Z][a-zA-Z0-9]*)(?:[ \t][^<>\n]*)?\/?$/;
+/**
+ * What `<inner>` stands for in a bubble's text when it is an HTML tag (HTML_TAGS, opening, closing or self-closing,
+ * with or without attributes): a line break for `<br>`, else nothing; null when it is not one, or names a word of
+ * `vocab` (a pack's own word `b` stays a marker).
+ */
+export function htmlTag(inner: string, vocab: readonly VocabWord[]): string | null {
+  const m = HTML_TAG.exec(inner);
+  if (!m || !HTML_TAGS.has(m[1]!.toLowerCase()) || vocabId(m[1]!, vocab) !== null) return null;
+  return m[1]!.toLowerCase() === 'br' && !inner.startsWith('/') ? '\n' : '';
+}
+
 /**
  * The beats of a speech script for the body whose vocabulary is `vocab`; `pairs` are the expressions its figure shows
  * as one face when they are in one group (none by default).
@@ -287,6 +308,10 @@ export function parseScript(script: string, vocab: readonly VocabWord[], pairs: 
       const close = ch === '<' ? '>' : '＞';
       const end = script.indexOf(close, i + 1);
       const inner = end < 0 ? '' : script.slice(i + 1, end);
+      // an HTML tag the bot wrote out of habit (`<br>`, `<b>…</b>`, `<span class="x">`) is not a marker: a line break
+      // for `<br>`, nothing for the others, and no word dropped (a word of the figure's by that name stays a marker)
+      const tag = ch === '<' && end >= 0 ? htmlTag(inner, vocab) : null;
+      if (tag !== null) { cur.text += tag; i = end + 1; continue; }
       if (end < 0 || inner.length > INLINE_TAG_MAX || /\n/.test(inner)) { cur.text += ch; i++; continue; }
       const acts = words(inner, dropped, notes, vocab, pairs);
       if (acts.length) cur.anchors.push({ at: cur.text.length, actions: acts });
@@ -346,13 +371,14 @@ export const membersOf = (entries: readonly string[]): string[] => entries.flatM
 /** The head gestures a kneel lasts through (the kit's HEAD_GESTURES), as its note names them. */
 const KNEEL_KEEPS: ReadonlyArray<readonly [string, string]> = [
   ['nod', '点头'], ['shake', '摇头'], ['sigh', '叹气'], ['tilt', '歪头'], ['droop', '低头'], ['blink', '眨眨眼'],
+  ['lookup', '抬头'], ['pant', '喘气'], ['closeeyes', '闭眼'], ['sneeze', '打喷嚏'],
 ];
 
 /**
  * How long a lasting word holds, as the prompt and `pet_act`'s receipt say it (web/kit/body.js `act`): sitting,
  * lying and sleeping stay through gestures and expressions and end on another posture or a move of the whole
  * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh, tilt, droop,
- * blink) and ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
+ * blink, lookup, pant, closeeyes, sneeze) and ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
  * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS), and for one that
  * leans kneeling (`keepsLeans`) so do 凑近, 后仰 and 晃来晃去 (KNEEL_LEANS); the moves of a
  * tail, ears or wings keep it as well. Given the figure's `vocab`, the kneel's note names only the head gestures and the
@@ -383,7 +409,7 @@ const MOODS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['喜欢、害羞(表白、礼物)', ['love', 'flutter', 'smitten', 'shy', 'bashful', 'moved', 'gentle']],
   ['难过(坏消息、陪对方难过、安慰对方)', ['sad', 'comfort', 'sulk', 'cry', 'whimper', 'heartbroken', 'gloomy', 'brave', 'pained']],
   ['生气、嫌弃(被惹、被吐槽)', ['angry', 'fuming', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'eyeroll', 'meh', 'deadpan', 'speechless']],
-  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'shocked', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
+  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'shocked', 'soulout', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
   ['其他', ['neutral', 'thinking', 'confused', 'doubt', 'determined', 'eager', 'sleepy']],
 ];
 /** The mood group (`MOODS`) an expression is listed under, its label without the parenthesised hint; a pack's own expression is 其他. */

@@ -21,8 +21,11 @@ function pngSize(url) {
  * The tests of the hybrid for one girl: `name` her name in the titles, `dir` her web directory, `M` her motion.js,
  * `make(missing)` her real figure on a stand-in page (textures named in `missing` fail to load), `GESTURES` her figure's.
  */
-/** The arm drawings added after the frozen fixtures (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗): never shown kneeling at rest. */
-const NEW_POSES = ['clap', 'clapo', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
+/**
+ * The arm drawings added after the frozen fixtures (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗; 双手捂脸, 摸摸头): never shown kneeling
+ * at rest.
+ */
+const NEW_POSES = ['clap', 'clapo', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe', 'hideface', 'pat'];
 
 export function describeKneelArms(name, { dir, M, make, GESTURES }) {
   const model = JSON.parse(readFileSync(new URL('model.json', dir), 'utf8'));
@@ -281,6 +284,53 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
         expect(mixed, w).toBeLessThanOrEqual(Math.ceil(M.BODY_CUT * 60));
         for (const p of poses) expect(posed[p], `${w} ${p}`).toBe(1);
         expect(both, w).toBe(0);
+        expect(s.o.kneel, w).toBe(true);
+        s.run(4);
+        expect(s.alpha('kneel_body'), w).toBe(1);
+        expect(s.alpha('kneel_low'), w).toBe(0);
+        expect(s.o.kneel, w).toBe(true);
+        expect(s.bad, w).toEqual([]);
+      }
+    });
+
+    it('does 哎呀 kneeling (her flinch arms, both hands to her mouth, as a word of its own): the hybrid, the kneel kept, back after', () => {
+      const s = onKit();
+      kneelDown(s);
+      s.pet.doWord('oops');
+      let mixed = 0, posed = 0;
+      s.run(2.5, () => {
+        const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+        if (k > 0 && k < 1) mixed++;
+        expect(k >= 1 || l >= 1 || (k === 0 && l === 0)).toBe(true);
+        posed = Math.max(posed, s.motion.arms.oops || 0);
+      });
+      expect(mixed).toBeLessThanOrEqual(Math.ceil(M.BODY_CUT * 60));
+      expect(posed).toBe(1);
+      expect(s.o.kneel).toBe(true);
+      s.run(4);
+      expect(s.alpha('kneel_body')).toBe(1);
+      expect(s.alpha('kneel_low')).toBe(0);
+      expect(s.o.kneel).toBe(true);
+      expect(s.bad).toEqual([]);
+    });
+
+    it('does 抹眼泪, 双手捂脸 and 摸摸头 kneeling (the 哎呀 fists at her eyes, both hands over her face, a hand held out): the hybrid, the kneel kept, back after', () => {
+      for (const [w, pose] of [['weep', 'oops'], ['hideface', 'hideface'], ['pat', 'pat']]) {
+        const s = onKit();
+        kneelDown(s);
+        s.pet.doWord(w);
+        let mixed = 0, posed = 0, risen = 0;
+        s.run(2.5, () => {
+          const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+          if (k > 0 && k < 1) mixed++;
+          expect(k >= 1 || l >= 1 || (k === 0 && l === 0), w).toBe(true);
+          posed = Math.max(posed, s.motion.arms[pose] || 0);
+          // (the weep's fists rise to her eyes in the hybrid too)
+          if (w === 'weep' && s.motion.kneelArmsK >= 1) risen = Math.max(risen, -(s.last.st[s.R.ARM.oops.rot]?.ty ?? 0));
+        });
+        expect(mixed, w).toBeLessThanOrEqual(Math.ceil(M.BODY_CUT * 60));
+        expect(posed, w).toBe(1);
+        if (w === 'weep') expect(risen).toBeGreaterThan(.9 * M.WEEP.ty);
         expect(s.o.kneel, w).toBe(true);
         s.run(4);
         expect(s.alpha('kneel_body'), w).toBe(1);

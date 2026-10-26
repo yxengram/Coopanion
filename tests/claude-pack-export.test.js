@@ -55,12 +55,15 @@ describe('exported Claude-chan pack', () => {
     expect(names).toEqual(expect.arrayContaining(['song', 'sip', 'page', 'roll', 'sigh', 'ding', 'crack', 'soft', 'hehe', 'wry', 'clink', 'snap', 'cheese']));
     expect(builtin.vocab.map((w) => w.id)).not.toContain('spout');
     expect(names).not.toContain('spout');
-    // otherwise the same as the whale's, less her tail's swish, with the sounds of her fist, notebook and fingertips (none
-    // of them the whale's words)
+    // otherwise the same as the whale's, less her tail's swish, with the sounds of her fist, notebook and fingertips and
+    // her 哎呀 (none of them the whale's words)
     const whale = (await whaleSounds({ upstreamTones })).map((s) => s.name);
-    const mine = ['fist', 'jot', 'twiddle'];
+    const mine = ['fist', 'jot', 'twiddle', 'oops'];
     expect(names).toEqual(TONES.map((t) => t.name).filter((n) => (whale.includes(n) && n !== 'spout' && n !== 'wag') || mine.includes(n)));
-    expect(names.length).toBe(38);
+    expect(names.length).toBe(40);
+    // (灵魂出窍's "whoo~" comes with the whale's; Gemini-chan's 炸毛 is hers alone)
+    expect(names).toContain('soul');
+    expect(names).not.toContain('bristle');
     // expr2's faces (翻白眼, 震惊, 死鱼眼, 流口水) each with a tone of its own the pack ships
     expect(names).toEqual(expect.arrayContaining(['eyeroll', 'shocked', 'deadpan', 'drool']));
   });
@@ -95,6 +98,15 @@ describe('exported Claude-chan pack', () => {
     expect(m.vocab.filter((w) => ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'].includes(w.id)).map((w) => w.names.zh[0]).sort())
       .toEqual(['低头', '眨眨眼', '凑近', '后仰', '晃来晃去', '跺脚'].sort());
     for (const t of ['dance', 'land']) expect(Object.keys(m.sounds)).not.toContain(t);
+    // and the head moves 抬头, 喘气, 闭眼, 打喷嚏 (the sneeze's whoosh is upstream's own tone: no new sound file)
+    expect(m.vocab.filter((w) => ['lookup', 'pant', 'closeeyes', 'sneeze'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['抬头', '喘气', '闭眼', '打喷嚏']);
+    // her 哎呀 (the flinch's hands to her mouth as a word of its own) with its "uh-oh", and 灵魂出窍 with its "whoo~", both shipped
+    expect(m.vocab.find((w) => w.id === 'oops')).toMatchObject({ kind: 'motion', names: { zh: ['哎呀', '糟了', '闯祸了'] } });
+    expect(m.vocab.find((w) => w.id === 'soulout')).toMatchObject({ kind: 'expression', names: { zh: ['灵魂出窍', '魂飞了', '魂都没了'] } });
+    for (const t of ['oops', 'soul']) expect(Object.keys(m.sounds), t).toContain(t);
+    expect(m.vocab.some((w) => w.id === 'puff')).toBe(false);
+    expect(Object.keys(m.sounds)).not.toContain('bristle');
+    expect(Object.keys(m.sounds)).not.toContain('whoosh');
     expect(Object.keys(m.sounds)).toContain('peek');
     // she has no tail, ears or wings of her own to move: none of their words
     for (const id of ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat']) expect(m.vocab.some((w) => w.id === id), id).toBe(false);

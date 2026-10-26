@@ -2892,6 +2892,85 @@
     166.33
    ],
    "source": "gpt-image-2.5-sunburst edit of the standing rig render: twiddle 2 (scratch/gestures3/jobs.json)"
+  },
+  "hideface": {
+   "required": [
+    {
+     "id": "arm_hideface",
+     "tex": "arm_hideface",
+     "z": 14.6,
+     "parent": "armHideface",
+     "grid": [
+      10,
+      8
+     ],
+     "box": [
+      112.83,
+      132.17,
+      54.0,
+      51.83
+     ]
+    }
+   ],
+   "pivots": {
+    "armHideface": [
+     142.0,
+     186.0
+    ]
+   },
+   "wrist": [
+    148.67,
+    139.33
+   ],
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: hideface 1 (scratch/gestures3/jobs_vocab.json)"
+  },
+  "pat": {
+   "required": [
+    {
+     "id": "arm_pat",
+     "tex": "arm_pat",
+     "z": 6,
+     "parent": "armPat",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      81.0,
+      136.33,
+      39.0,
+      34.83
+     ]
+    },
+    {
+     "id": "arm_pat_top",
+     "tex": "arm_pat_top",
+     "z": 14.2,
+     "parent": "armPat",
+     "grid": [
+      6,
+      10
+     ],
+     "box": [
+      81.0,
+      136.33,
+      39.0,
+      34.83
+     ]
+    }
+   ],
+   "pivots": {
+    "armPat": [
+     116.17,
+     167.67
+    ]
+   },
+   "wrist": [
+    98.67,
+    143.5
+   ],
+   "rest": 144,
+   "source": "gpt-image-2.5-sunburst edit of the standing rig render: pat2 1 (scratch/gestures3/jobs_vocab_reroll.json)"
   }
  },
  "outfits": [
@@ -3507,7 +3586,10 @@
     "arm_fist": "shared",
     "arm_fist_top": "shared",
     "arm_jot": "shared",
-    "arm_twiddle": "shared"
+    "arm_twiddle": "shared",
+    "arm_hideface": "shared",
+    "arm_pat": "shared",
+    "arm_pat_top": "shared"
    },
    "poseZ": {
     "arm_shush": 6.25,

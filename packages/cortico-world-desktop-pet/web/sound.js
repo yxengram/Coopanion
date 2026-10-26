@@ -7,10 +7,10 @@
 /** Which kind each sound belongs to; a kind can be silenced on its own (`sfx.configure`). */
 export const SOUND_KINDS = {
   move: ['step', 'skid', 'jump', 'land', 'whoosh', 'chirps', 'shake', 'nod', 'spin', 'shiver', 'dance', 'flinch', 'look', 'peek', 'away', 'roll', 'sip', 'page', 'spout', 'sigh', 'ding', 'hips', 'song', 'clink', 'snap', 'cheese',
-    'clap', 'wipe', 'thumbs', 'raise', 'fist', 'jot', 'twiddle', 'wag', 'earflick', 'wingbeat'],
+    'clap', 'wipe', 'thumbs', 'raise', 'fist', 'jot', 'twiddle', 'wag', 'earflick', 'wingbeat', 'bristle'],
   touch: ['grab', 'squeak', 'purr', 'poke'],
   face: ['happy', 'wink', 'love', 'surprised', 'angry', 'sad', 'shy', 'yawn', 'soft', 'wry', 'hehe', 'crack',
-    'shush', 'shrug', 'headhold', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort', 'eyeroll', 'shocked', 'deadpan', 'drool'],
+    'shush', 'shrug', 'headhold', 'oops', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort', 'eyeroll', 'shocked', 'deadpan', 'drool', 'soul'],
   snore: ['snore'],
   talk: ['babble', 'blub'],
   ui: ['tick', 'pop', 'sparkle', 'select', 'listenStart', 'listenEnd'],
@@ -29,12 +29,13 @@ export const EXPR_TONES = {
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
   brave: 'wry', comfort: 'comfort', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
-  fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry',
+  fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry', soulout: 'soul',
 };
 // tones only our bodies ask for (the plus words); a pack made for other apps ships them as files
 const PLUS_TONES = new Set(['flinch', 'peek', 'huff', 'away', 'hips', 'roll', 'sip', 'song', 'clink', 'snap', 'cheese', 'ding', 'sigh',
   'spout', 'page', 'soft', 'wry', 'crack', 'hehe', 'clap', 'shush', 'wipe', 'thumbs', 'raise', 'shrug', 'headhold', 'fist', 'jot',
-  'twiddle', 'wag', 'earflick', 'wingbeat', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort', 'eyeroll', 'shocked', 'deadpan', 'drool']);
+  'twiddle', 'wag', 'earflick', 'wingbeat', 'fume', 'heartbreak', 'confetti', 'gloom', 'dots', 'starry', 'comfort', 'eyeroll', 'shocked', 'deadpan', 'drool',
+  'oops', 'bristle', 'soul']);
 // kinds for the helper tones no sound is filed under: 'hmm' is borrowed by faces, 'huff' by away/hips
 const HELPER_KIND = { hmm: 'face', huff: 'move' };
 
@@ -183,6 +184,12 @@ function voices({ tone, noise, R, hold }) {
     jot() { for (let i = 0; i < 6; i++) noise({ f0: R(3000, 4200), f1: R(2200, 3000), q: 2, dur: R(.08, .13), vol: .12, attack: .01, at: .5 + i * .17 + (i > 2 ? .3 : 0) }); },
     // fingertips pressed together: four tiny, shy taps, back and forth
     twiddle() { for (let i = 0; i < 4; i++) { const fr = i % 2 ? 1568 : 1397; tone({ f0: fr, f1: fr * 1.05, dur: .05, vol: .06, at: .2 + i * .28 }); } },
+    // 哎呀, hands to her mouth: a little gasp drawn in, then "uh-oh", two notes falling a third and a fourth
+    oops() {
+      noise({ f0: 2600, f1: 1800, q: 1, dur: .12, vol: .05, attack: .03, at: .06 });
+      tone({ type: 'triangle', f0: 698, f1: 690, dur: .14, vol: .09, attack: .02, at: .18 });
+      tone({ type: 'triangle', f0: 523, f1: 494, dur: .3, vol: .09, attack: .02, at: .36, vib: 6, vibRate: 6 });
+    },
     // a tail wagged hard: soft swishes from side to side, dying away as the wag ends
     wag() { for (let i = 0; i < 8; i++) noise({ f0: i % 2 ? 900 : 1150, f1: i % 2 ? 620 : 780, q: 1.6, dur: .14, vol: .12 * (i < 6 ? 1 : .55), attack: .04, at: .1 + i * .26 }); },
     // ears flicked: four tiny flutters, one for each flick
@@ -194,6 +201,11 @@ function voices({ tone, noise, R, hold }) {
         noise({ type: 'lowpass', f0: 900, f1: 280, dur: .2, vol: .16 * k, attack: .05, at: .14 + i * .385 });
         noise({ f0: 1500, f1: 700, q: 1, dur: .16, vol: .05 * k, attack: .04, at: .15 + i * .385 });
       }
+    },
+    // a tail puffed up (炸毛): a cat's sharp little hiss as the fur stands on end, and a soft fluff as it settles
+    bristle() {
+      noise({ type: 'highpass', f0: 3800, f1: 3000, dur: .3, vol: .07, attack: .015 });
+      noise({ f0: 1100, f1: 600, q: 1.2, dur: .3, vol: .05, attack: .08, at: 1 });
     },
     // (the faces with marks of their own) fuming: a low grumble under the hiss of steam, a puff for each of the first three
     fume() {
@@ -246,6 +258,12 @@ function voices({ tone, noise, R, hold }) {
     drool() {
       noise({ f0: 450, f1: 1500, q: 4, dur: .28, vol: .13, attack: .06 });
       tone({ f0: 1300, f1: 620, dur: .07, vol: .06, at: .42 });
+    },
+    // her soul slipping out (灵魂出窍): a hollow, wavering "whoo~" floating up as the little ghost rises, and a faint,
+    // airy breath under it
+    soul() {
+      tone({ type: 'triangle', f0: 392, f1: 784, dur: 1.1, vol: .07, vib: 18, vibRate: 5, attack: .25, filter: 1600, at: .1 });
+      noise({ f0: 1400, f1: 2600, q: 1.5, dur: .9, vol: .03, attack: .3, at: .15 });
     },
     tick() { tone({ f0: 1200, f1: 1000, dur: .03, vol: .05 }); },
     pop() { tone({ f0: 240, f1: 720, dur: .07, vol: .14 }); },

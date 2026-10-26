@@ -1482,6 +1482,37 @@
    ],
    "kind": "both"
   },
+  "hideface": {
+   "required": [
+    {
+     "id": "pose_hideface",
+     "tex": "pose_hideface",
+     "z": 15.5,
+     "parent": "poseHideface",
+     "grid": [
+      8,
+      9
+     ],
+     "box": [
+      98.4,
+      103.2,
+      58.0,
+      60.2
+     ]
+    }
+   ],
+   "pivots": {
+    "poseHideface": [
+     128.0,
+     143.4
+    ]
+   },
+   "wrist": [
+    127.18,
+    117.7
+   ],
+   "kind": "both"
+  },
   "wave": {
    "required": [
     {
@@ -1897,6 +1928,38 @@
    ],
    "kind": "armL",
    "rest": -176
+  },
+  "pat": {
+   "required": [
+    {
+     "id": "pose_pat",
+     "tex": "pose_pat",
+     "z": 15.8,
+     "parent": "posePat",
+     "grid": [
+      8,
+      6
+     ],
+     "box": [
+      63.0,
+      110.6,
+      57.6,
+      39.4
+     ]
+    }
+   ],
+   "pivots": {
+    "posePat": [
+     107.6,
+     143.4
+    ]
+   },
+   "wrist": [
+    76.8,
+    117.4
+   ],
+   "kind": "armL",
+   "rest": 130
   },
   "back": {
    "required": [
@@ -3651,6 +3714,38 @@
      ],
      "kind": "both"
     },
+    "hideface": {
+     "required": [
+      {
+       "id": "pose_hideface",
+       "tex": "winter_pose_hideface",
+       "z": 15.5,
+       "parent": "poseHideface",
+       "grid": [
+        8,
+        9
+       ],
+       "box": [
+        97.2,
+        103.2,
+        59.6,
+        62.0
+       ],
+       "src": "outfits/winter/poses/pose_hideface.png"
+      }
+     ],
+     "pivots": {
+      "poseHideface": [
+       128.0,
+       143.4
+      ]
+     },
+     "wrist": [
+      127.18,
+      117.7
+     ],
+     "kind": "both"
+    },
     "wave": {
      "required": [
       {
@@ -4079,6 +4174,39 @@
      ],
      "kind": "armL",
      "rest": -176
+    },
+    "pat": {
+     "required": [
+      {
+       "id": "pose_pat",
+       "tex": "winter_pose_pat",
+       "z": 15.8,
+       "parent": "posePat",
+       "grid": [
+        8,
+        6
+       ],
+       "box": [
+        63.0,
+        110.6,
+        57.6,
+        39.4
+       ],
+       "src": "outfits/winter/poses/pose_pat.png"
+      }
+     ],
+     "pivots": {
+      "posePat": [
+       107.6,
+       143.4
+      ]
+     },
+     "wrist": [
+      76.8,
+      117.4
+     ],
+     "kind": "armL",
+     "rest": 130
     },
     "back": {
      "required": [

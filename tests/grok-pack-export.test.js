@@ -64,7 +64,7 @@ describe('exported Grok-chan pack', () => {
     // Claude-chan's (the same kit and the same words), and her little bat wings' whumps
     const claude = (await claudeSounds({ upstreamTones })).map((s) => s.name);
     expect(names).toEqual(TONES.map((t) => t.name).filter((n) => claude.includes(n) || n === 'wingbeat'));
-    expect(names.length).toBe(39);
+    expect(names.length).toBe(41);
     // expr2's faces (翻白眼, 震惊, 死鱼眼, 流口水) each with a tone of its own the pack ships
     expect(names).toEqual(expect.arrayContaining(['eyeroll', 'shocked', 'deadpan', 'drool']));
   });
@@ -99,6 +99,15 @@ describe('exported Grok-chan pack', () => {
     expect(m.vocab.filter((w) => ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'].includes(w.id)).map((w) => w.names.zh[0]).sort())
       .toEqual(['低头', '眨眨眼', '凑近', '后仰', '晃来晃去', '跺脚'].sort());
     for (const t of ['dance', 'land']) expect(Object.keys(m.sounds)).not.toContain(t);
+    // and the head moves 抬头, 喘气, 闭眼, 打喷嚏 (the sneeze's whoosh is upstream's own tone: no new sound file)
+    expect(m.vocab.filter((w) => ['lookup', 'pant', 'closeeyes', 'sneeze'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['抬头', '喘气', '闭眼', '打喷嚏']);
+    // her 哎呀 (the flinch's hands to her mouth as a word of its own) with its "uh-oh", and 灵魂出窍 with its "whoo~", both shipped
+    expect(m.vocab.find((w) => w.id === 'oops')).toMatchObject({ kind: 'motion', names: { zh: ['哎呀', '糟了', '闯祸了'] } });
+    expect(m.vocab.find((w) => w.id === 'soulout')).toMatchObject({ kind: 'expression', names: { zh: ['灵魂出窍', '魂飞了', '魂都没了'] } });
+    for (const t of ['oops', 'soul']) expect(Object.keys(m.sounds), t).toContain(t);
+    expect(m.vocab.some((w) => w.id === 'puff')).toBe(false);
+    expect(Object.keys(m.sounds)).not.toContain('bristle');
+    expect(Object.keys(m.sounds)).not.toContain('whoosh');
     expect(Object.keys(m.sounds)).toContain('peek');
     // her wings' word (扇翅膀) goes too, with its sound (the whumps); she has no tail or cat ears to wag or flick
     expect(m.vocab.filter((w) => ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat'].includes(w.id)).map((w) => w.names.zh[0])).toEqual(['扇翅膀']);

@@ -154,7 +154,7 @@ describe('which mode', () => {
   it('the decider prompt names the tail, ears and wings the figure moves, and the tail or wings it has none of', async () => {
     const want: Record<string, string> = {
       'gpt-chan': '姿势,还会摇尾巴、扇翅膀;',
-      'gemini-chan': '姿势,还会摇尾巴、抖耳朵、竖耳朵、耳朵耷拉(没有翅膀);',
+      'gemini-chan': '姿势,还会摇尾巴、炸毛、抖耳朵、竖耳朵、耳朵耷拉(没有翅膀);',
       'grok-chan': '姿势,还会扇翅膀(没有尾巴);',
       whale: '姿势,还会摇尾巴(没有翅膀);',
       'claude-chan': '姿势(没有尾巴、翅膀);',

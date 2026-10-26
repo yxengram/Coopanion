@@ -174,7 +174,7 @@ export const MOOD_EN: Readonly<Record<string, string>> = {
   huff: 'huffy', frantic: 'frantic', ragecry: 'crying with anger', sulk: 'sulking', whimper: 'whimpering',
   brave: 'brave smile', comfort: 'comforting', pained: 'troubled', doubt: 'doubtful', blank: 'blank', meh: 'meh',
   fuming: 'fuming', heartbroken: 'heartbroken', celebrate: 'celebrating', gloomy: 'gloomy', speechless: 'speechless',
-  starry: 'seeing stars',
+  starry: 'seeing stars', soulout: 'soul leaving body',
 };
 
 /** An expression by its name in the console's language; without one, English shows the built-in name or the word's id, and Chinese any name. */

@@ -206,9 +206,10 @@ describe('the whale\'s outfits: `<scheme>-<outfit>`', () => {
     // the same in every scheme), the whole-body drawings (lying, kneeling and its hybrid, the back, the ball, the floor
     // faces and the eyes-shut, smile and talk patches) one per scheme (her hair, eyes, skin and tail take its colours)
     expect(CAPE.poses).toEqual(Object.fromEntries([...POSE_TEX].map(t => [t, t.startsWith('arm_') ? 'shared' : 'scheme'])));
-    expect([ARM_TEX.length, BODY_TEX.length]).toEqual([41, 16]);
-    // (her fist, notebook and fingertips (加油, 记笔记, 对手指) among them: drawn in the winter sleeves, not the maid's files)
-    for (const t of ['arm_fist', 'arm_fist_top', 'arm_jot', 'arm_twiddle']) {
+    expect([ARM_TEX.length, BODY_TEX.length]).toEqual([44, 16]);
+    // (her fist, notebook and fingertips (加油, 记笔记, 对手指) among them, and the hands over her face and the patting hand
+    // (双手捂脸, 摸摸头): drawn in the winter sleeves, not the maid's files)
+    for (const t of ['arm_fist', 'arm_fist_top', 'arm_jot', 'arm_twiddle', 'arm_hideface', 'arm_pat', 'arm_pat_top']) {
       expect(CAPE.poses[t], t).toBe('shared');
       expect(readFileSync(new URL(`outfits/cape/poses/${t}.png`, WHALE)).equals(readFileSync(new URL(`tex/${t}.png`, WHALE))), t).toBe(false);
     }

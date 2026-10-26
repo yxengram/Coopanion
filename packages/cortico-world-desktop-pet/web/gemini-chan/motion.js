@@ -15,7 +15,7 @@
  * then and a twitch when something happens to her. Her cat tail (tailRot, with the warp `tail` along it) swishes in a
  * slow S at rest, wags fast when she is glad, puffs up when startled and droops when she is sad.
  */
-import { clapShut } from '../kit/body.js';
+import { clapShut, pantBreath, sneezeOf } from '../kit/body.js';
 
 export const f1 = n => Math.round(n * 100) / 100;
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -182,10 +182,10 @@ export function partsOf(fc, name = 'neutral') {
   return { eyes: p.eyes ?? name, brows: p.brows ?? name, mouth: p.mouth ?? name, body: p.body ?? name };
 }
 /**
- * Gestures of the head alone (nod, shake, sigh, tilt, and the kit's HEAD_MORE: droop, blink): a plus
- * kit plays them in the frame's `head`, beside its `gesture`.
+ * Gestures of the head alone (nod, shake, sigh, tilt, and the kit's HEAD_MORE: droop, blink, lookup, pant, closeeyes,
+ * sneeze): a plus kit plays them in the frame's `head`, beside its `gesture`.
  */
-export const HEAD_GESTURES = ['nod', 'shake', 'sigh', 'tilt', 'droop', 'blink'];
+export const HEAD_GESTURES = ['nod', 'shake', 'sigh', 'tilt', 'droop', 'blink', 'lookup', 'pant', 'closeeyes', 'sneeze'];
 /**
  * The frame's two gestures, each on its own clock: `head` (a nod, a shake, a sigh, a tilt) and `arm` (anything else). A kit
  * with a head channel hands the head's in `o.head`; one without it (upstream's) plays them as the gesture.
@@ -196,19 +196,23 @@ export function gesturesOf(o) {
 }
 /**
  * The head gesture's moves at its own k: a nod's two dips, a shake's turns, a sigh's breath in and out, and its puff; a
- * curious tilt's lean over to one side and a droop's drop of the head (`down`), each 0..1: over in the first sixth, held,
- * back in the last sixth, as the kit's tiltOf. (`blink` the kit does: the frame's `blink`.)
+ * curious tilt's lean over to one side, a droop's drop of the head (`down`) and a look up's lift of it (`up`), each 0..1:
+ * over in the first sixth, held, back in the last sixth, as the kit's tiltOf. A pant is its quick breaths in and out, a
+ * puff on each breath out (the kit's pantBreath); a sneeze its caught breath (a breath in, the face up a little) and its
+ * jolt (a nod's dip, sharper: SNEEZE_HEAD; the kit's sneezeOf). (`blink` and `closeeyes` the kit does: the frame's `blink`.)
  */
 export function headMoves(h) {
   const k = h ? h.k : 0, is = n => h?.kind === n, held = smooth(0, 1 / 6, k) * (1 - smooth(5 / 6, 1, k));
+  const pant = is('pant') ? pantBreath(k) : null, sn = is('sneeze') ? sneezeOf(k) : null;
   return {
-    nod: is('nod') ? Math.sin(k * Math.PI * 2) ** 2 * (1 - .3 * k) : 0,
+    nod: is('nod') ? Math.sin(k * Math.PI * 2) ** 2 * (1 - .3 * k) : sn ? SNEEZE_HEAD.jolt * sn.jolt : 0,
     shake: is('shake') ? Math.sin(k * Math.PI * 6) * smooth(0, .12, k) * (1 - k) : 0,
-    inh: is('sigh') ? Math.sin(Math.PI * clamp(k / .45, 0, 1)) : 0,
-    exh: is('sigh') ? smooth(.35, .55, k) * (1 - smooth(.8, 1, k)) : 0,
-    puffK: is('sigh') ? clamp((k - .38) / .45, 0, 1) : 0,
+    inh: is('sigh') ? Math.sin(Math.PI * clamp(k / .45, 0, 1)) : pant ? pant.inh : sn ? SNEEZE_HEAD.windup * sn.windup : 0,
+    exh: is('sigh') ? smooth(.35, .55, k) * (1 - smooth(.8, 1, k)) : pant ? pant.exh : 0,
+    puffK: is('sigh') ? clamp((k - .38) / .45, 0, 1) : pant ? pant.puffK : 0,
     tilt: is('tilt') ? held : 0,
     down: is('droop') ? held : 0,
+    up: is('lookup') ? held : sn ? SNEEZE_HEAD.up * sn.windup : 0,
   };
 }
 /**
@@ -225,6 +229,14 @@ export const LIE_TILT = 10;
  * chin (LIE_MORE.down).
  */
 export const DROOP = { pitch: .9, neckTy: 3.5, look: 4 };
+/**
+ * A look up (抬头): standing or seated the face pitches up (angleY), the eyes look up at you (`look`, up), the head rises a
+ * touch on the neck (rig units) and the brows lift (master px); kneeling the drawing's head lifts (KNEEL_HEAD.up), lying it
+ * turns up about the chin (LIE_MORE.up). Her body stays as it is: leaning back (leanback) is the one that takes it along.
+ */
+export const LOOKUP = { pitch: .9, neckTy: 3, look: 5, brow: 3.5 };
+/** A sneeze's head (headMoves): the jolt as a nod of `jolt` at most, the caught breath as a breath in of `windup` and a look up of `up`. */
+export const SNEEZE_HEAD = { jolt: 1.3, windup: .9, up: .5 };
 /**
  * The body's own moves the kit leaves to her: leaning in (degrees of forward lean, and how much nearer her upper body
  * comes: scale), leaning back (degrees, how much further off, and the chin up: angleY), a sway's rock of the whole body
@@ -324,12 +336,12 @@ function drawnWarp(deformers, p, spec, id) {
 /** Lying, how far those parts turn (degrees): the tail's swing each way, the ears out laid down, in stood up. */
 export const LIE_PARTS = { wag: 12, earsDown: 16, earsUp: 7 };
 /** Lying, those moves of the head about the chin (degrees; a lean in also shifts it toward you, rig units). */
-export const LIE_MORE = { down: 9, closer: 6, back: 5, sway: 6 };
+export const LIE_MORE = { down: 9, up: 7, closer: 6, back: 5, sway: 6 };
 /**
  * The moves of her own parts a word asks for (the kit's APPENDAGE_MOVES): word → part. A plus kit hands them in the
  * frame's `appendages`, one slot a part; a kit without it (upstream's, should it ever draw her) plays them as the gesture.
  */
-export const APPENDAGE_WORDS = { wag: 'tail', earflick: 'ears', earsup: 'ears', earsdown: 'ears' };
+export const APPENDAGE_WORDS = { wag: 'tail', earflick: 'ears', earsup: 'ears', earsdown: 'ears', puff: 'tail' };
 /** The frame's moves of her parts, by part ({ tail, ears }: { kind, k } or null). */
 export function appendagesOf(o) {
   const g = o.gesture, part = g && APPENDAGE_WORDS[g.kind];
@@ -346,6 +358,15 @@ export const APP_EASE = 10;
  * radians a second (excited: TAIL.wagRate, 9; its tip flicks besides, up to 8 more), its tip curled up a little (`curl`, as a glad face's 0..1).
  */
 export const WAG = { swing: 36, rate: 13, curl: .6 };
+/**
+ * 炸毛 (puff): the tail's fur puffs up all at once, `scale` more than its startled puff (TAIL.puff), the tail standing up
+ * stiff (as a startle does: its swing all but gone) and bristling, a quick tremble of `bristle` degrees at `rate` radians a
+ * second, then settling as the word hands back (appHold). Drawn into a floor drawing (seated, kneeling, lying), where it
+ * cannot swell, the tail lifts as for a wag (`lift`) and trembles `drawn` of its swing each way (`lie` degrees lying).
+ */
+export const PUFF = { scale: .3, bristle: 3.5, rate: 40, drawn: .7, lie: 7 };
+/** The turn (degrees) of a tail drawn into a floor drawing for 炸毛 at its share `k` and the bristle's clock `ph`. */
+export const drawnPuff = (spec, k, ph) => (spec?.tail && k ? k * ((spec.tail.lift || 0) + PUFF.drawn * spec.tail.swing * Math.sin(ph)) : 0);
 /**
  * Her ears' words: 抖耳朵 (earflick) flicks both out `deg` degrees `n` times, the right ear a little behind (`lag`, of a
  * flick); 竖耳朵 (earsup) stands them up as tall as they go, taller still (`upSy`) and turned in toward upright (`upIn`
@@ -373,9 +394,9 @@ export function tiltEased(x, to, dt) {
 export const tiltSide = face => ((HEAD_TILT[face] || 0) < 0 ? -1 : 1);
 /**
  * How far the kneeling head moves (rig units): a shake's slide, a nod's drop and squash (per unit above the chin), a sigh;
- * a tilt's turn about the chin (degrees at a full tilt).
+ * a tilt's turn about the chin (degrees at a full tilt); a look up's lift of the whole head (rig units).
  */
-export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5, tilt: 9, down: 1.6 };
+export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5, tilt: 9, down: 1.6, up: 1.4 };
 /**
  * Kneeling, the head's gestures on the kneeling drawing, a warp over its head (poses.kneel.head): she faces you, so
  * rather than turning (which would read as a roll of the head) a nod drops the head and squashes its top toward the
@@ -383,11 +404,11 @@ export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5, t
  * -1..1 with its side) turns it about the chin. Nothing moves at the rect's sides and bottom, so the hair and body beyond
  * it never shear against what is inside.
  */
-export function kneelHeadField(rect, { nod = 0, shake = 0, inh = 0, exh = 0, tilt = 0, down = 0 }) {
+export function kneelHeadField(rect, { nod = 0, shake = 0, inh = 0, exh = 0, tilt = 0, down = 0, up = 0 }) {
   const y1 = rect[3], cx = (rect[0] + rect[2]) / 2, K = KNEEL_HEAD, a = tilt * K.tilt * Math.PI / 180, dn = nod + K.down * down;
   return (u, v, x, y) => {
     const w = smooth(0, .18, u) * (1 - smooth(.82, 1, u)) * (1 - smooth(.7, 1, v));
-    return [w * (shake * K.shake - a * (y - y1)), w * (dn * (K.nod + K.squash * (y1 - y)) + K.exh * exh - K.inh * inh + a * (x - cx))];
+    return [w * (shake * K.shake - a * (y - y1)), w * (dn * (K.nod + K.squash * (y1 - y)) + K.exh * exh - K.inh * inh - K.up * up + a * (x - cx))];
   };
 }
 
@@ -426,6 +447,8 @@ export const ARM_ONE = {
   muse: 'chin', fist: 'fist',
   // more one-arm poses: a hand raised high, a thumbs up, a finger to her lips, the back of her wrist wiping her brow
   raise: 'raise', thumbs: 'thumbs', shush: 'shush', wipe: 'wipe',
+  // 摸摸头: a hand held out, palm down, patting (PAT_BOB)
+  pat: 'pat',
 };
 /** Two-arm gestures, one drawing of both arms each: kit gesture → pose. */
 export const ARM_BOTH = {
@@ -435,6 +458,11 @@ export const ARM_BOTH = {
   jot: 'write', twiddle: 'shy',
   // more two-arm poses: clapping (two drawings, see ARM_TWIN), a shrug with the palms up, both hands on her head
   clap: 'clap', shrug: 'shrug', headhold: 'headhold',
+  // 哎呀: the flinch's hands to her mouth, as a gesture of its own (no step back)
+  oops: 'oops',
+  // 抹眼泪: the same fists raised to her eyes and spread to the two of them, rubbing (WEEP: no drawing of its own);
+  // 双手捂脸: both hands over her face below the eyes
+  weep: 'oops', hideface: 'hideface',
 };
 /**
  * A gesture's second drawing, cut to and from its own in a frame (no crossfade: two pairs of hands half seen at once
@@ -451,11 +479,12 @@ export const FACE_ARMS = {
 /** Which arms a pose drawing replaces, unless model.poses.<id>.kind says. */
 export const POSE_KIND = {
   wave: 'armL', chin: 'armL', scratch: 'armL', idea: 'armL', salute: 'armL', vsign: 'armL', point: 'armL', cover: 'armL', fist: 'armL',
-  raise: 'armL', thumbs: 'armL', shush: 'armL', wipe: 'armL',
+  raise: 'armL', thumbs: 'armL', shush: 'armL', wipe: 'armL', pat: 'armL',
 };
 /** A missing drawing stands in for another that is there (the book and the notebook for each other). */
 export const POSE_ALT = { read: ['write'], write: ['read'], search: ['read'], fist: ['vsign'], shy: ['pray'], oops: ['cover'],
-  thumbs: ['fist'], raise: ['wave'], shush: ['cover'], wipe: ['scratch'], clapo: ['clap', 'pray'], clap: ['pray'] };
+  thumbs: ['fist'], raise: ['wave'], shush: ['cover'], wipe: ['scratch'], clapo: ['clap', 'pray'], clap: ['pray'],
+  hideface: ['cover'], pat: ['wave'] };
 /** The calm modes, where faces pose her arms. */
 export const CALM_MODES = ['idle', 'look', 'sit', 'sleep', 'wake'];
 /** The plain arms' spring (stiffness, damping) and limit. */
@@ -489,7 +518,7 @@ export const ARM_FALLBACK = {
   hug: [70, -70], cross: [-34, 34], stretch: [165, -165], curtsy: [16, -16], oops: [-36, 36], search: [-26, 26], shy: [-30, 30],
   write: [-26, 26],
   raise: [175, null], thumbs: [-20, null], shush: [-32, null], wipe: [150, null], clap: [-30, 30], clapo: [-22, 22], shrug: [30, -30],
-  headhold: [160, -160],
+  headhold: [160, -160], hideface: [-34, 34], pat: [110, null],
 };
 
 /**
@@ -528,7 +557,7 @@ export const MOOD = {
   thinking: [.2, .2], run: [.4, .6], waking: [-.3, .1], squeeze: [-.4, 0], neutral: [.1, .3],
   smug: [.5, .5], pout: [.1, .1], worried: [-.4, .1], determined: [.7, .3], flustered: [.3, .7], scared: [-1, 0, -1],
   excited: [1, 1], cry: [-1, 0, -1], confused: [.2, .2], bowing: [-.2, .15], disgusted: [-.4, .05], nervous: [-.4, .1], peeking: [.6, .5],
-  gentle: [.2, .25], awkward: [-.3, .1], giggle: [.4, .6], pleading: [.2, .4], moved: [.3, .45], sighing: [-.3, 0, -.5], petrify: [.6, 0],
+  gentle: [.2, .25], awkward: [-.3, .1], giggle: [.4, .6], pleading: [.2, .4], moved: [.3, .45], sighing: [-.3, 0, -.5], panting: [-.3, 0, -.5], sneezing: [1, .2], petrify: [.6, 0],
   coax: [.6, .9], singing: [.5, .55], saluting: [.7, .3], tongue: [.6, .7], stretching: [.3, .3], pointing: [.6, .4],
   sipping: [.1, .2], reading: [.1, .15],
   // (expr2) rolling her eyes and dead-fish eyes droop a little and go still; shocked is stiff and up; drooling sways
@@ -546,7 +575,7 @@ export const EAR_MOOD = {
   thinking: [.3, 0, 0], confused: [.3, 0, 0], moved: [.3, 0, 0], reading: [.3, 0, 0], gentle: [.2, 0, .1], neutral: [.1, 0, 0],
   sad: [0, .8, 0], cry: [0, 1, 0], scared: [0, 1, 0], angry: [0, .9, 0], squeeze: [0, .7, 0], disgusted: [0, .6, 0],
   worried: [0, .5, 0], nervous: [0, .5, 0], awkward: [0, .4, 0], pout: [0, .4, 0], shy: [0, .4, 0], flustered: [0, .3, 0],
-  dragged: [0, .3, 0], bowing: [0, .2, 0], pleading: [0, .3, .2], sighing: [0, .3, .4], dizzy: [0, 0, .6],
+  dragged: [0, .3, 0], bowing: [0, .2, 0], pleading: [0, .3, .2], sighing: [0, .3, .4], panting: [0, .3, .4], sneezing: [1, 0, 0], dizzy: [0, 0, .6],
   sleepy: [0, 0, .8], sleep: [0, 0, 1], waking: [0, 0, .5], content: [0, 0, .25], sipping: [.1, 0, .1],
   // (expr2) ears back a little rolling her eyes, straight up shocked, drooping dead-eyed, perked at something tasty
   eyeroll: [0, .4, 0], shocked: [1, 0, 0], deadpan: [0, 0, .5], drool: [.3, 0, 0],
@@ -617,7 +646,7 @@ export const BROW = {
   listening: [1, 0], content: [-1, 0], squeeze: [-1, -2], run: [1, 0],
   smug: [1, -1], pout: [-1, -3], worried: [2, 4.5], determined: [0, -3], flustered: [2, 3.5], scared: [3, 4],
   excited: [3, 0], cry: [1, 5], confused: [1, 0, 5], disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
-  gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5],
+  gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], panting: [0, 2.5], sneezing: [1, 3], petrify: [5, 1], coax: [2, 2.5],
   singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
   // (expr2) eyeroll's brows up a little and flat; shocked's high, as petrify's; deadpan's lowered, flat; drool's soft
   eyeroll: [1, -1], shocked: [6, 1], deadpan: [-1.5, 0], drool: [1, 1],
@@ -654,7 +683,16 @@ export function catchUp(gap) {
 // the head's parallax gains [x, y] per layer, front to back
 export const PARALLAX = { headFront: [5, 3], headFeat: [3.5, 2], headMid: [2, 1.4], headBack: [-2, -1.2] };
 /** Poses whose drawing rides the neck (the hand stays on her face as the head moves). */
-export const NECK_POSES = ['cover', 'shush', 'wipe', 'headhold'];
+export const NECK_POSES = ['cover', 'shush', 'wipe', 'headhold', 'hideface'];
+/**
+ * 抹眼泪 (weep): her 哎呀 fists (poses.oops) raised by `ty` and spread apart by `spread` (a scale about the drawing's chest
+ * pivot) from her mouth to her two eyes, rubbing side to side `rub` units at `rate` (rad/s), over weepLift's share.
+ */
+export const WEEP = { ty: 36, spread: 0.45, rub: 1.2, rate: 14 };
+/** How far up at her eyes the weep's fists are (0..1) at `k` of the gesture: up early, down again before the drawing goes. */
+export const weepLift = k => smooth(.1, .3, k) * (1 - smooth(.8, .9, k));
+/** 摸摸头 (pat): how far the hand bobs up (rig units) and how fast (rad/s, |sin|), and how far before the wrist the bend starts. */
+export const PAT_BOB = { amp: 2.5, rate: 8, reach: 12 };
 /** Whole-body drawings: kept out of the arm machinery. */
 export const WHOLE_POSES = ['lie', 'kneel', 'kneelLow', 'back', 'roll', 'sit'];
 
@@ -679,7 +717,7 @@ export function sitAnchors(A, raise) {
   if (!(raise > 0)) return A;
   const up = p => [p[0], f1(p[1] - raise)];
   const out = { ...A };
-  for (const k of ['gaze', 'tear', 'z', 'bubble', 'bulb']) if (A[k]) out[k] = up(A[k]);
+  for (const k of ['gaze', 'tear', 'z', 'bubble', 'bulb', 'mouth']) if (A[k]) out[k] = up(A[k]);
   for (const k of ['tears', 'glints']) if (A[k]) out[k] = A[k].map(up);
   if (A.hearts) out.hearts = [A.hearts[0], A.hearts[1], f1(A.hearts[2] - raise)];
   return out;
@@ -938,13 +976,15 @@ export function pointOf(deformers, id, st, x, y) {
 /* ---------- points the kit and the effects use ---------- */
 /** The kit's anchors (kit units): model.anchors over defaults from the head rect and the eyes. */
 export function anchorsOf(model, R) {
-  const [x0, y0, x1] = R.HEAD, cx = (x0 + x1) / 2, eyes = model.feat?.eyes || {};
+  const [x0, y0, x1] = R.HEAD, cx = (x0 + x1) / 2, eyes = model.feat?.eyes || {}, m = model.feat?.face?.mouth;
   const under = k => { const b = eyes[k]?.ball; return b ? [f1(R.U((b[0] + b[2]) / 2)), f1(R.V(b[3]) + 2)] : [k === 'eyeL' ? cx - 14 : cx + 14, y0 + 70]; };
   const [l, r] = [under('eyeL'), under('eyeR')];
   const out = {
     gaze: [f1((l[0] + r[0]) / 2), f1((l[1] + r[1]) / 2 - 8)], tear: l, tears: [l, r], z: [x1 - 8, y0 + 20],
     hearts: [x0 + 30, x1 - 30, y0 + 40], bubble: [128, y0 - 4], glints: [[x0 + 8, y0 + 24], [x1 - 8, y0 + 36]],
     bulb: [x0 + 4, y0 + 6],
+    // (plus) her mouth, where a sneeze's mist bursts out (the kit's mouthSpot): the sigh's puff point (fxPointsOf)
+    ...(model.fx?.puff ? { mouth: [...model.fx.puff] } : m ? { mouth: [f1(R.U(m[0])), f1(R.V(m[1]))] } : {}),
     ...(model.anchors || {}),
   };
   const KNEEL = R.W.kneel?.pose;
@@ -1049,13 +1089,15 @@ export function createMotion(model, R) {
   let tiltDir = 1, tiltWas = false;
   let tiltK = 0;  // (kneel, lie) the tilt the drawing's head takes (tiltEased)
   let downK = 0;  // a droop's drop of the head, cut short eased back (tiltEased)
+  let lookUpK = 0;  // a look up's lift of the head, the same
+  let weepK = 0;  // 抹眼泪's lift of the fists to her eyes (weepLift), cut short eased back down to her mouth (tiltEased)
   let restPitch = null, sleepK = null;  // the head's resting pitch by face, and how far asleep (pitchEased)
   let sitOwnK = 1, raiseNow = 0;  // (sit) the seated arms' share; how far her points rise over the kit's sink
   let armsT = 9, kneelArmsK = 0;  // (kneel) how long her arms have been at rest; the hybrid's share (bodyAlphas)
   let bodyB = { from: 'stand', to: 'stand', x: 1 }, dropNow = null;  // the body hand-over; the head's sink seated (eased)
   let lieB = { on: false, a: 0 };  // the lying drawing's cut (lieStep)
   let prevSit = 0;  // the kit's sit last frame (rising out of a kneel she stays kneeling)
-  let wagK = 0, tailPh = 0, earUpW = 0, earDownW = 0;  // (appendages) a wag's share and its clock; ears stood up, laid down
+  let wagK = 0, tailPh = 0, earUpW = 0, earDownW = 0, puffW = 0, puffPh = 0;  // (appendages) a wag's share and its clock; ears stood up, laid down; 炸毛's share and its bristle's clock
   let perk = 0, swish = 0, droop = 0, curl = 0, wagPh = 0, puff = 0, earUp = 0, earFlat = 0, earDroop = 0, twitchT = 9, lastFace = null, lastMode = null, browLift = 0, browInner = 0, browSide = 0, backA = 0, backOn = 1, awayA = 0, faceArmT = 0, sinceArmG = 9, lastFaceArm = null, lastArmG = null;
   let armA = { hangL: 1, hangR: 1 };
   let shown = { L: 'hangL', R: 'hangR' };  // the arm drawings showing (armShown)
@@ -1107,12 +1149,14 @@ export function createMotion(model, R) {
     const AP = appendagesOf(o);  // (a word's move of her tail or ears: APPENDAGE_WORDS)
     const env = (a, b) => smooth(0, a, gk) * (1 - smooth(b, 1, gk));
     const is = k => gkind === k;
-    const { nod, shake, inh, exh, puffK, tilt, down } = headMoves(G.head);
+    const { nod, shake, inh, exh, puffK, tilt, down, up: upT } = headMoves(G.head);
     if (G.head?.kind === 'tilt' && !tiltWas) tiltDir = tiltSide(face);
     tiltWas = G.head?.kind === 'tilt';
     const tiltS = tilt * tiltDir;
     tiltK = tiltEased(tiltK, tiltS, dt);
     downK = tiltEased(downK, down, dt);
+    lookUpK = tiltEased(lookUpK, upT, dt);
+    weepK = tiltEased(weepK, gkind === 'weep' ? weepLift(gk) : 0, dt);
     const wave = is('wave') ? env(.15, .8) : 0;
     const bow = is('bow') ? env(.25, .7) : 0;
     const shiver = is('shiver') ? env(.08, .85) : 0;
@@ -1192,6 +1236,8 @@ export function createMotion(model, R) {
     const look = (is('point') || face === 'pointing') && pointDir < 0 ? [-(o.look?.[0] || 0), o.look?.[1] || 0] : [o.look?.[0] || 0, o.look?.[1] || 0];
     // drooping her eyes look down
     if (downK) look[1] = lerp(look[1], DROOP.look, downK);
+    // looking up her eyes look up at you
+    if (lookUpK) look[1] = lerp(look[1], -LOOKUP.look, lookUpK);
 
     /* head: tilt toward what it looks at, droop asleep, wobble dizzy */
     let tiltT = (look[0] * .5 + look[1] * .3) * (1 - .6 * chinA) + Math.sin(t * .9) * 1.2;
@@ -1221,7 +1267,7 @@ export function createMotion(model, R) {
     // facing you, the head turns a touch toward +x at rest; angleY + pitches the face down
     const angleX = clamp(clamp(look[0] / 5, -1, 1) * .9 + gYaw + .12, -1.4, 1.4);
     const angleY = clamp(clamp(look[1] / 4, -1, 1) * .7 + .8 * sleepK + restPitch + nod * .9 + P.pitch + PL.pitch + B.pitch
-      - flinch * .3 - .1 * inh + .3 * exh + awayFace * .35 - .12 * tilt + DROOP.pitch * downK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
+      - flinch * .3 - .1 * inh + .3 * exh + awayFace * .35 - .12 * tilt + DROOP.pitch * downK - LOOKUP.pitch * lookUpK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
 
     /* springs */
     const sway = clamp((o.swing || 0) / 26, -1.6, 1.6);
@@ -1243,7 +1289,12 @@ export function createMotion(model, R) {
     wagK = lerp(wagK, appHold(AP.tail, 'wag'), ease(APP_EASE, dt));
     earUpW = lerp(earUpW, appHold(AP.ears, 'earsup'), ease(APP_EASE, dt));
     earDownW = lerp(earDownW, appHold(AP.ears, 'earsdown'), ease(APP_EASE, dt));
+    // (炸毛 comes on at once, as a startle's puff does, and settles at the word's own pace)
+    const puffHold = appHold(AP.tail, 'puff');
+    puffW = puffHold > puffW ? lerp(puffW, puffHold, ease(30, dt)) : lerp(puffW, puffHold, ease(APP_EASE, dt));
+    puffPh += dt * PUFF.rate;
     if (wagK < 1e-3) wagK = 0;
+    if (puffW < 1e-3) puffW = 0;
     if (earUpW < 1e-3) earUpW = 0;
     if (earDownW < 1e-3) earDownW = 0;
     tailPh += dt * lerp(TAIL.rate + (TAIL.wagRate - TAIL.rate) * clamp(swish, 0, 1) ** 1.5, WAG.rate, wagK);
@@ -1335,7 +1386,25 @@ export function createMotion(model, R) {
           case 'pray': s.ty += 1.5 * Math.abs(Math.sin(t * 6)); break;
           case 'hug': s.sx = 1 + .02 * Math.sin(t * 2.2); break;
           case 'cross': s.a = shiver * 1.2 * Math.sin(t * 43); break;
-          case 'oops': s.a = .6 * Math.sin(t * 31) * (flinch || .3); break;
+          // (哎呀: her hands jump up to her mouth as it starts, then tremble a little)
+          case 'oops': {
+            s.a = .6 * Math.sin(t * 31) * (flinch || .3) * (1 - weepK);
+            if (gkind === 'oops') s.ty -= 2.5 * Math.sin(Math.PI * clamp(gk / .22, 0, 1));
+            // (抹眼泪: raised from her mouth to her eyes and spread apart to the two of them, scaled about the chest pivot,
+            // rubbing side to side; back down to the mouth before the drawing goes. weepK, not weepLift: when another
+            // gesture on this drawing (哎呀, 后缩, 捂嘴笑's fallback) cuts it short, the fists come down over frames, never in one)
+            if (weepK) { s.ty -= WEEP.ty * weepK; s.sx = s.sy = 1 + WEEP.spread * weepK; s.tx = WEEP.rub * weepK * Math.sin(t * WEEP.rate); }
+            break;
+          }
+          // (双手捂脸: pressed to her face, so still on it: the neck carries them, NECK_POSES)
+          case 'hideface': break;
+          case 'pat': {
+            // patting: past the wrist (along shoulder→wrist) the hand bobs up and comes down again; the sleeve stays
+            const [qx, qy] = A.wrist, ux = qx - A.pivot[0], uy = qy - A.pivot[1], ul = Math.hypot(ux, uy) || 1;
+            const dy = -PAT_BOB.amp * Math.abs(Math.sin(t * PAT_BOB.rate)) * k;
+            lift = (u, v, x, y) => [0, dy * smooth(-PAT_BOB.reach, 2, ((x - qx) * ux + (y - qy) * uy) / ul)];
+            break;
+          }
           case 'shy': s.ty += .6 * Math.sin(t * 9); break;
           case 'search': s.a = 1.6 * Math.sin(t * 1.7); break;
           case 'write': {
@@ -1414,11 +1483,11 @@ export function createMotion(model, R) {
     // puffs, hangs low when down or carried, floats up in the air and lies out seated
     curl = lerp(curl, clamp(pk * sw, 0, 1), ease(3, dt));
     const curlNow = lerp(curl, WAG.curl, wagK);
-    const startle = face === 'surprised' ? puff : 0;
-    const tailA = sp.tail.step(sway * 9 - droop * 7 + hairY * 6 + (held ? 6 : 0) - 10 * sitK - 8 * startle, dt)
+    const startle = Math.max(face === 'surprised' ? puff : 0, puffW);
+    const tailA = sp.tail.step(sway * 9 - droop * 7 + hairY * 6 + (held ? 6 : 0) - 10 * sitK - 8 * startle, dt) + puffW * PUFF.bristle * Math.sin(puffPh)
       + (walking ? (mode === 'run' ? 6 : 3) * walkS : 0) + danceK * 8 * Math.sin((o.modeT || 0) * Math.PI * 2 * 1.1) + flap * 10 * Math.sin(t * 17);
     const [rootX, rootY] = st.skirt.fn(tailUV[0], tailUV[1]);
-    const puffS = 1 + TAIL.puff * puff;
+    const puffS = 1 + TAIL.puff * puff + PUFF.scale * puffW;
     st.tailRot = { a: tailA * .6, tx: rootX, ty: rootY, sx: puffS, sy: puffS };
     const asleep = mode === 'sleep', swing = asleep ? 1.2 : (TAIL.swing + TAIL.wag * clamp(swish, 0, 1)) * (1 - .6 * clamp(-droop, 0, 1)) * (1 - .7 * startle);
     const tip = asleep ? 0 : tailFlick(t) * (1 - clamp(-droop, 0, 1)) + 8 * clamp(swish - .7, 0, .3) / .3 * Math.sin(wagPh * 2);
@@ -1426,7 +1495,7 @@ export function createMotion(model, R) {
 
     st.neck = {
       a: headA + clamp(tiltRest * .8, -10, 12),
-      ty: 2.5 * sleepK + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + B.neckTy + nod * 2 + DROOP.neckTy * downK,
+      ty: 2.5 * sleepK + breath * .35 + 3 * titter + P.neckTy + PL.neckTy + B.neckTy + nod * 2 + DROOP.neckTy * downK - LOOKUP.neckTy * lookUpK,
       sx: B.neckSx, sy: B.neckSy,
     };
     const turn = [angleX, angleY];
@@ -1434,7 +1503,7 @@ export function createMotion(model, R) {
     for (const [id, gains] of Object.entries(PARALLAX)) st[id] = { fn: parallax(gains) };
     if (R.hasBrows) {
       const [bl, bi, bs = 0] = BROW[FP.brows] || [0, 0];
-      browLift = lerp(browLift, bl - 1.5 * (o.blink || 0), ease(14, dt));
+      browLift = lerp(browLift, bl - 1.5 * (o.blink || 0) + LOOKUP.brow * lookUpK, ease(14, dt));
       browInner = lerp(browInner, bi, ease(10, dt));
       browSide = lerp(browSide, bs, ease(10, dt));
       const [bx0, , bx1] = deformers.brows.rect;
@@ -1480,8 +1549,8 @@ export function createMotion(model, R) {
     /* whole-body drawings */
     // (lying: her drawn tail swings and her drawn ears turn out or in, LIE_DRAWN)
     const lieEarOut = side => LIE_PARTS.earsDown * earDownW - LIE_PARTS.earsUp * earUpW + flickW(side);
-    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK, down: downK, closer, leanback, sway: swayG,
-      drawn: { tail: wagK * LIE_PARTS.wag * Math.sin(tailPh), earL: -lieEarOut(0), earR: lieEarOut(1) } }, g, gk, caps);
+    if (LIE) lying(st, o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK, down: downK, up: lookUpK, closer, leanback, sway: swayG,
+      drawn: { tail: wagK * LIE_PARTS.wag * Math.sin(tailPh) + puffW * PUFF.lie * Math.sin(puffPh), earL: -lieEarOut(0), earR: lieEarOut(1) } }, g, gk, caps);
     const awayBack = is('away') ? smooth(.05, .07, gk) * (1 - smooth(.93, .95, gk)) : 0;
     awayA = awayStep(awayA, awayBack, g, dt);
     const view = backView(o.facing, awayA), backK = BACK && caps.pose('back') ? view.k : 0;
@@ -1508,7 +1577,7 @@ export function createMotion(model, R) {
     if (KNEEL) {
       const a = kneelA = kneelOK ? bodyA.kneel : 0, shut = eyesShut(o, fc.eyes, mode), m = lyingMouth(o, FP.mouth, mode);
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
-      if (deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(deformers.kneelHead.rect, { nod, shake, inh, exh, tilt: tiltK, down: downK }) };
+      if (deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(deformers.kneelHead.rect, { nod, shake, inh, exh, tilt: tiltK, down: downK, up: lookUpK }) };
       if (deformers.kneelParts) st.kneelParts = drawnState(KNEEL_DRAWN);
       // (with a live face the drawn eyes-shut, smile and talk patches stay off)
       const live = liveOn(KNEEL);
@@ -1529,9 +1598,9 @@ export function createMotion(model, R) {
     return { st, hideFront, look, turn, steam, steamAt, puffK, poseShown: poseA, plan, floorFace };
   }
 
-  /** (sit, kneel) The warp over a floor drawing whose drawn tail wags (SIT_DRAWN, KNEEL_DRAWN): none while it does not. */
+  /** (sit, kneel) The warp over a floor drawing whose drawn tail wags or bristles (SIT_DRAWN, KNEEL_DRAWN): none while it does not. */
   function drawnState(spec) {
-    const a = drawnTail(spec, wagK, tailPh);
+    const a = drawnTail(spec, wagK, tailPh) + drawnPuff(spec, puffW, puffPh);
     return a ? { fn: drawnField(spec, { tail: a }) } : {};
   }
 
@@ -1581,7 +1650,7 @@ export function createMotion(model, R) {
   const MOOD_KICK = { happy: [1.6, 1.4], love: [1.6, 1.2], excited: [1.9, 1.7], wink: [1.3, 1.2], angry: [1.2, 2], sad: [.3, .6], cry: [.2, .6], sleepy: [.4, .7], scared: [.2, 1], worried: [.5, .8] };
   let kickPh = 0;
   function lying(st, o, fc, face, mode, t, dt, breath, poseA, gs, g, gk, caps) {
-    const { nod, shake, bow, flinch, peek, flap, inh, exh, tilt = 0, down = 0, closer = 0, leanback = 0, sway = 0, drawn = {} } = gs, L = LIE.pose;
+    const { nod, shake, bow, flinch, peek, flap, inh, exh, tilt = 0, down = 0, up = 0, closer = 0, leanback = 0, sway = 0, drawn = {} } = gs, L = LIE.pose;
     if (deformers.lieParts) st.lieParts = Object.values(drawn).some(Boolean) ? { fn: drawnField(LIE_DRAWN, drawn) } : {};
     const pv = L.pivots || {}, still = mode === 'sleep' || fc.listen;
     const fid = kind => (g?.kind === kind ? Math.sin(Math.PI * gk) : 0);
@@ -1590,7 +1659,7 @@ export function createMotion(model, R) {
     st.lieBack = { fn: (u, v) => [0, -.8 * (.5 + .5 * breath) * Math.sin(Math.PI * u) * Math.sin(Math.PI * v)] };
     const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look?.[0] || 0, -6, 6) * .3 + 3 * sleepK
       + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + 4 * exh - 2 * inh + fid('chin') * 6 + tilt * LIE_TILT
-      + LIE_MORE.down * down + LIE_MORE.closer * closer - LIE_MORE.back * leanback + LIE_MORE.sway * sway) * Math.PI / 180;
+      + LIE_MORE.down * down - LIE_MORE.up * up + LIE_MORE.closer * closer - LIE_MORE.back * leanback + LIE_MORE.sway * sway) * Math.PI / 180;
     const hx = shake * 2.5 + peek * 3 + LIE_MORE.closer / 3 * closer, [cx, cy] = pv.lieChin || [L.rects?.head?.[0] ?? 128, L.rects?.head?.[3] ?? 200];
     st.lieHead = {
       fn: (u, v, x, y) => { const w = smooth(0, .35, u) * (1 - smooth(.7, 1, v)); return [(-th * (y - cy) + hx) * w, th * (x - cx) * w]; },
@@ -1610,8 +1679,8 @@ export function createMotion(model, R) {
   function reset() {
     springs();
     prevTilt = prevYaw = prevLow = wTilt = wLean = sitK = danceK = lieK = 0;
-    tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; restPitch = sleepK = null;
-    wagK = tailPh = earUpW = earDownW = 0;
+    tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; lookUpK = 0; weepK = 0; restPitch = sleepK = null;
+    wagK = tailPh = earUpW = earDownW = puffW = puffPh = 0;
     perk = swish = droop = curl = wagPh = puff = earUp = earFlat = earDroop = browLift = browInner = browSide = backA = awayA = faceArmT = kickPh = 0;
     backOn = 1;
     sinceArmG = 9; lastFaceArm = lastArmG = null;

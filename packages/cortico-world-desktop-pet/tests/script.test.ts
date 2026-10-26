@@ -48,6 +48,29 @@ describe('parseScript', () => {
     // a bubble with text keeps them where they are
     expect(parseScript('<眨眼>你好').beats).toEqual([{ actions: [], text: '你好', anchors: [{ at: 0, actions: ['wink'] }] }]);
   });
+
+  it('reads an HTML tag in the text as no marker and drops no word: <br> a line break, the others gone', () => {
+    // (the evals' classic runs: <br> was the most-dropped "word")
+    expect(parseScript('我也说不好呀。<br>【温柔+点头】不过')).toEqual({
+      beats: [{ actions: [], text: '我也说不好呀。', anchors: [] }, { actions: ['nod+gentle'], text: '不过', anchors: [] }], dropped: [], notes: [],
+    });
+    expect(parseScript('第一行<br/>第二行<BR />三')).toEqual({ beats: [{ actions: [], text: '第一行\n第二行\n三', anchors: [] }], dropped: [], notes: [] });
+    expect(parseScript('<b>重点</b>来了<span class="x">嗯</span>')).toEqual({ beats: [{ actions: [], text: '重点来了嗯', anchors: [] }], dropped: [], notes: [] });
+    // a tag longer than an inline marker goes too; its offset is the text's
+    const long = '<a href="https://example.com/a/rather/long/path/to/somewhere">';
+    expect(long.length).toBeGreaterThan(INLINE_TAG_MAX);
+    expect(parseScript(`看${long}这里</a><眨眼>`)).toEqual({ beats: [{ actions: [], text: '看这里', anchors: [{ at: 3, actions: ['wink'] }] }], dropped: [], notes: [] });
+    // words written as ids stay markers (blink is a tag name too, but not one of HTML_TAGS), unknown words are still dropped
+    const whale = figurePacks([]).packs.find((p) => p.id === 'whale')!.manifest.vocab;
+    expect(scriptIn('<blink>好<nod>呀', whale)).toEqual({ beats: [{ actions: [], text: '好呀', anchors: [{ at: 0, actions: ['blink'] }, { at: 1, actions: ['nod'] }] }], dropped: [], notes: [] });
+    expect(parseScript('<飞起来>好<smile>').dropped).toEqual(['飞起来', 'smile']);
+    // a word of the pack's own named like a tag stays its word
+    const b: VocabWord = { id: 'b', kind: 'motion', names: { zh: ['蹦'] }, about: { zh: '蹦' }, seconds: 1 };
+    expect(scriptIn('<b>好', [b]).beats).toEqual([{ actions: [], text: '好', anchors: [{ at: 0, actions: ['b'] }] }]);
+    // an unclosed or multi-line one is text, as before
+    expect(parseScript('a<br').beats[0].text).toBe('a<br');
+    expect(parseScript('a<span\nclass="x">b').beats[0].text).toBe('a<span\nclass="x">b');
+  });
 });
 
 describe('vocabTable', () => {
@@ -77,7 +100,7 @@ describe('vocabTable', () => {
 
   it('lists every word once, one line each with its id, names and look', () => {
     for (const v of VOCAB) expect(lines().filter((l) => l.startsWith(`- ${v.id} `)), v.id).toHaveLength(1);
-    expect(row('happy')).toMatch(/^- happy 开心\/高兴\/眯眼笑:/);
+    expect(row('happy')).toMatch(/^- happy 开心\/高兴\/眯眼笑\/笑\/笑眯眯:/);
     expect(row('petrify')).toContain('不和别的同时做');
     expect(row('happy')).not.toContain('不和别的同时做');
   });
@@ -122,8 +145,9 @@ describe('vocabTable', () => {
     expect(groupOf('petrify')).toBe('惊讶、紧张(意外、替对方担心)');
     expect(groupOf('neutral')).toBe('其他');
     // the faces with a mark of their own go by their mood, next to the face they are made of
-    expect(['celebrate', 'heartbroken', 'gloomy', 'fuming', 'speechless', 'starry'].map((id) => groupOf(id))).toEqual([
-      '开心(好消息)', '难过(坏消息、陪对方难过、安慰对方)', '难过(坏消息、陪对方难过、安慰对方)', '生气、嫌弃(被惹、被吐槽)', '生气、嫌弃(被惹、被吐槽)', '惊讶、紧张(意外、替对方担心)']);
+    expect(['celebrate', 'heartbroken', 'gloomy', 'fuming', 'speechless', 'starry', 'soulout'].map((id) => groupOf(id))).toEqual([
+      '开心(好消息)', '难过(坏消息、陪对方难过、安慰对方)', '难过(坏消息、陪对方难过、安慰对方)', '生气、嫌弃(被惹、被吐槽)', '生气、嫌弃(被惹、被吐槽)', '惊讶、紧张(意外、替对方担心)',
+      '惊讶、紧张(意外、替对方担心)']);
     const t = vocabTable(VOCAB);
     expect(t.indexOf('- angry ')).toBeLessThan(t.indexOf('- fuming '));
     expect(t.indexOf('- fuming ')).toBeLessThan(t.indexOf('- huff '));
@@ -178,6 +202,38 @@ describe('vocabulary', () => {
       // (still none for these: no word of hers means them)
       for (const name of ['盖被子', '被戳', '转头']) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(null);
     }
+    // the evals' skipped words that mean a word she has, by every figure that has the word (Coo has no 凑近, 加油, 晃来晃去 or 擦汗)
+    const MEANT2: Record<string, string> = {
+      笑: 'happy', 笑眯眯: 'happy', 睡眼惺忪: 'sleepy', 哈欠: 'sleepy', 靠近: 'closer', 轻轻摇头: 'shake', 瞪大眼: 'surprised', 跳一下: 'hop',
+      雀跃: 'flap', 关心: 'comfort', 后退: 'flinch', 缩: 'flinch', 翻书: 'read', 挥拳: 'fist', 晃一晃: 'sway', 脸红: 'shy', 心跳: 'flutter',
+      点点头: 'nod', 舔嘴: 'crave', 惊恐: 'scared', 僵住: 'petrify', 傲娇: 'huff', 再见: 'wave', 拜拜: 'wave', 挥挥手: 'wave', 谢谢: 'pray',
+      对不起: 'pray', 好冷: 'shiver', 东张西望: 'look', 起身: 'stand', 松了口气: 'wipe', 叹了口气: 'sigh', 头晕: 'dizzy', 递茶: 'serve',
+      捂嘴: 'cover', 心虚: 'awkward', 理亏: 'awkward',
+    };
+    for (const p of figurePacks([]).packs) {
+      const v = p.manifest.vocab;
+      for (const [name, id] of Object.entries(MEANT2)) expect(vocabId(name, v), `${p.id} ${name}`).toBe(p.id === 'coo' && ['closer', 'fist', 'sway', 'wipe'].includes(id) ? null : id);
+      // (仔细看: the girls peek with a magnifying glass; the whale and Coo have none)
+      expect(vocabId('仔细看', v), p.id).toBe(p.id.endsWith('-chan') ? 'peek' : null);
+      // (走近 is a walk's, 发呆 more than blank's: no word of hers by these names)
+      for (const name of ['走近', '发呆']) expect(vocabId(name, v), `${p.id} ${name}`).toBe(null);
+      // each a name of one word only, after the word's own first names
+      for (const w of v) expect(new Set(w.names.zh).size, `${p.id} ${w.id}`).toBe(w.names.zh!.length);
+    }
+    const claude = figurePacks([]).packs.find((p) => p.id === 'claude-chan')!.manifest.vocab;
+    expect(scriptIn('【笑+挥挥手】拜拜啦<松了口气>', claude).beats).toEqual([{ actions: ['wave+happy'], text: '拜拜啦', anchors: [{ at: 3, actions: ['wipe'] }] }]);
+    expect(actionsIn(['脸红+点点头', '心虚', '缩'], claude)).toEqual({ actions: ['nod+shy', 'awkward', 'flinch'], dropped: [], notes: [] });
+    // 抹眼泪, 双手捂脸, 摸摸头 by every name, for the girls and the whale (Coo has none of them); 捂嘴 stays cover's, 擦汗 wipe's
+    const NAMED: Record<string, string> = { 抹眼泪: 'weep', 擦眼泪: 'weep', 抹泪: 'weep', 双手捂脸: 'hideface', 捂脸: 'hideface', 不敢看: 'hideface', 羞死了: 'hideface', 摸摸头: 'pat', 摸摸: 'pat', 乖: 'pat' };
+    for (const p of figurePacks([]).packs) {
+      for (const [name, id] of Object.entries(NAMED)) expect(vocabId(name, p.manifest.vocab), `${p.id} ${name}`).toBe(p.id === 'coo' ? null : id);
+      expect(vocabId('捂嘴', p.manifest.vocab), p.id).toBe('cover');
+      for (const id of ['weep', 'hideface', 'pat']) expect(vocabId(id, p.manifest.vocab), `${p.id} ${id}`).toBe(p.id === 'coo' ? null : id);
+    }
+    // each an arm gesture: with a face and a head move at once, kneeling too (her kneel keeps arms), one after another with another arm gesture
+    expect(actionsIn(['抹眼泪+难过', '羞死了+点头', '摸摸头+安慰'], claude)).toEqual({ actions: ['weep+sad', 'hideface+nod', 'pat+comfort'], dropped: [], notes: [] });
+    expect(actionsIn(['跪坐+捂脸'], claude).actions).toEqual(['kneel+hideface']);
+    expect(actionsIn(['摸摸+招手'], claude).actions).toEqual(['pat', 'wave']);
     // the evals' own lines
     expect(parseScript('【温柔+歪头】唱完啦。').beats[0].actions).toEqual(['tilt+gentle']);
     expect(parseScript('【心疼+挥手】').beats[0].actions).toEqual(['wave+worried']);
@@ -233,6 +289,13 @@ describe('words at once', () => {
     expect(vocabTable(whale)).toMatch(/- sleep [^:]*\(也占手、头、表情、尾巴\):/);
     expect(vocabTable(VOCAB)).not.toMatch(/尾巴|耳朵|翅膀/);
     expect(clashes(gemini.find((v) => v.id === 'wag')!, gemini.find((v) => v.id === 'earflick')!)).toBe(false);
+    // 炸毛 takes her tail, as the wag does: the two split; with the ears' words and an arm gesture it goes at once
+    expect(t).toContain('- wag 摇尾巴/甩尾巴/摆尾巴:');
+    expect(t).toMatch(/- puff 炸毛\/尾巴炸毛\/毛都炸了:/);
+    expect(clashes(gemini.find((v) => v.id === 'wag')!, gemini.find((v) => v.id === 'puff')!)).toBe(true);
+    expect(clashes(gemini.find((v) => v.id === 'puff')!, gemini.find((v) => v.id === 'earsdown')!)).toBe(false);
+    expect(actionsIn(['炸毛+耳朵耷拉+哎呀+害怕'], gemini).actions).toEqual(['oops+puff+earsdown+scared']);
+    for (const v of [gpt, grok, whale]) expect(v.some((w) => w.id === 'puff')).toBe(false);
   });
 
   it('groups words joined by a plus, full-width or with spaces around it, body first and face last', () => {
@@ -468,10 +531,10 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
     // the table puts them with the arm words; the whale has them all (her fist, notebook and fingertips drawn for her), Coo none of them
     const arms = vocabTable(GIRL).split('\n手:\n')[1]!.split('\n手,')[0]!;
     for (const id of ['muse', 'fist', 'jot', 'twiddle']) expect(arms, id).toContain(`\n- ${id} `);
-    expect(row('fist', GIRL)).toBe('- fist 加油/握拳/打气/握拳加油:举起小拳头给你加油,另一只手还抱着书,配当时的表情');
+    expect(row('fist', GIRL)).toBe('- fist 加油/握拳/打气/握拳加油/挥拳:举起小拳头给你加油,另一只手还抱着书,配当时的表情');
     expect(row('muse', WHALE)).toBe('- muse 托腮/撑下巴/托下巴/琢磨:远侧的手托着腮琢磨,配当时的表情');
     expect(scriptIn('【开心+托腮】', WHALE).beats[0].actions).toEqual(['muse+happy']);
-    expect(row('fist', WHALE)).toBe('- fist 加油/握拳/打气/握拳加油:举起小拳头给你加油,配当时的表情');
+    expect(row('fist', WHALE)).toBe('- fist 加油/握拳/打气/握拳加油/挥拳:举起小拳头给你加油,配当时的表情');
     for (const id of ['muse', 'fist', 'jot', 'twiddle']) expect(vocabTable(WHALE).split('\n手:\n')[1]!.split('\n手,')[0]!, `whale ${id}`).toContain(`\n- ${id} `);
     expect(scriptIn('【加油】', WHALE).beats[0].actions).toEqual(['fist']);
     expect(scriptIn('【跪坐+记笔记】', WHALE).beats[0].actions).toEqual(['kneel+jot']);
@@ -517,6 +580,29 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
     expect(vocabId('摇摆', GIRL)).toBe('dance');
     expect(vocabId('摇头晃脑', GIRL)).toBe('sway');
     expect(parseScript('【低头】').dropped).toEqual(['低头']);
+  });
+
+  it('does the head moves 抬头, 喘气, 闭眼 and 打喷嚏 in the head\'s channel: with an arm gesture, a face or a kneel in one group, one after another with another head move', () => {
+    const WHALE = figurePacks([]).packs.find((p) => p.id === 'whale')!.manifest.vocab;
+    const HEADS = ['lookup', 'pant', 'closeeyes', 'sneeze'];
+    for (const id of HEADS) expect(CHANNELS[id], id).toEqual(['head']);
+    for (const [s, want] of [['【害羞+抬头】', 'lookup+shy'], ['【招手+抬头】', 'wave+lookup'], ['【跪坐+喘气】', 'kneel+pant'], ['【累了+难过】', 'pant+sad'],
+      ['【温柔+闭眼】', 'closeeyes+gentle'], ['【跪坐+记笔记+闭上眼睛】', 'kneel+jot+closeeyes'], ['【阿嚏】', 'sneeze'], ['【惊讶+打喷嚏】', 'sneeze+surprised'],
+      ['【看向你+开心】', 'lookup+happy'], ['【气喘吁吁】', 'pant']] as const) {
+      for (const v of [GIRL, WHALE]) {
+        const got = scriptIn(s, v);
+        expect(got.beats[0].actions, s).toEqual([want]);
+        expect(got.notes, s).toEqual([]);
+      }
+    }
+    // two head moves one after another; a kneel lasts through them (named in its note)
+    expect(girlScript('【抬头+点头】').notes).toEqual(['抬头 和 点头 不能同时做,改成先后做。']);
+    expect(girlScript('【打喷嚏+喘气】').beats[0].actions).toEqual(['sneeze', 'pant']);
+    for (const v of [GIRL, WHALE]) expect(lastingNote(v.find((w) => w.id === 'kneel')!, v)).toContain('低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、');
+    // in the prompt's 头 group; Coo has none of them
+    for (const v of [GIRL, WHALE]) for (const id of HEADS) expect(row(id, v), id).toMatch(new RegExp(`^- ${id} `));
+    expect(row('lookup', GIRL)).toBe('- lookup 抬头/抬眼/看向你:把头抬起来、眼睛往上看着你,停一会儿再低回来,配当时的表情');
+    for (const n of ['抬头', '喘气', '闭眼', '打喷嚏']) expect(parseScript(`【${n}】`).dropped, n).toEqual([n]);
   });
 
   it('knows a fast nod and a hard shake as the nod and the shake, on every figure', () => {
@@ -571,8 +657,8 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
   });
 
   it('says how long the kneel lasts by the flag, in the vocabulary table and the note', () => {
-    expect(lastingNote(kneel)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴、耳朵、翅膀的动作、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
-    expect(lastingNote(cooKneel)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴、耳朵、翅膀的动作不影响');
+    expect(lastingNote(kneel)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴、耳朵、翅膀的动作、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(cooKneel)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴、耳朵、翅膀的动作不影响');
     expect(row('kneel', GIRL)).toContain(lastingNote(kneel, GIRL));
     expect(row('kneel', GIRL)).not.toContain('也占手');
     expect(row('kneel', VOCAB)).toMatch(/\(也占手\):/);
@@ -589,15 +675,15 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
     expect(note).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头不影响');
     expect(row('kneel', pack)).toContain(note);
     expect(lastingNote({ ...pack[2], keepsArms: true }, pack.filter((v) => v.id !== 'nod'))).toMatch(/;换表情、只占「手」的手势和唱歌都不影响/);
-    // (the girls have all six; Coo has no 低头 or 眨眨眼, so hers names the four she has; of a tail, ears and wings, only
+    // (the girls have all ten; Coo has no 低头, 眨眨眼, 抬头, 喘气, 闭眼 or 打喷嚏, so hers names the four she has; of a tail, ears and wings, only
     // the parts a figure has: Claude-chan none, Gemini-chan a tail and ears, GPT-chan a tail and wings, Grok-chan wings,
     // the whale a tail)
     const of = (id: string) => figurePacks([]).packs.find((p) => p.id === id)!.manifest.vocab;
     expect(lastingNote(kneel, GIRL)).toBe(lastingNote(kneel).replace('尾巴、耳朵、翅膀的动作、', ''));
-    expect(lastingNote(kneel, of('gemini-chan'))).toContain('眨眨眼、尾巴、耳朵的动作、只占「手」');
-    expect(lastingNote(kneel, of('gpt-chan'))).toContain('眨眨眼、尾巴、翅膀的动作、只占「手」');
-    expect(lastingNote(kneel, of('grok-chan'))).toContain('眨眨眼、翅膀的动作、只占「手」');
-    expect(lastingNote(of('whale').find((v) => v.id === 'kneel')!, of('whale'))).toContain('眨眨眼、尾巴的动作、只占「手」');
+    expect(lastingNote(kneel, of('gemini-chan'))).toContain('打喷嚏、尾巴、耳朵的动作、只占「手」');
+    expect(lastingNote(kneel, of('gpt-chan'))).toContain('打喷嚏、尾巴、翅膀的动作、只占「手」');
+    expect(lastingNote(kneel, of('grok-chan'))).toContain('打喷嚏、翅膀的动作、只占「手」');
+    expect(lastingNote(of('whale').find((v) => v.id === 'kneel')!, of('whale'))).toContain('打喷嚏、尾巴的动作、只占「手」');
     expect(lastingNote(cooKneel, VOCAB)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头不影响');
   });
 });
@@ -625,8 +711,8 @@ describe('kneeling for a figure that leans kneeling (keepsLeans)', () => {
   });
 
   it('says in the kneel note that the leans keep it, for her only (the girls\' note is unchanged)', () => {
-    expect(lastingNote(word(WHALE, 'kneel'), WHALE)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、尾巴的动作、只占「手」的手势、唱歌和凑近、后仰、晃来晃去都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
-    expect(lastingNote(word(GIRL, 'kneel'), GIRL)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(word(WHALE, 'kneel'), WHALE)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴的动作、只占「手」的手势、唱歌和凑近、后仰、晃来晃去都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(word(GIRL, 'kneel'), GIRL)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
   });
 });
 
@@ -634,7 +720,7 @@ describe('partsNote (the decider prompt\'s {{pet.parts}})', () => {
   const vocabOf = (id: string) => figurePacks([]).packs.find((p) => p.id === id)!.manifest.vocab;
   it('names the tail, ears and wings words a figure has, and the tail or wings it has none of (never ears)', () => {
     expect(partsNote(vocabOf('gpt-chan'))).toBe(',还会摇尾巴、扇翅膀');
-    expect(partsNote(vocabOf('gemini-chan'))).toBe(',还会摇尾巴、抖耳朵、竖耳朵、耳朵耷拉(没有翅膀)');
+    expect(partsNote(vocabOf('gemini-chan'))).toBe(',还会摇尾巴、炸毛、抖耳朵、竖耳朵、耳朵耷拉(没有翅膀)');
     expect(partsNote(vocabOf('grok-chan'))).toBe(',还会扇翅膀(没有尾巴)');
     expect(partsNote(vocabOf('whale'))).toBe(',还会摇尾巴(没有翅膀)');
     expect(partsNote(vocabOf('claude-chan'))).toBe('(没有尾巴、翅膀)');

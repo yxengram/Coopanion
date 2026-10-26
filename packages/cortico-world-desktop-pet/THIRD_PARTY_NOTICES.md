@@ -27,15 +27,15 @@ Electron 44.4.4,从 [electron/electron releases](https://github.com/electron/ele
 `web/whale/` 的贴图由 ChatGPT(OpenAI 的图像模型)按参考图生成后拆件:角色原设为「溟月」(上善无形),
 DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项目自己画的图标(`examples/whale/apron-whale.svg`)。
 
-趴姿、招手和托腮的手臂、欢呼的双臂、比心的双手、捧着杯子和书的双手、合十、叉腰、张开的双手、挠头和竖起食指的手臂、端着茶的托盘、敬礼和比耶的手臂、指、捂嘴、抱臂、伸懒腰、屈膝礼的手臂、拍手(合掌和分开)、摊手、抱头、举手、点赞、嘘、擦汗、加油的手臂、记笔记(本子和羽毛笔)和对手指的双手、背面、团成球、跪坐、趴着时的笑嘴和说话嘴、跪坐和趴着时去掉眼睛和嘴的空白脸(画实时的脸用)、得意/生气/难过/害羞/翻白眼/震惊/死鱼眼的眼睛、认真、大哭的眼睛、流口水、震惊、得意、偷笑、大哭、害怕、认真、慌张的嘴的贴图(`tex/lie_*.png`、`tex/arm_wave*.png`、`tex/arm_chin.png`、`tex/arm_cheer_*.png`、`tex/arm_heart.png`、`tex/arm_cup.png`、`tex/arm_book.png`、`tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、`tex/arm_scratch*.png`、`tex/arm_idea*.png`、`tex/arm_tea.png`、`tex/arm_salute*.png`、`tex/arm_vsign*.png`、`tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、`tex/arm_clap*.png`、`tex/arm_shrug.png`、`tex/arm_headhold.png`、`tex/arm_raise.png`、`tex/arm_thumbs.png`、`tex/arm_shush*.png`、`tex/arm_wipe.png`、`tex/arm_fist*.png`、`tex/arm_jot.png`、`tex/arm_twiddle.png`、`tex/back_body.png`、`tex/roll_ball.png`、`tex/kneel_*.png`、`tex/lie_smile.png`、`tex/lie_talk.png`、`feat/smug_eye*.png`、`feat/angry_eye*.png`、`feat/sad_eye*.png`、`feat/shy_eye*.png`、`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/drool_mouth.png`、`feat/determined_eye*.png`、`feat/cry_eye*.png`、`feat/gasp_mouth.png`、`feat/smug_mouth.png`、`feat/giggle_mouth.png`、`feat/cry_mouth.png`、`feat/scared_mouth.png`、`feat/determined_mouth.png`、`feat/flustered_mouth.png`
+趴姿、招手和托腮的手臂、欢呼的双臂、比心的双手、捧着杯子和书的双手、合十、叉腰、张开的双手、挠头和竖起食指的手臂、端着茶的托盘、敬礼和比耶的手臂、指、捂嘴、抱臂、伸懒腰、屈膝礼的手臂、拍手(合掌和分开)、摊手、抱头、举手、点赞、嘘、擦汗、加油的手臂、记笔记(本子和羽毛笔)和对手指的双手、捂脸的双手、摸摸头的手臂、背面、团成球、跪坐、趴着时的笑嘴和说话嘴、跪坐和趴着时去掉眼睛和嘴的空白脸(画实时的脸用)、得意/生气/难过/害羞/翻白眼/震惊/死鱼眼的眼睛、认真、大哭的眼睛、流口水、震惊、得意、偷笑、大哭、害怕、认真、慌张的嘴的贴图(`tex/lie_*.png`、`tex/arm_wave*.png`、`tex/arm_chin.png`、`tex/arm_cheer_*.png`、`tex/arm_heart.png`、`tex/arm_cup.png`、`tex/arm_book.png`、`tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、`tex/arm_scratch*.png`、`tex/arm_idea*.png`、`tex/arm_tea.png`、`tex/arm_salute*.png`、`tex/arm_vsign*.png`、`tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、`tex/arm_clap*.png`、`tex/arm_shrug.png`、`tex/arm_headhold.png`、`tex/arm_raise.png`、`tex/arm_thumbs.png`、`tex/arm_shush*.png`、`tex/arm_wipe.png`、`tex/arm_fist*.png`、`tex/arm_jot.png`、`tex/arm_twiddle.png`、`tex/arm_hideface.png`、`tex/arm_pat*.png`、`tex/back_body.png`、`tex/roll_ball.png`、`tex/kneel_*.png`、`tex/lie_smile.png`、`tex/lie_talk.png`、`feat/smug_eye*.png`、`feat/angry_eye*.png`、`feat/sad_eye*.png`、`feat/shy_eye*.png`、`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/drool_mouth.png`、`feat/determined_eye*.png`、`feat/cry_eye*.png`、`feat/gasp_mouth.png`、`feat/smug_mouth.png`、`feat/giggle_mouth.png`、`feat/cry_mouth.png`、`feat/scared_mouth.png`、`feat/determined_mouth.png`、`feat/flustered_mouth.png`
 及各配色下的同名文件)是按上面这些贴图渲染出的站姿编辑生成,再拆件、按区域换色得到的,属于同一形象的衍生图:
-用的是 ChatGPT 的图像模型(gpt-image-2.5;拍手到擦汗这七个手势和加油、记笔记、对手指的手臂用的是 OpenAI 官方 API 的 gpt-image-2.5-sunburst,翻白眼、震惊、死鱼眼、认真、大哭的眼睛和流口水、震惊、得意、偷笑、大哭、害怕、认真、慌张的嘴也是 gpt-image-2.5-sunburst,只改眼睛或嘴的局部编辑)。
+用的是 ChatGPT 的图像模型(gpt-image-2.5;拍手到擦汗这七个手势和加油、记笔记、对手指的手臂用的是 OpenAI 官方 API 的 gpt-image-2.5-sunburst,翻白眼、震惊、死鱼眼、认真、大哭的眼睛和流口水、震惊、得意、偷笑、大哭、害怕、认真、慌张的嘴也是 gpt-image-2.5-sunburst,只改眼睛或嘴的局部编辑;捂脸和摸摸头的手臂也是 gpt-image-2.5-sunburst 对站姿的编辑)。
 
 冬装(`outfits/cape/*.png`)和它的全身缩略图(`thumbs/cape.png`)取自上游 [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion)
 (上游 v0.1.24 首次发布:部件 commit 4619fd8,#156;缩略图 #159),同一形象的衍生图:ChatGPT 对女仆装母版做「换成冬装」的编辑得到冬装母版,再对它做和女仆装一样的「去掉不属于这个部件的部分、补画被挡住的地方」的编辑拆件;
 角色原设和二创署名同上(「溟月」(上善无形)、ZipZipPipe)。冬装的部件不随配色换色,头发、脸、五官和尾巴用上面各配色的贴图。
-冬装的手臂(`outfits/cape/poses/arm_*.png`,41 张,各配色共用)是本项目做的:对上面女仆装手臂(DeepSeek 配色)所用的编辑图再做只改袖口的局部编辑
-(OpenAI 官方 API 的 gpt-image-2.5-sunburst,蕾丝袖口换成毛绒袖口和蓝色小蝴蝶结),按女仆装手臂的同一个框拆件,再用脚本去掉前臂周围残留的女仆装
+冬装的手臂(`outfits/cape/poses/arm_*.png`,44 张,各配色共用)是本项目做的:对上面女仆装手臂(DeepSeek 配色)所用的编辑图再做只改袖口的局部编辑
+(gpt-image-2.5-sunburst,捂脸和摸摸头以外的 41 张经 OpenAI 官方 API,蕾丝袖口换成毛绒袖口和蓝色小蝴蝶结),按女仆装手臂的同一个框拆件,再用脚本去掉前臂周围残留的女仆装
 (围裙、腰带、衬衫),并把垂到头发上的袖子收短到袖口,属于同一形象的衍生图;
 角色原设和二创署名同上(「溟月」(上善无形)、ZipZipPipe)。
 冬装的整身姿势图(`outfits/cape/schemes/<配色>/poses/*.png`:`kneel_*`、`lie_*`、`back_body`、`roll_ball`,每套配色 16 张)也是本项目做的:
@@ -54,7 +54,7 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
 
-冬装(`outfits/winter/`,51 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
+冬装(`outfits/winter/`,53 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
@@ -64,7 +64,7 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
 
-冬装(`outfits/winter/`,48 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
+冬装(`outfits/winter/`,50 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
@@ -74,7 +74,7 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
 
-冬装(`outfits/winter/`,47 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
+冬装(`outfits/winter/`,50 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 
@@ -84,7 +84,7 @@ DeepSeek 女仆装二创参考 ZipZipPipe。围裙上的喷水小鲸鱼是本项
 图由 GPT 的图像模型(gpt-image-2.5)按这个角色设定生成,再由本项目拆件。
 翻白眼、震惊、死鱼眼的眼睛和流口水、震惊的嘴(`feat/eyeroll_eye*.png`、`feat/shocked_eye*.png`、`feat/deadpan_eye*.png`、`feat/mouth_drool.png`、`feat/mouth_gasp.png`)是在她的母版上只改眼睛或嘴的局部编辑(gpt-image-2.5-sunburst),再按原有贴图裁切。
 
-冬装(`outfits/winter/`,48 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
+冬装(`outfits/winter/`,50 张)是本项目自己做的:对她的母版和各张图的来源图(站姿部件、手臂、坐姿、跪坐、趴着、背面、团成球)做「换成冬装」的编辑(GPT 的图像模型 gpt-image-2.5-sunburst),再按原有贴图的框和对齐裁切,头部沿用上面的贴图;服装缩略图 `thumbs/classic.png`、`thumbs/winter.png` 是用这些贴图渲染的。角色设定同上(ZipZipPipe（Bilibili）),属于同一角色的衍生图。
 
 原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们不在本包的 AGPL 授权范围内,随 Coopanion 分发。
 

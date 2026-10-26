@@ -22,7 +22,7 @@ export const FACE_EYES = {
   sad: 'sad', worried: 'sad', shy: 'shy', smug: 'smug', cry: 'cry', eyeroll: 'eyeroll', shocked: 'shocked', deadpan: 'deadpan',
 };
 /** Faces with half-shut eyes: the drawn half lid shows while the lid is not nearly shut. */
-export const HALF_LID = ['sleepy', 'content', 'gentle', 'reading', 'sipping', 'disgusted', 'smug', 'sighing', 'drool'];
+export const HALF_LID = ['sleepy', 'content', 'gentle', 'reading', 'sipping', 'disgusted', 'smug', 'sighing', 'drool', 'panting'];
 /**
  * How far shut (a blink, or the kit closing her eyes from one face to the next) a drawn open eye may be: past it the
  * painted eye takes over, its lid lowered by as much, so the closed frames show the lid and its lash line; squashed
@@ -49,6 +49,8 @@ export const MOUTHS = {
   saluting: ['smile', .15], stretching: [['surprised_mouth', .75], 'a', 'O'], pointing: ['smile', .3], peeking: ['neutral_mouth', 0],
   sipping: ['smile', .3], reading: ['neutral_mouth', 0], bowing: ['smile', .3], sighing: [0], singing: ['smile', .5], coax: ['cat', 'smile', .5],
   tongue: ['tongue', 'smile', .5],
+  // (a pant's and a sneeze's open mouths come from the face's `puff`; these are for a frame without it)
+  panting: [['surprised_mouth', .7], 'O'], sneezing: [['surprised_mouth', .6], 'O'],
   // (shocked's own gasp; drool's slack mouth with its drop, else the tip of the tongue)
   eyeroll: [['frown', .8], -.3], shocked: ['gasp', ['surprised_mouth', 1.1], 'a', 'O'], deadpan: [[0, .9]], drool: ['drool', 'tongue', .4],
 };

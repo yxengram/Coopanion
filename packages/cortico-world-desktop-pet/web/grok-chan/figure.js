@@ -22,14 +22,15 @@ import { fxMarkup } from './fx.js';
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 /**
- * The gestures she draws herself, from the frame's `gesture` (nod, shake, sigh, tilt and droop from its `head` on a kit that
+ * The gestures she draws herself, from the frame's `gesture` (nod, shake, sigh, tilt, droop, lookup, pant and sneeze from its `head` on a kit that
  * has one: motion.gesturesOf; and the moves of the body the kit leaves to her: closer, leanback, sway); the kit leaves them
  * off the body. `roll` joins them only while its ball drawing can show; without it the kit turns her whole group over
  * (`roll: 'spin'`).
  */
-export const GESTURES = ['nod', 'shake', 'tilt', 'droop', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read',
+export const GESTURES = ['nod', 'shake', 'tilt', 'droop', 'lookup', 'pant', 'sneeze', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read',
   'sigh', 'pray', 'closer', 'leanback', 'sway', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy',
-  'muse', 'fist', 'jot', 'twiddle', 'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
+  'muse', 'fist', 'jot', 'twiddle', 'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe', 'oops',
+  'weep', 'hideface', 'pat'];
 
 /**
  * Seconds of the kit's frame a fresh motion is stepped through before the first frame in another outfit (setScheme):

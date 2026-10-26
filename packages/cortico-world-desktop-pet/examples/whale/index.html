@@ -136,7 +136,7 @@ const MOODS = [
   ['喜欢、害羞(表白、礼物)', ['love', 'flutter', 'smitten', 'shy', 'bashful', 'moved', 'gentle']],
   ['难过(坏消息、陪对方难过、安慰对方)', ['sad', 'comfort', 'sulk', 'cry', 'whimper', 'heartbroken', 'gloomy', 'brave', 'pained']],
   ['生气、嫌弃(被惹、被吐槽)', ['angry', 'fuming', 'huff', 'frantic', 'ragecry', 'pout', 'disgusted', 'eyeroll', 'meh', 'deadpan', 'speechless']],
-  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'shocked', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
+  ['惊讶、紧张(意外、替对方担心)', ['surprised', 'shocked', 'soulout', 'blank', 'starry', 'scared', 'worried', 'nervous', 'flustered', 'awkward', 'petrify']],
   ['其他', ['neutral', 'thinking', 'confused', 'doubt', 'determined', 'eager', 'sleepy']],
 ];
 // script.ts APPENDAGES, APPENDAGE_NAMES, CHANNELS, KNEEL_WITH_ARMS, channelsOf, rankOf, PARTS, appendageLabel, partOf
@@ -145,11 +145,13 @@ const APPENDAGE_NAMES = { tail: '尾巴', ears: '耳朵', wings: '翅膀' };
 const ALL = ['face', 'head', 'arm', 'body', 'stance', ...APPENDAGES];
 const CHANNELS = {
   nod: ['head'], shake: ['head'], sigh: ['head'], tilt: ['head'], droop: ['head'], blink: ['head'],
-  wag: ['tail'], earflick: ['ears'], earsup: ['ears'], earsdown: ['ears'], wingbeat: ['wings'],
+  lookup: ['head'], pant: ['head'], closeeyes: ['head'], sneeze: ['head'],
+  wag: ['tail'], earflick: ['ears'], earsup: ['ears'], earsdown: ['ears'], wingbeat: ['wings'], puff: ['tail'],
   wave: ['arm'], shiver: ['arm'], heart: ['arm'], serve: ['arm'], salute: ['arm'], vsign: ['arm'], point: ['arm'],
   cover: ['arm'], cross: ['arm'], stretch: ['arm'], pray: ['arm'], scratch: ['arm'], idea: ['arm'], hug: ['arm'], hips: ['arm'],
   spout: ['arm'], sip: ['arm'], read: ['arm'], muse: ['arm'], fist: ['arm'], jot: ['arm'], twiddle: ['arm'],
-  clap: ['arm'], shrug: ['arm'], headhold: ['arm'], raise: ['arm'], thumbs: ['arm'], shush: ['arm'], wipe: ['arm'],
+  clap: ['arm'], shrug: ['arm'], headhold: ['arm'], raise: ['arm'], thumbs: ['arm'], shush: ['arm'], wipe: ['arm'], oops: ['arm'],
+  weep: ['arm'], hideface: ['arm'], pat: ['arm'],
   song: ['arm', 'stance'], bow: ['arm', 'stance'], flinch: ['arm', 'stance'], peek: ['arm', 'stance'], away: ['arm', 'stance'],
   spin: ['arm', 'stance'], cheer: ['arm', 'stance'], turn: ['stance'],
   closer: ['arm', 'stance'], leanback: ['arm', 'stance'], sway: ['arm', 'stance'],

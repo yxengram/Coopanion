@@ -9,7 +9,7 @@
  * With `opts.plus` the body does more: it lies down on its front and kneels, and knows the faces and
  * motions in PLUS_EXPRESSIONS / PLUS_MOTIONS (a song, a spout, a roll, a cup of tea…; faces made of the eyes of
  * one and the mouth of another, PLUS_MIXES) with their particles (glints, rings of song, a bulb, chips of stone,
- * spray, and the marks of MARK_FX_KEYS: steam, a broken heart, confetti, a rain cloud, 「……」). Coo, the whale and the
+ * spray, and the marks of MARK_FX_KEYS: steam, a broken heart, confetti, a rain cloud, 「……」, a little ghost). Coo, the whale and the
  * four girls ask for it; without it the body is the kit as any other pack knows it.
  * Two faces in one group are one asked-for face, the first one's eyes and the second one's mouth (`eyes+mouth`).
  *
@@ -205,6 +205,26 @@ export const PLUS_FACES = {
     const r = 14 - 8 * smooth(clamp((k - .35) / .25, 0, 1));
     return { gap: [46, 46], eyes: [{ shape: 'lid', ry: r }, { shape: 'lid', ry: r }], brows: 'sad', lookAt: [0, 2], puff: Math.sin(Math.PI * clamp((k - .38) / .4, 0, 1)) };
   } },
+  // ...a pant (the `pant` gesture's breaths, pantBreath): tired half-shut eyes under raised brows, flushed, a drop of
+  // sweat, the mouth open all through and wider on each breath out; once it is over (or cut short) a plain face
+  panting:   { label: '喘气', f: (t, p) => {
+    const g = p?.head?.kind === 'pant' ? p.head : null, k = g ? (t - g.t0) / g.dur : 1;
+    if (!g || k >= 1) return { gap: [50, 50], eyes: [ring(), ring()] };
+    const b = pantBreath(k);
+    return { gap: [54, 54], eyes: [{ shape: 'lid', ry: 10 }, { shape: 'lid', ry: 10 }], brows: 'sad', blush: .45, sweat: true, lookAt: [0, 1], puff: .55 + .45 * b.exh / PANT.amp };
+  } },
+  // ...a sneeze (sneezeOf): eyes narrowing and the mouth opening as the breath catches, squeezed shut for the jolt
+  // (> <), then open again with a little blush; once it is over (or cut short) a plain face
+  sneezing:  { label: '打喷嚏', f: (t, p) => {
+    const g = p?.head?.kind === 'sneeze' ? p.head : null, k = g ? (t - g.t0) / g.dur : 1;
+    if (!g || k >= 1) return { gap: [50, 50], eyes: [ring(), ring()] };
+    if (k < SNEEZE.at) {
+      const w = sneezeOf(k).windup, r = 14 - 9 * w;
+      return { gap: [50, 50], eyes: [{ shape: 'lid', ry: r }, { shape: 'lid', ry: r }], brows: 'sad', lookAt: [0, -2], puff: .25 + .6 * w };
+    }
+    if (k < SNEEZE.at + .22) return { gap: [56, 56], eyes: [{ shape: 'gt' }, { shape: 'lt' }], puff: .35 };
+    return { gap: [50, 50], eyes: [ring(), ring()], blush: .35 };
+  } },
   // ...singing (the `song` pulse): eyes shut and smiling, chin up, the mouth opening on the beat
   singing:   { label: '唱歌', f: (t, p) => {
     const g = p?.pulse?.kind === 'song' ? p.pulse : null, s = g ? t - g.t0 : 0;
@@ -265,6 +285,9 @@ export const PLUS_MIXES = {
   gloomy:   { label: '郁闷', kao: '(- ︿ -)', eyes: 'disgusted', mouth: 'sad', body: 'sad', add: { cloud: true, gloom: false, lookAt: [1, 3] } },
   speechless: { label: '无言以对', kao: '(・ _ ・;)…', eyes: 'neutral', mouth: 'awkward', add: { dots: true, sweat: true } },
   starry:   { label: '眼冒金星', kao: '(> ~ <) *', eyes: 'flustered', mouth: 'flustered', add: { orbit: true, sweat: false } },
+  // her soul slipping out (灵魂出窍): dull dead-fish eyes, the mouth hanging open, slumped as a sad face slumps, and a
+  // little ghost of her rising out of the top of her head to hover beside it (`soul`)
+  soulout:  { label: '灵魂出窍', kao: '(ー o ー)~', eyes: 'deadpan', mouth: 'surprised', body: 'sad', add: { soul: true } },
 };
 /** The faces and motions a plus body adds to the kit's words. `lie` and `kneel` last until something else happens. */
 export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'giggle', 'moved', 'petrify', 'coax', 'tongue',
@@ -272,7 +295,8 @@ export const PLUS_EXPRESSIONS = ['disgusted', 'nervous', 'gentle', 'awkward', 'g
 export const PLUS_MOTIONS = ['lie', 'flinch', 'peek', 'cheer', 'heart', 'away', 'roll', 'sip', 'read', 'spout', 'sigh', 'tilt',
   'pray', 'scratch', 'idea', 'hips', 'hug', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'kneel',
   'muse', 'fist', 'jot', 'twiddle', 'droop', 'blink', 'closer', 'leanback', 'sway', 'stamp', 'wag', 'earflick', 'earsup', 'earsdown',
-  'wingbeat', 'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
+  'wingbeat', 'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe', 'lookup', 'pant', 'closeeyes', 'sneeze', 'oops', 'puff',
+  'weep', 'hideface', 'pat'];
 /** The tones of the plus faces, filed as face sounds like the kit's; comfort, expr2's four and the faces with marks of
  *  their own have tones of their own (web/sound.js), the marks' timed to them (the steam's puffs, the heart's crack, the dots). */
 const PLUS_FACE_TONES = {
@@ -281,7 +305,7 @@ const PLUS_FACE_TONES = {
   smirk: 'wink', sly: 'wink', blissful: 'soft', lol: 'hehe', laughcry: 'hehe', bashful: 'shy', flutter: 'love', smitten: 'love', wow: 'sparkle',
   crave: 'sparkle', dreamy: 'sparkle', eager: 'pop', innocent: 'shy', huff: 'angry', frantic: 'angry', ragecry: 'sad', sulk: 'sad', whimper: 'sad',
   brave: 'wry', comfort: 'comfort', pained: 'hmm', doubt: 'hmm', blank: 'hmm', meh: 'wry',
-  fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry',
+  fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry', soulout: 'soul',
 };
 /**
  * (plus) A curious head tilt (`tilt`): seconds in all, and degrees for a body the kit tilts itself (Coo, whose whole ring
@@ -296,9 +320,51 @@ export const tiltOf = k => envelope(clamp(k, 0, 1), 1 / 6, 5 / 6);
  * idle blink, which comes again after .28 s at most once). The kit blinks her for
  * `blink` whatever figure draws her; a figure listing `droop` in `gestures` draws it itself.
  */
-export const HEAD_MORE = { droop: 1.8, blink: .75 };
+export const HEAD_MORE = { droop: 1.8, blink: .75, lookup: 1.8, pant: 2.2, closeeyes: 1.8, sneeze: 1.5 };
 /** (plus) When the blinks of a `blink` start (k of HEAD_MORE.blink): .25 s apart, each a .16 s blink with the eyes open between. */
 export const BLINKS = [0, 1 / 3, 2 / 3];
+/*
+ * (plus) The rest of HEAD_MORE, in the head's channel too: `lookup` (抬头) lifts the face and the eyes up toward you and
+ * holds them there (over and back as a droop: tiltOf), no face or sound of its own; `pant` (喘气) is PANT.n quick
+ * breaths with the mouth open (its own face, `panting`: tired half-shut eyes, a drop of sweat, a puff of breath each
+ * time out: pantBreath); `closeeyes` (闭眼) shuts the eyes over whatever face she shows and opens them again (the kit
+ * does it, for any figure: the frame's `blink`, eyesClosed), the head staying up, so it is not dozing off; `sneeze`
+ * (打喷嚏) catches its breath twice, eyes narrowing and mouth opening, then jerks forward at SNEEZE.at with its eyes
+ * squeezed shut (its own face, `sneezing`), a whoosh and a little burst of mist from the mouth (sneezeOf).
+ */
+/** (plus) A pant's breaths: how many, the share of each that is the breath in, and how deep at most (0..1). */
+export const PANT = { n: 4, inShare: .4, amp: .8 };
+/**
+ * (plus) A pant at k (0..1): `inh` and `exh` (0..PANT.amp) of the breath it is in, and `puffK` (0..1) how far that
+ * breath's puff has gone out (0 on a breath in, and outside the pant): eased in over its first and out over its last
+ * moments, so a pant starting or ending does not jump.
+ */
+export function pantBreath(k) {
+  if (!(k > 0 && k < 1)) return { inh: 0, exh: 0, puffK: 0 };
+  const e = smooth(clamp(k / .06, 0, 1)) * (1 - smooth(clamp((k - .9) / .1, 0, 1))), u = (k * PANT.n) % 1, s = PANT.inShare;
+  const inh = u < s ? Math.sin(Math.PI * u / s) : 0, out = u < s ? 0 : (u - s) / (1 - s);
+  return { inh: PANT.amp * e * inh, exh: PANT.amp * e * Math.sin(Math.PI * out), puffK: k < .92 ? out : 0 };
+}
+/**
+ * (plus) Where a sneeze's jolt comes (k of HEAD_MORE.sneeze), how long it takes to die away (k), and how long after its
+ * start the mist bursts out (k): at the jolt's peak, once the head has come down from the caught breath's look up, so the
+ * mist leaves her mouth where it is then (bursting at the jolt's start, the head then dropped some 8 units under it and
+ * the mist hung over her eyes).
+ */
+export const SNEEZE = { at: .45, decay: .3, mist: .03 };
+/**
+ * (plus) A sneeze at k: `windup` (0..1) the breath caught before it, in two catches ("a… a…"), the head going back with
+ * it; `jolt` (0..1) the jerk forward and down at SNEEZE.at, at once and dying away over SNEEZE.decay.
+ */
+export function sneezeOf(k) {
+  if (!(k > 0 && k < 1)) return { windup: 0, jolt: 0 };
+  const a = SNEEZE.at, u = clamp(k / a, 0, 1);
+  const windup = k < a ? smooth(u) * (.8 + .2 * Math.cos(Math.PI * 4 * u)) : 1 - smooth(clamp((k - a) / .05, 0, 1));
+  const v = (k - a) / SNEEZE.decay, jolt = k < a ? 0 : v < .1 ? v / .1 : Math.max(0, 1 - smooth(clamp((v - .1) / .9, 0, 1)));
+  return { windup, jolt };
+}
+/** (plus) How far shut a `closeeyes` keeps the eyes at k (0..1): shut within its first .14 s, open again in its last .2 s. */
+export const eyesClosed = k => (k > 0 && k < 1 ? smooth(clamp(k / .08, 0, 1)) * (1 - smooth(clamp((k - .89) / .11, 0, 1))) : 0);
 /**
  * (plus) Moves of the body standing or seated still, seconds each: `closer` (凑近) leans in toward you and back, `leanback`
  * (后仰) leans back and back again, `sway` (晃来晃去) rocks from side to side three times, `stamp` (跺脚) stamps one foot twice
@@ -321,7 +387,8 @@ export const stampLift = k => {
 /**
  * (plus) Moves of a figure's own parts beyond the kit's body, by word: [part, seconds]. `wag` (摇尾巴) wags the tail,
  * `earflick` (抖耳朵) flicks the ears a few times quickly, `earsup` (竖耳朵) stands them tall, `earsdown` (耳朵耷拉) lays them
- * down, `wingbeat` (扇翅膀) beats the wings. Each part plays in its own slot (`pet.app[part]`, the frame's `appendages`:
+ * down, `wingbeat` (扇翅膀) beats the wings, `puff` (炸毛) puffs the tail's fur up all at once, stiff and bristling, and
+ * lets it settle. Each part plays in its own slot (`pet.app[part]`, the frame's `appendages`:
  * { tail, ears, wings }, each { kind, k: 0..1 } or null), beside the head's and the arms' gestures, without a face or a
  * change of mode (a walk goes on, a kneel stays). The kit draws none of them: a figure that has the part draws it, over its
  * mood's own movement of that part while the word lasts; one without it shows nothing.
@@ -333,7 +400,7 @@ export const stampLift = k => {
  */
 export const CLAP = { dur: 2.2, at: [.35, .75, 1.15, 1.55], shut: .2 };
 export const clapShut = k => CLAP.at.some(a => { const s = k * CLAP.dur - a; return s >= 0 && s < CLAP.shut; });
-export const APPENDAGE_MOVES = { wag: ['tail', 2.4], earflick: ['ears', 1.1], earsup: ['ears', 2], earsdown: ['ears', 2], wingbeat: ['wings', 2] };
+export const APPENDAGE_MOVES = { wag: ['tail', 2.4], earflick: ['ears', 1.1], earsup: ['ears', 2], earsdown: ['ears', 2], wingbeat: ['wings', 2], puff: ['tail', 1.8] };
 /** (plus) Gestures of the head alone: they play in their own channel (`pet.head`, the frame's `head`), alongside any other gesture. */
 export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt', ...Object.keys(HEAD_MORE)]);
 /**
@@ -347,13 +414,13 @@ export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt', ...Object.
 export const KNEEL_LEANS = ['closer', 'leanback', 'sway'];
 export const ARM_GESTURES = ['wave', 'shiver', 'heart', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch',
   'pray', 'scratch', 'idea', 'hug', 'hips', 'spout', 'sip', 'read', 'muse', 'fist', 'jot', 'twiddle',
-  'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
+  'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe', 'oops', 'weep', 'hideface', 'pat'];
 /**
  * (plus) The motions' own faces that are their gesture's body language for a figure (pray arms for a song, the chin up
  * reading…): under an asked-for face such a gesture keeps them, the face becoming `asked+mouth+own` (see `mixFace`).
  * The value says whether the gesture's mouth goes with it (a song's beat, a sigh's "ha").
  */
-const BODY_OWN = { singing: true, sighing: true, reading: false, sipping: false, stretching: false, saluting: false,
+const BODY_OWN = { singing: true, sighing: true, panting: true, sneezing: true, reading: false, sipping: false, stretching: false, saluting: false,
   pointing: false, peeking: false, bowing: false, pleading: false };
 /** (plus) Seconds an asked-for face may stay covered (carried, dizzy, asleep, listening…) before it is dropped. */
 const COVER_MAX = 5;
@@ -363,11 +430,12 @@ const MODE_WORDS = new Set(['stand', 'sit', 'kneel', 'lie', 'sleep', 'walk', 'ru
 /**
  * (plus) Marks over a face that the kit draws itself, for any figure (so a figure's own effects need not know them): `fume`
  * puffs steam off both sides of the head, `heartbreak` shows a heart that cracks and falls apart in two, `confetti`
- * throws confetti up over her, `cloud` hangs a little rain cloud beside the head, `dots` writes 「……」 a dot at a time.
- * The puffs, hearts and confetti are particles (the first as the face comes on, then on their own clock); the cloud and
- * the dots follow the head. Lying, they go to the lying head's spots.
+ * throws confetti up over her, `cloud` hangs a little rain cloud beside the head, `dots` writes 「……」 a dot at a time,
+ * `soul` lets a little ghost out of the top of the head that drifts up to the spot beside it (the cloud's) and hovers
+ * there, a wisp still tying it to her crown. The puffs, hearts and confetti are particles (the first as the face comes
+ * on, then on their own clock); the cloud, the dots and the ghost follow the head. Lying, they go to the lying head's spots.
  */
-const MARK_FX_KEYS = ['fume', 'heartbreak', 'confetti', 'cloud', 'dots'];
+const MARK_FX_KEYS = ['fume', 'heartbreak', 'confetti', 'cloud', 'dots', 'soul'];
 /*
  * (plus) A face made of parts of others: the eyes (eyes, sparkle, gaze, tears, blush) of one, the brows of another, the
  * mouth (gap, ω, tongue, puff, sing) of a third, body language (lean, sag, titter, rock, shake) and marks (sweat, anger,
@@ -477,8 +545,9 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  *   a figure without it stays seated where it would lie.
  * - `anchors.tears` (one tear start under each eye), `anchors.glints` ([[x, y]…], where glints flash; otherwise beside
  *   the bubble's spot), `anchors.spout` (where a spout leaves the head; otherwise under the bubble's spot),
- *   `anchors.bulb` (where an idea's bulb lights; otherwise beside the bubble's spot), `anchors.kneelRaise` (how much
- *   higher the head sits kneeling than seated).
+ *   `anchors.bulb` (where an idea's bulb lights; otherwise beside the bubble's spot), `anchors.mouth` (where a sneeze's
+ *   mist bursts out; otherwise a little under the tears' spots), `anchors.kneelRaise` (how much higher the head sits
+ *   kneeling than seated).
  * - `poses`: `{ lie, back }`; `poses.lie === false` says the lying pose cannot show right now; `poses.back === true`
  *   says the figure draws its own back view: turning round, the group is then never squeezed below 85% of its width
  *   (it flips at the middle) and the figure shows the turn from the frame's `facing` (-1..1).
@@ -802,6 +871,13 @@ export function createPet(els, opts) {
       // own, so each goes with the face she shows
       case 'droop': pulse('droop', HEAD_MORE.droop); break;
       case 'blink': pulse('blink', HEAD_MORE.blink); break;
+      // the face lifted up toward you and held; the eyes shut a moment (eyesClosed); neither has a sound or a face of its
+      // own. A pant (its breaths, pantBreath) and a sneeze (sneezeOf: its whoosh and mist come with the jolt, see step)
+      // each have a face of their own, like a sigh's
+      case 'lookup': pulse('lookup', HEAD_MORE.lookup); break;
+      case 'closeeyes': pulse('closeeyes', HEAD_MORE.closeeyes); break;
+      case 'pant': pulse('pant', HEAD_MORE.pant); holdFace('panting', HEAD_MORE.pant + .1, 'head'); break;
+      case 'sneeze': pulse('sneeze', HEAD_MORE.sneeze); holdFace('sneezing', HEAD_MORE.sneeze + .1, 'head'); break;
       // leaning in toward you; leaning back (a laugh, taken aback); rocking side to side; stamping a foot (she stands for
       // it), each with whatever face she shows (BODY_MORE)
       case 'closer': if (!seated) setMode('idle'); pulse('closer', BODY_MORE.closer); play('peek', 'move'); break;
@@ -814,6 +890,8 @@ export function createPet(els, opts) {
       case 'earflick': pulse(a, APPENDAGE_MOVES[a][1]); play('earflick', 'move'); break;
       case 'earsup': case 'earsdown': pulse(a, APPENDAGE_MOVES[a][1]); break;
       case 'wingbeat': pulse(a, APPENDAGE_MOVES[a][1]); play('wingbeat', 'move'); break;
+      // (a puffed-up tail bristles with a little hiss)
+      case 'puff': pulse(a, APPENDAGE_MOVES[a][1]); play('bristle', 'move'); break;
       // arm poses a figure with hands draws (its faces' poses as gestures of their own): chin on her hand, mulling it
       // over, with a little "hm"; a fist raised to cheer you on; jotting in a notebook, eyes down on it; fingertips
       // pressed together, bashful. The chin, the fist and the fingertips have no face of their own (each goes with
@@ -835,6 +913,20 @@ export function createPet(els, opts) {
       // smile behind the finger reads as a giggle)
       case 'shush': pulse('shush', 2.2); holdFace('wink+neutral', 2.3, 'arm'); play('shush', 'face'); break;
       case 'wipe': pulse('wipe', 2.1); holdFace('gentle', 2.2, 'arm'); play('wipe', 'move'); break;
+      // 哎呀, 糟了: both hands up in front of her mouth (a figure with that drawing: the girls' flinch arms), worried, with
+      // a falling "uh-oh". No step back, unlike a flinch, and not a face whose own arms these are (scared's, nervous')
+      case 'oops': pulse('oops', 1.8); holdFace('worried', 1.9, 'arm'); play('oops', 'face'); break;
+      // 抹眼泪: crying, rubbing her eyes (the girls' 哎呀 fists raised to them, the whale's fist under her eye), with cry's
+      // own sad little falling tune (upstream's tone, so a pack ships no file for it)
+      case 'weep': pulse('weep', 2.4); holdFace('cry', 2.5, 'arm'); play('sad', 'face'); break;
+      // 双手捂脸: both hands over her face below the eyes, blushing, peeking over her fingers, with shy's two little blips
+      // (upstream's). Shy's eyes and blush, bashful's smile behind the hands, and neutral's body: shy's own (its head bowed
+      // and tilted, and the girls' and the whale's fingertips, FACE_ARMS.shy) would slide her eyes down behind her fingers
+      // and bring another drawing as it ends
+      case 'hideface': pulse('hideface', 2.4); holdFace('shy+happy+neutral', 2.5, 'arm'); play('shy', 'face'); break;
+      // 摸摸头: a hand held out, palm down, patting a head that is not there (yours), comforting, with comfort's "there,
+      // there" (a plus tone every pack already ships)
+      case 'pat': pulse('pat', 2.2); holdFace('comfort', 2.3, 'arm'); play('comfort', 'face'); break;
       // a whale's spout from the top of the head: a little crouch, then a column of water and its spray falling back
       case 'spout': pulse('spout', 1.6); holdFace('happy', 1.9, 'arm'); play('spout', 'move'); break;
       // both hands round a warm cup, a sip halfway through; a book held up to read, the eyes running along the lines
@@ -1086,6 +1178,24 @@ export function createPet(els, opts) {
   }
   /** (plus) The top of the head (the bubble's spot, logo units); lying, the lying one. */
   const topSpot = () => ancPt('bubble');
+  /**
+   * (plus) Her mouth (logo units): the figure's `anchors.mouth` (lying, `anchors.lie.mouth`), else a little under the
+   * middle of her tear spots, else under the eyes' spot (lying, under the lying one); it sinks with the head as they do.
+   */
+  function mouthSpot() {
+    const L = proneK() > .5 && lieSet();
+    if (L) return L.mouth || [L.gaze[0], L.gaze[1] + 14];
+    const t = A.tears, [x, y] = A.mouth ?? (t?.length ? [t.reduce((a, p) => a + p[0], 0) / t.length, t.reduce((a, p) => a + p[1], 0) / t.length + 4] : [A.gaze[0], A.gaze[1] + 16]);
+    return [x, y + headLow()];
+  }
+  /** (plus) A sneeze's mist: little puffs bursting from the mouth, out to both sides and a little down, fading fast. */
+  function emitSneeze() {
+    const c = toStage(...mouthSpot());
+    for (let i = 0; i < 5; i++) {
+      const side = i % 2 ? 1 : -1, sp = rnd(60, 130) * S / .42;
+      emit('puff', { x: c.x + side * rnd(2, 6) * S, y: c.y + rnd(-2, 3) * S }, { vx: side * sp, vy: rnd(-10, 35) * S / .42, life: rnd(.45, .65), r: rnd(.5, .85) });
+    }
+  }
   /**
    * (plus) The next round of the kit's marks that are particles (MARK_FX_KEYS): two puffs of steam, one off each side of
    * the head, every .32 s; a heart that breaks, every 2.2 s; a burst of confetti thrown up over her, then a few more pieces
@@ -1374,12 +1484,21 @@ export function createPet(els, opts) {
       const g = pet.head, k = (T - g.t0) / g.dur;
       // three quick blinks in a row, whatever figure draws her (a blink is the frame's `blink`, .16 s each)
       if (g.kind === 'blink' && k < 1 && (g.n || 0) < BLINKS.filter(b => k >= b).length) { g.n = (g.n || 0) + 1; pet.blinkAge = 0; pet.blinkT = Math.max(pet.blinkT, 1.5); }
+      // a sneeze's jolt, whatever figure draws her: a whoosh and a jerk of the body, then at its peak a little burst of
+      // mist from the mouth
+      if (g.kind === 'sneeze' && !g.fired && k >= SNEEZE.at && k < 1) { g.fired = true; play('whoosh', 'move'); pet.sqv += 1.4; }
+      if (g.kind === 'sneeze' && !g.misted && k >= SNEEZE.at + SNEEZE.mist && k < 1) { g.misted = true; emitSneeze(); }
       if (k >= 1) pet.head = null;
       else if (custom?.gestures?.includes(g.kind)) { /* the figure's own */ }
       else if (g.kind === 'nod') leanT += 9 * Math.abs(Math.sin(k * Math.PI * 2));
       else if (g.kind === 'shake') tiltT += 10 * Math.sin(k * Math.PI * 6) * (1 - k);
       else if (g.kind === 'tilt') tiltT += TILT.deg * tiltOf(k);
       else if (g.kind === 'droop') leanT += 12 * tiltOf(k);
+      // (a body the kit tips whole: looking up leans it back; each breath of a pant lifts it and lets it sag; a sneeze
+      // rears back with the breath caught and pitches forward at the jolt)
+      else if (g.kind === 'lookup') leanT -= 10 * tiltOf(k);
+      else if (g.kind === 'pant') { const b = pantBreath(k); sqT += -.06 * b.inh + .08 * b.exh; leanT += 4 * b.exh; }
+      else if (g.kind === 'sneeze') { const s = sneezeOf(k); leanT += -6 * s.windup + 14 * s.jolt; sqT += -.05 * s.windup + .1 * s.jolt; }
       else if (g.kind === 'sigh') {
         // a breath drawn in (taller), then let out (sagging, leaning in)
         const inh = envelope(clamp(k / .45, 0, 1), .5, .7), exh = envelope(clamp((k - .35) / .6, 0, 1), .3, .7);
@@ -1676,7 +1795,9 @@ export function createPet(els, opts) {
     petG.setAttribute('transform', `${rollXf}translate(${f(AX)} ${f(AY)}) rotate(${f(rot)}) scale(${kx.toFixed(4)} ${ky.toFixed(4)}) translate(${-ax} ${-ay})`);
 
     const legs = pet.feet.map((ft, i) => [...hip(i), ft[0], ft[1]]);
-    const blink = pet.blinkAge < .16 ? Math.sin(Math.PI * pet.blinkAge / .16) : 0;
+    // (plus) eyes shut a moment on purpose (`closeeyes`) are a long blink, whatever figure draws her
+    const blink = Math.max(pet.blinkAge < .16 ? Math.sin(Math.PI * pet.blinkAge / .16) : 0,
+      plus && pet.head?.kind === 'closeeyes' ? eyesClosed((T - pet.head.t0) / pet.head.dur) : 0);
     let eyes = pet.eyeCur || fc.eyes, eyeClose = 0;
     if (pet.swapAge < .07 && pet.eyePrev) { eyes = pet.eyePrev; eyeClose = pet.swapAge / .07; }
     else if (pet.swapAge < .16) eyeClose = 1 - (pet.swapAge - .07) / .09;
@@ -1764,8 +1885,8 @@ export function createPet(els, opts) {
         s += `<g opacity="${f(1 - a * a)}"><circle fill="#cdeeff" stroke="${WATER}" stroke-width="${f(1.1 * sc)}" cx="${f(p.x)}" cy="${f(p.y)}" r="${f(r)}"/><circle fill="#fff" cx="${f(p.x - r * .35)}" cy="${f(p.y - r * .35)}" r="${f(r * .3)}"/></g>`;
       }
     }
-    // (plus) the kit's own marks that stay with the head: a rain cloud beside it, and 「……」 a dot at a time
-    if (plus && (fc.cloud || fc.dots)) {
+    // (plus) the kit's own marks that stay with the head: a rain cloud beside it, 「……」 a dot at a time, a ghost
+    if (plus && (fc.cloud || fc.dots || fc.soul)) {
       // (in over .3 s as the face comes on, out over the last .3 s of it)
       const u = T - pet.exprAt, k = smooth(clamp(u / .3, 0, 1)) * smooth(clamp((pet.exprUntil - T) / .3, 0, 1));
       if (fc.cloud && k > 0) {
@@ -1784,6 +1905,17 @@ export function createPet(els, opts) {
         let d = '';
         if (k > 0) for (let i = 0; i < 3; i++) if (ph > .25 + .3 * i) d += `<circle cx="${f(-10 + 10 * i)}" cy="0" r="2.8"/>`;
         if (d) s += `<g transform="translate(${f(c.x)} ${f(c.y)}) scale(${f(sc)})" opacity="${f(k)}"><g fill="#fff" stroke="#fff" stroke-width="3.6">${d}</g><g fill="#3a2f45">${d}</g></g>`;
+      }
+      if (fc.soul && k > 0) {
+        // out of the crown over the first .9 s, up and aside to the spot beside the head (the cloud's, clear of the
+        // speech bubble), then hovering there, bobbing and swaying, a wisp running back to the crown
+        const top = topSpot(), bs = besideSpot(), e = smooth(clamp((u - .1) / .9, 0, 1)), sw = Math.sin(T * 2.4);
+        const crown = toStage(top[0], top[1] + 16), g = toStage(lerp(top[0], bs[0], e), lerp(top[1] + 10, bs[1] - 8, e) + 2.5 * sw * e);
+        const z = sc * (.35 + .65 * smooth(clamp(u / .5, 0, 1))), mid = { x: (crown.x + g.x) / 2 + 6 * sc * sw, y: Math.min(crown.y, g.y) - 4 * sc };
+        if (e > .05) s += `<path fill="none" stroke="#c9d3f2" stroke-width="${f(2.2 * sc)}" stroke-linecap="round" opacity="${f(.75 * k)}" d="M${f(crown.x)} ${f(crown.y)}Q${f(mid.x)} ${f(mid.y)} ${f(g.x)} ${f(g.y + 11 * z)}"/>`;
+        s += `<g class="soul" opacity="${f(.92 * k)}" transform="translate(${f(g.x)} ${f(g.y)}) rotate(${f(7 * sw)}) scale(${Math.round(z * 100) / 100})">`
+          + `<path fill="#f7f9ff" stroke="#6f7ea8" stroke-width="1.6" stroke-linejoin="round" d="M-8 2A8 8 0 0 1 8 2V10Q5.5 ${f(13.5 + sw)} 3 10.5Q0 ${f(14.5 - sw)} -3 10.5Q-5.5 ${f(13.5 + sw)} -8 10Z"/>`
+          + '<g fill="#2f3550"><ellipse cx="-3" cy="1.5" rx="1.3" ry="1.8"/><ellipse cx="3" cy="1.5" rx="1.3" ry="1.8"/><ellipse cx="0" cy="6.2" rx="1.3" ry="1.6"/></g></g>';
       }
     }
     if (ours('spout')) {

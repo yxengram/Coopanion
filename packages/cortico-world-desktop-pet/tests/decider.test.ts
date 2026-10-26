@@ -48,6 +48,14 @@ describe('questions', () => {
     expect(ids('grok-chan')).toEqual(['face', 'head', 'arm', 'body', 'wings']);
   });
 
+  it('asks 抹眼泪, 双手捂脸 and 摸摸头 in the arm question of the girls and the whale, by their first names, and not of Coo', () => {
+    for (const fig of FIGURES) {
+      const arm = buildQuestions(packOf(fig).manifest.vocab).find((q) => q.id === 'arm')!;
+      const got = ['weep', 'hideface', 'pat'].map((id) => arm.options.find((o) => o.id === id)?.key ?? null);
+      expect(got, fig).toEqual(fig === 'coo' ? [null, null, null] : ['抹眼泪', '双手捂脸', '摸摸头']);
+    }
+  });
+
   it.each(FIGURES)('%s: keep options first and no word; option keys unique; within the interface limits', (fig) => {
     const vocab = packOf(fig).manifest.vocab;
     const qs = buildQuestions(vocab, { posture: 'sit' });

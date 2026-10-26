@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, KNEEL_LEANS, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, KNEEL_LEANS, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX, PANT, pantBreath, SNEEZE, sneezeOf, eyesClosed } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS, TONES } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
@@ -13,6 +13,7 @@ import { FACE_ARMS as CLAUDE_FACE_ARMS } from '../packages/cortico-world-desktop
 import { FACE_ARMS as GPT_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/gpt-chan/motion.js';
 import { FACE_ARMS as GEMINI_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/gemini-chan/motion.js';
 import { FACE_ARMS as GROK_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/grok-chan/motion.js';
+import { FACE_ARMS as WHALE_FACE_ARMS } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
 
 const PKG = new URL('../packages/cortico-world-desktop-pet/', import.meta.url);
 const vocabOf = (pack) => JSON.parse(readFileSync(new URL(`web/${pack}/figure.json`, PKG), 'utf8')).vocab;
@@ -64,8 +65,8 @@ function countingCtx() {
   return { ctx, made };
 }
 
-/** The faces made of parts with a tone of their own: 安慰 and the faces with marks of their own (气炸 … 眼冒金星). */
-const MIX_OWN_TONES = { comfort: 'comfort', fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry' };
+/** The faces made of parts with a tone of their own: 安慰 and the faces with marks of their own (气炸 … 眼冒金星, 灵魂出窍). */
+const MIX_OWN_TONES = { comfort: 'comfort', fuming: 'fume', heartbroken: 'heartbreak', celebrate: 'confetti', gloomy: 'gloom', speechless: 'dots', starry: 'starry', soulout: 'soul' };
 /** The arm words that are a figure's face poses as gestures of their own (托腮, 加油, 记笔记, 对手指). */
 const ARM_POSE_WORDS = ['muse', 'fist', 'jot', 'twiddle'];
 /** The arm words drawn anew for the girls and the whale (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗); Coo has none of them. */
@@ -74,17 +75,32 @@ const GIRL_FACE_ARMS = { 'claude-chan': CLAUDE_FACE_ARMS, 'gpt-chan': GPT_FACE_A
 const NEW_ARM_WORDS = ['clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe'];
 /** The head's and the body's own moves: 低头, 眨眨眼 (the head's channel); 凑近, 后仰, 晃来晃去, 跺脚 (standing or seated still). */
 const MORE_WORDS = ['droop', 'blink', 'closer', 'leanback', 'sway', 'stamp'];
+/** More of the head's own moves: 抬头, 闭眼 (no face of their own), 喘气, 打喷嚏 (each a face of its own, like a sigh's). */
+const HEAD_WORDS = ['lookup', 'pant', 'closeeyes', 'sneeze'];
 /** The moves of a figure's own tail, ears and wings (摇尾巴; 抖耳朵, 竖耳朵, 耳朵耷拉; 扇翅膀), by part. */
 const PART_WORDS = { tail: ['wag'], ears: ['earflick', 'earsup', 'earsdown'], wings: ['wingbeat'] };
-const ALL_PART_WORDS = Object.values(PART_WORDS).flat();
+/** 炸毛, a move of the tail only Gemini-chan has (her cat tail's puff): not the whale's nor GPT-chan's. */
+const TAIL_PUFF = ['puff'];
+const ALL_PART_WORDS = [...Object.values(PART_WORDS).flat(), ...TAIL_PUFF];
+/** 哎呀, the girls' flinch arms (both hands to her mouth) as a word of its own: only the four girls have that drawing. */
+const GIRL_ONLY_WORDS = ['oops'];
+/**
+ * The arm words of the vocabulary batch: 抹眼泪 (the girls' 哎呀 fists at their eyes, the whale's fist under her eye),
+ * 双手捂脸 and 摸摸头 (drawn anew); the girls and the whale, not Coo.
+ */
+const VOCAB_ARM_WORDS = ['weep', 'hideface', 'pat'];
 
 describe('the words the model can use', () => {
   it('Coo and the whale do every word of their vocabularies on the kit, and the kit does no word they leave out', () => {
     // the arm poses only a figure with that drawing shows (ARM_POSE_WORDS): Coo has none of them, the whale all four;
     // the head's and body's moves of batch B (MORE_WORDS) the whale has, Coo not (her ring would only tip about); of the
     // moves of a tail, ears and wings (PART_WORDS) the whale has the tail's, Coo none
-    // (and the arm words drawn anew, NEW_ARM_WORDS: the whale all of them, Coo none)
-    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS, ...ALL_PART_WORDS, ...NEW_ARM_WORDS], whale: [...PART_WORDS.ears, ...PART_WORDS.wings] };
+    // (and the arm words drawn anew, NEW_ARM_WORDS: the whale all of them, Coo none; and the head moves of HEAD_WORDS, the
+    // whale all of them, Coo none)
+    // (and the girls' own 哎呀, GIRL_ONLY_WORDS, and Gemini-chan's 炸毛, TAIL_PUFF: neither of them; the vocabulary batch's
+    // arm words, VOCAB_ARM_WORDS: the whale all three, Coo none)
+    const lacks = { coo: [...ARM_POSE_WORDS, ...MORE_WORDS, ...ALL_PART_WORDS, ...NEW_ARM_WORDS, ...HEAD_WORDS, ...GIRL_ONLY_WORDS, ...VOCAB_ARM_WORDS],
+      whale: [...PART_WORDS.ears, ...PART_WORDS.wings, ...TAIL_PUFF, ...GIRL_ONLY_WORDS] };
     for (const pack of ['coo', 'whale']) {
       const words = (kind) => vocabOf(pack).filter((v) => v.kind === kind).map((v) => v.id).sort();
       // both know the kit's words and the plus body's
@@ -108,6 +124,82 @@ describe('the words the model can use', () => {
     expect(own('fist')).toEqual(['fist', null]);
     expect(own('jot')).toEqual(['jot', 'reading']);
     expect(own('twiddle')).toEqual(['twiddle', null]);
+  });
+
+  it('哎呀 (oops) is an arm gesture that keeps a kneel, worried, with an "uh-oh"; not a flinch (no step back, no surprise) nor the face whose arms it is', () => {
+    expect(GIRL_ONLY_WORDS).toEqual(['oops']);
+    expect(PLUS_MOTIONS).toContain('oops');
+    expect(ARM_GESTURES).toContain('oops');
+    expect(CHANNELS.oops).toEqual(['arm']);
+    const pet = hearingPet();
+    run(pet, 1);
+    const x0 = pet.pet.x;
+    pet.heard.length = 0;
+    expect(pet.doWord('oops')).toBe(true);
+    run(pet, .5);
+    expect([pet.pet.pulse?.kind, pet.pet.expr, pet.heard[0]]).toEqual(['oops', 'worried', ['oops', 'face']]);
+    expect(pet.pet.x).toBe(x0);
+    expect(pet.pet._fc.bang).toBeUndefined();
+    // the face it holds poses no arms of any girl's (FACE_ARMS: scared's and nervous' are these very arms, so 哎呀 alone
+    // would look just like 害怕 or 紧张 alone; and awkward's scratch would show as it ends)
+    for (const [fig, arms] of Object.entries(GIRL_FACE_ARMS)) {
+      expect(arms.worried, fig).toBeUndefined();
+      expect([arms.scared, arms.nervous], fig).toEqual(['oops', 'oops']);
+    }
+    run(pet, 1.6);
+    expect(pet.pet.pulse).toBe(null);
+    // kneeling, a figure that draws arms kneeling stays kneeling through it; one that does not sits up plainly
+    for (const [kneelArms, kept] of [[true, true], [false, false]]) {
+      const k = barePet();
+      if (kneelArms) k.setFigure({ kneelArms: true, draw() {} });
+      run(k, 1);
+      k.act('kneel'); run(k, 1);
+      k.act('oops');
+      expect(k.pet.kneel, String(kneelArms)).toBe(kept);
+    }
+  });
+
+  it('抹眼泪, 双手捂脸, 摸摸头 (weep, hideface, pat) are arm gestures that keep a kneel, each with a face and a sound of its own, none a face that poses her arms', () => {
+    expect(VOCAB_ARM_WORDS).toEqual(['weep', 'hideface', 'pat']);
+    for (const w of VOCAB_ARM_WORDS) {
+      expect(PLUS_MOTIONS, w).toContain(w);
+      expect(ARM_GESTURES, w).toContain(w);
+      expect(CHANNELS[w], w).toEqual(['arm']);
+    }
+    // crying for the weep (its tears), shy's eyes and blush over bashful's smile on neutral's body for the face hidden,
+    // comfort for the pat; the weep sounds cry's own sad tune and the face hidden shy's blips (upstream's tones, so no
+    // pack ships a file for them), the pat comfort's "there, there"
+    const own = (w) => { const pet = hearingPet(); run(pet, 1); pet.heard.length = 0; pet.doWord(w); run(pet, .5); return { got: [pet.pet.pulse?.kind, pet.pet.expr, pet.heard[0]], parts: pet.pet._fc.parts, x: pet.pet.x }; };
+    expect(own('weep').got).toEqual(['weep', 'cry', ['sad', 'face']]);
+    expect(own('hideface').got).toEqual(['hideface', 'shy+happy+neutral', ['shy', 'face']]);
+    expect(own('pat').got).toEqual(['pat', 'comfort', ['comfort', 'face']]);
+    for (const t of ['sad', 'shy']) expect(TONES.find((x) => x.name === t), t).toMatchObject({ kind: 'face', plus: false });
+    expect(TONES.find((x) => x.name === 'comfort')).toMatchObject({ kind: 'face', plus: true });
+    // no part of their faces poses a girl's or the whale's arms (FACE_ARMS: the figures read the body's part, so the
+    // face hidden is neutral's body, not shy's, whose fingertips would show as it ends), so the drawing is the word's alone
+    expect(own('hideface').parts).toEqual({ eyes: 'shy', brows: 'shy', mouth: 'happy', body: 'neutral' });
+    for (const w of VOCAB_ARM_WORDS) {
+      const { parts } = own(w);
+      const bodyPart = parts?.body ?? own(w).got[1];
+      for (const [fig, arms] of Object.entries(GIRL_FACE_ARMS)) expect(arms[bodyPart], `${w} ${fig}`).toBeUndefined();
+      expect(WHALE_FACE_ARMS[bodyPart], `${w} whale`).toBeUndefined();
+    }
+    // she stays where she is: no step back, no stance of their own
+    const pet = barePet();
+    run(pet, 1);
+    const x0 = pet.pet.x;
+    for (const w of VOCAB_ARM_WORDS) { pet.doWord(w); run(pet, .4); expect(pet.pet.x, w).toBe(x0); run(pet, 2.4); expect(pet.pet.pulse, w).toBe(null); }
+    // kneeling, a figure that draws arms kneeling stays kneeling through them; one that does not sits up plainly
+    for (const w of VOCAB_ARM_WORDS) {
+      for (const [kneelArms, kept] of [[true, true], [false, false]]) {
+        const k = barePet();
+        if (kneelArms) k.setFigure({ kneelArms: true, draw() {} });
+        run(k, 1);
+        k.act('kneel'); run(k, 1);
+        k.act(w);
+        expect(k.pet.kneel, `${w} ${kneelArms}`).toBe(kept);
+      }
+    }
   });
 
   it('the arm words drawn anew (拍手, 摊手, 抱头, 举手, 点赞, 嘘, 擦汗) are arm gestures that keep a kneel, each with a face and a sound of its own', () => {
@@ -151,7 +243,7 @@ describe('the words the model can use', () => {
     for (const w of MORE_WORDS) expect(PLUS_MOTIONS, w).toContain(w);
     for (const w of ['droop', 'blink']) { expect(HEAD_GESTURES.has(w), w).toBe(true); expect(CHANNELS[w], w).toEqual(['head']); }
     for (const w of ['closer', 'leanback', 'sway', 'stamp']) { expect(HEAD_GESTURES.has(w), w).toBe(false); expect(ARM_GESTURES, w).not.toContain(w); }
-    expect(Object.keys(HEAD_MORE)).toEqual(['droop', 'blink']);
+    expect(Object.keys(HEAD_MORE)).toEqual(['droop', 'blink', ...HEAD_WORDS]);
     expect(Object.keys(BODY_MORE)).toEqual(['closer', 'leanback', 'sway', 'stamp']);
     // a droop: in the head's channel, beside an arm gesture, under an asked-for face, and kneeling she stays kneeling
     const pet = hearingPet();
@@ -215,9 +307,9 @@ describe('the words the model can use', () => {
     for (const w of MORE_WORDS) expect(kit.doWord(w), w).toBe(false);
   });
 
-  it('the moves of a tail, ears or wings (摇尾巴, 抖耳朵, 竖耳朵, 耳朵耷拉, 扇翅膀): a slot each, beside everything else, no face, a kneel and a walk go on', () => {
-    expect(Object.fromEntries(Object.entries(APPENDAGE_MOVES).map(([w, [p]]) => [w, p]))).toEqual({ wag: 'tail', earflick: 'ears', earsup: 'ears', earsdown: 'ears', wingbeat: 'wings' });
-    for (const [part, ws] of Object.entries(PART_WORDS)) for (const w of ws) {
+  it('the moves of a tail, ears or wings (摇尾巴, 炸毛, 抖耳朵, 竖耳朵, 耳朵耷拉, 扇翅膀): a slot each, beside everything else, no face, a kneel and a walk go on', () => {
+    expect(Object.fromEntries(Object.entries(APPENDAGE_MOVES).map(([w, [p]]) => [w, p]))).toEqual({ wag: 'tail', earflick: 'ears', earsup: 'ears', earsdown: 'ears', wingbeat: 'wings', puff: 'tail' });
+    for (const [part, ws] of Object.entries({ ...PART_WORDS, tail: [...PART_WORDS.tail, ...TAIL_PUFF] })) for (const w of ws) {
       expect(PLUS_MOTIONS, w).toContain(w);
       expect(CHANNELS[w], w).toEqual([part]);
       expect(HEAD_GESTURES.has(w), w).toBe(false);
@@ -281,10 +373,138 @@ describe('the words the model can use', () => {
     expect(pet.pet.head).toBe(null);
   });
 
+  it('抬头, 喘气, 闭眼 and 打喷嚏 are the head\'s: beside an arm gesture, a kneel kept; a pant and a sneeze each bring a face of their own', () => {
+    expect(HEAD_WORDS).toEqual(['lookup', 'pant', 'closeeyes', 'sneeze']);
+    for (const w of HEAD_WORDS) {
+      expect(PLUS_MOTIONS, w).toContain(w);
+      expect(HEAD_GESTURES.has(w), w).toBe(true);
+      expect(CHANNELS[w], w).toEqual(['head']);
+      expect(ARM_GESTURES, w).not.toContain(w);
+    }
+    // each with an arm gesture in one group, the head's in its slot, the wave in the arms'
+    for (const w of HEAD_WORDS) {
+      const pet = barePet();
+      run(pet, 1);
+      expect(pet.doGroup(['wave', w]), w).toEqual([true, true]);
+      run(pet, .3);
+      expect(pet.pet.pulse.kind, w).toBe('wave');
+      expect(pet.pet.head, w).toMatchObject({ kind: w, dur: HEAD_MORE[w] });
+    }
+    // kneeling she stays kneeling
+    const k = barePet();
+    run(k, 1);
+    k.act('kneel'); run(k, 2);
+    for (const w of HEAD_WORDS) { expect(k.act(w), w).toBe(true); run(k, .3); expect(k.pet.kneel, w).toBe(true); run(k, 2); }
+    // the faces: none for a look up or shut eyes (any face goes with them); a pant's and a sneeze's own, over in time
+    const faceOf = (w, at) => { const p = barePet(); run(p, 1); p.doWord(w); run(p, at); return p.pet._fname; };
+    expect(faceOf('lookup', .5)).toBe('neutral');
+    expect(faceOf('closeeyes', .5)).toBe('neutral');
+    expect(faceOf('pant', .5)).toBe('panting');
+    expect(faceOf('sneeze', .5)).toBe('sneezing');
+    expect(faceOf('pant', HEAD_MORE.pant + .3)).toBe('neutral');
+    // under an asked-for face a pant keeps its open mouth and its body, with the asked eyes (as a sigh does)
+    const a = barePet();
+    run(a, 1);
+    a.setExpr('happy', 6); a.act('pant'); run(a, .5);
+    expect(a.pet._fname).toBe('happy+panting+panting');
+    // the kit as any other pack knows it has none of them
+    const kit = barePet(undefined, { plus: false });
+    run(kit, 1);
+    for (const w of HEAD_WORDS) expect(kit.doWord(w), w).toBe(false);
+  });
+
+  it('喘气 is PANT.n quick breaths, mouth open and a drop of sweat, a puff out each time; it reads apart from a sigh\'s one long breath', () => {
+    // the breaths: PANT.n ins and outs, eased in and out at its ends, a puff going out on each breath out
+    let ins = 0, puffs = 0, wasIn = false, wasPuff = false;
+    for (let i = 0; i <= 600; i++) {
+      const b = pantBreath(i / 600), isIn = b.inh > .05, isPuff = b.puffK > 0;
+      if (isIn && !wasIn) ins++;
+      if (isPuff && !wasPuff) puffs++;
+      wasIn = isIn; wasPuff = isPuff;
+      expect(b.inh * b.exh).toBe(0);
+    }
+    expect(ins).toBe(PANT.n);
+    expect(puffs).toBe(PANT.n);
+    expect(pantBreath(0)).toEqual({ inh: 0, exh: 0, puffK: 0 });
+    expect(pantBreath(1)).toEqual({ inh: 0, exh: 0, puffK: 0 });
+    // the face: half-shut tired eyes, flushed, sweating, the mouth open all through (wider breathing out)
+    const pet = barePet();
+    run(pet, 1);
+    pet.act('pant');
+    const mouths = [];
+    for (let i = 0; i < HEAD_MORE.pant * 60 - 6; i++) {
+      run(pet, 1 / 60);
+      const fc = PLUS_FACES.panting.f(pet.time, pet.pet);
+      expect(fc.sweat).toBe(true);
+      expect(fc.eyes[0].shape).toBe('lid');
+      mouths.push(fc.puff);
+    }
+    expect(Math.min(...mouths)).toBeGreaterThan(.5);
+    expect(Math.max(...mouths) - Math.min(...mouths)).toBeGreaterThan(.3);
+    // a sigh's face has no sweat and opens its mouth once
+    const sigh = barePet();
+    run(sigh, 1);
+    sigh.act('sigh');
+    let opens = 0, was = false;
+    for (let i = 0; i < 2 * 60; i++) { run(sigh, 1 / 60); const fc = PLUS_FACES.sighing.f(sigh.time, sigh.pet); expect(fc.sweat).toBeUndefined(); const o = (fc.puff ?? 0) > .3; if (o && !was) opens++; was = o; }
+    expect(opens).toBe(1);
+  });
+
+  it('闭眼 shuts her eyes over whatever face she shows for about 1.5 s, the head up (not dozing off), and opens them again', () => {
+    const frames = [];
+    const pet = barePet(undefined, { figure: { draw: (g, face, o) => frames.push(o) } });
+    run(pet, 1);
+    pet.setExpr('happy', 6);
+    pet.pet.blinkT = 9;
+    frames.length = 0;
+    pet.act('closeeyes');
+    run(pet, HEAD_MORE.closeeyes + .2);
+    const shut = frames.filter((o) => o.blink > .95).length / 60;
+    expect(shut).toBeGreaterThan(1.3);
+    expect(shut).toBeLessThan(HEAD_MORE.closeeyes);
+    expect(frames.at(-1).blink).toBe(0);
+    for (const o of frames) { expect(o.face).toBe('happy'); expect(o.drowse).toBeLessThan(.01); expect(o.mode).toBe('idle'); }
+    expect(eyesClosed(.5)).toBe(1);
+    expect(eyesClosed(0)).toBe(0);
+    expect(eyesClosed(1)).toBe(0);
+  });
+
+  it('打喷嚏 catches its breath, then jolts at SNEEZE.at with a whoosh and a burst of mist from her mouth, once', () => {
+    const s = (k) => sneezeOf(k);
+    expect(s(SNEEZE.at * .99).windup).toBeGreaterThan(.95);
+    expect(s(SNEEZE.at * .5).windup).toBeGreaterThan(s(SNEEZE.at * .3).windup);
+    expect(s(SNEEZE.at * .9).jolt).toBe(0);
+    expect(Math.max(...[1, 2, 3].map((i) => s(SNEEZE.at + i * .01).jolt))).toBeGreaterThan(.9);
+    expect(s(SNEEZE.at + SNEEZE.decay + .01).jolt).toBe(0);
+    expect(s(0)).toEqual({ windup: 0, jolt: 0 });
+    const pet = hearingPet();
+    run(pet, 1);
+    pet.heard.length = 0;
+    expect(pet.act('sneeze')).toBe(true);
+    const mist = () => (pet.fxHtml().match(/fill="#8a93b0"/g) || []).length;
+    run(pet, HEAD_MORE.sneeze * SNEEZE.at - .1);
+    expect(pet.heard.filter(([n]) => n === 'whoosh')).toEqual([]);
+    expect(mist()).toBe(0);
+    // (the jolt: the eyes squeezed shut, > <)
+    run(pet, .2);
+    expect(pet.heard.filter(([n]) => n === 'whoosh')).toEqual([['whoosh', 'move']]);
+    expect(mist()).toBeGreaterThanOrEqual(3);
+    expect(PLUS_FACES.sneezing.f(pet.time, pet.pet).eyes.map((e) => e.shape)).toEqual(['gt', 'lt']);
+    // the mist starts at her mouth, under the eyes' spot, and spreads to both sides
+    const xs = [...pet.fxHtml().matchAll(/<g fill="#8a93b0"[^>]*><circle cx="([-\d.]+)" cy="([-\d.]+)"/g)].map((m) => [+m[1], +m[2]]);
+    // (Coo names no eyes' spot: the kit's own, ANCHORS.gaze)
+    const gaze = pet.toStage(...(cooFigure().anchors.gaze ?? [140, 117]));
+    expect(xs.some(([x]) => x < gaze.x) && xs.some(([x]) => x > gaze.x)).toBe(true);
+    for (const [, y] of xs) expect(y).toBeGreaterThan(gaze.y);
+    run(pet, HEAD_MORE.sneeze);
+    expect(pet.heard.filter(([n]) => n === 'whoosh')).toHaveLength(1);
+    expect(pet.pet.head).toBe(null);
+  });
+
   it('Claude-chan, GPT-chan, Gemini-chan and Grok-chan know the same words but spout (they have no blowhole), and each the moves of the parts she has', () => {
     // GPT-chan a tail and wings, Gemini-chan a tail and ears, Grok-chan the little bat wings on her bows, Claude-chan none of them
     const has = {
-      'claude-chan': [], 'gpt-chan': [...PART_WORDS.tail, ...PART_WORDS.wings], 'gemini-chan': [...PART_WORDS.tail, ...PART_WORDS.ears],
+      'claude-chan': [], 'gpt-chan': [...PART_WORDS.tail, ...PART_WORDS.wings], 'gemini-chan': [...PART_WORDS.tail, ...TAIL_PUFF, ...PART_WORDS.ears],
       'grok-chan': [...PART_WORDS.wings],
     };
     for (const pack of ['claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']) {
@@ -2875,13 +3095,13 @@ describe('faces made of parts of others (plus)', () => {
 describe("marks the kit draws over any figure's face (plus)", () => {
   // what each mark leaves in the particle layer: a puff's grey edge, a broken heart's red, a scrap of confetti, the
   // rain cloud's grey, the dots' ink; the stars are the figure's own (Coo's orbit rings)
-  const MARKS = { fuming: '#8a93b0', heartbroken: '#ff5d7e', celebrate: '<rect fill=', gloomy: '#9aa1b2', speechless: '#3a2f45' };
+  const MARKS = { fuming: '#8a93b0', heartbroken: '#ff5d7e', celebrate: '<rect fill=', gloomy: '#9aa1b2', speechless: '#3a2f45', soulout: '#6f7ea8' };
   const faced = (n, pet = barePet()) => { run(pet, 1); pet.setExpr(n); run(pet, .1); return pet; };
 
-  it('six faces made of parts carry one each (气炸 steam, 心碎 a broken heart, 撒花 confetti, 郁闷 a rain cloud, 无言以对 dots, 眼冒金星 stars)', () => {
-    expect(['fuming', 'heartbroken', 'celebrate', 'gloomy', 'speechless', 'starry'].map((n) => PLUS_MIXES[n].label))
-      .toEqual(['气炸', '心碎', '撒花', '郁闷', '无言以对', '眼冒金星']);
-    for (const [n, k] of [['fuming', 'fume'], ['heartbroken', 'heartbreak'], ['celebrate', 'confetti'], ['gloomy', 'cloud'], ['speechless', 'dots'], ['starry', 'orbit']]) {
+  it('seven faces made of parts carry one each (气炸 steam, 心碎 a broken heart, 撒花 confetti, 郁闷 a rain cloud, 无言以对 dots, 眼冒金星 stars, 灵魂出窍 a little ghost)', () => {
+    expect(['fuming', 'heartbroken', 'celebrate', 'gloomy', 'speechless', 'starry', 'soulout'].map((n) => PLUS_MIXES[n].label))
+      .toEqual(['气炸', '心碎', '撒花', '郁闷', '无言以对', '眼冒金星', '灵魂出窍']);
+    for (const [n, k] of [['fuming', 'fume'], ['heartbroken', 'heartbreak'], ['celebrate', 'confetti'], ['gloomy', 'cloud'], ['speechless', 'dots'], ['starry', 'orbit'], ['soulout', 'soul']]) {
       expect(PLUS_MIX_FACES[n].f(.5)[k], n).toBe(true);
       expect(ADD_KEYS, k).toContain(k);
     }
@@ -2965,6 +3185,55 @@ describe("marks the kit draws over any figure's face (plus)", () => {
     expect(op(fade)).toBeLessThan(.7);
     run(fade, .3);
     expect(fade.fxHtml()).not.toContain('#9aa1b2');
+  });
+
+  it("the ghost (灵魂出窍) slips out of the crown and drifts to the spot beside the head, a wisp tying it back; seated lower, lying by the lying head", () => {
+    const ghost = (pet) => { const m = pet.fxHtml().match(/<g class="soul" opacity="([\d.]+)" transform="translate\(([-\d.]+) ([-\d.]+)\) rotate\([-\d.]+\) scale\(([\d.]+)\)"/); return m && { op: +m[1], x: +m[2], y: +m[3], s: +m[4] }; };
+    const wisp = (pet) => /<path fill="none" stroke="#c9d3f2"/.test(pet.fxHtml());
+    // (the crown is Coo's bubble spot, and beside the head her bulb's, as for the rain cloud)
+    const A = cooFigure().anchors, bubble = A.bubble, bulb = A.bulb;
+    const pet = faced('soulout');
+    const S = pet.toStage(0, 1).y - pet.toStage(0, 0).y;
+    const start = ghost(pet), crown = pet.toStage(bubble[0], bubble[1] + 10);
+    // small and just out of the crown at first, no wisp yet
+    expect(Math.hypot(start.x - crown.x, start.y - crown.y)).toBeLessThan(4 * S);
+    // (the kit's marks are drawn at S / .48 of their own size: sc)
+    const sc = S / .48;
+    expect(start.s).toBeLessThan(.7 * sc);
+    expect(wisp(pet)).toBe(false);
+    run(pet, 1.2);
+    const out = ghost(pet), beside = pet.toStage(bulb[0], bulb[1] - 8);
+    expect(Math.hypot(out.x - beside.x, out.y - beside.y)).toBeLessThan(3 * S);
+    expect(out.s).toBeCloseTo(sc, 1);
+    expect(out.op).toBeGreaterThan(.85);
+    expect(wisp(pet)).toBe(true);
+    // it hovers, bobbing, and fades with the face
+    run(pet, .6);
+    expect(Math.abs(ghost(pet).x - out.x)).toBeLessThan(2 * S);
+    run(pet, 3.2 - 1.9 - .1);
+    expect(ghost(pet).op).toBeLessThan(.6);
+    run(pet, .3);
+    expect(pet.fxHtml()).not.toContain('#6f7ea8');
+    const seated = barePet();
+    run(seated, 1);
+    seated.act('sit');
+    run(seated, 2);
+    seated.setExpr('soulout');
+    run(seated, 1.2);
+    expect(ghost(seated).y).toBeGreaterThan(out.y + 10);
+    const lying = barePet();
+    run(lying, 1);
+    lying.act('lie');
+    run(lying, 2.5);
+    lying.setExpr('soulout');
+    run(lying, 1.2);
+    expect(lying.pet.mode).toBe('lie');
+    expect(ghost(lying).y).toBeGreaterThan(ghost(seated).y + 10);
+    // the face: dead-fish eyes, a mouth hanging open, slumped as a sad face is, no gloom lines of its own
+    const fc = PLUS_MIX_FACES.soulout.f(.5);
+    expect(fc.parts).toEqual({ eyes: 'deadpan', brows: 'deadpan', mouth: 'surprised', body: 'sad' });
+    expect(fc.soul).toBe(true);
+    expect(fc.lean).toBe(PLUS_FACES.sad.f(.5).lean);
   });
 
   it('as the eyes of two faces in a group it brings its mark, as the mouth not', () => {
@@ -3286,6 +3555,10 @@ describe('the sounds of the words added since v0.5.0 (plus)', () => {
     fist: ['fist', 'move', 1.8], jot: ['jot', 'move', 3.2], twiddle: ['twiddle', 'move', 2.6], wag: ['wag', 'move', APPENDAGE_MOVES.wag[1]],
     earflick: ['earflick', 'move', APPENDAGE_MOVES.earflick[1]], wingbeat: ['wingbeat', 'move', APPENDAGE_MOVES.wingbeat[1]],
     shush: ['shush', 'face', 2.2], shrug: ['shrug', 'face', 2.1], headhold: ['headhold', 'face', 2.5],
+    // (the girls' 哎呀 and Gemini-chan's 炸毛)
+    oops: ['oops', 'face', 1.8], puff: ['bristle', 'move', APPENDAGE_MOVES.puff[1]],
+    // (摸摸头's "there, there", comfort's own; 抹眼泪 and 双手捂脸 play upstream's sad and shy, see below)
+    pat: ['comfort', 'face', 2.2],
   };
   /** An audio context that keeps when each voice stops and each gain's value before its automation. */
   function timingCtx() {
@@ -3316,6 +3589,20 @@ describe('the sounds of the words added since v0.5.0 (plus)', () => {
       createSfx({ ctx, compress: false }).play(tone, kind);
       expect(made.stops.length, w).toBeGreaterThan(0);
       // (a voice stops .03 s after its sound fades out)
+      expect(Math.max(...made.stops), w).toBeLessThanOrEqual(dur + .05);
+    }
+    // 抹眼泪 and 双手捂脸 sound upstream's own tones (cry's sad tune, shy's blips: no pack ships a file for them), over
+    // before the word ends too
+    for (const [w, tone, dur] of [['weep', 'sad', 2.4], ['hideface', 'shy', 2.4]]) {
+      const pet = hearingPet();
+      run(pet, 1);
+      pet.heard.length = 0;
+      expect(pet.doWord(w), w).toBe(true);
+      run(pet, .3);
+      expect(pet.heard, w).toContainEqual([tone, 'face']);
+      expect(TONES.find((t) => t.name === tone), w).toMatchObject({ kind: 'face', plus: false });
+      const { ctx, made } = timingCtx();
+      createSfx({ ctx, compress: false }).play(tone, 'face');
       expect(Math.max(...made.stops), w).toBeLessThanOrEqual(dur + .05);
     }
     // ears stood up or laid down stay quiet; a stamp still thuds on each landing (upstream's own tone)

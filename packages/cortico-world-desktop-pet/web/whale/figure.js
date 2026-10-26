@@ -79,7 +79,7 @@ export function cheerHandover(on, ang, to, rest) {
 
 /** Gestures that pose the far arm themselves: she takes her chin off her hand for them. */
 export const FAR_ARM_GESTURES = ['cheer', 'heart', 'shiver', 'flap', 'flinch', 'peek', 'sip', 'read', 'roll', 'pray', 'hips', 'hug', 'serve', 'cross', 'stretch', 'curtsy', 'point',
-  'clap', 'shrug', 'headhold', 'jot', 'twiddle'];
+  'clap', 'shrug', 'headhold', 'jot', 'twiddle', 'hideface'];
 /** The gestures that put something in her hands, and the pose (model.poses.<pose>) that draws it. */
 export const PROP_GESTURES = { sip: 'cup', read: 'book' };
 /**
@@ -87,28 +87,46 @@ export const PROP_GESTURES = { sip: 'cup', read: 'book' };
  * a notebook written in, the fingertips pressed together).
  */
 export const BOTH_HANDS = { ...PROP_GESTURES, pray: 'pray', hips: 'hips', hug: 'hug', serve: 'tea', cross: 'cross', stretch: 'stretch', curtsy: 'curtsy',
-  clap: 'clap', shrug: 'shrug', headhold: 'headhold', jot: 'jot', twiddle: 'twiddle' };
+  clap: 'clap', shrug: 'shrug', headhold: 'headhold', jot: 'jot', twiddle: 'twiddle', hideface: 'hideface' };
 /**
  * A gesture's second drawing, cut to and from its own in a frame (no crossfade: two pairs of hands half seen at once read
  * as a double exposure): the clap's hands apart, shown between the claps (the kit's clapShut).
  */
 export const ARM_TWIN = { clap: 'clapo' };
-/** Both-hands drawings that ride the neck, so the hands stay on her head as it moves (both hands on her head). */
-export const NECK_HANDS = ['headhold'];
+/**
+ * Both-hands drawings that ride the neck, so the hands stay on her head as it moves (both hands on her head, both hands
+ * over her face: hung from the waist, seated or kneeling they would ride up over her eyes).
+ */
+export const NECK_HANDS = ['headhold', 'hideface'];
 /** Gestures that raise the near arm into a drawing of its own, handed over the cheer's way: hand at her head, finger up. */
 export const NEAR_RAISES = { scratch: 'scratch', idea: 'idea', salute: 'salute', vsign: 'vsign', cover: 'cover', point: 'point',
-  raise: 'raise', thumbs: 'thumbs', shush: 'shush', wipe: 'wipe', fist: 'fist' };
+  raise: 'raise', thumbs: 'thumbs', shush: 'shush', wipe: 'wipe', fist: 'fist', pat: 'pat' };
 /** Of those, the ones that raise the far arm instead (pointing ahead, where she faces). */
 export const FAR_RAISES = ['point'];
 /** Raised arms that ride the neck, so the hand stays on her face as the head moves (a hand over her mouth). */
 export const NECK_RAISES = ['cover', 'shush', 'wipe'];
 /** Raises whose drawing is a bent arm (much shorter than the fist arm): they come in the heart's way, not by angle. */
-export const BENT_RAISES = ['idea', 'salute', 'vsign', 'cover', 'thumbs', 'shush', 'wipe', 'fist'];
+export const BENT_RAISES = ['idea', 'salute', 'vsign', 'cover', 'thumbs', 'shush', 'wipe', 'fist', 'pat'];
 /**
  * Bent raises that swing the last stretch in from outside (degrees off `rest` at the cut, rising into place): the fist,
- * held up beside her cheek, would brush it coming in the others' way (+12°, toward her face).
+ * held up beside her cheek, would brush it coming in the others' way (+12°, toward her face); so would the patting hand,
+ * held out at her cheek.
  */
-export const RAISE_ENTRY = { fist: -12 };
+export const RAISE_ENTRY = { fist: -12, pat: -12 };
+/**
+ * Gestures played on another's raised drawing, with offsets of their own: 抹眼泪 (weep) is her fist (poses.fist) moved in
+ * under her eye, rubbing it. Under its own key in NEAR_RAISES it would build a second entry with the fist's pivot id,
+ * and the later of the two would overwrite the other's state and alphas, so it takes the fist's entry instead.
+ */
+export const RAISE_AS = { weep: 'fist' };
+/**
+ * The weep's fist at its share `lift` (rising into place, as the fist's): turned `a`° from the drawing's rest (no entry
+ * swing), moved in `tx` toward her face and up `ty` to under her eye, rubbing `rub` units side to side at `rate` (rad/s).
+ */
+export const WEEP = { a: -18, tx: 15, ty: 13, rub: 1, rate: 14 };
+export const weepPose = (lift, t) => ({ a: WEEP.a * lift, tx: (WEEP.tx + WEEP.rub * Math.sin(t * WEEP.rate)) * lift, ty: -WEEP.ty * lift });
+/** 摸摸头 (pat): the patting hand bobs up this far (rig units) and back down, at this rate (rad/s, |sin|), as the fist pumps. */
+export const PAT_BOB = { amp: 2, rate: 8 };
 /** How far up (°) the fist arm goes for a near-arm raise before the drawing takes it on to its own angle. */
 export const RAISE_TO = 80;
 /**
@@ -176,7 +194,7 @@ export const KNEEL_FACE_SKIP = ['listening', 'singing'];
  * The gestures that leave her arms to the face: the head's and the tail's moves, the leans and the sway (her upper body
  * moves, the arms with it) and the kit's song, which she draws through its face. (HEAD_GESTURES and APPENDAGE_WORDS below.)
  */
-export const FACE_ARM_KEEPS = ['nod', 'shake', 'sigh', 'tilt', 'droop', 'blink', 'wag', 'closer', 'leanback', 'sway', 'song'];
+export const FACE_ARM_KEEPS = ['nod', 'shake', 'sigh', 'tilt', 'droop', 'blink', 'lookup', 'pant', 'closeeyes', 'sneeze', 'wag', 'closer', 'leanback', 'sway', 'song'];
 /**
  * A face's arm pose over frames (as the girls' armPlan): the face must have held FACE_ARM.settle seconds, and no arm
  * gesture have played for FACE_ARM.after (the pose a gesture just played comes back at once, within FACE_ARM.same).
@@ -273,7 +291,7 @@ export function liftAnchors(A, r) {
   if (!(r > 0)) return A;
   const up = p => [p[0], f1(p[1] - r)];
   const out = { ...A };
-  for (const k of ['gaze', 'tear', 'z', 'bubble', 'spout', 'bulb']) if (A[k]) out[k] = up(A[k]);
+  for (const k of ['gaze', 'tear', 'z', 'bubble', 'spout', 'bulb', 'mouth']) if (A[k]) out[k] = up(A[k]);
   for (const k of ['tears', 'glints']) if (A[k]) out[k] = A[k].map(up);
   if (A.hearts) out.hearts = [A.hearts[0], A.hearts[1], f1(A.hearts[2] - r)];
   return out;
@@ -327,10 +345,10 @@ export function partsOf(fc, name = 'neutral') {
   return { eyes: p.eyes ?? name, brows: p.brows ?? name, mouth: p.mouth ?? name, body: p.body ?? name };
 }
 /**
- * Gestures of the head alone (nod, shake, sigh, tilt, and the kit's HEAD_MORE: droop, blink): a plus
- * kit plays them in the frame's `head`, beside its `gesture`.
+ * Gestures of the head alone (nod, shake, sigh, tilt, and the kit's HEAD_MORE: droop, blink, lookup, pant, closeeyes,
+ * sneeze): a plus kit plays them in the frame's `head`, beside its `gesture`.
  */
-export const HEAD_GESTURES = ['nod', 'shake', 'sigh', 'tilt', 'droop', 'blink'];
+export const HEAD_GESTURES = ['nod', 'shake', 'sigh', 'tilt', 'droop', 'blink', 'lookup', 'pant', 'closeeyes', 'sneeze'];
 /**
  * The moves of her own parts a word asks for (the kit's APPENDAGE_MOVES): word → part; she has a tail. A plus kit hands
  * them in the frame's `appendages`; a kit without it (upstream's, should it ever draw her) plays them as the gesture.
@@ -363,19 +381,23 @@ export function gesturesOf(o) {
 }
 /**
  * The head gesture's moves at its own k: a nod's two dips, a shake's turns, a sigh's breath in and out, and its puff; a
- * curious tilt's lean over to one side and a droop's drop of the head (`down`), each 0..1: over in the first sixth, held,
- * back in the last sixth, as the kit's tiltOf. (`blink` the kit does: the frame's `blink`.)
+ * curious tilt's lean over to one side, a droop's drop of the head (`down`) and a look up's lift of it (`up`), each 0..1:
+ * over in the first sixth, held, back in the last sixth, as the kit's tiltOf. A pant is its quick breaths in and out, a
+ * puff on each breath out (the kit's pantBreath); a sneeze its caught breath (a breath in, the face up a little) and its
+ * jolt (a nod's dip, sharper: SNEEZE_HEAD; the kit's sneezeOf). (`blink` and `closeeyes` the kit does: the frame's `blink`.)
  */
 export function headMoves(h) {
   const k = h ? h.k : 0, is = n => h?.kind === n, held = smooth(0, 1 / 6, k) * (1 - smooth(5 / 6, 1, k));
+  const pant = is('pant') ? kit.pantBreath(k) : null, sn = is('sneeze') ? kit.sneezeOf(k) : null;
   return {
-    nod: is('nod') ? Math.sin(k * Math.PI * 2) ** 2 * (1 - .3 * k) : 0,
+    nod: is('nod') ? Math.sin(k * Math.PI * 2) ** 2 * (1 - .3 * k) : sn ? SNEEZE_HEAD.jolt * sn.jolt : 0,
     shake: is('shake') ? Math.sin(k * Math.PI * 6) * smooth(0, .12, k) * (1 - k) : 0,
-    inh: is('sigh') ? Math.sin(Math.PI * clamp(k / .45, 0, 1)) : 0,
-    exh: is('sigh') ? smooth(.35, .55, k) * (1 - smooth(.8, 1, k)) : 0,
-    puffK: is('sigh') ? clamp((k - .38) / .45, 0, 1) : 0,
+    inh: is('sigh') ? Math.sin(Math.PI * clamp(k / .45, 0, 1)) : pant ? pant.inh : sn ? SNEEZE_HEAD.windup * sn.windup : 0,
+    exh: is('sigh') ? smooth(.35, .55, k) * (1 - smooth(.8, 1, k)) : pant ? pant.exh : 0,
+    puffK: is('sigh') ? clamp((k - .38) / .45, 0, 1) : pant ? pant.puffK : 0,
     tilt: is('tilt') ? held : 0,
     down: is('droop') ? held : 0,
+    up: is('lookup') ? held : sn ? SNEEZE_HEAD.up * sn.windup : 0,
   };
 }
 /**
@@ -392,6 +414,14 @@ export const LIE_TILT = 10;
  * (LIE_MORE.down).
  */
 export const DROOP = { pitch: .7, neck: 9, look: 4 };
+/**
+ * A look up (抬头): standing or seated the face pitches up (angleY), the eyes look up at you (`look`, up), the neck bends
+ * back a little (degrees) and the brows lift (master px); kneeling the drawing's head lifts (KNEEL_HEAD.up), lying it
+ * turns up about the chin (LIE_MORE.up). Her body stays as it is: leaning back (leanback) is the one that takes it along.
+ */
+export const LOOKUP = { pitch: .8, neck: 10, look: 5, brow: 3.5 };
+/** A sneeze's head (headMoves): the jolt as a nod of `jolt` at most, the caught breath as a breath in of `windup` and a look up of `up`. */
+export const SNEEZE_HEAD = { jolt: 1.3, windup: .9, up: .5 };
 /**
  * The body's own moves the kit leaves to her: leaning in toward you (the waist and neck, degrees; how much nearer: scale),
  * leaning back (the same), a sway's rock of the whole body and of the neck on top of it (degrees).
@@ -424,7 +454,7 @@ export function catchUp(gap) {
   return out;
 }
 /** Lying, those moves of the head about the chin (degrees; a lean in also shifts it toward you, rig units). */
-export const LIE_MORE = { down: 9, closer: 6, back: 5, sway: 6 };
+export const LIE_MORE = { down: 9, up: 7, closer: 6, back: 5, sway: 6 };
 /**
  * Kneeling and lying, the tilt the drawing's head takes (standing and seated, sp.head eases it): `x` follows the tilt `to`
  * over and back as it plays, but when another head gesture cuts a held tilt short (a nod, a shake, a sigh, another
@@ -439,20 +469,20 @@ export function tiltEased(x, to, dt) {
 }
 /**
  * How far the kneeling head moves (rig units): a shake's slide, a nod's drop and squash (per unit above the chin), a sigh;
- * a tilt's turn about the chin (degrees at a full tilt).
+ * a tilt's turn about the chin (degrees at a full tilt); a look up's lift of the whole head (rig units).
  */
-export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5, tilt: 9, down: 1.6 };
+export const KNEEL_HEAD = { shake: 5, nod: 2, squash: .06, exh: 2.5, inh: 1.5, tilt: 9, down: 1.6, up: 1.4 };
 /**
  * Kneeling, the head's gestures on the kneeling drawing, a warp over its head (poses.kneel.head): rather than turning
  * it, a nod drops the head and squashes its top toward the chin, a shake slides it sideways, a sigh lifts it on the
  * breath in and lets it sink on the breath out, a tilt (`tilt`, -1..1 with its side) turns it about the chin. Nothing
  * moves at the rect's sides and bottom, so the hair and body beyond it never shear against what is inside.
  */
-export function kneelHeadField(rect, { nod = 0, shake = 0, inh = 0, exh = 0, tilt = 0, down = 0 }) {
+export function kneelHeadField(rect, { nod = 0, shake = 0, inh = 0, exh = 0, tilt = 0, down = 0, up = 0 }) {
   const y1 = rect[3], cx = (rect[0] + rect[2]) / 2, K = KNEEL_HEAD, a = tilt * K.tilt * Math.PI / 180, dn = nod + K.down * down;
   return (u, v, x, y) => {
     const w = smooth(0, .18, u) * (1 - smooth(.82, 1, u)) * (1 - smooth(.7, 1, v));
-    return [w * (shake * K.shake - a * (y - y1)), w * (dn * (K.nod + K.squash * (y1 - y)) + K.exh * exh - K.inh * inh + a * (x - cx))];
+    return [w * (shake * K.shake - a * (y - y1)), w * (dn * (K.nod + K.squash * (y1 - y)) + K.exh * exh - K.inh * inh - K.up * up + a * (x - cx))];
   };
 }
 
@@ -1250,6 +1280,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   let tiltDir = 1, tiltWas = false;
   let tiltK = 0;  // (kneel, lie) the tilt the drawing's head takes (tiltEased)
   let downK = 0;  // a droop's drop of the head, cut short eased back (tiltEased)
+  let upK = 0;  // a look up's lift of the head, the same
   let restPitch = null, sleepK = null;  // the head's resting pitch by face, and how far asleep (pitchEased)
   const fxTurn = [0, 0]; // this frame's head turn (angleX, angleY), for effects drawn over the face
   // the kit tips Coo's whole round body to listen, nod, doze or wobble; she keeps her feet on the floor and
@@ -1284,7 +1315,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [.5, .6], pout: [.3, 0], worried: [-.3, .1], determined: [.9, .3], flustered: [.4, .8], scared: [-1, 0, -1],
     excited: [1, 1], cry: [-1, 0, -1], confused: [.2, .1], bowing: [-.2, .2],
     disgusted: [-.4, 0], nervous: [-.4, 0], peeking: [.6, .5],
-    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], pleading: [.2, .3], moved: [.4, .5], sighing: [-.3, 0], petrify: [.6, 0], coax: [.5, 1], singing: [.6, .6], saluting: [.9, .3], tongue: [.6, .8], stretching: [.3, .2], pointing: [.8, .4],
+    gentle: [.1, .15], awkward: [-.4, 0], giggle: [.4, .5], pleading: [.2, .3], moved: [.4, .5], sighing: [-.3, 0], panting: [-.3, 0], sneezing: [1, .2], petrify: [.6, 0], coax: [.5, 1], singing: [.6, .6], saluting: [.9, .3], tongue: [.6, .8], stretching: [.3, .2], pointing: [.8, .4],
     // (expr2) rolling her eyes and dead-fish eyes droop a little and go still; shocked is stiff and up; drooling sways
     eyeroll: [-.3, 0], shocked: [1, 0], deadpan: [-.5, 0], drool: [.3, .4],
   };
@@ -1297,7 +1328,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     smug: [1, -1], pout: [-1, -3], worried: [2, 4.5], determined: [0, -3], flustered: [2, 3.5], scared: [3, 4],
     excited: [3, 0], cry: [1, 5], confused: [1, 0, 5],
     disgusted: [-1.5, -2], nervous: [1.5, 2.5], peeking: [2.5, .5],
-    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], petrify: [5, 1], coax: [2, 2.5], singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
+    gentle: [1, 1.5], awkward: [1, 4], giggle: [1, 1], pleading: [2, 4.5], moved: [1, 4], sighing: [0, 2.5], panting: [0, 2.5], sneezing: [1, 3], petrify: [5, 1], coax: [2, 2.5], singing: [2.5, 1], saluting: [0, -3], tongue: [1.5, 0], stretching: [-1, 0], pointing: [1.5, 0],
     // (expr2) eyeroll's brows up a little and flat; shocked's high, as petrify's; deadpan's lowered, flat; drool's soft
     eyeroll: [1, -1], shocked: [6, 1], deadpan: [-1.5, 0], drool: [1, 1],
   };
@@ -1376,6 +1407,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const moves = headMoves(gesturesOf(o).head);
     downK = tiltEased(downK, moves.down, dt);
     if (downK) o = { ...o, look: [o.look[0], lerp(o.look[1], DROOP.look, downK)] };
+    // (a look up holds it up, the same; her eyes look up at you)
+    upK = tiltEased(upK, moves.up, dt);
+    if (upK) o = { ...o, look: [o.look[0], lerp(o.look[1], -LOOKUP.look, upK)] };
     // (with her chin on her hand the head keeps nearly still)
     let tiltT = (o.look[0] * .7 + o.look[1] * .4) * (1 - .6 * chinK) + Math.sin(t * .9) * 1.2;
     if (mode === 'sleep') tiltT += 6;
@@ -1420,7 +1454,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // a sigh: drawing a breath (inh), then sagging as it goes out (exh)
     puffK = head.puffK;
     const propG = PROPS[g?.kind] ? g.kind : null;              // both hands: a cup, a book, pressed together, on the hips, held out
-    const raiseG = RAISES[g?.kind] ? g.kind : null;            // the near arm raised: hand at her head, or a finger up
+    // (a gesture played on another's raised drawing, RAISE_AS: 抹眼泪 on the fist's)
+    const raiseKind = RAISE_AS[g?.kind] ?? g?.kind, weepG = g?.kind === 'weep';
+    const raiseG = RAISES[raiseKind] ? raiseKind : null;       // the near arm raised: hand at her head, or a finger up
     const raise = raiseG ? env(.12, .82) : 0;
     const hold = propG ? env(.1, .88) : 0, sip = propG === 'sip' ? sipLift(gk) * hold : 0;
     // a face's arm pose (FACE_ARMS: hands on her hips, arms crossed...), when no arm gesture of hers is playing; `faceK` its
@@ -1435,13 +1471,13 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // (turning away without her back drawing, seated say, she turns her face away and drops her chin a little)
     const awayFace = backable() ? 0 : away;
     const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3 + sip * 4 + (propG === 'read' || propG === 'jot' ? 5 * hold : faceG === 'jot' ? 5 * faceUp : 0) - 2 * inh + 6 * exh - (raiseG === 'vsign' ? 6 * raise : 0) + (propG === 'curtsy' ? 6 * hold : 0)
-      + DROOP.neck * downK + BODY_LEAN.closerNeck * closer - BODY_LEAN.backNeck * leanback + BODY_LEAN.swayNeck * swayG, gYaw = shake * 1.1 - awayFace * 1.3;
+      + DROOP.neck * downK - LOOKUP.neck * upK + BODY_LEAN.closerNeck * closer - BODY_LEAN.backNeck * leanback + BODY_LEAN.swayNeck * swayG, gYaw = shake * 1.1 - awayFace * 1.3;
     const headA = headTilt + gNeck;
     const tiltVel = (headA - prevTilt) / Math.max(dt, 1e-3); prevTilt = headA;
     const yawVel = (gYaw - prevYaw) / Math.max(dt, 1e-3); prevYaw = gYaw;
     const angleX = clamp(clamp(o.look[0] / 5, -1, 1) * .9 + gYaw, -1.4, 1.4);
     // angleY + pitches the face down (the features slide down, more crown shows), as a gaze down (look[1] +) does
-    const angleY = clamp(clamp(o.look[1] / 4, -1, 1) * .7 + .8 * sleepK + restPitch + nod * .9 + bow * .5 - flinch * .3 - peek * .1 - .1 * inh + .3 * exh - .12 * tilt + DROOP.pitch * downK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
+    const angleY = clamp(clamp(o.look[1] / 4, -1, 1) * .7 + .8 * sleepK + restPitch + nod * .9 + bow * .5 - flinch * .3 - peek * .1 - .1 * inh + .3 * exh - .12 * tilt + DROOP.pitch * downK - LOOKUP.pitch * upK - BODY_LEAN.chinUp * leanback, -1.4, 1.4);
 
     /* springs */
     // (a kit without the guard against a frame of dt 0, upstream's before #87, may hand over a NaN swing for good: as none)
@@ -1660,8 +1696,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       // (pleading, the pressed hands bob twice a second; held out for a hug, the arms sway a little wider)
       const bob = pg === 'pray' ? 1.5 * Math.abs(Math.sin(t * 6)) : 0, sway = pg === 'hug' ? .02 * Math.sin(t * 2.2) : pg === 'serve' ? .05 * smooth(.2, .45, gk) * on : 0;
       // (writing, the pen keeps to the page: less sway; the fingertips' drawing keeps still, or its sleeves' straight tops
-      // would slide over her hair)
-      st[id] = { ty: (pg === 'stretch' ? -8 * up : 7 * (1 - up)) + bob * up, a: (pg === 'sip' ? 1.2 : pg === 'hips' || pg === 'twiddle' ? 0 : pg === 'jot' ? .4 : .6) * Math.sin(t * 1.3) * up - .4 * lift, sx: 1 + sway * up, sy: 1 + (pg === 'serve' ? sway * up : 0) };
+      // would slide over her hair; so do the hands over her face, or they would slide over her eyes)
+      st[id] = { ty: (pg === 'stretch' ? -8 * up : 7 * (1 - up)) + bob * up, a: (pg === 'sip' ? 1.2 : pg === 'hips' || pg === 'twiddle' || pg === 'hideface' ? 0 : pg === 'jot' ? .4 : .6) * Math.sin(t * 1.3) * up - .4 * lift, sx: 1 + sway * up, sy: 1 + (pg === 'serve' ? sway * up : 0) };
       // (the pen scribbles along the page about its nib, as the girls' does; the two fingertips poke at each other, one up as
       // the other goes down, the sleeves still)
       const [qx, qy] = pose.wrist, pen = pg === 'jot' ? up : 0, poke = pg === 'twiddle' ? up : 0;
@@ -1693,8 +1729,11 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       const wig = rg === 'scratch' ? 3 * Math.sin(t * 16) : rg === 'idea' ? -4 * Math.sin(Math.PI * smooth(.2, .45, gk))
         : rg === 'vsign' ? -3 * Math.sin(Math.PI * smooth(.2, .4, gk)) : rg === 'point' ? 3 * Math.sin(Math.PI * smooth(.3, .45, gk))
           : rg === 'raise' ? 2 * Math.sin(t * 6) : rg === 'wipe' ? 4 * Math.sin(Math.PI * smooth(.25, .6, gk)) : 0;
-      // (the hand over her mouth sits a little nearer it than drawn; the fist pumps, cheering you on, as the girls' does)
-      st[id] = { a: dir - pose.rest + wig * lift, tx: rg === 'cover' ? 6 * lift : 0, ty: rg === 'fist' ? -2.5 * Math.abs(Math.sin(t * 7)) * lift : 0 };
+      // (the hand over her mouth sits a little nearer it than drawn; the fist pumps, cheering you on, as the girls' does;
+      // the patting hand bobs; weeping, the fist sits in under her eye, rubbing it: weepPose)
+      st[id] = rg === 'fist' && weepG && gOn > 0 ? weepPose(lift, t)
+        : { a: dir - pose.rest + wig * lift, tx: rg === 'cover' ? 6 * lift : 0,
+          ty: rg === 'fist' ? -2.5 * Math.abs(Math.sin(t * 7)) * lift : rg === 'pat' ? -PAT_BOB.amp * Math.abs(Math.sin(t * PAT_BOB.rate)) * lift : 0 };
       for (const p of pose.required) st.alpha[p.id] = tex[p.tex] ? swap : 0;
       if (FAR_RAISES.includes(rg)) { st.alpha.arm_far *= 1 - swap; st.alpha.arm_far_end_front *= 1 - swap; farFree *= 1 - swap; }
       else st.alpha.arm_near *= 1 - swap;
@@ -1722,7 +1761,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     st.headFeat = { fn: parallax(2, 1.4) };
     if (L.brows) {
       const [lift, inner, side = 0] = BROW[FP.brows] || [0, 0];
-      browLift = lerp(browLift, lift - 1.5 * (o.blink || 0), ease(14, dt));
+      browLift = lerp(browLift, lift - 1.5 * (o.blink || 0) + LOOKUP.brow * upK, ease(14, dt));
       browInner = lerp(browInner, inner, ease(10, dt));
       browSide = lerp(browSide, side, ease(10, dt));
       const [bx0, , bx1] = L.deformers.brows.rect;
@@ -1784,7 +1823,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       st[k] = { a: a + idle * d.gain - root * Math.min(1, d.gain) };
     }
 
-    if (LIE) lying(o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK, down: downK, closer, leanback, sway: swayG }, g, gk);
+    if (LIE) lying(o, fc, face, mode, t, dt, breath, poseA, { nod, shake, bow, flinch, peek, flap, inh, exh, tilt: tiltK, down: downK, up: upK, closer, leanback, sway: swayG }, g, gk);
     // her back shows through the middle of a turn (the kit keeps her at least 85% wide then) and while she turns away;
     // it fades in over the front, which only goes once the back is opaque
     const canBack = backable();
@@ -1814,7 +1853,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const { drawA: kneelA, lowA } = kneelAlphas(seat);
     if (KNEEL) {
       st.kneel = { sx: 1 + .006 * breath, sy: 1 - .012 * breath };
-      if (L.deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(L.deformers.kneelHead.rect, { ...head, tilt: tiltK, down: downK }) };
+      if (L.deformers.kneelHead) st.kneelHead = { fn: kneelHeadField(L.deformers.kneelHead.rect, { ...head, tilt: tiltK, down: downK, up: upK }) };
       const shutK = eyesShut(o, fc.eyes, mode);
       for (const p of KNEEL.required) st.alpha[p.id] = tex[p.tex] ? kneelA : 0;
       const km = lyingMouth(o, FP.mouth, mode);
@@ -1877,7 +1916,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
    */
   const MOOD_KICK = { happy: [1.6, 1.4], love: [1.6, 1.2], excited: [1.9, 1.7], wink: [1.3, 1.2], angry: [1.2, 2], sad: [.3, .6], cry: [.2, .6], sleepy: [.4, .7], scared: [.2, 1], worried: [.5, .8] };
   function lying(o, fc, face, mode, t, dt, breath, poseA, gs, g, gk) {
-    const { nod, shake, bow, flinch, peek, flap, inh, exh, tilt = 0, down = 0, closer = 0, leanback = 0, sway = 0 } = gs;
+    const { nod, shake, bow, flinch, peek, flap, inh, exh, tilt = 0, down = 0, up = 0, closer = 0, leanback = 0, sway = 0 } = gs;
     const pv = LIE.pivots, still = mode === 'sleep' || fc.listen;
     // a fidget from the kit (kick, chin, thump) is a short gesture
     const fid = kind => (g?.kind === kind ? Math.sin(Math.PI * gk) : 0);
@@ -1887,7 +1926,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // the head turns about the chin on her hands (degrees, + tips it forward), shifts sideways for a shake or peek
     const th = (1.4 * Math.sin(t * .9) + 1.1 * Math.sin(t * 6.9) * (o.talk || 0) + clamp(o.look[0], -6, 6) * .3 + 3 * sleepK
       + nod * 6 + bow * 7 + shake * 2 - flinch * 5 + 4 * exh - 2 * inh + fid('chin') * 6 + tilt * LIE_TILT
-      + LIE_MORE.down * down + LIE_MORE.closer * closer - LIE_MORE.back * leanback + LIE_MORE.sway * sway) * Math.PI / 180;
+      + LIE_MORE.down * down - LIE_MORE.up * up + LIE_MORE.closer * closer - LIE_MORE.back * leanback + LIE_MORE.sway * sway) * Math.PI / 180;
     const hx = shake * 2.5 + peek * 3 + LIE_MORE.closer / 3 * closer, [cx, cy] = pv.lieChin;
     st.lieHead = {
       fn: (u, v, x, y) => {
@@ -2007,6 +2046,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     hearts: [96, 176, 62], bubble: [128, 18], glints: [[48, 32], [208, 46]],
     // a spout leaves the top of her head, just behind the ahoge
     spout: [140, 42],
+    // (plus) her mouth (the middle of the master's mouth line, y 769: MOUTH_DY), where a sneeze's mist bursts out (the kit's mouthSpot)
+    mouth: [U(766), V(769)],
     // the same, plus the hit ellipse [cx, cy, rx, ry] and half width, lying on her front (the spout from the lying head's crown)
     ...(LIE ? { lie: { ...LIE.anchors, spout: [(LIE.rects.head[0] + LIE.rects.head[2]) / 2, LIE.rects.head[1] + 12] } } : {}),
   };
@@ -2024,12 +2065,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     groupTilt,
     tearDrop: TEAR_DROP,
     /**
-     * The gestures she draws herself, from the frame's `gesture` (nod, shake, sigh, tilt and droop from its `head` on a kit
+     * The gestures she draws herself, from the frame's `gesture` (nod, shake, sigh, tilt, droop, lookup, pant and sneeze from its `head` on a kit
      * that has one: gesturesOf; and the moves of the body the kit leaves to her: closer, leanback, sway); the kit leaves
      * them off the body.
      */
-    gestures: ['nod', 'shake', 'tilt', 'droop', 'closer', 'leanback', 'sway', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh', 'pray', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'muse',
-      'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe', 'fist', 'jot', 'twiddle'],
+    gestures: ['nod', 'shake', 'tilt', 'droop', 'lookup', 'pant', 'sneeze', 'closer', 'leanback', 'sway', 'wave', 'bow', 'flinch', 'peek', 'cheer', 'heart', 'away', 'sip', 'read', 'roll', 'spout', 'sigh', 'pray', 'hips', 'hug', 'scratch', 'idea', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch', 'curtsy', 'muse',
+      'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe', 'fist', 'jot', 'twiddle', 'weep', 'hideface', 'pat'],
     setScheme,
     /** Forgets the motion state (springs, clocks), for callers that replay a timeline from its start. */
     /**
@@ -2057,7 +2098,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     reset() {
       endFade();
       for (const k in sp) { sp[k].x = 0; sp[k].v = 0; }
-      lastT = null; rootWas = {}; museK = 0; facing = 1; walkK = 0; runK = 0; swingN = 0; swingF = 0; tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; restPitch = sleepK = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; wagK = 0; wagPh = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; faceArm = FACE_ARM_NOT; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
+      lastT = null; rootWas = {}; museK = 0; facing = 1; walkK = 0; runK = 0; swingN = 0; swingF = 0; tiltDir = 1; tiltWas = false; tiltK = 0; downK = 0; upK = 0; restPitch = sleepK = null; prevTilt = 0; prevYaw = 0; prevLow = 0; headTilt = 0; wTilt = 0; wLean = 0; finMood = 0; tailMood = 0; wagAmp = 0; wagK = 0; wagPh = 0; sitK = 0; danceK = 0; lieK = 0; lieB = { on: false, a: 0 }; seat = SEATED_NOT; armsT = 9; faceArm = FACE_ARM_NOT; poseShown = 0; kickPh = 0; chinK = 0; backA = 0; awayA = 0; steam = 0; puffK = 0; frozenOK = false; stoneK = 0;
     },
     /** Loads every scheme's and outfit's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.flatMap(sc => OUTFITS.map(of => loadScheme(sc.id, of.id)))),

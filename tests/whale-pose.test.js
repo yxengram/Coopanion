@@ -2,8 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, RAISE_HIGH, lyingMouth, sipLift, rollTurn, ballMix, BALL_IN, BALL_OUT, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, BODY_LEAN, WAG, appendagesOf, ARM_TWIN, SWAP_AT, handsIn, RAISE_ENTRY, FACE_ARMS, FACE_ARM, FACE_ARM_NOT, faceArmStep, KNEEL_FACE_SKIP, KNEEL_LEANS } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { CLAP, createPet, TEAR_FX, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, RAISE_HIGH, lyingMouth, sipLift, rollTurn, ballMix, BALL_IN, BALL_OUT, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, LOOKUP, BODY_LEAN, WAG, appendagesOf, ARM_TWIN, SWAP_AT, handsIn, RAISE_ENTRY, FACE_ARMS, FACE_ARM, FACE_ARM_NOT, faceArmStep, KNEEL_FACE_SKIP, KNEEL_LEANS, NECK_HANDS, RAISE_AS, WEEP, weepPose, PAT_BOB } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { CLAP, createPet, TEAR_FX, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn, HEAD_MORE, SNEEZE } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { chainPoint, meshGap } from './helpers/mesh.js';
@@ -957,7 +957,8 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       if (P.arms) { for (const [slot, a] of Object.entries(P.arms)) groups.push([`${id}.${slot}`, slot === 'near' ? 'N' : 'F', a.required.map(p => p.id)]); continue; }
       groups.push([id, id === 'chin' || FAR_RAISES.includes(id) ? 'F' : id === 'wave' || NEAR_RAISES[id] ? 'N' : 'NF', P.required.map(p => p.id)]);
     }
-    const WORDS = ['wave', 'cheer', 'heart', ...Object.keys(PROP_GESTURES), ...Object.keys(BOTH_HANDS), ...Object.keys(NEAR_RAISES), 'muse'];
+    // (and the words played on another's raised drawing, RAISE_AS: the weep's fist)
+    const WORDS = ['wave', 'cheer', 'heart', ...Object.keys(PROP_GESTURES), ...Object.keys(BOTH_HANDS), ...Object.keys(NEAR_RAISES), ...Object.keys(RAISE_AS), 'muse'];
     const bad = [], seen = new Set();
     const check = (st, tag) => {
       const on = { N: [], F: [] };
@@ -1192,6 +1193,12 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       run(1);
       const [lx, ly] = fig.anchors.lie.bubble;
       near(dots(), pet.toStage(lx + 62, ly + 28));
+      // 灵魂出窍's little ghost too, beside the lying head (bobbing up to 2.5 units)
+      const ghost = () => { const m = fx().match(/<g class="soul" opacity="[\d.]+" transform="translate\(([-\d.]+) ([-\d.]+)\)/); return [+m[1], +m[2]]; };
+      pet.setExpr('soulout');
+      run(1.2);
+      const gp = ghost(), gq = pet.toStage(lx + 62, ly + 28 - 8);
+      expect(Math.hypot(gp[0] - gq.x, gp[1] - gq.y)).toBeLessThan(3);
       pet.doWord('stand');
       run(3);
       pet.setExpr('fuming');
@@ -1543,6 +1550,99 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       pet.doWord('droop'); go(.8);
       expect(Math.abs(st.lieHead.fn(.5, .1, ...top)[0] - before[0])).toBeGreaterThan(3);
       expect(headMoves({ kind: 'droop', k: .5 }).down).toBe(1);
+    } finally { done(); rand.mockRestore(); }
+  });
+
+  it('looks up (抬头), pants (喘气), shuts her eyes (闭眼) and sneezes (打喷嚏) standing, seated, kneeling and lying', async () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    const { pet, run, frame: last, done } = await whaleOnKit();
+    try {
+      let st = null;
+      const go = s => run(s, x => { st = x; });
+      const mean = (at, s) => { let a = 0, n = 0; run(s, x => { st = x; a += at(x); n++; }); return a / n; };
+      const span = (word, s, at) => { pet.doWord(word); const xs = []; run(s, x => { st = x; xs.push(at(x)); }); return xs; };
+      go(1);
+      for (const mode of ['stand', 'sit']) {
+        pet.doWord(mode); go(2.5);
+        // a look up bends the neck back (the other way from a droop), held, then back; her waist stays (a lean back moves it)
+        const rest = mean(x => x.neck.a, .4), waist = mean(x => x.waist.a, .2);
+        pet.doWord('lookup'); go(.5);
+        expect(last().head, mode).toMatchObject({ kind: 'lookup' });
+        expect(rest - mean(x => x.neck.a, .6), mode).toBeGreaterThan(LOOKUP.neck * .7);
+        expect(Math.abs(mean(x => x.waist.a, .2) - waist), mode).toBeLessThan(1);
+        go(1.2);
+        expect(Math.abs(mean(x => x.neck.a, .3) - rest), mode).toBeLessThan(LOOKUP.neck * .4);
+        // a pant bobs her upper body on each quick breath, with its own face
+        const sy = span('pant', HEAD_MORE.pant, x => x.waist.sy);
+        expect(Math.max(...sy) - Math.min(...sy), mode).toBeGreaterThan(.03);
+        go(.4);
+        // shut eyes: the frame's blink held shut
+        pet.doWord('closeeyes'); go(.6);
+        expect(last().blink, mode).toBeGreaterThan(.95);
+        go(1.5);
+        // a sneeze: the neck back as the breath catches, then thrown forward at the jolt
+        const necks = span('sneeze', HEAD_MORE.sneeze, x => x.neck.a), at = Math.round(HEAD_MORE.sneeze * SNEEZE.at * 60);
+        expect(Math.max(...necks.slice(at, at + 12)) - rest, mode).toBeGreaterThan(5);
+        go(.5);
+      }
+      // kneeling each keeps her kneeling; a look up lifts the drawing's head, its sides and bottom staying
+      const D = rigSeen.tree.deformers, [x0, y0, x1, y1] = D.kneelHead.rect, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const off = (x, y) => {
+        const a = pointOf(D, 'kneelHead', st, x, y), b = pointOf(D, 'kneelHead', { ...st, kneelHead: null }, x, y);
+        return [a[0] - b[0], a[1] - b[1]];
+      };
+      pet.doWord('kneel'); go(3);
+      pet.doWord('lookup'); go(.8);
+      expect(last().kneel).toBe(true);
+      expect(off(cx, y0 + 6)[1]).toBeLessThan(-1);
+      for (const [x, y] of [[x0, cy], [x1, cy], [cx, y1]]) for (const d of off(x, y)) expect(Math.abs(d)).toBeLessThan(1e-9);
+      go(1.5);
+      for (const word of ['pant', 'closeeyes', 'sneeze']) { pet.doWord(word); go(.3); expect(last().kneel, word).toBe(true); go(2.2); }
+      // lying a look up turns the head up about the chin, the other way from a droop
+      pet.doWord('lie'); go(3);
+      const L = model.poses.lie.rects.head, top = [(L[0] + L[2]) / 2, L[1] + 8];
+      const flat = st.lieHead.fn(.5, .1, ...top)[0];
+      pet.doWord('droop'); go(.8);
+      const down = st.lieHead.fn(.5, .1, ...top)[0] - flat;
+      go(1.5);
+      pet.doWord('lookup'); go(.8);
+      const up = st.lieHead.fn(.5, .1, ...top)[0] - flat;
+      expect(Math.abs(up)).toBeGreaterThan(2);
+      expect(Math.sign(up)).toBe(-Math.sign(down));
+      expect(headMoves({ kind: 'lookup', k: .5 }).up).toBe(1);
+    } finally { done(); rand.mockRestore(); }
+  });
+
+  it('sneezes her mist from her mouth (anchors.mouth) at the jolt\'s peak, standing and seated: by her mouth as her head comes down, not over her eyes', async () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    const { pet, run, fx, fig, done } = await whaleOnKit();
+    try {
+      run(1);
+      // her mouth: under her tear spots, raised with them (liftAnchors)
+      const A = fig.anchors, mouth0 = A.mouth;
+      expect(mouth0[1]).toBeGreaterThan((A.tears[0][1] + A.tears[1][1]) / 2);
+      expect(liftAnchors(A, 5).mouth[0]).toBe(mouth0[0]);
+      expect(liftAnchors(A, 5).mouth[1]).toBeCloseTo(mouth0[1] - 5, 1);
+      const D = rigSeen.tree.deformers, MIST = /<g fill="#8a93b0"[^>]*><circle cx="([-\d.]+)" cy="([-\d.]+)"/g;
+      for (const mode of ['stand', 'sit']) {
+        pet.doWord(mode); run(2.5);
+        pet.doWord('sneeze');
+        let xs = [];
+        for (let i = 0; i < 3 * 60 && !xs.length; i++) { run(1 / 60); xs = [...fx().matchAll(MIST)].map(m => [+m[1], +m[2]]); }
+        expect(xs.length, mode).toBeGreaterThanOrEqual(3);
+        // a few frames on, with the head down at the bottom of the jolt: the mist by where her mouth is drawn then
+        run(4 / 60);
+        xs = [...fx().matchAll(MIST)].map(m => [+m[1], +m[2]]);
+        const m = pet.toStage(...pointOf(D, 'headFeat', rigSeen.st, ...mouth0)), S = pet.toStage(0, 1).y - pet.toStage(0, 0).y;
+        const cy = xs.reduce((a, p) => a + p[1], 0) / xs.length, cx = xs.reduce((a, p) => a + p[0], 0) / xs.length;
+        // (seated, the kit's points for her were measured some 7-9 units under her live head, the tear spots too: the
+        // mist comes from her chin there, still well under her eyes)
+        expect(Math.abs(cy - m.y) / S, mode).toBeLessThan(mode === 'stand' ? 3 : 8);
+        expect(Math.abs(cx - m.x) / S, mode).toBeLessThan(8);
+        const eyes = pet.toStage(...pointOf(D, 'headFeat', rigSeen.st, ...A.tears[0]));
+        expect((cy - eyes.y) / S, mode).toBeGreaterThan(4);
+        run(1.5);
+      }
     } finally { done(); rand.mockRestore(); }
   });
 
@@ -2022,7 +2122,9 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
 
   it('does the arm words drawn anew kneeling, in the hybrid, keeping the kneel, and goes back to the drawing after', async () => {
     for (const [w, parts] of [['clap', ['arm_clap', 'arm_clapo']], ['shrug', ['arm_shrug']], ['headhold', ['arm_headhold']], ['raise', ['arm_raise']],
-      ['thumbs', ['arm_thumbs']], ['shush', ['arm_shush']], ['wipe', ['arm_wipe']], ['fist', ['arm_fist', 'arm_fist_top']], ['jot', ['arm_jot']], ['twiddle', ['arm_twiddle']]]) {
+      ['thumbs', ['arm_thumbs']], ['shush', ['arm_shush']], ['wipe', ['arm_wipe']], ['fist', ['arm_fist', 'arm_fist_top']], ['jot', ['arm_jot']], ['twiddle', ['arm_twiddle']],
+      // (抹眼泪 on the fist's drawing, 双手捂脸, 摸摸头)
+      ['weep', ['arm_fist', 'arm_fist_top']], ['hideface', ['arm_hideface']], ['pat', ['arm_pat', 'arm_pat_top']]]) {
       const s = await onKit();
       try {
         kneelDown(s);
@@ -2114,9 +2216,9 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
     }
   });
 
-  it('swings the fist in from outside (clear of her cheek) and pumps it; the other bent raises come in from her side', async () => {
-    expect(RAISE_ENTRY).toEqual({ fist: -12 });
-    for (const [w, sign] of [['fist', -1], ['idea', 1], ['thumbs', 1]]) {
+  it('swings the fist (and the patting hand) in from outside (clear of her cheek) and pumps it; the other bent raises come in from her side', async () => {
+    expect(RAISE_ENTRY).toEqual({ fist: -12, pat: -12 });
+    for (const [w, sign] of [['fist', -1], ['pat', -1], ['idea', 1], ['thumbs', 1]]) {
       const s = await onKit();
       try {
         s.run(1);
@@ -2128,13 +2230,94 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
         // the first frame the drawing shows it is turned off its own angle the way it comes in, and settles on it
         expect(Math.sign(first), w).toBe(sign);
         expect(Math.abs(first), w).toBeGreaterThan(4);
-        if (w === 'fist') {
-          // a little up-and-down beat, never below where it is drawn
-          expect(Math.min(...ty), w).toBeLessThan(-1.8);
+        if (w === 'fist' || w === 'pat') {
+          // a little up-and-down beat (the pat's PAT_BOB), never below where it is drawn
+          expect(Math.min(...ty), w).toBeLessThan(w === 'pat' ? -.9 * PAT_BOB.amp : -1.8);
           expect(Math.max(...ty), w).toBeLessThanOrEqual(0);
         } else expect(ty.every(v => v === 0), w).toBe(true);
       } finally { s.done(); }
     }
+  });
+
+  it('wipes a tear (抹眼泪) with the fist moved in under her eye, hides her face (双手捂脸) on the neck and pats (摸摸头) with the near hand', async () => {
+    // the weep plays on the fist's entry (RAISE_AS), not an entry of its own: one writer of armFist and its alphas
+    expect(RAISE_AS).toEqual({ weep: 'fist' });
+    expect(NEAR_RAISES.weep).toBeUndefined();
+    expect([BOTH_HANDS.hideface, NEAR_RAISES.pat]).toEqual(['hideface', 'pat']);
+    expect(NECK_HANDS).toEqual(['headhold', 'hideface']);
+    expect(FAR_ARM_GESTURES).toContain('hideface');
+    expect(FAR_ARM_GESTURES).not.toContain('weep');
+    expect(BENT_RAISES).toContain('pat');
+    // the faces the three hold pose none of her arms (hideface's body is neutral's: shy's would bring the fingertips)
+    for (const f of ['cry', 'comfort', 'gentle', 'neutral']) expect(FACE_ARMS[f], f).toBeUndefined();
+    expect(FACE_ARMS.shy).toBe('twiddle');
+    // (the hands over her face lie over it, the patting hand's cuff and hand again over the hair it is held in front of)
+    expect(model.poses.hideface.required.map(p => p.z)).toEqual([14.6]);
+    expect(model.poses.pat.required.map(p => [p.id, p.z])).toEqual([['arm_pat', 6], ['arm_pat_top', 14.2]]);
+    const s = await onKit();
+    try {
+      const D = rigSeen.tree.deformers;
+      const parentOf = pose => D[Object.keys(model.poses[pose].pivots)[0]].parent;
+      expect(parentOf('hideface')).toBe('neck');
+      expect(parentOf('pat')).toBe('waist');
+      expect(Object.keys(D).filter(k => k === 'armFist')).toHaveLength(1);
+      expect(s.fig.gestures).toEqual(expect.arrayContaining(['weep', 'hideface', 'pat']));
+      for (const scene of ['stand', 'sit']) {
+        s.run(1);
+        if (scene === 'sit') { s.pet.doWord('sit'); s.run(2.5); }
+        // the weep: the fist shows, the plain near arm goes; it comes in at its share of WEEP's place (no swing past it)
+        // and sits there, rubbing, through the middle; crying
+        s.pet.doWord('weep');
+        let first = null, mid = null, plain = 1, rub = [];
+        s.run(2.4, () => {
+          if (s.alpha('arm_fist') >= 1) {
+            if (first == null) first = { ...s.st.armFist };
+            plain = Math.min(plain, s.alpha('arm_near'));
+            if (s.alpha('arm_fist_top') >= 1 && Math.abs(s.st.armFist.ty + WEEP.ty) < 1e-6) { mid = { ...s.st.armFist }; rub.push(s.st.armFist.tx); }
+          }
+        });
+        expect(s.pet.pet.expr, scene).toBe('cry');
+        expect(first, scene).not.toBe(null);
+        expect(first.a, scene).toBeLessThanOrEqual(0);
+        expect(first.a, scene).toBeGreaterThanOrEqual(WEEP.a);
+        expect(mid.a, scene).toBe(WEEP.a);
+        expect(Math.min(...rub), scene).toBeGreaterThanOrEqual(WEEP.tx - WEEP.rub - 1e-9);
+        expect(Math.max(...rub) - Math.min(...rub), scene).toBeGreaterThan(WEEP.rub);
+        expect(plain, scene).toBe(0);
+        expect(weepPose(1, 0)).toEqual({ a: WEEP.a, tx: WEEP.tx, ty: -WEEP.ty });
+        s.run(2);
+        expect(s.alpha('arm_fist'), scene).toBe(0);
+        // a 加油 straight after is the fist's own again: pumping, no weep offsets
+        s.pet.doWord('fist');
+        let off = 0;
+        s.run(1, () => { if (s.alpha('arm_fist') >= 1) off = Math.max(off, Math.abs(s.st.armFist.tx)); });
+        expect(off, scene).toBe(0);
+        s.run(2);
+        // the face hidden: both plain arms go, the drawing keeps still on her face (no sway)
+        s.pet.doWord('hideface');
+        let shown = 0, arms = 1;
+        s.run(1.2, () => {
+          shown = Math.max(shown, s.alpha('arm_hideface'));
+          if (s.alpha('arm_hideface') >= 1) { arms = Math.min(arms, Math.max(s.alpha('arm_near'), s.alpha('arm_far'))); expect(Math.abs(s.st.armHideface.a)).toBe(0); }
+        });
+        expect([shown, arms], scene).toEqual([1, 0]);
+        expect(s.pet.pet.expr, scene).toBe('shy+happy+neutral');
+        // (and as it ends no fingertips come after it, FACE_ARMS.shy: the face's body is neutral's)
+        let tips = 0;
+        s.run(2.5, () => { tips = Math.max(tips, s.alpha('arm_twiddle')); });
+        expect(tips, scene).toBe(0);
+        expect(s.alpha('arm_hideface'), scene).toBe(0);
+        // the pat: the near arm's drawing and its top over the hair; comforting
+        s.pet.doWord('pat');
+        let pat = 0;
+        s.run(1.2, () => { pat = Math.max(pat, Math.min(s.alpha('arm_pat'), s.alpha('arm_pat_top'))); });
+        expect(pat, scene).toBe(1);
+        expect(s.alpha('arm_near'), scene).toBe(0);
+        expect(s.pet.pet.expr, scene).toBe('comfort');
+        s.run(2.5);
+        if (scene === 'sit') { s.pet.doWord('stand'); s.run(1.5); }
+      }
+    } finally { s.done(); }
   });
 
   it('writes with her head bent over the notebook, the pen scribbling at its nib; the fingertips poke at each other, the sleeves still', async () => {

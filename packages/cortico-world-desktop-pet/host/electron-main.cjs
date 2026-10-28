@@ -19,12 +19,16 @@
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, session, shell, systemPreferences } = require('electron');
 const { join } = require('node:path');
 const { createCursorSource } = require('./cursor.cjs');
-const { createMouseLease } = require('./mouse-lease.cjs');
+const { createMouseLease, FORWARD_MOVES } = require('./mouse-lease.cjs');
 const { createShownReport } = require('./shown.cjs');
 const { hostText } = require('./text.cjs');
 
-/** Milliseconds between the cursor reports the page gets. */
-const CURSOR_EVERY_MS = 100;
+/**
+ * Milliseconds between the cursor reports the page gets. On Windows the reports are all the page
+ * learns of a cursor moving over the click-through window (see FORWARD_MOVES), so they come at
+ * the system timer's default resolution (upstream #465).
+ */
+const CURSOR_EVERY_MS = process.platform === 'win32' ? 15 : 100;
 /** Milliseconds between the checks for a fullscreen window covering the pet's display. */
 const FULLSCREEN_EVERY_MS = 200;
 /** Most pixels one backdrop sample returns. */
@@ -344,7 +348,7 @@ function runPetHost({ url, parentPid = 0, tray: withTray = true }) {
     win.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'screen-saver');
     // on every Space, and over an app in full screen
     if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
-    win.setIgnoreMouseEvents(true, { forward: true });
+    win.setIgnoreMouseEvents(true, { forward: FORWARD_MOVES });
     guard(win.webContents);
     win.once('ready-to-show', () => win.showInactive());
     // The page cannot tell for itself that it is hidden (background throttling is off, so it always reads as

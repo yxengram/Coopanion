@@ -44,6 +44,14 @@ const en: PetText = {
     linuxNoX11: 'The talk key cannot connect to the X11 display',
     unsupported: 'The talk key works on Windows, macOS and Linux only',
   },
+  /** Why the typing key (upstream #361) cannot be read; the other two reasons (the keyboard, Input Monitoring) are the ones in `hotkey`. */
+  typeKey: {
+    macNoKey: 'A Mac keyboard has no such key; pick another typing key',
+    linuxNoKey: 'Linux cannot read this key (mouse side buttons do not work); pick another typing key',
+    linuxNoDisplay: 'The typing key needs X11 (or XWayland) on Linux: DISPLAY is not set',
+    linuxNoX11: 'The typing key cannot connect to the X11 display',
+    unsupported: 'The typing key works on Windows, macOS and Linux only',
+  },
 
   system: {
     name: (culture: string) => (culture ? `Windows Speech Recognition (${culture})` : 'Windows Speech Recognition'),
@@ -64,6 +72,20 @@ const en: PetText = {
     noRuntime: (platform: string) => `FunASR has no runtime for this platform (${platform})`,
     loadFailed: (why: string) => `The speech model failed to load: ${why}`,
     notLoaded: 'The speech model is not loaded',
+  },
+
+  transcription: {
+    noUrl: 'The transcription service address is not set',
+    badUrl: (url: string) => `The address is not an http or https URL: ${url}`,
+    httpRemote: 'A remote address must use https: http is not encrypted, so the API Key and the recordings would travel in plain text. Addresses on this computer or the local network may use http.',
+    noModel: 'The transcription model is not set',
+    notRunning: 'The transcription service is not started',
+    status: (status: number, message: string) => (message ? `HTTP ${status}: ${message}` : `HTTP ${status}`),
+    timeout: (ms: number) => `The service did not answer within ${ms} ms`,
+    network: (why: string) => `Cannot reach the service: ${why}`,
+    redirect: 'The service answered with a redirect; the recording is not sent on to another address',
+    noText: 'The service answered without text',
+    badKey: 'The API Key cannot contain spaces or line breaks',
   },
 
   store: {
@@ -209,6 +231,10 @@ const en: PetText = {
     window: 'Pet window',
     connected: 'Page connected',
     notOpen: 'Not open',
+    /** The window lamp while the page in the window reported that not even Coo would draw. */
+    noBody: (reason: string) => `Page connected, the figure cannot be drawn: ${reason}`,
+    /** The window lamp's hint when a browser page stands in for the window. */
+    alsoBrowser: (hint: string) => `${hint}; a browser page is connected`,
     voice: 'Speech recognition',
     notStarted: 'Not started',
     viewInBrowser: 'View the pet in the browser',
@@ -305,8 +331,10 @@ const en: PetText = {
     deciderModel: { title: 'Decision model', description: (model: string) => `The decision model id on OpenRouter; ${model} by default.` },
     deciderTimeout: { title: 'Longest wait', description: 'When a decision takes longer, that bubble only shows the expression or head motion named outright in the feeling, or just the words.' },
     asrEnabled: { title: 'Voice input' },
-    asrEngine: { title: 'Recognition engine', description: "funasr runs FunASR's SenseVoiceSmall on this computer, accurate for Chinese, after a one-time download of about 240 MB; system uses Windows' own speech recognition, with nothing to download and lower accuracy (Windows only)." },
+    asrEngine: { title: 'Recognition engine', description: "funasr runs FunASR's SenseVoiceSmall on this computer, accurate for Chinese, after a one-time download of about 240 MB; system uses Windows' own speech recognition, with nothing to download and lower accuracy (Windows only); api sends the recording of each sentence to an OpenAI-compatible transcription service and shows the text once the sentence ends; its address and model are set below, its API Key on the Voice input page." },
     asrLanguage: { title: 'Language', description: 'zh, en, ja, ko, yue, or auto to let the model tell.' },
+    asrApiUrl: { title: 'Transcription service address', description: 'With engine api, the recording of each sentence goes to an OpenAI-compatible transcription service: /audio/transcriptions under this address, such as https://api.example.com/v1; the text appears once the sentence ends, and a two-letter language code is sent along. A remote address must use https; addresses on this computer or the local network may use http. The API Key is set on the Voice input page.' },
+    asrApiModel: { title: 'Transcription model', description: 'The model named in requests with engine api.' },
     asrThreads: { title: 'CPU threads', description: 'Threads FunASR uses for one recognition; 0 = 2.' },
     asrSimplified: { title: 'Convert to Simplified Chinese' },
     thresholdDb: { title: 'Speech threshold' },
@@ -350,6 +378,15 @@ const en: PetText = {
     system: 'Windows built-in',
     systemHint: 'Nothing to download, fair accuracy; switch to FunASR for better results',
     funasrHint: 'SenseVoiceSmall on this computer, accurate for Chinese; download the model once and keep it',
+    api: 'Transcription service (OpenAI-compatible)',
+    apiName: 'Transcription service',
+    apiHint: 'Each sentence is sent to the service set below; the text appears once a sentence ends',
+    apiUrl: 'Address',
+    apiModel: 'Model',
+    apiKey: 'API Key',
+    keySaved: 'Saved',
+    keyMissing: 'Not set',
+    keyPlaceholder: 'Type it and press Enter to save',
     server: 'Recognition service',
     start: 'Start',
     stop: 'Stop',
@@ -381,6 +418,7 @@ const en: PetText = {
     waitingKey: 'Waiting for the talk key',
     results: 'What was heard',
     resultsHint: 'Struck-through lines were too short or likely hallucinated, and were not sent',
+    thresholdHint: 'Only sound louder than this line counts as speech; someone else talking as loudly as you is heard too. Drag it or use the arrow keys',
   },
 };
 

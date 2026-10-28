@@ -42,7 +42,7 @@ Coo Pet Provider:[Cortico](https://github.com/Pal-AI-Lab/Cortico) 的一个 prov
 - **占位推理**:Responses 按明文回传过往推理时,没记下推理的工具调用前默认补一条占位推理(`Vendor.syntheticReasoning`,即 Cortico 的 `sendSyntheticReasoning`)。
   DeepSeek 明确开(不补会回 400);OpenRouter 关(上游 Coopanion 2026-10-13 实测经它的千问、Kimi、GLM、MiniMax、Grok 不补也能通过,默认的 DeepSeek 模型不在其列);
   别家不填,沿用 Cortico 的默认(补)。端点因此回 400 时,桌宠的失败气泡请使用者反馈给开发者,不给设置按钮。
-- **图片**:端点勾了「多模态」且那一家列明所用模型能看图(`Vendor.vision`)时才发;选模型时按它自动勾上或去掉「多模态」。
+- **图片**:端点勾了「多模态」就发,哪家、哪个模型都一样(上游 #432;以前还要那一家列明所用模型能看图,表外的模型和其他地址勾了也收不到图)。新建端点和选模型时,按那一家列明能看图的模型(`Vendor.vision`)自动勾上或去掉「多模态」。
   只发最近一批送达的事件(user 消息或事件帧)及其后的图片,更早的只留 Core 给每份附件写的 `[blob …]` 那行文字。
   每次送达新的一批,请求里从上一批的第一张图起前缀缓存失效。
 - **提示词缓存**(Anthropic):system 一个断点,请求顶层 `cache_control` 跟着对话最后一块走,每次请求读上一次写下的前缀。

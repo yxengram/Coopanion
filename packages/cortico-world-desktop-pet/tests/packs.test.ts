@@ -308,6 +308,40 @@ describe('figure packs', () => {
     expect(missing).toHaveLength(1);
   });
 
+  // (upstream #434)
+  it("reads a pack's voice, how far its effects reach and its bubbles' colours, leaving out values out of range or incomplete", () => {
+    const colours = { light: { fill: '#ffffff', text: '#111111', line: '#222222' }, dark: { fill: '#000000', text: '#eeeeee', line: '#dddddd' } };
+    const m = readManifest(pack({
+      ...base, voice: { pitch: 1.5 }, effects: { reach: .5 }, bubble: colours,
+      presets: [{ id: 'dusk', pick: {}, bubble: colours }, { id: 'dawn', pick: {}, bubble: { ...colours, dark: { fill: '#000' } } }],
+      sounds: { la: { file: 'la.ogg', kind: 'talk' } },
+    }, ['la.ogg']));
+    if (typeof m === 'string') throw new Error(m);
+    expect(m).toMatchObject({ voice: { pitch: 1.5 }, effects: { reach: .5 }, bubble: colours, sounds: { la: { kind: 'talk' } } });
+    expect(m.presets.map((p) => p.bubble)).toEqual([colours, undefined]);
+    const off = readManifest(pack({ ...base, voice: { pitch: 9 }, effects: { reach: 5 }, bubble: { light: colours.light } }));
+    if (typeof off === 'string') throw new Error(off);
+    expect(off).toMatchObject({ voice: { pitch: 1 }, effects: { reach: 0 } });
+    expect(off.bubble).toBeUndefined();
+    // a colour that is not hex (a stylesheet's text could ride in one) leaves the whole set out
+    const css = readManifest(pack({ ...base, bubble: { ...colours, light: { ...colours.light, fill: 'red;}body{x:y' } } }));
+    if (typeof css === 'string') throw new Error(css);
+    expect(css.bubble).toBeUndefined();
+    // none of it given: the defaults, and no bubble
+    const plain = readManifest(pack(base));
+    if (typeof plain === 'string') throw new Error(plain);
+    expect(plain).toMatchObject({ voice: { pitch: 1 }, effects: { reach: 0 } });
+    expect(plain).not.toHaveProperty('bubble');
+  });
+
+  it('the built-in figures name no voice, effects reach or bubble colours of their own', () => {
+    for (const p of figurePacks([]).packs) {
+      expect(p.manifest, p.id).toMatchObject({ voice: { pitch: 1 }, effects: { reach: 0 } });
+      expect(p.manifest, p.id).not.toHaveProperty('bubble');
+      expect(Object.values(p.manifest.sounds).some((d) => d.kind === 'talk'), p.id).toBe(false);
+    }
+  });
+
   it('loads a pack without what this version does not know (a word\'s or sound\'s kind, a sound\'s file type, a value of can), naming each part left out', () => {
     const skipped: string[] = [];
     const m = readManifest(pack({
@@ -705,6 +739,8 @@ describe('importing figure packs from the dressing page', () => {
       expect(done).toEqual({ installed: ['robot'] });
       const listed = await (await fetch(url('/api/figures'))).json() as Array<{ id: string; base: string }>;
       expect(listed.find((p) => p.id === 'robot')).toMatchObject({ base: '/packs/robot/' });
+      // (upstream #434) the page reads the pack's voice, effects reach and bubble colours from the list
+      expect(listed.find((p) => p.id === 'robot')).toMatchObject({ voice: { pitch: 1 }, effects: { reach: 0 }, bubble: null });
     } finally {
       await server.stop();
     }

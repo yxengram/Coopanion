@@ -59,3 +59,23 @@ describe("Coo's context defaults", () => {
     expect(half).toMatchObject({ maxTokens: 200_000, keepRatio: 0.25 });
   });
 });
+
+describe("the Chat page's context ring switch (companion.contextRing, upstream #360)", () => {
+  it('is off by default, also for a config.json from before it, and a saved value stays', async () => {
+    const def = await cormini();
+    const source = { defaults: () => cooDefaults(def.defaults()) };
+    const ring = (config?: Record<string, unknown>) => (loadDeployment(source, deployDir(config)).config as unknown as { companion: { contextRing?: unknown; telemetry?: unknown } }).companion;
+    expect(ring()).toEqual({ telemetry: true, contextRing: false });
+    expect(ring({ companion: { telemetry: false } })).toEqual({ telemetry: false, contextRing: false });
+    expect(ring({ companion: { contextRing: true } }).contextRing).toBe(true);
+  });
+
+  it("is a hot boolean of Coopanion's config group, titled in both languages", async () => {
+    const { companionGroup } = await import('../core/companion.ts');
+    for (const [language, title] of [['zh', '上下文圆环'], ['en', 'Context ring']] as const) {
+      const p = companionGroup(language).schema.properties['companion.contextRing'];
+      expect(p).toMatchObject({ type: 'boolean', title, 'x-hot': true });
+      expect(p!.description).toBeTruthy();
+    }
+  });
+});

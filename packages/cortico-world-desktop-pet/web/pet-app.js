@@ -16,7 +16,8 @@ import { COO_CSS, mini, normalizeSkin, skinCss } from './coo/coo.js';
 import { afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold } from './body-host.js';
 import { attachSayActs, createActs, sayHeld } from './acts.js';
 import { setLanguage, t } from './i18n.js';
-import { accentColors, accentCss } from './accent.js';
+import { accentColors, accentCss, bubbleColors, bubbleCss } from './accent.js';
+import { createMic } from './mic.js';
 
 const $ = (s) => document.querySelector(s);
 const host = window.petHost || null;
@@ -30,8 +31,10 @@ const tools = $('#tools');
 // Coo's drawing classes for the menu's avatar; the bubbles and buttons take their colours from Coo's palette, and
 // another pack's body sets the theme colour instead (accentStyle, after skinStyle so it wins: accent.js)
 const cooStyle = document.createElement('style'), skinStyle = document.createElement('style'), accentStyle = document.createElement('style');
+// the bubbles' colours of a pack that names its own (bubbleCss, upstream #434)
+const bubbleStyle = document.createElement('style');
 cooStyle.textContent = COO_CSS;
-document.head.append(cooStyle, skinStyle, accentStyle);
+document.head.append(cooStyle, skinStyle, accentStyle, bubbleStyle);
 
 const prefs = {
   roam: 'calm', sound: true, theme: document.documentElement.dataset.theme, scale: 1, bubbleSize: 1, fontSize: 1, bubbleSpeed: 1, user: '伙伴', mic: false, micDevice: '', bot: null,
@@ -65,7 +68,12 @@ let body = null, words = new Map(), T = 0;
 /** Where the body last said it is (body-host.js `layout`), or null. */
 const at = () => body?.layout ?? null;
 /** What the body is told of the page: talking orders hold its roaming off, and these states. */
-const bodyState = { listening: false, thinking: false, dialogOpen: false };
+const bodyState = { listening: false, thinking: false, dialogOpen: false, status: null };
+/**
+ * The body's `status` (upstream #434: the kind of work the status bubble shows, the figure's `frame.status`): this page
+ * has no status bubble, so the only kind it knows is thinking ('think'), else null.
+ */
+const thinkingState = (on) => ({ thinking: on, status: on ? 'think' : null });
 const holdRoam = (seconds) => body?.set({ hold: seconds });
 addEventListener('resize', () => {
   body?.set({ bounds: bounds() });
@@ -143,7 +151,10 @@ host?.onFullscreen?.((on) => { petFocus.fullscreen = on; reportFocus(); });
 let skin = normalizeSkin(null), wanted = null;
 /** The pack on screen, as /api/figures lists it: its look's preset colours the bubble (`lightFor`). */
 let shownPack = null;
-const lightFor = (s) => { accentStyle.textContent = accentCss(accentColors(shownPack, s)); };
+const lightFor = (s) => {
+  accentStyle.textContent = accentCss(accentColors(shownPack, s));
+  bubbleStyle.textContent = bubbleCss(bubbleColors(shownPack, s));
+};
 function reportFigure(id, ok, reason, scheme, known) {
   send({ t: 'figure', id, ok, ...(scheme ? { scheme } : {}), ...(reason ? { reason } : {}), ...(Array.isArray(known) ? { words: known } : {}) });
 }
@@ -201,7 +212,7 @@ async function swapBody(s) {
   words = new Map(pack.vocab.map((w) => [w.id, w]));
   shownPack = pack;
   lightFor(s);
-  sfx.usePack(pack.base, pack.sounds, { plus: OWN_PACKS.includes(pack.id) });
+  sfx.usePack(pack.base, pack.sounds, { plus: OWN_PACKS.includes(pack.id), voice: pack.voice });
   reportFigure(s.figure, true, null, s.figure === 'coo' ? null : s.scheme, next.words);
 }
 async function applyFigure(s) {
@@ -273,7 +284,7 @@ function applyPrefs(p) {
   if (typeof p.hideWhenFullscreen === 'boolean') host?.hideWhenFullscreen?.(p.hideWhenFullscreen);
   if (Array.isArray(p.hoverButtons)) prefs.hoverButtons = p.hoverButtons.filter((id) => typeof id === 'string' && id in ACTIONS);
   if (p.bot) { prefs.bot = p.bot; if (!menu.hidden && !menu.querySelector('.m-head.confirm')) renderMenuHead(); }
-  if (typeof p.thinking === 'boolean') setBody({ thinking: p.thinking });
+  if (typeof p.thinking === 'boolean') setBody(thinkingState(p.thinking));
   refreshButtons();
 }
 
@@ -288,6 +299,8 @@ function onOrder(m) {
     case 'init': restorePosition(m.startX); applyPrefs(m); break;
     case 'prefs': applyPrefs(m); break;
     case 'watching': watching = true; stopMic(); break;
+    // the typing key, pressed in any window (upstream #361)
+    case 'type': openTyping(); break;
     case 'say': dropAsks(); queue.push({ kind: 'say', id: m.id, beats: m.beats, i: -1, ...(m.acts === 'pending' ? { pending: true, holdMs: m.holdMs } : {}) }); holdRoam(20); break;
     case 'say-acts': if (attachSayActs(queue, item, m.id, m.actions) === 'late') { acts.push(...(m.actions || [])); holdRoam(20); } break;
     case 'ask': dropAsks(); queue.push({ kind: 'ask', id: m.id, question: m.question, options: m.options || [], own: m.own !== false }); holdRoam(20); break;
@@ -302,7 +315,7 @@ function onOrder(m) {
     // a message sent from the chat page, once the bot has it, and one taken back before delivery
     case 'said': if (prefs.saidBubbles) addLine('chat', typeof m.text === 'string' ? m.text : '', false, { images: Number(m.images) || 0, cursor: m.cursor ?? null }); break;
     case 'said-withdrawn': withdrawLine(m.cursor); break;
-    case 'thinking': setBody({ thinking: !!m.on }); break;
+    case 'thinking': setBody(thinkingState(!!m.on)); break;
     case 'dialog': queue.push({ kind: 'dialog', id: m.id, d: m }); holdRoam(20); break;
     case 'dialog-update': updateDialog(m); break;
     case 'dialog-close': endDialog(m.id); break;
@@ -438,6 +451,22 @@ function hushSpeech() {
 }
 
 /**
+ * The typing key (upstream #361): the typing box, as a double-click opens it, or the one already open. On Windows the
+ * pet window takes the keyboard from the window in front and gives it back when the box closes (releaseKeys); on a
+ * Mac opening the box activates the app (host.focus), as the hover button's does.
+ */
+function openTyping() {
+  const open = item?.kind === 'input';
+  if (!open) openInput();
+  // a question waiting on an answer keeps the bubble
+  if (item?.kind !== 'input') return;
+  // again for a box already open: the keyboard may have gone back to another window meanwhile
+  if (host?.grabFocus) { item.grabbed = true; host.grabFocus(); }
+  if (open) host?.focus?.();
+  setTimeout(() => bubble.querySelector('textarea')?.focus(), 30);
+}
+
+/**
  * While a question's options are up, the pet window takes the keyboard so 1–9 pick one right
  * away, and gives it back to the window that had it once the question is answered or gone.
  */
@@ -466,6 +495,9 @@ function startItem(it) {
   }
 }
 
+/** The pointer is on Coo's bubble: a line's countdown stands still meanwhile, so it can be read to the end or its link clicked (upstream #430). */
+const pointedAt = () => !bubble.hidden && bubble.matches(':hover');
+
 function stepDialog(dt) {
   if (!item && queue.length && at() && !at().busy) startItem(queue.shift());
   const it = item;
@@ -474,8 +506,9 @@ function stepDialog(dt) {
     // decider mode: the bubble waits a moment for the words picked for it (acts.js sayHeld)
     if (it.i < 0 && sayHeld(it, T)) return;
     if (it.i < 0 || it.beatDone) {
-      // a bubble with a link stays while the pointer is on it, so the link can be clicked (upstream #297)
-      if (it.beatDone && (T < it.holdUntil || (bubble.matches(':hover') && bubble.querySelector('a')))) return;
+      // any bubble waits while the pointer is on it, a link's too (upstream #297), and goes on with the time it had left
+      if (it.beatDone && pointedAt()) it.holdUntil += dt;
+      if (it.beatDone && T < it.holdUntil) return;
       it.i++;
       it.beatDone = false;
       if (it.i >= it.beats.length) { closeBubble(); return; }
@@ -630,10 +663,12 @@ function stepTalk(it, dt) {
   showDialogInput(it);
 }
 
-/** A step with nothing to answer ends once its line has been read. */
-function stepTalkRead() {
+/** A step with nothing to answer ends once its line has been read; the pointer on the bubble holds its countdown. */
+function stepTalkRead(dt) {
   const it = item;
-  if (it?.kind === 'dialog' && it.readUntil && T > it.readUntil) settleDialog(it, { done: true });
+  if (it?.kind !== 'dialog' || !it.readUntil) return;
+  if (pointedAt()) it.readUntil += dt;
+  if (T > it.readUntil) settleDialog(it, { done: true });
 }
 
 /** `quiet`: drawn again in place (relabelled), with no pop-in sound and no taking the keyboard; `refocus` gives the focus back. */
@@ -835,37 +870,111 @@ function stepTalkMotion() {
   talk.next = T + (run ? .1 : 1.2 + Math.random() * 1.2);
 }
 
-/* ---------- typed input: the hover button, or double-click when switched on ---------- */
+/* ---------- typed input: the hover button, double-click when switched on, or the typing key ---------- */
+/**
+ * Pictures pasted into the box (upstream #430) are fitted as the chat page fits them: only ever shrunk, the long edge
+ * to IMAGE_EDGE; one still past IMAGE_BYTES is encoded again as JPEG. The box holds BOX_IMAGES, one row of
+ * thumbnails; the chat page takes more.
+ */
+const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const IMAGE_EDGE = 2048, IMAGE_BYTES = 6 * 1024 * 1024, BOX_IMAGES = 4;
+
+/** One pasted picture as `{ name, mime, base64, bytes, width, height }`; a picture that cannot be used rejects with the note to show. */
+async function fitImage(file) {
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); } catch { throw new Error(t('bubble.imageUnreadable')); }
+  try {
+    const name = file.name || 'image';
+    const scale = Math.min(1, IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale)), height = Math.max(1, Math.round(bitmap.height * scale));
+    if (scale === 1 && file.size <= IMAGE_BYTES) return { name, mime: file.type, base64: await base64Of(file), bytes: file.size, width, height };
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+    const encode = (mime, quality) => new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
+    // canvas has no GIF encoder
+    let mime = file.type === 'image/gif' ? 'image/png' : file.type;
+    let blob = await encode(mime);
+    if (blob && blob.size > IMAGE_BYTES && mime !== 'image/jpeg') { mime = 'image/jpeg'; blob = await encode(mime, .85); }
+    if (!blob) throw new Error(t('bubble.imageUnreadable'));
+    if (blob.size > IMAGE_BYTES) throw new Error(t('bubble.imageTooLarge', { mb: IMAGE_BYTES / 1048576 }));
+    return { name, mime, base64: await base64Of(blob), bytes: blob.size, width, height };
+  } finally {
+    bitmap.close();
+  }
+}
+function base64Of(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(t('bubble.imageUnreadable')));
+    reader.onload = () => { const url = String(reader.result); resolve(url.slice(url.indexOf(',') + 1)); };
+    reader.readAsDataURL(blob);
+  });
+}
+
 function openInput() {
   closeMenu();
   if (item && item.kind === 'ask' && !item.answered) return;
   if (item) closeBubble();
-  item = { kind: 'input' };
+  const it = item = { kind: 'input', images: [], pending: 0, pasted: 0 };
   const expand = prefs.bot?.buttons?.chat
     ? `<button class="b-expand" type="button" aria-label="${esc(t('bubble.expand'))}" title="${esc(t('bubble.expand'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg></button>`
     : '';
-  openBubble('ask', `<button class="b-close" type="button" aria-label="${esc(t('bubble.close'))}">×</button><form class="b-own"><textarea rows="1" maxlength="500" autocomplete="off" placeholder="${esc(t('bubble.typePlaceholder'))}" aria-label="${esc(t('bubble.typeLabel'))}"></textarea>${expand}<button type="submit">${esc(t('bubble.send'))}</button></form>`);
+  openBubble('ask', `<button class="b-close" type="button" aria-label="${esc(t('bubble.close'))}">×</button><div class="b-imgs" hidden></div><form class="b-own"><textarea rows="1" maxlength="500" autocomplete="off" placeholder="${esc(t('bubble.typePlaceholder'))}" aria-label="${esc(t('bubble.typeLabel'))}"></textarea>${expand}<button type="submit">${esc(t('bubble.send'))}</button></form><span class="b-hint b-note" hidden></span>`);
   const form = bubble.querySelector('form'), input = form.querySelector('textarea');
+  const tray = bubble.querySelector('.b-imgs'), note = bubble.querySelector('.b-note');
+  const say = (text) => { note.textContent = text || ''; note.hidden = !text; };
+  const draw = () => {
+    tray.hidden = !it.images.length;
+    tray.replaceChildren(...it.images.map((img) => {
+      const cell = document.createElement('span');
+      cell.className = 'b-img';
+      cell.innerHTML = `<img alt="" src="data:${esc(img.mime)};base64,${img.base64}"><button type="button" aria-label="${esc(t('bubble.removeImage'))}" title="${esc(t('bubble.removeImage'))}">×</button>`;
+      cell.querySelector('button').addEventListener('click', () => { it.images.splice(it.images.indexOf(img), 1); say(''); draw(); input.focus(); });
+      return cell;
+    }));
+  };
   // Enter sends, Shift+Enter starts a new line; an Enter that confirms an input method's text does neither (upstream #279)
   input.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return;
     e.preventDefault();
     form.requestSubmit();
   });
+  // a paste that carries pictures adds them and leaves the text as it was, as the chat page does
+  input.addEventListener('paste', (e) => {
+    const files = [...(e.clipboardData?.files ?? [])].filter((f) => IMAGE_MIMES.includes(f.type));
+    if (!files.length) return;
+    e.preventDefault();
+    if (it.images.length + it.pending + files.length > BOX_IMAGES) { say(t('bubble.tooManyImages', { max: BOX_IMAGES })); return; }
+    say(prefs.bot?.imagesSeen === false ? t('bubble.imagesUnseen', { bot: prefs.bot.name || 'Coo' }) : '');
+    for (const file of files) {
+      // the order is the paste's, though a big picture takes longer to fit
+      const order = ++it.pasted;
+      it.pending++;
+      fitImage(file).then((img) => {
+        if (item !== it) return;
+        it.images.push({ ...img, order });
+        it.images.sort((a, b) => a.order - b.order);
+        draw();
+      }, (err) => {
+        if (item === it) say(err.message);
+      }).finally(() => { it.pending--; });
+    }
+  });
   bubble.querySelector('.b-close').addEventListener('click', () => closeBubble());
-  // the chat page takes longer text and images; the draft goes with it
+  // the chat page takes longer text and more images; the draft goes with it, its pictures too
   bubble.querySelector('.b-expand')?.addEventListener('click', () => {
-    send({ t: 'expand', text: input.value });
+    send({ t: 'expand', text: input.value, images: it.images.map(({ order, ...img }) => img) });
     closeBubble();
   });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const v = input.value.trim();
-    if (!v) return;
-    send({ t: 'text', text: v });
+    if (it.pending || (!v && !it.images.length)) return;
+    send({ t: 'text', text: v, ...(it.images.length ? { images: it.images.map(({ mime, base64, name }) => ({ mime, base64, name })) } : {}) });
     sfx.select(); body?.cue('cheer');
     closeBubble();
-    if (prefs.saidBubbles) addLine('type', v);
+    if (prefs.saidBubbles) addLine('type', v, false, { images: it.images.length });
   });
   host?.focus?.();
   setTimeout(() => input.focus(), 30);
@@ -1027,48 +1136,7 @@ function stepLines() {
 }
 
 /* ---------- microphone: open while `prefs.mic`, which the World turns on and off with a held talk key in hold mode (openOnPress) ---------- */
-let mic = null;
-async function startMic() {
-  if (mic) return;
-  const opening = mic = { starting: true };
-  // 拿到一半就失败时也要停麦关声卡,否则录音指示灯常亮到页面刷新
-  let stream = null, ctx = null;
-  try {
-    const audio = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-    if (prefs.micDevice) audio.deviceId = { exact: prefs.micDevice };
-    stream = await navigator.mediaDevices.getUserMedia({ audio });
-    ctx = new AudioContext({ sampleRate: 16000 });
-    await ctx.audioWorklet.addModule('/web/mic-worklet.js');
-    const src = ctx.createMediaStreamSource(stream);
-    const node = new AudioWorkletNode(ctx, 'pet-mic');
-    node.port.onmessage = (e) => { if (ws && ws.readyState === 1) ws.send(e.data); };
-    src.connect(node);
-    // closed, or closed and opened again, while this one was opening
-    if (!prefs.mic || mic !== opening) { stream.getTracks().forEach((t) => t.stop()); ctx.close(); if (mic === opening) mic = null; return; }
-    mic = { stream, ctx, node };
-    send({ t: 'mic', state: 'on', detail: stream.getAudioTracks()[0]?.label || null });
-    void reportDevices();
-  } catch (err) {
-    if (stream) stream.getTracks().forEach((t) => t.stop());
-    if (ctx) ctx.close();
-    if (mic === opening) mic = null;
-    send({ t: 'mic', state: err && err.name === 'NotAllowedError' ? 'denied' : 'error', detail: String(err && err.message || err) });
-  }
-}
-/** Device labels are readable only after microphone access was granted. */
-async function reportDevices() {
-  const all = await navigator.mediaDevices.enumerateDevices();
-  send({ t: 'devices', list: all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications').map((d) => ({ id: d.deviceId, label: d.label })) });
-}
-navigator.mediaDevices?.addEventListener('devicechange', () => { if (mic && !mic.starting) void reportDevices(); });
-function stopMic() {
-  const m = mic;
-  mic = null;
-  if (!m || m.starting) return;
-  m.stream.getTracks().forEach((t) => t.stop());
-  m.ctx.close();
-  send({ t: 'mic', state: 'off' });
-}
+const { start: startMic, stop: stopMic } = createMic({ prefs, send, sendAudio: (data) => { if (ws && ws.readyState === 1) ws.send(data); } });
 
 /* ---------- actions: the menu's lower zone and the hover buttons draw from one list ---------- */
 const ROAM_ORDER = ['off', 'calm', 'free'];
@@ -1371,7 +1439,7 @@ const diag = { move: null, poll: null, type: '', types: new Set(), skipped: 0, l
 /**
  * Fewest milliseconds between two lines; the lines in between are counted into the next one, and
  * the last of them is written once the gap has passed. A flickering pointer flips the window at
- * the cursor report rate (10 a second) or faster; one line a second still names the check that
+ * the cursor report rate (10 a second, up to 66 on Windows) or faster; one line a second still names the check that
  * flipped it, and an hour of flicker stays under 3600 lines.
  */
 const POINTER_LOG_EVERY_MS = 1000;
@@ -1426,18 +1494,29 @@ document.addEventListener('pointermove', (e) => {
   followDrag(p);
 });
 /**
- * The pet window also reports where the cursor is on its own, a few times a second: a click-through
+ * The pet window also reports where the cursor is on its own, several times a second: a click-through
  * window may miss the move that takes the cursor off the pet (onto the taskbar, another screen),
- * and the hover buttons would then stay.
+ * and the hover buttons would then stay. While the window passes the mouse through, the reports
+ * are also the body's pointer moves: on Windows such a window gets no moves at all (upstream #465,
+ * host/mouse-lease.cjs FORWARD_MOVES).
  */
+let polled = null;
 host?.onCursor?.((p, across) => {
   cursor.at = p;
   cursor.across = typeof across === 'number' ? across : p ? p.x : null;
   if (!p) {
     diag.poll = { at: performance.now(), off: true };
     if (!pressing) setInteractive(false, 'poll');
+    if (polled && !pressing) body?.pointer('leave', {});
+    polled = null;
     return;
   }
+  if (!interactive && !pressing && (p.x !== polled?.x || p.y !== polled?.y)) {
+    pointerSeen = true;
+    lastPointer.x = p.x; lastPointer.y = p.y;
+    body?.pointer('move', { ...p, t: performance.now() });
+  }
+  polled = p;
   const el = document.elementFromPoint(p.x, p.y);
   const hit = !!body?.hit(p), ui = !!el?.closest?.(UI_SELECTOR);
   diag.poll = { at: performance.now(), x: p.x, y: p.y, hit, ui };
@@ -1571,6 +1650,9 @@ function layout(dt = 0) {
   const l = at();
   if (!l) return;
   stage.style.cursor = l.cursor;
+  // the sounds come from where Coo is on its display (upstream #435): screenX and availLeft (the left of the work area
+  // the pet window covers) count from the same origin across all displays
+  sfx.setPan(((screenX - screen.availLeft + l.x) / (screen.availWidth || innerWidth)) * 2 - 1);
   if (!tools.hidden) placeTools(l);
   const a = l.bubble;
   let sayBox = null;
@@ -1720,7 +1802,7 @@ function stepPage(dt) {
   if (T >= poseCheckAt) { poseCheckAt = T + 1; reportPose(); }
   stepActs();
   stepDialog(dt);
-  stepTalkRead();
+  stepTalkRead(dt);
   stepTalkMotion();
   stepLines();
   setBody({ dialogOpen: !!item || !!listen.phase });

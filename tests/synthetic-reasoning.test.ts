@@ -59,8 +59,8 @@ describe('the failure bubble after five failed requests in a row (hintFailures)'
     expect(shown[0]!.text).toBe(FAILURE_HINT.zh.reasoningReplay(5));
   });
 
-  it('says any other failure with its reason and the settings button, as before', async () => {
+  it('says a failure with no status (no connection) by its reason alone, with only an OK button (upstream #438)', async () => {
     const shown = await bubbleAfter(new Error('getaddrinfo ENOTFOUND api.example'));
-    expect(shown).toEqual([{ text: FAILURE_HINT.zh.text(5, 0, 'getaddrinfo ENOTFOUND api.example'), options: [{ label: FAILURE_HINT.zh.open, primary: true }, { label: FAILURE_HINT.zh.ok }] }]);
+    expect(shown).toEqual([{ text: FAILURE_HINT.zh.text(5, 0, 'getaddrinfo ENOTFOUND api.example', ''), options: [{ label: FAILURE_HINT.zh.ok, primary: true }] }]);
   });
 });

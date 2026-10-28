@@ -3,6 +3,10 @@
 .home-head { display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; }
 .home-title { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: .02em; color: var(--foreground); }
 .home-note { margin: 6px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted-foreground); }
+/* 打字键(upstream #361):开关,打开时下面是键名、更改和按法;读不了键时说明换成原因,标红 */
+.companion-typekey > .companion-rangebox[hidden] { display: none; }
+.companion-typekey > .companion-rangebox > select { flex: none; width: auto; }
+.home-note.bad { color: var(--danger); }
 .home-link { font-size: 13px; color: var(--accent); text-decoration: none; }
 .home-link:hover { text-decoration: underline; }
 .home-keybox { display: flex; flex-direction: column; gap: 8px; }

@@ -269,8 +269,9 @@ function voices({ tone, noise, R, hold }) {
     pop() { tone({ f0: 240, f1: 720, dur: .07, vol: .14 }); },
     sparkle() { [1568, 2093, 2637].forEach((fr, i) => tone({ f0: fr, dur: .25, vol: .06, at: i * .06 })); },
     select() { tone({ type: 'triangle', f0: 520, f1: 1040, dur: .1, vol: .12 }); },
-    babble(ch) {
-      const fr = 330 + (ch.codePointAt(0) % 9) * 28;
+    /** `pitch`: the pack's `voice.pitch` (upstream #434), 1 for the page's own. */
+    babble(ch, pitch = 1) {
+      const fr = (330 + (ch.codePointAt(0) % 9) * 28) * pitch;
       tone({ type: 'square', f0: fr, f1: fr * R(.85, 1.1), dur: .05, vol: .05, filter: 1800 });
     },
     blub() { tone({ f0: R(500, 700), f1: R(900, 1200), dur: .05, vol: .05 }); },
@@ -287,13 +288,20 @@ function voices({ tone, noise, R, hold }) {
 export const TONES = Object.keys(voices({ tone() {}, noise() {}, R: (a) => a, hold() {} }))
   .map((name) => ({ name, kind: KIND_OF[name] ?? HELPER_KIND[name], plus: PLUS_TONES.has(name) }));
 
+/** The smallest change of pan worth passing to the audio graph (`setPan`, upstream #435). */
+const PAN_STEP = .01;
+
 /**
  * `ctx`: an AudioContext (or OfflineAudioContext) to play into instead of the page's own, made at the first sound
  * after `unlock()`; with it the master switch is not read from storage and sound plays with no unlock and on hidden
  * pages too. `compress: false` leaves out the master compressor; `random` replaces Math.random (pitches, noise).
+ * `pan` puts a stereo panner after the master gain (`setPan`); on by default for the page's own context only, so a
+ * render into a given context comes out as before.
  */
-export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, ctx: given = null, compress = true, random = Math.random } = {}) {
+export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, ctx: given = null, compress = true, random = Math.random, pan: panned = !given } = {}) {
   let ctx = given, master = null, unlocked = false, on = true, noiseBuf = null, gainValue = volume;
+  // left to right, -1 to 1 (setPan); a context without StereoPannerNode plays everything centred
+  let panner = null, pan = 0;
   // kinds turned off, and seconds of snoring per sleep (0 = the whole sleep)
   let muted = new Set(), snoreSeconds = 0;
   // whether the window is shown: the pet window does not throttle its page, so document.hidden stays false while it is hidden
@@ -313,7 +321,17 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
     }
     if (!master) {
       master = ctx.createGain(); master.gain.value = gainValue;
-      if (compress) { const comp = ctx.createDynamicsCompressor(); master.connect(comp); comp.connect(ctx.destination); } else master.connect(ctx.destination);
+      let out = master;
+      if (panned && ctx.createStereoPanner) {
+        // every sound is mixed to one channel and placed where Coo is. A mono panner is equal-power, about .71 per side
+        // at the centre: the gain after it gives the centre the level it had without one (upstream's leaves it 3 dB down)
+        master.channelCount = 1; master.channelCountMode = 'explicit'; master.channelInterpretation = 'speakers';
+        panner = ctx.createStereoPanner(); panner.pan.value = pan;
+        const level = ctx.createGain(); level.gain.value = Math.SQRT2;
+        master.connect(panner); panner.connect(level);
+        out = level;
+      }
+      if (compress) { const comp = ctx.createDynamicsCompressor(); out.connect(comp); comp.connect(ctx.destination); } else out.connect(ctx.destination);
     }
     for (const o of own.values()) decode(o);
     return ctx;
@@ -372,16 +390,19 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
   /** The pack's own sounds by name: kind, volume, the file's bytes, and the buffer once an audio context decoded them. */
   let own = new Map();
   let plusTones = true; // until a pack is shown: Coo, the first body, is ours
+  /** The pack's voice (upstream #434): its `talk` sounds, which babble in place of the tone, and the pitch both are played at. */
+  let voice = { talk: [], pitch: 1 };
   function decode(o) {
     if (o.buffer || o.decoding || !ctx) return;
     o.decoding = o.bytes.then((b) => ctx.decodeAudioData(b.slice(0))).then((buf) => { o.buffer = buf; }, (err) => console.error(`音效 ${o.name} 没能解码:`, err));
   }
-  function playOwn(o) {
+  function playOwn(o, rate = 1) {
     const c = ready(); if (!c) return;
     // the first ask before the file is decoded goes unheard; the decode starts with the audio context
     if (!o.buffer) { decode(o); return; }
     const src = c.createBufferSource(), g = c.createGain();
     src.buffer = o.buffer; g.gain.value = o.volume;
+    if (rate !== 1) src.playbackRate.value = rate;
     src.connect(g); g.connect(master);
     src.start();
     // the latest play of a pack's sound can be cut short too ('stop:<name>')
@@ -393,6 +414,14 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
     isOn: () => on,
     set(v) { on = v; try { localStorage.setItem(storageKey, v ? 'on' : 'off'); } catch (e) { /* not persisted */ } },
     volume(v) { gainValue = v; if (master) master.gain.value = v; },
+    /** Where every sound seems to come from, -1 (left) to 1 (right); changes under PAN_STEP are skipped (upstream #435). */
+    setPan(v) {
+      if (!Number.isFinite(v)) return;
+      const p = Math.max(-1, Math.min(1, v));
+      if (Math.abs(p - pan) < PAN_STEP) return;
+      pan = p;
+      panner?.pan.setTargetAtTime(p, ctx.currentTime, .03);
+    },
     /**
      * The window was shown or hidden (by hand or while something is full screen): hidden, nothing new plays and
      * what can be cut short (a song, a pack's own file) fades out; shown, sound follows the settings again.
@@ -419,9 +448,10 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
     /**
      * The body's sounds (`sounds` of the pack on screen, from `base`): each is fetched now and decoded once
      * there is an audio context. `null` drops them. `plus`: the body is one of ours (OWN_PACKS) and may ask for
-     * the plus tones; any other pack hears only the tones upstream's page has, as it would there.
+     * the plus tones; any other pack hears only the tones upstream's page has, as it would there. `voice`: the pack's
+     * `voice` ({ pitch }, upstream #434); its `talk` sounds babble in place of the tone.
      */
-    usePack(base, sounds, { plus = false } = {}) {
+    usePack(base, sounds, { plus = false, voice: v } = {}) {
       plusTones = plus;
       own = new Map(Object.entries(sounds ?? {}).map(([name, d]) => {
         const bytes = fetch(new URL(d.file, new URL(base, location.href))).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))));
@@ -429,6 +459,8 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
         return [name, { name, kind: d.kind, volume: d.volume ?? 1, bytes }];
       }));
       if (ctx) for (const o of own.values()) decode(o);
+      const pitch = typeof v?.pitch === 'number' && v.pitch >= .5 && v.pitch <= 2 ? v.pitch : 1;
+      voice = { talk: [...own.values()].filter((o) => o.kind === 'talk'), pitch };
     },
     /**
      * A sound the body asks for: the pack's own by that name (filed under the kind its manifest gives), else the
@@ -453,5 +485,16 @@ export function createSfx({ storageKey = 'cortico-pet.sound.v1', volume = .55, c
   };
   // the page's own calls by name (sfx.pop()) play the tone, muted with its kind; a pack's sound never stands in for them
   for (const name of Object.keys(tones)) api[name] = (...args) => { if (!muted.has(KIND_OF[name])) tones[name](...args); };
+  /**
+   * The bubble's babble as it types (upstream #434): the pack's own `talk` sounds in turn, the same character always the
+   * same one, at its voice's pitch, else the tone at that pitch; muted with the talk kind either way. Coo's speech
+   * (web/speech.js), while on, stands in for it altogether (pet-app.js typeText does not babble then).
+   */
+  api.babble = (ch) => {
+    if (muted.has('talk') || typeof ch !== 'string' || !ch) return;
+    const n = ch.codePointAt(0);
+    if (voice.talk.length) { playOwn(voice.talk[n % voice.talk.length], voice.pitch * R(.95, 1.05)); return; }
+    tones.babble(ch, voice.pitch);
+  };
   return api;
 }

@@ -13,7 +13,8 @@ import { OWN_PACKS } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { afterBubbles, dropActs, leftActs, pageLoop, slices, STEP_MAX, takeDeferred, walkHold } from '../packages/cortico-world-desktop-pet/web/body-host.js';
 import { attachSayActs, createActs, sayHeld } from '../packages/cortico-world-desktop-pet/web/acts.js';
 import { setLanguage, t } from '../packages/cortico-world-desktop-pet/web/i18n.js';
-import { accentColors, accentCss } from '../packages/cortico-world-desktop-pet/web/accent.js';
+import { accentColors, accentCss, bubbleColors, bubbleCss } from '../packages/cortico-world-desktop-pet/web/accent.js';
+import { createMic } from '../packages/cortico-world-desktop-pet/web/mic.js';
 
 const WEB = new URL('../packages/cortico-world-desktop-pet/web/', import.meta.url);
 const source = readFileSync(new URL('pet-app.js', WEB), 'utf8').replace(/^import [^;]*;$/gm, '');
@@ -40,9 +41,9 @@ function page() {
     createSpeech: () => ({ configure() {}, begin() {}, reveal() { return false; }, stop() {}, active: false }),
     textSteps: () => 1,
     afterBubbles, dropActs, leftActs, loadBody: async () => body, pageLoop, slices, STEP_MAX, takeDeferred, walkHold,
-    attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss,
+    attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss, bubbleColors, bubbleCss, createMic,
   };
-  win.eval(`const { applyTheme, clamp, f, ICONS, linked, COO_CSS, mini, normalizeSkin, skinCss, OWN_PACKS, createSfx, createSpeech, textSteps, afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold, attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss } = window.deps;\n${source}\n`
+  win.eval(`const { applyTheme, clamp, f, ICONS, linked, COO_CSS, mini, normalizeSkin, skinCss, OWN_PACKS, createSfx, createSpeech, textSteps, afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold, attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss, bubbleColors, bubbleCss, createMic } = window.deps;\n${source}\n`
     + 'window.page = { useBody: (b) => { body = b; }, onOrder, openInput, step: (dt) => { stepPage(dt); layout(dt); }, lines: () => lines, overUi: (el) => el.matches(UI_SELECTOR), REPLIED_FADE, UNANSWERED_FADE, MAX_LINES, MAX_ROWS };');
   return { ...win.page, win, doc: win.document, bubble: win.document.querySelector('#bubble'), sent, body };
 }
@@ -266,7 +267,7 @@ describe("Coo's bubbles: speed (#248) and links (#297)", () => {
     expect(p.bubble.querySelector('.b-text').textContent).toBe('来 https://github.com/Pal-AI-Lab/Coopanion 点星');
   });
 
-  it('keeps a bubble with a link up while the pointer is on it, and closes it once the pointer leaves', () => {
+  it('keeps a bubble with a link up while the pointer is on it; once it leaves, the bubble has the rest of its time (upstream #430)', () => {
     const p = ready();
     let hovered = true;
     const matches = p.bubble.matches.bind(p.bubble);
@@ -277,7 +278,10 @@ describe("Coo's bubbles: speed (#248) and links (#297)", () => {
     for (let s = 0; s < linkless + 5; s += .05) p.step(.05);
     expect(p.bubble.hidden).toBe(false);
     hovered = false;
+    // it does not close at once: the countdown goes on from where the pointer stopped it
     p.step(.05); p.step(.05);
+    expect(p.bubble.hidden).toBe(false);
+    untilClosed(p);
     expect(p.bubble.hidden).toBe(true);
   });
 });

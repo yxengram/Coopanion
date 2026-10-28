@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { figurePacks } from 'cortico-world-desktop-pet';
 import { figureSchemes, schemeForSkin } from '../core/console-theme.ts';
 // @ts-expect-error: a page module in plain JS
-import { accentColors, accentCss } from '../packages/cortico-world-desktop-pet/web/accent.js';
+import { accentColors, accentCss, bubbleColors, bubbleCss } from '../packages/cortico-world-desktop-pet/web/accent.js';
 
 const packs = figurePacks([]).packs;
 const schemes = new Map(figureSchemes(packs).map((s) => [s.id, s]));
@@ -60,5 +60,39 @@ describe("the pet bubble's theme colour (web/accent.js, --skin-eye)", () => {
     expect(accentCss(null)).toBe('');
     const css = accentCss({ light: '#111111', dark: '#eeeeee' });
     expect(css).toBe('html:root{--skin-eye:#111111}@media (prefers-color-scheme: dark){html:root:not([data-theme="light"]){--skin-eye:#eeeeee}}html:root[data-theme="dark"]{--skin-eye:#eeeeee}');
+  });
+});
+
+describe("a pack's bubble colours (web/accent.js, upstream #434)", () => {
+  const colours = { light: { fill: '#ffffff', text: '#111111', line: '#222222' }, dark: { fill: '#000000', text: '#eeeeee', line: '#dddddd' } };
+  const night = { light: { fill: '#fff8e1', text: '#3e2723', line: '#ff6f00' }, dark: { fill: '#1a237e', text: '#e8eaf6', line: '#ffd54f' } };
+  const robot = {
+    id: 'robot', bubble: colours,
+    axes: [{ id: 'scheme', options: [{ id: 'day' }, { id: 'night' }, { id: 'dusk' }] }],
+    presets: [{ id: 'day', pick: { scheme: 'day' } }, { id: 'night', pick: { scheme: 'night' }, bubble: night }],
+  };
+
+  it("are the preset's that the look wears, else the pack's own; none for a pack that names none", () => {
+    expect(bubbleColors(robot, { figure: 'robot', scheme: 'night' })).toEqual(night);
+    expect(bubbleColors(robot, { figure: 'robot', scheme: 'day' })).toEqual(colours);
+    // a look that is no preset wears the preset that picks the most of it (presetFor), here the first
+    expect(bubbleColors(robot, { figure: 'robot', scheme: 'dusk' })).toEqual(colours);
+    expect(bubbleColors({ ...robot, bubble: undefined }, { figure: 'robot', scheme: 'day' })).toBe(null);
+    expect(bubbleColors(null, null)).toBe(null);
+    // every built-in names none: their bubbles keep the page's colours
+    for (const p of packs) expect(bubbleColors({ ...listed(p.id), bubble: (p.manifest as { bubble?: unknown }).bubble }, { figure: p.id, scheme: looks(p.id)[0] }), p.id).toBe(null);
+  });
+
+  it('takes only whole sets of hex colours: a stylesheet cannot ride in one', () => {
+    expect(bubbleColors({ ...robot, presets: [], bubble: { ...colours, dark: { ...colours.dark, line: 'red}body{display:none' } } }, {})).toBe(null);
+    expect(bubbleColors({ ...robot, presets: [], bubble: { light: colours.light } }, {})).toBe(null);
+  });
+
+  it("colours the bot's bubbles in the page's light and dark, and leaves the person's own lines (.heard) alone", () => {
+    expect(bubbleCss(null)).toBe('');
+    const css = bubbleCss(colours);
+    expect(css).toBe('html:root .bubble:not(.heard){--surface:#ffffff;--text:#111111;--skin-ink:#222222}'
+      + '@media (prefers-color-scheme: dark){html:root:not([data-theme="light"]) .bubble:not(.heard){--surface:#000000;--text:#eeeeee;--skin-ink:#dddddd}}'
+      + 'html:root[data-theme="dark"] .bubble:not(.heard){--surface:#000000;--text:#eeeeee;--skin-ink:#dddddd}');
   });
 });

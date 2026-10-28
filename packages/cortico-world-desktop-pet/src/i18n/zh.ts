@@ -52,6 +52,14 @@ const zh = {
     linuxNoX11: '按键收音连不上 X11 显示',
     unsupported: '按键收音只在 Windows、macOS 和 Linux 上可用',
   },
+  /** 打字键(upstream #361)读不了的原因;另两种(读不了键盘、没有输入监控权限)与说话键共用 `hotkey` 里的 */
+  typeKey: {
+    macNoKey: 'Mac 上没有这个按键,换一个打字键',
+    linuxNoKey: 'Linux 上读不到这个按键(鼠标侧键不行),换一个打字键',
+    linuxNoDisplay: '打字键在 Linux 上需要 X11(或 XWayland):没有找到 DISPLAY',
+    linuxNoX11: '打字键连不上 X11 显示',
+    unsupported: '打字键只在 Windows、macOS 和 Linux 上可用',
+  },
 
   /** Windows' own speech recognizer. */
   system: {
@@ -74,6 +82,21 @@ const zh = {
     noRuntime: (platform: string) => `这个平台(${platform})没有 FunASR 的运行库`,
     loadFailed: (why: string) => `识别模型载入失败:${why}`,
     notLoaded: '识别模型没有载入',
+  },
+
+  /** OpenAI 兼容的转写接口(引擎 api,上游 #380) */
+  transcription: {
+    noUrl: '还没有填写转写接口的地址',
+    badUrl: (url: string) => `接口地址不是 http 或 https 网址:${url}`,
+    httpRemote: '远程地址只能用 https:http 不加密,API Key 和录音会明文传输。本机和局域网的地址可以用 http。',
+    noModel: '还没有填写转写模型',
+    notRunning: '转写接口没有启动',
+    status: (status: number, message: string) => (message ? `HTTP ${status}:${message}` : `HTTP ${status}`),
+    timeout: (ms: number) => `接口在 ${ms} ms 内没有回应`,
+    network: (why: string) => `连不上接口:${why}`,
+    redirect: '接口要求跳转到别的地址,录音不会跟着发过去',
+    noText: '接口的回应里没有 text',
+    badKey: 'API Key 不能含空格或换行',
   },
 
   /** Downloading the window runtime and the speech model. */
@@ -232,6 +255,10 @@ const zh = {
     window: '桌宠窗口',
     connected: '页面已连接',
     notOpen: '未打开',
+    /** The window lamp while the page in the window reported that not even Coo would draw. */
+    noBody: (reason: string) => `页面已连接,形象无法绘制:${reason}`,
+    /** The window lamp's hint when a browser page stands in for the window. */
+    alsoBrowser: (hint: string) => `${hint};浏览器页面已连接`,
     voice: '语音识别',
     notStarted: '未启动',
     viewInBrowser: '在浏览器里看桌宠',
@@ -333,8 +360,10 @@ const zh = {
     deciderModel: { title: '决策模型', description: (model: string) => `OpenRouter 上的决策模型 id,默认 ${model}。` },
     deciderTimeout: { title: '最多等多久', description: '一次决策超过这个时间,这个气泡只按心情里直接写出的词做表情或头部动作,没写就只说话。' },
     asrEnabled: { title: '语音输入总开关' },
-    asrEngine: { title: '识别引擎', description: 'funasr 用 FunASR 的 SenseVoiceSmall,在本机识别,中文准,首次要下载约 240 MB 的模型;system 用 Windows 自带的语音识别,不用下载,准确度低一些(只在 Windows 上有)。' },
+    asrEngine: { title: '识别引擎', description: 'funasr 用 FunASR 的 SenseVoiceSmall,在本机识别,中文准,首次要下载约 240 MB 的模型;system 用 Windows 自带的语音识别,不用下载,准确度低一些(只在 Windows 上有);api 把每句录音发送给 OpenAI 兼容的转写接口识别,一句说完才出字,地址和模型在下面填写,API Key 在「语音输入」页填写。' },
     asrLanguage: { title: '语言', description: 'zh、en、ja、ko、yue,或 auto 让模型自己判断。' },
+    asrApiUrl: { title: '转写接口地址', description: '引擎为 api 时,每句录音发送给 OpenAI 兼容的转写接口:这个地址后面的 /audio/transcriptions,例如 https://api.example.com/v1;一句说完才出字,语言代码是两个字母时随请求带上。远程地址只能用 https,本机和局域网的地址可以用 http。API Key 在「语音输入」页填写。' },
+    asrApiModel: { title: '转写模型', description: '引擎为 api 时请求里的模型名。' },
     asrThreads: { title: 'CPU 线程', description: 'FunASR 一次识别用几个线程,0 = 2。' },
     asrSimplified: { title: '转成简体' },
     thresholdDb: { title: '说话门槛' },
@@ -379,6 +408,15 @@ const zh = {
     system: 'Windows 自带',
     systemHint: '不用下载,准确度一般;想要更准换成 FunASR',
     funasrHint: 'SenseVoiceSmall,在本机识别,中文准;模型下载一次就能一直用',
+    api: '转写接口(OpenAI 兼容)',
+    apiName: '转写接口',
+    apiHint: '每句录音发送给下面填写的接口识别,一句说完才出字',
+    apiUrl: '接口地址',
+    apiModel: '模型',
+    apiKey: 'API Key',
+    keySaved: '已保存',
+    keyMissing: '未填写',
+    keyPlaceholder: '填写后按回车保存',
     server: '识别服务',
     start: '启动',
     stop: '停止',
@@ -411,6 +449,8 @@ const zh = {
     waitingKey: '等说话键',
     results: '识别结果',
     resultsHint: '划掉的是太短或疑似幻觉、没有发出去的',
+    /** 音量条上门槛线(upstream #435)的悬停说明 */
+    thresholdHint: '比这条线响的声音才算说话;别人说话和你一样响时也会被识别。拖动或用方向键调整',
   },
 };
 

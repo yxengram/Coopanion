@@ -17,7 +17,7 @@
  * - the body: `step(dt)` advances and draws one frame; `layout()` says where it is ({ x, facing, mode,
  *   busy, moving, pressing, cursor, box, hit, bubble, side }, see the kit's `layout`); `resize()` takes new
  *   bounds (`set({ bounds })` from the page changes what `host.bounds()` returns, then calls it); `do(word)`, `walk(x, run, id)`, `stopWalk(id)`, `pointer(type, p)`, `drop(p)`, `shift(dx, dy)`, `place(x, facing)`,
- *   `set(state)`, `cue(kind)`, `talk(ch?)` (`ch`: the character being said; pages that do not send it
+ *   `set(state)` (the kit's `set`, with `status`: the kind of work the bot is busy with, or null; upstream #434), `cue(kind)`, `talk(ch?)` (`ch`: the character being said; pages that do not send it
  *   leave it undefined), `setScheme(id, { fade })`, `z` (the colour of its sleep z's), `doAll(words)` (a group
  *   of words done at once; a body without it gets them one by one through `do`, each it turns down (returns false
  *   for) tried again every frame for up to RETRY_MAX seconds), `words` (every word `do` knows: the kit's plus bodies list

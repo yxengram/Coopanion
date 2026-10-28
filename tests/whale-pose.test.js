@@ -162,7 +162,8 @@ describe('lying down, as the whale draws it', () => {
   it('every ready scheme has every standing file (one missing file fails the whole scheme)', () => {
     const feat = [...Object.keys(model.feat.sprites), ...['eyeL', 'eyeR'].flatMap(k => ['lash', 'ball', 'iris', ...(model.feat.eyes[k].rim ? ['rim'] : [])].map(n => `${k}_${n}`))];
     for (const id of SCHEMES) {
-      for (const p of model.parts) expect(existsSync(new URL(`${dir(id)}tex/${p.tex}.png`, WHALE)), `${id} ${p.tex}`).toBe(true);
+      // (a part with its own `src`, the skirt's shadow on her legs, is one file for every scheme, as the figure loads it)
+      for (const p of model.parts) expect(existsSync(new URL(p.src ?? `${dir(id)}tex/${p.tex}.png`, WHALE)), `${id} ${p.tex}`).toBe(true);
       for (const n of feat) expect(existsSync(new URL(`${dir(id)}feat/${n}.png`, WHALE)), `${id} ${n}`).toBe(true);
     }
   });
@@ -2385,6 +2386,48 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
       s.pet.doWord('wave'); s.run(.3);
       expect(s.o.kneel).toBe(false);
       expect(s.alpha('kneel_low')).toBe(0);
+    } finally { s.done(); }
+  });
+
+  // (upstream #388) the skirt's shadow is a layer of its own, no longer painted on the legs: it hangs on the skirt's warp,
+  // so the legs swing out from under it (lifted, walking) and it stays under the hem
+  it('lays the skirt\'s shadow over her legs and under her skirt, a multiply layer on the skirt\'s warp, in the maid dress only', () => {
+    const sh = model.parts.find(p => p.id === 'skirt_shadow'), z = id => model.parts.find(p => p.id === id).z;
+    expect(sh).toMatchObject({ tex: 'skirt_shadow', src: 'tex/skirt_shadow.png', parent: 'skirt', blend: 'multiply', grid: [8, 6] });
+    expect(sh.z).toBeGreaterThan(Math.max(z('leg_back'), z('leg_front')));
+    expect(sh.z).toBeLessThan(Math.min(z('skirt'), z('torso_up')));
+    // its box is the skirt's, dragged down past the hem
+    const sk = model.parts.find(p => p.id === 'skirt').box;
+    expect(sh.box.slice(0, 3)).toEqual(sk.slice(0, 3));
+    expect(sh.box[3]).toBeGreaterThan(sk[3]);
+    // the winter outfit's legs never had one painted on, and its part list is its own
+    expect(model.outfits.find(o => o.id === 'cape').parts.some(p => p.id === 'skirt_shadow')).toBe(false);
+  });
+
+  it('shows the skirt\'s shadow standing, fades it with the standing skirt sitting down, and hides it under the hybrid', async () => {
+    const s = await onKit();
+    try {
+      s.run(.5);
+      expect(s.alpha('skirt_shadow')).toBe(1);
+      s.pet.doWord('sit');
+      s.run(3);
+      expect(s.alpha('skirt')).toBe(0);
+      expect(s.alpha('skirt_shadow')).toBe(0);
+      s.pet.doWord('stand');
+      s.run(3);
+      expect(s.alpha('skirt_shadow')).toBe(1);
+      kneelDown(s);
+      s.pet.doWord('wave');
+      let hybrid = 0;
+      const under = () => { if (s.alpha('kneel_low') >= 1) { hybrid++; expect(s.alpha('skirt_shadow')).toBe(0); } };
+      s.run(1.5, under);
+      expect(hybrid).toBeGreaterThan(30);
+      // (getting up mid-wave she keeps the hybrid while the seated rig rises: the shadow stays off it, as the skirt does)
+      s.pet.doWord('wave'); s.run(.3, under);
+      s.pet.doWord('stand'); s.run(3, under);
+      expect(s.alpha('skirt_shadow')).toBe(1);
+      // (seated, the standing skirt's fade has it at 0 already; the hybrid hides it with the parts it replaces all the same)
+      expect(KNEEL_LOW_UNDER).toContain('skirt_shadow');
     } finally { s.done(); }
   });
 });

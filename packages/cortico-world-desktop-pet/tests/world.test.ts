@@ -12,6 +12,8 @@ import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from '../src/tools.ts';
 import { FakeHost } from './helpers/fake-host.ts';
 import { FakePage } from './helpers/page.ts';
 import { HOST_ENV } from '../src/window-host.ts';
+import { petText } from '../src/i18n/index.ts';
+import { chatItem } from '../src/chat.ts';
 
 const ctx = { role: 'main', log: new FakeHost().log };
 
@@ -640,6 +642,34 @@ describe('with a pet page', () => {
     expect(tab.messages.some((m) => m.t === 'act')).toBe(false);
   });
 
+  it('the window lamp is the window\'s: a browser tab standing in is only mentioned, a window that draws no figure is an error (upstream #379)', async () => {
+    const { world } = await mounted();
+    const zh = petText('zh').console, en = petText('en').console;
+    const lamp = (language: 'zh' | 'en' = 'zh') => world.webUi(language).lamps![0]!;
+    const tab = await FakePage.open(origin(world), 'role=pet&host=tab');
+    cleanup.push(() => tab.close());
+    await expect.poll(() => lamp().hint).toBe(zh.alsoBrowser(zh.notOpen));
+    expect(lamp().state).toBe('offline');
+    expect(lamp('en').hint).toBe(en.alsoBrowser(en.notOpen));
+    // the panel's window row and the app's own waits read different fields
+    expect(world.petState()).toMatchObject({ connected: true, inWindow: false });
+    const win = await windowPage(world);
+    cleanup.push(() => win.close());
+    await expect.poll(() => lamp().state).toBe('online');
+    expect(lamp().hint).toBe(zh.connected);
+    expect(world.petState()).toMatchObject({ connected: true, inWindow: true });
+    // a pack that would not load leaves Coo standing in: the window still draws
+    win.send({ t: 'figure', id: 'claude-chan', ok: false, reason: 'texture missing' });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(lamp().state).toBe('online');
+    win.send({ t: 'figure', id: 'coo', ok: false, reason: 'webgl unavailable' });
+    await expect.poll(() => lamp().state).toBe('error');
+    expect(lamp().hint).toBe(zh.noBody('webgl unavailable'));
+    expect(lamp('en').hint).toBe(en.noBody('webgl unavailable'));
+    win.send({ t: 'figure', id: 'coo', ok: true });
+    await expect.poll(() => lamp().state).toBe('online');
+  });
+
   it('puts the local time before each event, with the date on the first one only', async () => {
     const { world, host } = await mounted();
     const page = await FakePage.open(origin(world));
@@ -819,8 +849,14 @@ function chatSocket(world: DesktopPetWorld) {
     onMessage: (cb: (text: string) => void) => { receive = cb; },
     onClose: () => {},
   };
+  let closed: () => void = () => {};
+  (socket as { onClose: (cb: () => void) => void }).onClose = (cb) => { closed = cb; };
   world.webUi().stream!('chat', socket);
-  return { frames, send: (m: Record<string, unknown>) => receive(JSON.stringify(m)), last: (t: string) => frames.filter((f) => f.t === t).at(-1) };
+  return {
+    frames, send: (m: Record<string, unknown>) => receive(JSON.stringify(m)), last: (t: string) => frames.filter((f) => f.t === t).at(-1),
+    /** The page goes away. */
+    close: () => { socket.open = false; closed(); },
+  };
 }
 
 describe('chat page', () => {
@@ -867,6 +903,45 @@ describe('chat page', () => {
 
     chat.send({ t: 'withdraw', cursor });
     expect(await page.next((m) => m.t === 'said-withdrawn')).toEqual({ t: 'said-withdrawn', cursor });
+  });
+
+  it('images pasted into the typing box go with its text and with the draft it carries to the chat page; a batch the chat page would refuse sends nothing (upstream #430)', async () => {
+    const { world, host } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const png = { name: 'image.png', mime: 'image/png', base64: Buffer.from('png').toString('base64'), bytes: 3, width: 1, height: 1 };
+
+    page.send({ t: 'text', text: '这是什么', images: [{ mime: 'image/bmp', base64: png.base64 }] });
+    page.send({ t: 'text', text: '这是什么', images: Array.from({ length: 9 }, () => png) });
+    page.send({ t: 'text', text: '', images: [] });
+    page.send({ t: 'text', text: '这是什么', images: [png] });
+    page.send({ t: 'text', text: '', images: [png] });
+    await expect.poll(() => host.events.length).toBe(2);
+    // the event's text is the one typed text has always had: the pictures go as blobs beside it
+    expect(host.events[0]).toMatchObject({ type: 'desktop-pet.message', text: '[打字] 伙伴:这是什么', meta: { via: 'bubble', text: '这是什么' }, blobs: [{ mime: 'image/png', name: 'image.png', fallbackText: '[伙伴发来的图片 1/1]' }] });
+    expect(host.events[1]).toMatchObject({ text: '[打字] 伙伴:', meta: { via: 'bubble', text: '' }, blobs: [{ mime: 'image/png' }] });
+    expect(host.pushOpts.at(-1)).toEqual({ trigger: 'preempt' });
+    expect(chatItem(host.events[1]!)).toMatchObject({ kind: 'user', via: 'bubble', images: [{ mime: 'image/png' }] });
+
+    // the draft: to a chat page open now, and to one that opens later
+    const chat = chatSocket(world);
+    page.send({ t: 'expand', text: '还有这张', images: [png, { mime: 'image/bmp', base64: png.base64, width: 1, height: 1 }] });
+    await expect.poll(() => chat.last('draft')).toEqual({ t: 'draft', text: '还有这张', images: [png] });
+    chat.close();
+    page.send({ t: 'expand', text: '', images: [{ mime: 'image/png', base64: png.base64, width: 2, height: 3 }] });
+    await new Promise((r) => setTimeout(r, 50));
+    const later = chatSocket(world);
+    later.send({ t: 'hello' });
+    await expect.poll(() => later.last('draft')).toEqual({ t: 'draft', text: '', images: [{ name: 'image', mime: 'image/png', base64: png.base64, bytes: 3, width: 2, height: 3 }] });
+  });
+
+  it('the pet page hears whether the model sees images, for the typing box (upstream #430)', async () => {
+    const { world, host } = await mounted();
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    expect(page.init).toMatchObject({ bot: { imagesSeen: false } });
+    host.modelFacts = { ...host.modelFacts, accepts: () => true };
+    await page.next((m) => m.t === 'prefs' && (m.bot as { imagesSeen?: boolean } | undefined)?.imagesSeen === true);
   });
 
   it('the pet page gets the bubble and text sizes, each 1 by default and kept in range', async () => {

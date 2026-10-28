@@ -513,7 +513,8 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  *   `{ id: { motion: { seconds, face?, sound? } } }` is a gesture the figure draws from `frame.gesture`.
  * `opts.figure` draws the body: `figure.draw(petG, face, frame)` keeps its own elements inside `petG` (logo space,
  * feet at y=256). Its frame adds the face's name, the mode, how long the mode has run, the talk level,
- * drowsiness and how far the body sits.
+ * drowsiness, how far the body sits, and `status`: the kind of work the page's status bubble shows (src/status.ts), or
+ * null (upstream #434).
  * `figure.groupTilt(mode, tilt, lean)`, if present, returns the rotation (degrees) the whole group gets
  * instead of tilt + lean; the frame carries tilt, lean and that rotation (groupRot) so the figure can bend the rest.
  * `figure.colors.z`, if present, colours the sleep z's (otherwise they take the `eye` class).
@@ -592,7 +593,7 @@ export function createPet(els, opts) {
     eyeSig: '', eyeCur: null, eyePrev: null, eyeDims: [[16, 16, 0, 0], [16, 16, 0, 0]], swapAge: 9,
     glance: [0, 0], glanceAt: 0, swing: 0, swingV: 0, prevA: null, velX: 0, talkK: 0, sfxAt: 0, skid: false, cue: 0,
     pulse: null, walkId: 0, walkWord: null, listening: false, thinking: false, placed: false, noteAt: 0, tearN: 0,
-    cursor: '',
+    cursor: '', status: null,
     // when the held face began and whether a motion holds it; the mouth's shape; lying, kneeling, fidgets, the back turned
     talkShape: 0, exprAt: 0, exprOwn: false, kneel: false, lieK: 0, prone: false, fidgetAt: 0, kickPh: 0,
     backK: 0, awayK: 0, breathK: 1, chipFor: null,
@@ -1812,7 +1813,7 @@ export function createPet(els, opts) {
     if (ours('roll')) gesture.travel = pet.pulse.travel;
     custom.draw(petG, face, {
       look: pet.look, legs, low: pet.low, t: T, blink, eyeClose, acc: skin, swing: pet.swing,
-      face: fname, mode: pet.mode, modeT: pet.modeT, talk: pet.talkK, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot, gesture,
+      face: fname, mode: pet.mode, modeT: pet.modeT, talk: pet.talkK, status: pet.status, drowse: pet.drowse, sit: pet.sitK, facing: pet.faceVis, tilt: pet.tilt, lean, groupRot: rot, gesture,
       talkShape: pet.talkShape, lie: pet.lieK, prone: pet.prone, kneel: !!pet.kneel, away: pet.awayK, ...(plus ? { head, appendages } : {}),
     });
 
@@ -2121,6 +2122,8 @@ export function createPet(els, opts) {
     talk(ch) { pet.talkK = 1; pet.talkShape = typeof ch === 'string' && ch ? ch.codePointAt(0) % 4 : (pet.talkShape + 1) % 4; },
     setListening(on) { pet.listening = on; if (on && (pet.mode === 'walk' || pet.mode === 'run')) setMode('idle'); },
     setThinking(on) { pet.thinking = on; },
+    /** What the bot is busy with as the page's status bubble names it (`kind`), or null; the figure reads it from `frame.status`. */
+    setStatus(kind) { pet.status = typeof kind === 'string' ? kind : null; },
     anchor,
     /** How far the body is seen lying (0..1): 0 throughout without plus or for a figure that cannot show the pose. */
     get lying() { return proneK(); },
@@ -2149,7 +2152,7 @@ const SVGNS = 'http://www.w3.org/2000/svg';
  * document (a figure's own classes) and `opts.skinCss(skin)` the style that follows the skin.
  *
  * The body takes these calls from the page: step(dt), layout(), do(word), walk(x, run, id), stopWalk(id), pointer(type, p),
- * drop(p), shift(dx, dy), place(x, facing), set({ roam, hold, dialogOpen, listening, thinking, skin, theme }),
+ * drop(p), shift(dx, dy), place(x, facing), set({ roam, hold, dialogOpen, listening, thinking, status, skin, theme }),
  * cue(kind), talk(ch?), setScheme(id, o), dispose(), and with `plus` doAll(words) (a group done at once). A word it does
  * not know or cannot take now is `done` at once.
  * With `plus`, `words` lists every word its do() knows (bodyWords): the page keeps the words of a pack's vocabulary the body
@@ -2237,6 +2240,7 @@ export function createBody(host, opts) {
       if (typeof s.dialogOpen === 'boolean') dialogOpen = s.dialogOpen;
       if (typeof s.listening === 'boolean') ctl.setListening(s.listening);
       if (typeof s.thinking === 'boolean') ctl.setThinking(s.thinking);
+      if ('status' in s) ctl.setStatus(s.status);
       if (s.skin) { ctl.setSkin(s.skin); if (opts.skinCss) skinStyle.textContent = opts.skinCss(s.skin); }
       if (s.theme) doc.documentElement.dataset.theme = s.theme;
     },

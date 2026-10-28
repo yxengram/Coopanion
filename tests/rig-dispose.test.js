@@ -66,6 +66,29 @@ describe('rig dispose', () => {
   });
 });
 
+describe('rig multiply (upstream #388)', () => {
+  it('draws a `blend: multiply` part darkening what is under it, coverage untouched, and goes back to the usual blend after it', () => {
+    const { gl: stub, calls } = stubGL();
+    // (GL's constants by name, so the calls can be compared)
+    const gl = new Proxy(stub, { get: (t, k) => (typeof k === 'string' && /^[A-Z_]+$/.test(k) ? k : t[k]) });
+    const canvas = { addEventListener() {}, getContext: () => gl };
+    const rig = createRig(canvas, {
+      ...MODEL,
+      parts: [
+        { id: 'legs', tex: 'legs', parent: 'd1', box: [0, 0, 100, 100], z: 1 },
+        { id: 'shade', tex: 'shade', parent: 'd1', box: [0, 0, 100, 100], z: 2, blend: 'multiply' },
+        { id: 'skirt', tex: 'skirt', parent: 'd1', box: [0, 0, 100, 100], z: 3 },
+      ],
+    });
+    for (const t of ['legs', 'shade', 'skirt']) rig.upload(t, {});
+    calls.length = 0;
+    rig.render({});
+    const seq = calls.filter((c) => ['drawElements', 'blendFunc', 'blendFuncSeparate'].includes(c.fn)).map((c) => (c.fn === 'drawElements' ? 'draw' : c.fn === 'blendFunc' ? ['blendFunc', ...c.args] : ['sep', ...c.args]));
+    const ONE = gl.ONE, OMSA = gl.ONE_MINUS_SRC_ALPHA;
+    expect(seq).toEqual([['blendFunc', ONE, OMSA], 'draw', ['sep', gl.DST_COLOR, OMSA, gl.ZERO, ONE], 'draw', ['blendFunc', ONE, OMSA], 'draw']);
+  });
+});
+
 describe('rig stone', () => {
   it('着色器有 uStone,render 把 st.stone 夹到 0..1 传进去', () => {
     const { rig, calls } = makeRig();

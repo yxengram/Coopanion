@@ -12,6 +12,7 @@ import type { Request } from 'cortico/protocol/open-responses/index.ts';
 import { functionCall, functionResult, message } from 'cortico/protocol/open-responses/context.ts';
 import { RESERVED_FRAME_NAMES } from 'cortico/core/loop.ts';
 import { blobLine } from 'cortico/core/blobs.ts';
+import { plainRemote as addressPlainRemote } from '../src/address.ts';
 import COO, { OFF_PEAK, VENDORS, VENDOR_ICONS, plainRemote, protocolOf, vendorEntry, vendorOf } from '../src/index.ts';
 import { COO_TEXT } from '../src/strings.ts';
 import { connectVendor, saveVendorKey, testEndpoint, type ConsoleCall } from '../src/connect.ts';
@@ -55,6 +56,8 @@ describe('Coo Pet Provider', () => {
       expect(check(remote), remote).toThrow('https');
     expect(plainRemote('http://example.com')).toBe(true);
     expect(plainRemote('not a url')).toBe(false);
+    // the desktop pet's transcription service reads the same rule from src/address.ts (upstream #380)
+    expect(plainRemote).toBe(addressPlainRemote);
   });
 
   it('says why an http remote address is refused in the console language, Chinese for zh and zh-Hant', () => {
@@ -105,11 +108,50 @@ describe('Coo Pet Provider', () => {
     expect(cost('2026-09-26T02:30:00.000Z')).toBeCloseTo(OFF_PEAK['deepseek-flash'].uncachedInput, 6); // Saturday
   });
 
-  it('accepts images only for a multimodal endpoint on a model that reads them', () => {
+  it('accepts images whenever the endpoint is marked multimodal, on models and addresses the vendor table does not list too (upstream #432)', () => {
     const spec = (model: string) => ({ model, thinking: true });
     expect(COO.accepts!(entry(), spec('deepseek-flash'), 'image/jpeg')).toBe(true);
-    expect(COO.accepts!(entry(), spec('deepseek-v4-pro'), 'image/jpeg')).toBe(false);
+    expect(COO.accepts!(entry(), spec('deepseek-v4-pro'), 'image/jpeg')).toBe(true);
+    // an address no service is listed under: before, it never got images whatever the switch said
+    expect(COO.accepts!(entry({ baseUrl: 'http://127.0.0.1:18931/v1' }), spec('my-vision-model'), 'image/png')).toBe(true);
     expect(COO.accepts!(entry({ multimodal: false }), spec('deepseek-flash'), 'image/png')).toBe(false);
+    expect(COO.accepts!(entry({ baseUrl: 'http://127.0.0.1:18931/v1', multimodal: false }), spec('my-vision-model'), 'image/png')).toBe(false);
+    expect(COO.accepts!(entry(), spec('deepseek-flash'), 'application/pdf')).toBe(false);
+  });
+
+  it('marks Qwen endpoints multimodal on the models its table lists as reading images, qwen3.8-max included', () => {
+    const qwen = VENDORS.find((v) => v.id === 'qwen')!;
+    expect(qwen.vision).toEqual(['qwen3.8-flash', 'qwen3.7-flash', 'qwen3.8-max']);
+    // every model offered next to the default is one the table lists
+    for (const m of [qwen.model, ...(qwen.models ?? [])]) expect(qwen.vision, m).toContain(m);
+  });
+
+  it('sends the images of a multimodal endpoint at an unlisted address, on a model no table lists (upstream #432)', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const reply = { id: 'r', object: 'response', model: 'm', status: 'completed', created_at: 1, output: [], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } };
+    vi.stubGlobal('fetch', async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body) as Record<string, unknown>);
+      return new Response(JSON.stringify(reply), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    const shot = { handle: 'blob:a.jpg', mime: 'image/jpeg', name: 'screen.jpg', fallbackText: '屏幕截图' };
+    const [frame] = RESERVED_FRAME_NAMES;
+    const context = [
+      message('user', '开始'),
+      functionCall('f1', frame!, '{}'), functionResult('f1', '[打字] 看看屏幕'),
+      functionCall('c1', 'look', '{}'), functionResult('c1', blobLine(shot), { blobs: [shot] }),
+    ];
+    const images = async (patch: Partial<LLMProviderEntry>) => {
+      const e = entry({ baseUrl: 'http://127.0.0.1:18931/v1', spec: { model: 'my-vision-model', thinking: true }, ...patch });
+      const instance = COO.create('local', e, { ...host(), readBlob: () => Buffer.from('jpeg') } as never);
+      await instance.client.respond({ model: 'my-vision-model', input: context.map((r) => r.item) } as unknown as Request, { context });
+      return JSON.stringify(bodies.at(-1)!.input).split('"input_image"').length - 1;
+    };
+    try {
+      expect(await images({})).toBe(1);
+      expect(await images({ multimodal: false })).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('sends each service the thinking level it takes, or none where it documents none', async () => {

@@ -343,9 +343,22 @@
       "title": "识别引擎",
       "enum": [
        "funasr",
-       "system"
+       "system",
+       "api"
       ],
-      "description": "funasr 用 FunASR 的 SenseVoiceSmall,在本机识别,中文准,首次要下载约 240 MB 的模型;system 用 Windows 自带的语音识别,不用下载,准确度低一些(只在 Windows 上有)。",
+      "description": "funasr 用 FunASR 的 SenseVoiceSmall,在本机识别,中文准,首次要下载约 240 MB 的模型;system 用 Windows 自带的语音识别,不用下载,准确度低一些(只在 Windows 上有);api 把每句录音发送给 OpenAI 兼容的转写接口识别,一句说完才出字,地址和模型在下面填写,API Key 在「语音输入」页填写。",
+      "x-hot": true
+     },
+     "worlds.desktop-pet.asr.api.baseUrl": {
+      "type": "string",
+      "title": "转写接口地址",
+      "description": "引擎为 api 时,每句录音发送给 OpenAI 兼容的转写接口:这个地址后面的 /audio/transcriptions,例如 https://api.example.com/v1;一句说完才出字,语言代码是两个字母时随请求带上。远程地址只能用 https,本机和局域网的地址可以用 http。API Key 在「语音输入」页填写。",
+      "x-hot": true
+     },
+     "worlds.desktop-pet.asr.api.model": {
+      "type": "string",
+      "title": "转写模型",
+      "description": "引擎为 api 时请求里的模型名。",
       "x-hot": true
      },
      "worlds.desktop-pet.asr.language": {

@@ -130,7 +130,7 @@ describe('no text a person reads is written into the pages', () => {
   // the bot's (reported to the World as why a figure did not load), log lines, a value the page never shows, and the
   // punctuation a bubble's typing pauses on
   const allowed = [/new Error\('没有装这个形象'\)/, /console\.(warn|error|log)\(/, /user: '伙伴'/, /^const PAUSE = /];
-  it.each(['web/pet-app.js', 'web/dress.js', 'web/ui.js', 'web/i18n.js'])('%s', (file) => {
+  it.each(['web/pet-app.js', 'web/mic.js', 'web/dress.js', 'web/ui.js', 'web/i18n.js'])('%s', (file) => {
     const left = chineseLines(source(file)).filter((l) => !allowed.some((re) => re.test(l)));
     expect(left).toEqual([]);
   });

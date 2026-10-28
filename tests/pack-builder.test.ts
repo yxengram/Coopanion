@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { builderArgs, CONFIG, packageManagerField, PROJECT_DIR } from '../scripts/pack-builder.ts';
+import { builderArgs, CONFIG, packageManagerField, PROJECT_DIR, workspaceDeps } from '../scripts/pack-builder.ts';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const APP = join(ROOT, 'build', 'app');
@@ -90,5 +90,45 @@ describe('the macOS permission texts', () => {
       expect(strings).toContain('"NSMicrophoneUsageDescription" = "Coo 用麦克风听你说话,语音在本机识别,录音不会上传。";');
       expect(strings).toContain('"NSAppleEventsUsageDescription" = "操作电脑时,Coo 用它把你指定的应用切到前面。";');
     }
+  });
+});
+
+// upstream #349: Electron's own locale data only for the app's languages (zh and en, plus Traditional Chinese)
+describe('the locale data electron-builder keeps', () => {
+  it('is en-US, zh-CN and zh-TW, with the macOS folder names on a Mac', () => {
+    const yml = ymlScalars();
+    expect(yml.get('electronLanguages')).toBeUndefined();
+    const top = /^electronLanguages: \[(.+)\]$/m.exec(readFileSync(join(ROOT, 'electron-builder.yml'), 'utf8'));
+    expect(top?.[1].split(/,\s*/)).toEqual(['en-US', 'zh-CN', 'zh-TW']);
+    expect(yml.get('mac.electronLanguages')).toBe('[en, zh_CN, zh_TW]');
+  });
+
+  it('keeps every macOS folder that gets InfoPlist.strings, under a name Electron\'s bundle has', () => {
+    const yml = readFileSync(join(ROOT, 'electron-builder.yml'), 'utf8');
+    const kept = ymlScalars().get('mac.electronLanguages')!.slice(1, -1).split(/,\s*/);
+    const copies = [...yml.matchAll(/- from: (\S+)\n\s+to: (\S+)\.lproj\//g)].map((m) => m[2]);
+    expect(copies.length).toBeGreaterThan(0);
+    for (const folder of copies) expect(kept, folder).toContain(folder);
+    // electron-builder matches a folder name exactly (case aside): each kept one must exist in Electron's framework
+    const framework = join(ROOT, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'Frameworks', 'Electron Framework.framework', 'Resources');
+    if (existsSync(framework)) for (const folder of kept) expect(existsSync(join(framework, `${folder}.lproj`)), folder).toBe(true);
+  });
+});
+
+describe('the npm dependencies of build/app (scripts/pack.ts)', () => {
+  const WORKSPACE = ['cortico-world-desktop-pet', 'cortico-world-cua', 'cortico-provider-coo'];
+  const manifest = (name: string) => JSON.parse(readFileSync(join(ROOT, 'packages', name, 'package.json'), 'utf8')) as { dependencies?: Record<string, string> };
+
+  it('leaves out a workspace package another one depends on: npm cannot fetch a workspace: version', () => {
+    expect(workspaceDeps(WORKSPACE, [{ dependencies: { 'cortico-provider-coo': 'workspace:*', ws: '^8' } }, { dependencies: { koffi: '3.3.1' } }]))
+      .toEqual({ ws: '^8', koffi: '3.3.1' });
+  });
+
+  it('hands npm no workspace: version from the packages as they are (the pet depends on the provider, upstream #380)', () => {
+    expect(manifest('cortico-world-desktop-pet').dependencies).toHaveProperty('cortico-provider-coo', 'workspace:*');
+    const deps = workspaceDeps(WORKSPACE, WORKSPACE.map(manifest));
+    expect(Object.values(deps).filter((v) => v.startsWith('workspace:'))).toEqual([]);
+    for (const name of WORKSPACE) expect(deps).not.toHaveProperty(name);
+    expect(deps).toHaveProperty('sherpa-onnx-node');
   });
 });

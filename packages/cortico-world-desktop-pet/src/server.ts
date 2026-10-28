@@ -139,6 +139,11 @@ export class PetServer {
     return this.pet !== null && this.pet.readyState === this.pet.OPEN;
   }
 
+  /** The connected pet page is the window's, not a browser tab standing in for it. */
+  get petInWindow(): boolean {
+    return this.petConnected && this.petIsWindow;
+  }
+
   async start(): Promise<number> {
     const base = this.opts.port();
     let lastErr: Error | null = null;
@@ -270,6 +275,7 @@ export class PetServer {
         return {
           id, base, name: m.name, thumb: m.thumb ?? null, entry: m.entry, export: m.export, model: m.model ?? null, axes: m.axes, presets: m.presets,
           vocab: m.vocab.map(({ id: w, kind, seconds, lasting }) => ({ id: w, kind, seconds, ...(lasting ? { lasting } : {}) })), sounds: m.sounds, can: m.can,
+          voice: m.voice, effects: m.effects, bubble: m.bubble ?? null,
           removable: this.importer.removable(pack),
         };
       }));

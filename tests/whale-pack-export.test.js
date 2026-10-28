@@ -188,7 +188,13 @@ describe('exported whale pack', () => {
       // expr2's drawn eyes and drool mouth, recoloured for every dress
       for (const n of ['eyeroll_eyeL', 'shocked_eyeR', 'deadpan_eyeL', 'drool_mouth']) expect(to).toContain(`schemes/${sc.id}/feat/${n}.png`);
     }
-    for (const p of model.parts) expect(to).toContain(`tex/${p.tex}.png`);
+    for (const p of model.parts) expect(to).toContain(p.src ?? `tex/${p.tex}.png`);
+    // (upstream #388) the skirt's shadow is a multiply layer: upstream v0.1.17's own rig ignores `blend` and would draw it
+    // as a grey layer over her legs, but the pack draws with the kit/rig.js it carries (figure.js imports ../kit/rig.js)
+    expect(model.parts.filter((p) => p.blend).map((p) => [p.id, p.blend])).toEqual([['skirt_shadow', 'multiply']]);
+    const rig = readFileSync(files.find((f) => f.to === 'kit/rig.js').from, 'utf8');
+    expect(rig).toMatch(/p\.blend === 'multiply'\) gl\.blendFuncSeparate\(gl\.DST_COLOR/);
+    expect(readFileSync(files.find((f) => f.to === 'whale/figure.js').from, 'utf8')).toMatch(/^import \{ createRig \} from '\.\.\/kit\/rig\.js';$/m);
     for (const n of ['kneel_blank', 'kneel_fringe', 'lie_blank', 'lie_fringe']) expect(to).toContain(`tex/${n}.png`);
     // her outfits (the pack's second axis): the winter outfit's own parts, the same in every scheme, and both outfits'
     // thumbnails; only the files there are (the outfit's pose drawings it lists: its 44 arm drawings, one shared file

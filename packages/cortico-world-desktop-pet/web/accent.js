@@ -38,3 +38,28 @@ export function accentCss(colors, selector = 'html:root') {
     + `@media (prefers-color-scheme: dark){${selector}:not([data-theme="light"]){--skin-eye:${colors.dark}}}`
     + `${selector}[data-theme="dark"]{--skin-eye:${colors.dark}}`;
 }
+
+/** A bubble colour (upstream #434 allows #rgb, #rgba, #rrggbb and #rrggbbaa, as src/packs.ts reads them). */
+const BUBBLE_HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const bubbleSet = (c) => (c && typeof c === 'object' && [c.fill, c.text, c.line].every((h) => typeof h === 'string' && BUBBLE_HEX.test(h)) ? c : null);
+
+/**
+ * The bot's bubbles' colours for `pack` (as /api/figures lists it) in `skin` (upstream #434): the `bubble` of the preset its
+ * look wears (presetFor, as the accent above), else the pack's own; null when it names none or not a whole set per theme.
+ */
+export function bubbleColors(pack, skin) {
+  if (!pack) return null;
+  const b = presetFor(pack, skin?.scheme)?.bubble ?? pack.bubble;
+  const light = bubbleSet(b?.light), dark = bubbleSet(b?.dark);
+  return light && dark ? { light, dark } : null;
+}
+
+/** The stylesheet that puts `colors` (bubbleColors) on the bot's bubbles, light and dark; the person's own lines (`.heard`) keep the page's. */
+export function bubbleCss(colors) {
+  if (!colors) return '';
+  const vars = (c) => `--surface:${c.fill};--text:${c.text};--skin-ink:${c.line}`;
+  const sel = 'html:root .bubble:not(.heard)';
+  return `${sel}{${vars(colors.light)}}`
+    + `@media (prefers-color-scheme: dark){html:root:not([data-theme="light"]) .bubble:not(.heard){${vars(colors.dark)}}}`
+    + `html:root[data-theme="dark"] .bubble:not(.heard){${vars(colors.dark)}}`;
+}

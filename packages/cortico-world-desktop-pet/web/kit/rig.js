@@ -11,6 +11,7 @@
  *
  * A part may carry a second texture under `<tex>@mix` (same layout): `st.mix` (0..1) crossfades to it,
  * which is how a figure fades from one colour scheme to another.
+ * A part with `blend: 'multiply'` multiplies the colours under it (a shadow layer, see render).
  * `st.stone` (0..1) turns the whole drawing to pale grey stone (contrast flattened), over every part at once.
  */
 
@@ -230,7 +231,11 @@ export function createRig(canvas, model) {
       gl.uniform1f(loc.uAlpha, alpha);
       const tint = st.tint?.[p.id];
       gl.uniform4f(loc.uTint, ...(tint || [1, 1, 1, 0]));
+      // a `multiply` part darkens what is already drawn under it and leaves the coverage alone,
+      // so a shadow shows only on the parts below it and never over empty canvas
+      if (p.blend === 'multiply') gl.blendFuncSeparate(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
       gl.drawElements(gl.TRIANGLES, m.count, gl.UNSIGNED_SHORT, 0);
+      if (p.blend === 'multiply') gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     }
   }
 

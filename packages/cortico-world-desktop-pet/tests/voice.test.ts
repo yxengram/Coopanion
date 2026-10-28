@@ -94,8 +94,16 @@ function scriptedKey(problem?: string) {
   return { key, watch };
 }
 
-/** `more.loadGate` holds the model load until it settles (the backend stays `starting`). */
-async function setup(text: string | ((samples: number) => string), mode: MicMode = 'always', watch?: ReturnType<typeof scriptedKey>['watch'], openOnPress = false, more: { loadGate?: Promise<void>; spawnSystemRecognizer?: ReturnType<typeof fakeSapi>['spawnImpl'] } = {}) {
+/** Writes a config patch into the live section, as Core does with a World's persist. */
+const merge = (to: Record<string, unknown>, patch: Record<string, unknown>) => {
+  for (const [k, v] of Object.entries(patch)) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && to[k] && typeof to[k] === 'object') merge(to[k] as Record<string, unknown>, v as Record<string, unknown>);
+    else to[k] = v;
+  }
+};
+
+/** `more.loadGate` holds the model load until it settles (the backend stays `starting`); `more.persist` writes what the World saves into its section. */
+async function setup(text: string | ((samples: number) => string), mode: MicMode = 'always', watch?: ReturnType<typeof scriptedKey>['watch'], openOnPress = false, more: { loadGate?: Promise<void>; spawnSystemRecognizer?: ReturnType<typeof fakeSapi>['spawnImpl']; persist?: boolean; patch?: (cfg: typeof DESKTOP_PET_DEFAULTS) => void } = {}) {
   const asr = fakeFunAsr(text);
   if (more.loadGate) asr.beforeLoad = () => more.loadGate!;
   const cfg = structuredClone(DESKTOP_PET_DEFAULTS);
@@ -105,8 +113,9 @@ async function setup(text: string | ((samples: number) => string), mode: MicMode
   cfg.asr.mic.openOnPress = openOnPress;
   const dir = mkdtempSync(join(tmpdir(), 'pet-voice-'));
   placeModel(join(dir, 'm'));
+  more.patch?.(cfg);
   const world = new DesktopPetWorld({
-    cfg, timezone: 'Asia/Shanghai', persist: () => {}, runtimesRoot: () => join(dir, 'rt'), modelsDir: () => join(dir, 'm'),
+    cfg, timezone: 'Asia/Shanghai', persist: more.persist ? (patch) => merge(cfg as never, patch as never) : () => {}, runtimesRoot: () => join(dir, 'rt'), modelsDir: () => join(dir, 'm'),
     watchHotkey: watch, loadSherpa: () => asr.sherpa, funasrModel: modelSpec(), spawnSystemRecognizer: more.spawnSystemRecognizer,
   });
   const host = new FakeHost();
@@ -320,6 +329,75 @@ describe('voice input', () => {
     await new Promise((r) => setTimeout(r, 600));
     expect(host.events).toHaveLength(0);
     expect(page.messages.some((m) => m.t === 'listen' && m.phase === 'heard')).toBe(false);
+  });
+
+  it('a threshold set from the meter applies to the next frame: speech below it is not heard (upstream #435)', async () => {
+    const { world, host, page, cfg } = await setup('不该听见', 'always', undefined, false, { persist: true });
+    const speech = tone(900, .3);
+    const state = await world.webUi().invoke!('voice', 'setThreshold', [rmsDb(speech[0]!) + 3]) as { thresholdDb: number };
+    expect(state.thresholdDb).toBe(rmsDb(speech[0]!) + 3);
+    const last = tone(20, .05)[0]!;
+    for (const fr of [...speech, ...tone(900, 0), last]) page.audio(fr);
+    await expect.poll(() => world.voiceState().level).toBe(rmsDb(last));
+    expect((world.voiceState().counts as { utterances: number }).utterances).toBe(0);
+    expect(host.events).toHaveLength(0);
+    // kept within the setting's range; anything but a number changes nothing
+    await world.webUi().invoke!('voice', 'setThreshold', [-200]);
+    expect(cfg.asr.segment.thresholdDb).toBe(-80);
+    await world.webUi().invoke!('voice', 'setThreshold', [12]);
+    expect(cfg.asr.segment.thresholdDb).toBe(0);
+    await world.webUi().invoke!('voice', 'setThreshold', ['-30']);
+    expect(cfg.asr.segment.thresholdDb).toBe(0);
+  });
+
+  it('the typing key is watched only once switched on, and its press opens the typing box, not while the pet is hidden (upstream #361)', async () => {
+    const { key, watch } = scriptedKey();
+    // listening without a key: any key watched is the typing key
+    const { page, cfg, world } = await setup('', 'always', watch, false, { persist: true });
+    expect(key.hotkey).toBeNull();
+    const state = await world.webUi().invoke!('pet', 'setTypeKey', [{ enabled: true }]) as { typeKey: unknown };
+    expect(state.typeKey).toEqual({ enabled: true, hotkey: 'LeftCtrl*2', keyLabel: expect.any(String), problem: null });
+    expect(key.hotkey).toEqual(parseHotkey('LeftCtrl*2'));
+    key.press(true);
+    await page.next((m) => m.t === 'type');
+    // hidden (the menu's 隐藏, the tray, a full-screen window): no box out of sight
+    page.send({ t: 'focus', shown: false });
+    await new Promise((r) => setTimeout(r, 50));
+    const before = page.messages.filter((m) => m.t === 'type').length;
+    key.press(true);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(page.messages.filter((m) => m.t === 'type')).toHaveLength(before);
+    // another key, and how it is pressed; one parseHotkey cannot read is not saved
+    await world.webUi().invoke!('pet', 'setTypeKey', [{ hotkey: 'F8' }]);
+    expect(cfg.typeKey).toEqual({ enabled: true, hotkey: 'F8' });
+    expect(key.hotkey).toEqual(parseHotkey('F8'));
+    await world.webUi().invoke!('pet', 'setTypeKey', [{ hotkey: 'NoSuchKey+?' }]);
+    expect(cfg.typeKey.hotkey).toBe('F8');
+    // switched off: the watcher goes
+    let stopped = 0;
+    const off = await setup('', 'always', async (hk, onChange) => { key.hotkey = hk; key.press = onChange; return { stop: () => { stopped++; } }; }, false, { persist: true });
+    await off.world.webUi().invoke!('pet', 'setTypeKey', [{ enabled: true }]);
+    await off.world.webUi().invoke!('pet', 'setTypeKey', [{ enabled: false }]);
+    expect(stopped).toBe(1);
+  });
+
+  it('a config from before the typing key reads it off with the default key, and switching it on writes the whole setting (upstream #361)', async () => {
+    const { key, watch } = scriptedKey();
+    const { cfg, world } = await setup('', 'always', watch, false, { persist: true, patch: (c) => { delete (c as Partial<typeof c>).typeKey; } });
+    expect(cfg.typeKey).toBeUndefined();
+    expect((world.petState('en').typeKey as { enabled: boolean; hotkey: string })).toMatchObject({ enabled: false, hotkey: 'LeftCtrl*2', problem: null });
+    await world.webUi().invoke!('pet', 'setTypeKey', [{ enabled: true }]);
+    expect(cfg.typeKey).toEqual({ enabled: true, hotkey: 'LeftCtrl*2' });
+    expect(key.hotkey).toEqual(parseHotkey('LeftCtrl*2'));
+  });
+
+  it("a typing key that cannot be read says why in the typing key's own words, on the 习惯 page only while it is on (upstream #361)", async () => {
+    Object.defineProperty(process, 'platform', { value: 'aix' });
+    const { world } = await setup('', 'always', undefined, false, { persist: true });
+    const on = await world.webUi().invoke!('pet', 'setTypeKey', [{ enabled: true }]) as { typeKey: { problem: string | null } };
+    expect(on.typeKey.problem).toBe('打字键只在 Windows、macOS 和 Linux 上可用');
+    const off = await world.webUi().invoke!('pet', 'setTypeKey', [{ enabled: false }]) as { typeKey: { problem: string | null } };
+    expect(off.typeKey.problem).toBeNull();
   });
 
   it('a talk key that cannot be read keeps the gate closed and says why', async () => {

@@ -6,9 +6,10 @@
  *   127.0.0.1), and the Core child process (`core-host.cjs`). A start shows the pet and the tray
  *   icon only; the settings window opens from the tray, the pet's menu, or when the pet asks for
  *   a missing model key (`core/companion.ts`). Starting it again while it runs brings the pet back, or starts the
- *   Core again when it stopped retrying (`failed`);
+ *   Core again when it stopped retrying (`failed`) or was shut down with the settings window's power button (`stopped`);
  * - `--pet-host --pet-url=… --parent-pid=…`: the desktop pet's transparent window, started by
- *   the desktop-pet World through `CORTICO_DESKTOP_PET_HOST`. It uses its own profile directory.
+ *   the desktop-pet World through `CORTICO_DESKTOP_PET_HOST` with the app's own switches (`pet-host-command.cjs`). It
+ *   uses its own profile directory.
  *
  * A build is for one channel, `coopanion.channel` in the app's package.json (scripts/pack.ts, `channel.cjs`): `github`
  * (the default) is the installers, which on Windows and as an AppImage update themselves from the GitHub releases;
@@ -23,7 +24,8 @@
  * `~/.config/Coopanion` (an AppImage is mounted read-only, a deb installs under /opt); from
  * source `build/data`; or `CORTICO_COMPANION_DATA`. It holds `home/` (deployment, endpoint,
  * Memory), `extensions/` (Worlds and providers installed from npm), `logs/`, `tmp/` (the process
- * temp directory), `pnpm/` (store and caches for extension installs; for the installed build in
+ * temp directory), `settings-size.json` (the settings window's last size, `settings-size.cjs`), `pnpm/` (store and
+ * caches for extension installs; for the installed build in
  * `%LOCALAPPDATA%\Coopanion\pnpm` when the data directory's volume holds no junctions, see channel.cjs),
  * and the Chromium profiles.
  *
@@ -238,10 +240,22 @@ const { trayTemplate } = require('./tray-menu.cjs');
 const { RELEASES_URL, startUpdater } = require('./updater.cjs');
 const { startPresence } = require('./presence.cjs');
 const { isLoopback, navigateRule, openRule, webOrigin, withSettingsCsp } = require('./settings-guard.cjs');
+const { markConsoleShutdowns } = require('./shutdown-mark.cjs');
+const { readSettingsSize, saveSettingsSize } = require('./settings-size.cjs');
+const { petHostCommand } = require('./pet-host-command.cjs');
 
 const userData = app.getPath('userData');
 const shimDir = join(__dirname, 'shims');
-const petHost = app.isPackaged ? [process.execPath, '--pet-host'] : [process.execPath, APP_ROOT, '--pet-host'];
+/** The pet window's command: it gets the switches the app was started with, so a Chromium switch on the shortcut reaches it too. */
+const petHost = petHostCommand({ execPath: process.execPath, appRoot: APP_ROOT, packaged: app.isPackaged, argv: process.argv });
+/** The settings window's last size (settings-size.cjs), in the data directory. */
+const SETTINGS_SIZE = join(userData, 'settings-size.json');
+/** Keeps the settings window's size for the next time it opens; a failure only costs that. */
+function saveSettingsWindowSize(win) {
+  if (!win || win.isDestroyed()) return;
+  try { saveSettingsSize(SETTINGS_SIZE, win.getNormalBounds()); }
+  catch (err) { console.warn('[settings] could not save the window size', err); }
+}
 /** pnpm's layout and where its store goes, for this data directory's volume (channel.cjs). */
 const STORE = channelRules({ ...RULE_INPUT, holdsLinks: dataHoldsLinks() });
 const PNPM_DIR = STORE.pnpmLocal ? join(process.env.LOCALAPPDATA ?? app.getPath('temp'), 'Coopanion', 'pnpm') : join(DATA, 'pnpm');
@@ -352,7 +366,7 @@ function openSettings(path = '') {
     return;
   }
   settings = new BrowserWindow({
-    width: 1180, height: 800, minWidth: 880, minHeight: 600,
+    ...readSettingsSize(SETTINGS_SIZE, require('electron').screen.getPrimaryDisplay().workAreaSize),
     title: 'Coopanion', icon: WINDOW_ICON, autoHideMenuBar: true, show: false,
     backgroundColor: '#f4f5f4',
     webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false, preload: join(__dirname, 'settings-preload.cjs') },
@@ -366,6 +380,7 @@ function openSettings(path = '') {
   settings.on('page-title-updated', (e) => e.preventDefault());
   guardWindow(settings.webContents);
   settings.on('close', (e) => {
+    saveSettingsWindowSize(settings);
     if (quitting) return;
     e.preventDefault();
     settings.hide();
@@ -490,7 +505,8 @@ core.on('hide', () => {
 });
 core.on('quit', () => app.quit());
 const bringBack = () => {
-  if (core.state === 'failed') void core.start();
+  // a Core the power button shut down (shutdown-mark.cjs) is started again, as one that stopped retrying
+  if (core.state === 'failed' || core.state === 'stopped') void core.start();
   else if (core.state === 'running') ensurePet().catch(() => { /* Core went away meanwhile */ });
 };
 app.on('second-instance', bringBack);
@@ -501,6 +517,8 @@ app.on('before-quit', (e) => {
   if (quitting) return;
   quitting = true;
   e.preventDefault();
+  // the quit ends in app.exit(), which closes no window: the settings window's size is kept here
+  saveSettingsWindowSize(settings);
   tray?.destroy();
   tray = null;
   void core.stop().finally(() => {
@@ -537,6 +555,8 @@ app.whenReady().then(() => {
     const responseHeaders = withSettingsCsp(details, coreOrigin());
     answer(responseHeaders ? { responseHeaders } : {});
   });
+  // the power button's shutdown (Cortico's shell) is not a crash: the Core host leaves it stopped (shutdown-mark.cjs)
+  markConsoleShutdowns(session.defaultSession.webRequest, { origin: coreOrigin, core });
   // the system's language is known from here on: a new install starts in it (core/seed.ts)
   const system = systemLanguage(app);
   Object.assign(core.opts.env, systemLanguageEnvironment(system));

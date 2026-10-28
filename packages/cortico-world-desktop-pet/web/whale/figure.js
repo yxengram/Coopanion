@@ -284,8 +284,11 @@ const SEATED_NOT = { sitB: 0, kneelK: 0, kneelB: 0, armsB: 0, prevSit: 0, up: 0 
 export function kneelAlphas(seat) {
   return { drawA: seat.kneelB * (1 - (seat.armsB || 0)), lowA: seat.kneelB >= .5 && seat.armsB > 0 ? 1 : 0 };
 }
-/** (kneel) Standing parts the hybrid's lower body replaces: her skirts, waist bows, legs and tail (it draws its own fluke). */
-export const KNEEL_LOW_UNDER = ['skirt', 'skirt_sit', 'waist_bow_front', 'waist_bow_sit_front', 'leg_back', 'leg_front'];
+/**
+ * (kneel) Standing parts the hybrid's lower body replaces: her skirts, waist bows, legs and the skirt's shadow on them
+ * (a multiply layer over the hybrid would darken it), and her tail (it draws its own fluke).
+ */
+export const KNEEL_LOW_UNDER = ['skirt', 'skirt_sit', 'waist_bow_front', 'waist_bow_sit_front', 'leg_back', 'leg_front', 'skirt_shadow'];
 /** The kit's anchors `A` with the head's points (all but the lying ones) raised by `r`. */
 export function liftAnchors(A, r) {
   if (!(r > 0)) return A;
@@ -1633,7 +1636,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     };
     // the sitting skirt breathes a little at its hem, and its front edge swings with the body
     st.skirtSit = { fn: (u, v) => [skirt * 1.5 * v * v, -Math.max(0, breath) * .4 * v] };
-    st.alpha.skirt = st.alpha.waist_bow_front = 1 - sitIn;
+    // (the skirt's shadow on her legs, upstream #388, a multiply layer hung on the skirt's warp, goes with the standing skirt)
+    st.alpha.skirt = st.alpha.waist_bow_front = st.alpha.skirt_shadow = 1 - sitIn;
     st.alpha.leg_back = st.alpha.leg_front = 1 - sitIn;
     st.alpha.skirt_sit = st.alpha.waist_bow_sit_front = sitIn;
     st.armNear = { a: armN };

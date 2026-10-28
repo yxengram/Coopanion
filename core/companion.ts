@@ -116,17 +116,21 @@ function watchTalk(bus: WakeBus): () => boolean {
 
 /** The switch for anonymous usage statistics; it only matters when COOPANION_TELEMETRY_URL names a server, so no page shows it. */
 const TELEMETRY_KEY = 'companion.telemetry';
+/** Whether the Chat page shows the context ring (upstream #360); off by default, set on the 「习惯」 page. */
+const CONTEXT_RING_KEY = 'companion.contextRing';
 /** The `x-options` kind of the app language: Cortico's languages, each named in itself. */
 const LANGUAGE_OPTIONS = 'coopanion.language';
 /** Coopanion's own settings, as the 「习惯」 page and the advanced settings title them. */
 export const SETTINGS_TEXT = {
   zh: {
     language: { title: '界面语言', description: '设置窗口、托盘菜单和桌宠气泡里应用自己的文字用这种语言;不是中文时,Coo 也用它和你说话。' },
+    contextRing: { title: '上下文圆环', description: '在「对话」页的输入框里显示一个圆环,表示离整理之前的对话还有多远。' },
     roundsSoft: { title: '收尾提醒', suffix: '次', description: '一次唤醒里请求模型到这么多次,提醒 Coo 做完手上的事就结束这一轮。' },
     roundsHard: { title: '单次唤醒上限', suffix: '次', description: '一次唤醒里最多请求模型这么多次,到了就结束这一轮。' },
   },
   en: {
     language: { title: 'Language', description: 'The app\'s own text in the settings window, the tray menu and the pet\'s bubble is in this language; when it is not Chinese, Coo talks to you in it too.' },
+    contextRing: { title: 'Context ring', description: "Shows a ring in the Chat page's input box with how far the conversation is from being tidied up." },
     roundsSoft: { title: 'Wrap-up reminder', suffix: 'requests', description: 'After this many model requests in one wake-up, Coo is reminded to finish the current task and end the turn.' },
     roundsHard: { title: 'Requests per wake-up', suffix: 'requests', description: 'The most model requests in one wake-up; the turn ends when it is reached.' },
   },
@@ -154,6 +158,8 @@ export function companionGroup(language: Language): ConfigGroup {
           'x-hot': true,
           description: s.language.description,
         },
+        // the Chat page reads it when it opens (console/features/chat); the 「习惯」 page writes it
+        [CONTEXT_RING_KEY]: { type: 'boolean', title: s.contextRing.title, description: s.contextRing.description, 'x-hot': true },
         // Cormini copies `rounds` when the bot is built, so a change applies from the next start
         'rounds.soft': {
           type: 'integer',
@@ -292,7 +298,8 @@ export function cooDefaults(own: CoreConfig): CoreConfig {
     // desktop-pet e2e harnesses give their persona
     rounds: { soft: 20, hard: 40 },
     context: cooContext(own.context),
-    companion: { telemetry: true },
+    // the context ring is off until the 「习惯」 page turns it on (upstream #360); a config.json without the key reads false
+    companion: { telemetry: true, contextRing: false },
   } as CoreConfig;
 }
 
@@ -320,15 +327,27 @@ const ISSUES_URL = 'https://github.com/yxengram/Coopanion/issues';
 
 export const FAILURE_HINT = {
   zh: {
-    text: (n: number, status: number, reason: string) => `我连着 ${n} 次没能从模型那里拿到回复。错误${status ? ` ${status}` : ''}:${reason}。请在设置的「开始」页检查模型名和 API Key,那里可以测试连接。`,
+    /** `advice` is one of `advice` below, picked by the status, or empty when no advice fits (upstream #438). */
+    text: (n: number, status: number, reason: string, advice: string) => `我连着 ${n} 次没能从模型那里拿到回复。错误${status ? ` ${status}` : ''}:${reason}。${advice}`,
     /** The service wants reasoning sent back before each tool call, which Coopanion has turned off for it. */
     reasoningReplay: (n: number) => `我连着 ${n} 次没能从模型那里拿到回复:这家服务商要求每次调用工具前都回传思考内容,Coopanion 对它关掉了这一项。请把这件事反馈给开发者:${ISSUES_URL}`,
+    /** What follows the reason: 401/403 the key, 404 the model name (both with the settings button), 429/5xx later. */
+    advice: {
+      key: '请在设置的「开始」页检查 API Key,那里可以测试连接。',
+      model: '请在设置的「开始」页检查模型名,那里可以测试连接。',
+      later: '这是模型服务那边出了问题或者在限流,等一会儿再试试吧。',
+    },
     open: '打开设置',
     ok: '知道了',
   },
   en: {
-    text: (n: number, status: number, reason: string) => `My last ${n} requests to the model failed. Error${status ? ` ${status}` : ''}: ${reason}. Check the model name and API key on the Start page in settings, where you can test the connection.`,
+    text: (n: number, status: number, reason: string, advice: string) => `My last ${n} requests to the model failed. Error${status ? ` ${status}` : ''}: ${reason}.${advice && ` ${advice}`}`,
     reasoningReplay: (n: number) => `My last ${n} requests to the model failed: this service requires the thinking to be sent back before every tool call, and Coopanion has that turned off for it. Please report this to the developers: ${ISSUES_URL}`,
+    advice: {
+      key: 'Check the API key on the Start page in settings, where you can test the connection.',
+      model: 'Check the model name on the Start page in settings, where you can test the connection.',
+      later: 'The model service is having trouble or limiting requests; try again in a while.',
+    },
     open: 'Open settings',
     ok: 'OK',
   },
@@ -353,8 +372,11 @@ function failureOf(err: unknown): { status: number; reason: string } {
 
 /**
  * After `FAILURES_BEFORE_HINT` model requests in a row fail, the pet says why in its bubble, once
- * per run of failures, with a button to the settings window's home page, where the model and key
- * are set and tested. Any answered request ends the run; a request cut off by newer input or by
+ * per run of failures. The last failure's status picks what follows the upstream's reason (upstream #438):
+ * 401 and 403 point at the key and 404 at the model name, each with a button to the settings window's
+ * home page, where both are set and tested; 429 and 5xx say the service is in trouble or limiting
+ * requests; any other status, 0 (no connection, a timeout, an error event in the stream) included,
+ * adds nothing and offers only 知道了. Any answered request ends the run; a request cut off by newer input or by
  * shutdown neither counts nor ends it, and neither does one refused for a ChatGPT plan's usage limit (its client
  * waits the limit out and logs it; only a request that cannot be sent again fails with it). A 400 the vendor table caused by sending no placeholder reasoning
  * (`SYNTHETIC_REASONING_OFF`) is said as that, with no settings button: nothing the person can set fixes it.
@@ -379,12 +401,17 @@ export function hintFailures(core: Core<CoreConfig>, config: CoreConfig, pet: ()
           // (anywhere along the causes: Cortico's router hands the provider's error on as it is, a wrapper may not)
           let replay = false;
           for (let e: unknown = err; e instanceof Error && !replay; e = e.cause) replay = e.message.includes(SYNTHETIC_REASONING_OFF);
+          const advice = status === 401 || status === 403 ? S.advice.key
+            : status === 404 ? S.advice.model
+            : status === 429 || status >= 500 ? S.advice.later
+            : '';
+          const settings = !replay && (status === 401 || status === 403 || status === 404);
           shown = true;
           void p.dialog({
-            text: replay ? S.reasoningReplay(failures) : S.text(failures, status, reason), actions: ['sad'], closable: true,
-            input: { kind: 'buttons', options: replay ? [{ label: S.ok, primary: true }] : [{ label: S.open, primary: true }, { label: S.ok }] },
+            text: replay ? S.reasoningReplay(failures) : S.text(failures, status, reason, advice), actions: ['sad'], closable: true,
+            input: { kind: 'buttons', options: settings ? [{ label: S.open, primary: true }, { label: S.ok }] : [{ label: S.ok, primary: true }] },
           }).answer.then((a) => {
-            if (!replay && 'index' in a && a.index === 0) process.send?.({ type: 'companion:open', path: '#/home' });
+            if (settings && 'index' in a && a.index === 0) process.send?.({ type: 'companion:open', path: '#/home' });
             // the page went away before it showed: the next failure tries again
             if ('unavailable' in a) shown = false;
           });

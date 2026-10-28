@@ -9,9 +9,9 @@
  *
  * Thinking is a four-step choice: off sends `reasoning.effort = none`, the others low / high /
  * max, each rewritten to the value a service documents for the model where it takes other ones
- * (`effortOf`); the Messages and Gemini APIs get the levels in their own form. Images are sent only when the
- * endpoint is marked multimodal and the service lists the model as reading them; tool results may
- * carry images too. Images go out only from the newest delivered batch of events on
+ * (`effortOf`); the Messages and Gemini APIs get the levels in their own form. Images are sent whenever the
+ * endpoint is marked multimodal (upstream #432; the vendor table's `vision` only decides whether a new endpoint, or a
+ * model typed in the normal mode, is marked so); tool results may carry images too. Images go out only from the newest delivered batch of events on
  * (`sinceLastDelivery`). Prices are built in for DeepSeek, OpenAI, Anthropic, Gemini and xAI.
  *
  * The package has a second module, `chatgpt` (`CHATGPT_PROVIDER`, chatgpt/): a ChatGPT plan signed in with the
@@ -27,39 +27,14 @@ import { GeminiProvider, listGeminiModels } from './gemini/client.ts';
 import { vendorPrices } from './pricing.ts';
 import { VendorResponses } from './responses.ts';
 import { cooText } from './strings.ts';
+import { plainRemote } from './address.ts';
 import { TIERS } from './tiers.ts';
 import { VENDORS, effortOf, protocolOf, vendorOf } from './vendors.ts';
-
-const readsImages = (entry: LLMProviderEntry, model: string | undefined) => !!model && (vendorOf(entry.baseUrl)?.vision ?? []).includes(model);
 
 /** The Messages API states an oversized prompt as `prompt is too long`, the Gemini API as a token count over the maximum. */
 function contextOverflow(error: { status: number; body: string }): boolean {
   return isContextOverflow(error)
     || (error.status === 400 && /prompt is too long|exceeds? the (model's )?context|input token count.*exceeds the maximum/i.test(error.body));
-}
-
-/** An http address outside this computer and the private networks: what is sent there, the key included, is readable on the way. */
-export function plainRemote(baseUrl: string): boolean {
-  let url: URL;
-  try { url = new URL(baseUrl); } catch { return false; }
-  return url.protocol === 'http:' && !privateHost(url.hostname);
-}
-
-/**
- * This computer and the private networks: loopback, RFC 1918, link-local, the 100.64/10 shared range
- * (Tailscale and carrier NAT), IPv6 unique-local and link-local, and LAN names (one label, or .local,
- * .lan, .home.arpa, .internal).
- */
-function privateHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  if (host === 'localhost' || host.endsWith('.localhost') || /\.(local|lan|home\.arpa|internal)$/.test(host)) return true;
-  const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(host);
-  if (v4) {
-    const a = Number(v4[1]), b = Number(v4[2]);
-    return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127);
-  }
-  if (host.includes(':')) return host === '::1' || /^f[cd]/.test(host) || /^fe[89ab]/.test(host);
-  return !host.includes('.');
 }
 
 /** The longest Anthropic model list read; listing stops there. */
@@ -83,7 +58,7 @@ export const COO = {
   validateEntry(entry, language) {
     if (plainRemote(entry.baseUrl)) throw new Error(cooText(language).httpRemote);
   },
-  accepts: (entry, spec, mime) => entry.multimodal === true && mime.startsWith('image/') && readsImages(entry, spec.model),
+  accepts: (entry, _spec, mime) => entry.multimodal === true && mime.startsWith('image/'),
   prices: (entry, _request, at) => vendorPrices(vendorOf(entry.baseUrl)?.id, at.startedAt),
   contextOverflow,
   create(name: string, entry: LLMProviderEntry, host): ProviderInstance {
@@ -97,7 +72,7 @@ export const COO = {
     const current = () => host.currentEntry?.() ?? entry;
     const headers: Record<string, string> = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
     const vendor = vendorOf(entry.baseUrl);
-    const media = { enabled: () => current().multimodal === true && readsImages(current(), current().spec?.model), read: host.readBlob };
+    const media = { enabled: () => current().multimodal === true, read: host.readBlob };
     const stated = (model: string) => vendor?.contextWindows?.[model];
     if (vendor && protocolOf(entry.baseUrl) === 'anthropic') {
       const client = new ClaudeProvider({ baseUrl: entry.baseUrl, apiKey, media, keepThinking: host.keepThinking, log: host.log });
@@ -154,6 +129,7 @@ export const COO = {
 
 export default COO;
 export { anthropicPrices, deepseekPrices, geminiPrices, openaiPrices, vendorPrices, xaiPrices, OFF_PEAK } from './pricing.ts';
+export { plainRemote } from './address.ts';
 export {
   CHATGPT, CHATGPT_MODULE, VENDORS, chatgptEntry, connectionVendor, effortOf, endpointVendor, protocolOf, vendorById, vendorEntry, vendorKeyHint, vendorName, vendorOf,
   type Vendor,

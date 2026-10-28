@@ -1,15 +1,18 @@
 /**
  * WebUI panels for the desktop pet: `pet` (window, dressing, window runtime) and `voice`
- * (recognition engine, the FunASR model download, microphone level, recognized lines). Data goes
+ * (recognition engine, the FunASR model download or the transcription service's settings (api-rows.ts), microphone level,
+ * recognized lines). Data goes
  * through `ctx.invoke`, the level meter through `ctx.stream('voice')`.
  */
 import type { WebUiClientBundle, WebUiPanel, WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 import { petText } from '../i18n/index.ts';
+import { captureKey, splitTaps, withTaps } from './key-capture.ts';
+import { apiRows, type ApiState } from './api-rows.ts';
 import './style.css';
 
 interface Artifact { phase: 'absent' | 'working' | 'ready' | 'error'; path: string; done: number; total: number | null; detail: string | null }
 interface PetState {
-  connected: boolean;
+  inWindow: boolean;
   url: string | null;
   dressUrl: string | null;
   window: { phase: string; pid: number | null; source: string | null; detail: string | null } | null;
@@ -25,6 +28,8 @@ interface VoiceState {
   server: { phase: string; url: string; pid: number | null; detail: string | null } | null;
   /** The FunASR model download. */
   model: Artifact & { bytes: number };
+  /** The transcription service (engine api); absent from a World older than the panel. */
+  api?: ApiState;
   mic: { state: string; detail: string | null };
   input: {
     mode: MicMode;
@@ -46,24 +51,7 @@ interface VoiceState {
 }
 
 type MicMode = 'hold' | 'toggle' | 'always';
-type Engine = 'funasr' | 'system';
-
-/** `KeyboardEvent.code` → the key names `src/asr/hotkey.ts` reads. */
-const CODE_KEYS: Record<string, string> = {
-  ControlLeft: 'LeftCtrl', ControlRight: 'RightCtrl', AltLeft: 'LeftAlt', AltRight: 'RightAlt',
-  ShiftLeft: 'LeftShift', ShiftRight: 'RightShift', MetaLeft: 'Win', MetaRight: 'RightWin',
-  Space: 'Space', Tab: 'Tab', CapsLock: 'CapsLock', Backquote: 'Backquote', Enter: 'Enter', Insert: 'Insert',
-  Delete: 'Delete', Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown', Pause: 'Pause', ScrollLock: 'ScrollLock',
-};
-const keyOfCode = (code: string): string | null =>
-  CODE_KEYS[code] ?? (/^Key[A-Z]$/.test(code) ? code.slice(3) : /^Digit\d$/.test(code) ? code.slice(5) : /^F\d{1,2}$/.test(code) ? code : null);
-
-/** The keys and the press count of a hotkey, as `splitTaps` in src/asr/hotkey.ts reads it. */
-const splitTaps = (hotkey: string): { combo: string; taps: number } => {
-  const m = /^(.*?)\s*\*\s*([1-3])$/.exec(hotkey.trim());
-  return m ? { combo: m[1]!, taps: Number(m[2]) } : { combo: hotkey.trim(), taps: 1 };
-};
-const withTaps = (combo: string, taps: number) => (taps > 1 ? `${combo}*${taps}` : combo);
+type Engine = 'funasr' | 'system' | 'api';
 
 const MB = (n: number) => `${Math.round(n / 1048576)} MB`;
 const progress = (a: Artifact) => (a.total ? `${Math.round((a.done / a.total) * 100)}%` : MB(a.done));
@@ -121,7 +109,7 @@ const petPanel: WebUiPanel = {
     const render = (next: PetState) => {
       st = next;
       const w = next.window;
-      if (next.connected) win.set(t.connected, 'on');
+      if (next.inWindow) win.set(t.connected, 'on');
       else if (w?.phase === 'running') win.set(t.starting, 'busy');
       else win.set(w?.phase === 'missing' || w?.phase === 'error' ? t.cannotOpen : t.notOpen, w?.phase === 'missing' || w?.phase === 'error' ? 'bad' : 'off', w?.detail ?? '');
       btnOpen.disabled = w?.phase === 'running';
@@ -154,11 +142,15 @@ const petPanel: WebUiPanel = {
 
 const FLOOR_DB = -60;
 const meterPct = (db: number) => Math.max(0, Math.min(100, ((db - FLOOR_DB) / -FLOOR_DB) * 100));
+/** The threshold the mark can be set to (upstream #435): the meter's span, whole dB. */
+const markDb = (db: number) => Math.round(Math.max(FLOOR_DB, Math.min(0, db)));
+const ARROW_STEPS: Record<string, number> = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 };
 
 const voicePanel: WebUiPanel = {
   mount(ctx) {
     const { ui, root } = ctx;
-    const t = petText(ctx.language).panel;
+    const text = petText(ctx.language);
+    const t = text.panel;
     const MODES: Record<MicMode, string> = t.modes;
     const PRESSES = t.presses;
     const card = ui.sheet({ title: t.voice, en: 'voice' });
@@ -191,6 +183,7 @@ const voicePanel: WebUiPanel = {
     const rt = statusRow(ctx, t.model);
     const btnInstall = ui.button(t.download, { size: 'sm', variant: 'primary' });
     rt.acts.append(btnInstall);
+    const api = apiRows(ctx, t, (name) => statusRow(ctx, name), (patch) => void call('setApi', [patch])());
 
     const micRow = statusRow(ctx, t.mic);
     const deviceSel = ui.select();
@@ -215,17 +208,33 @@ const voicePanel: WebUiPanel = {
     // the hint is cut to one line like every row's: the whole of it on hover
     onPressRow.row.title = t.openOnPressHint;
 
+    const meterWrap = ui.h('div', 'pet-meterwrap');
     const meter = ui.h('div', 'pet-meter');
     const fill = ui.h('div', 'pet-meterfill');
+    meter.append(fill);
+    // the speech threshold, dragged along the meter or moved with the arrow keys (upstream #435)
     const mark = ui.h('div', 'pet-metermark');
-    meter.append(fill, mark);
+    mark.tabIndex = 0;
+    mark.title = t.thresholdHint;
+    mark.setAttribute('role', 'slider');
+    mark.setAttribute('aria-label', text.config.thresholdDb.title);
+    mark.setAttribute('aria-valuemin', String(FLOOR_DB));
+    mark.setAttribute('aria-valuemax', '0');
+    meterWrap.append(meter, mark);
 
     const log = ui.log({ max: 100 });
-    settings.append(eng.row, srv.row, rt.row, micRow.row, modeRow.row, onPressRow.row, meter, ui.section(t.results, t.resultsHint), log.el);
+    settings.append(eng.row, srv.row, rt.row, ...api.rows, micRow.row, modeRow.row, onPressRow.row, meterWrap, ui.section(t.results, t.resultsHint), log.el);
     s.append(master, msg, settings);
 
     let st: VoiceState | null = null;
     let seen = 0;
+    /** The threshold under the pointer while the mark is held. */
+    let held: number | null = null;
+    const placeMark = (db: number) => {
+      mark.style.left = `${meterPct(db)}%`;
+      mark.setAttribute('aria-valuenow', String(db));
+      mark.setAttribute('aria-valuetext', `${db} dBFS`);
+    };
     const render = (next: VoiceState) => {
       st = next;
       enabled.checked = next.enabled;
@@ -236,12 +245,13 @@ const voicePanel: WebUiPanel = {
       const engines: Partial<Record<Engine, string>> = { funasr: t.funasr };
       // Windows' own recognizer exists only there
       if (next.systemSupported) engines.system = t.system;
+      engines.api = t.api;
       if (engineSel.dataset.list !== JSON.stringify(engines)) {
         engineSel.dataset.list = JSON.stringify(engines);
         engineSel.replaceChildren(...(Object.keys(engines) as Engine[]).map((k) => { const o = ui.h('option', null, engines[k] ?? k); o.value = k; return o; }));
       }
       if (document.activeElement !== engineSel) engineSel.value = next.engine;
-      eng.set(next.engine === 'system' ? t.system : 'FunASR', 'on', next.engine === 'system' ? t.systemHint : t.funasrHint);
+      eng.set({ funasr: 'FunASR', system: t.system, api: t.apiName }[next.engine], 'on', { funasr: t.funasrHint, system: t.systemHint, api: t.apiHint }[next.engine]);
       const sv = next.server;
       if (!sv) srv.set('—', 'off');
       else if (sv.phase === 'running') srv.set(t.ready, 'on', sv.url);
@@ -261,6 +271,7 @@ const voicePanel: WebUiPanel = {
       btnInstall.textContent = m.phase === 'error' ? t.retry : t.download;
       // the model only matters to FunASR
       rt.row.style.display = next.engine === 'funasr' ? '' : 'none';
+      api.render(next.api ?? { baseUrl: '', model: '', keySaved: false }, next.engine === 'api');
 
       const mic = next.mic;
       micRow.set(t.micStates[mic.state] ?? mic.state, mic.state === 'on' ? 'on' : mic.state === 'off' ? 'off' : 'bad', mic.detail ?? '');
@@ -282,7 +293,7 @@ const voicePanel: WebUiPanel = {
         pressSel.replaceChildren(...presses.map(([n, label]) => { const o = ui.h('option', null, label); o.value = String(n); return o; }));
       }
       if (document.activeElement !== pressSel) pressSel.value = String(taps);
-      if (!capturing) keyBtn.textContent = t.talkKey(input.keyLabel);
+      if (!capture) keyBtn.textContent = t.talkKey(input.keyLabel);
       keyBtn.hidden = pressSel.hidden = input.mode === 'always';
       modeRow.set(input.open ? t.listening : t.waitingKey, input.open ? 'on' : 'off', input.hint);
       onPressRow.row.style.display = input.mode === 'hold' ? '' : 'none';
@@ -290,7 +301,8 @@ const voicePanel: WebUiPanel = {
       onPressRow.set(onPress.checked ? t.switchOn : t.switchOff, onPress.checked ? 'on' : 'off', t.openOnPressHint);
       // the loudness threshold only decides where speech starts when the key is not held down
       mark.hidden = input.mode === 'hold';
-      mark.style.left = `${meterPct(next.thresholdDb)}%`;
+      // the state polled meanwhile does not move the mark from under the pointer or the keys
+      if (held === null && document.activeElement !== mark) placeMark(next.thresholdDb);
       for (const line of next.recent) {
         if (line.at <= seen) continue;
         seen = line.at;
@@ -308,47 +320,58 @@ const voicePanel: WebUiPanel = {
     btnInstall.addEventListener('click', call('install'));
     modeSel.addEventListener('change', () => void call('setMic', [{ mode: modeSel.value }])());
     deviceSel.addEventListener('change', () => void call('setMic', [{ deviceId: deviceSel.value }])());
+    const dbAt = (x: number) => {
+      const r = meter.getBoundingClientRect();
+      return markDb(FLOOR_DB + ((x - r.left) / r.width) * -FLOOR_DB);
+    };
+    mark.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      mark.focus();
+      mark.setPointerCapture(e.pointerId);
+      held = dbAt(e.clientX);
+      placeMark(held);
+    });
+    mark.addEventListener('pointermove', (e) => {
+      if (held === null) return;
+      held = dbAt(e.clientX);
+      placeMark(held);
+    });
+    // saved once the mark is let go
+    mark.addEventListener('pointerup', () => {
+      if (held === null) return;
+      const db = held;
+      held = null;
+      void call('setThreshold', [db])();
+    });
+    mark.addEventListener('pointercancel', () => {
+      held = null;
+      if (st) placeMark(st.thresholdDb);
+    });
+    mark.addEventListener('keydown', (e) => {
+      const step = ARROW_STEPS[e.key];
+      if (!step || held !== null) return;
+      e.preventDefault();
+      const db = markDb(Number(mark.getAttribute('aria-valuenow')) + step);
+      placeMark(db);
+      void call('setThreshold', [db])();
+    });
     pressSel.addEventListener('change', () => {
       if (st) void call('setMic', [{ hotkey: withTaps(splitTaps(st.input.hotkey).combo, Number(pressSel.value)) }])();
     });
 
-    // The talk key is every key down until the first release; how it is pressed (`*2`) stays as chosen beside it.
-    let capturing = false;
-    const held: string[] = [];
+    // The talk key is a new combination (key-capture.ts); how it is pressed (`*2`) stays as chosen beside it.
+    let capture: { stop(): void } | null = null;
     const finishCapture = (combo: string | null) => {
-      capturing = false;
-      held.length = 0;
-      window.removeEventListener('keydown', onKeyDown, true);
-      window.removeEventListener('keyup', onKeyUp, true);
-      window.removeEventListener('pointerdown', onPointer, true);
+      capture = null;
       if (combo && st) void call('setMic', [{ hotkey: withTaps(combo, splitTaps(st.input.hotkey).taps) }])();
       else void refresh();
     };
-    const onKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault(); e.stopPropagation();
-      if (e.code === 'Escape') { finishCapture(null); return; }
-      const k = keyOfCode(e.code);
-      if (k && !held.includes(k)) held.push(k);
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      e.preventDefault(); e.stopPropagation();
-      if (held.length) finishCapture(held.join('+'));
-    };
-    const onPointer = (e: PointerEvent) => {
-      const k = ({ 1: 'Mouse3', 3: 'Mouse4', 4: 'Mouse5' } as Record<number, string>)[e.button];
-      if (!k) return;
-      e.preventDefault(); e.stopPropagation();
-      finishCapture([...held, k].join('+'));
-    };
     keyBtn.addEventListener('click', () => {
-      if (capturing) { finishCapture(null); return; }
-      capturing = true;
+      if (capture) { capture.stop(); return; }
       keyBtn.textContent = t.capture;
-      window.addEventListener('keydown', onKeyDown, true);
-      window.addEventListener('keyup', onKeyUp, true);
-      window.addEventListener('pointerdown', onPointer, true);
+      capture = captureKey(window, finishCapture);
     });
-    ctx.own({ dispose: () => { if (capturing) finishCapture(null); } });
+    ctx.own({ dispose: () => capture?.stop() });
     ctx.stream({
       message: (text: string) => {
         const f = JSON.parse(text) as { type: string; level?: number; speaking?: boolean; open?: boolean };

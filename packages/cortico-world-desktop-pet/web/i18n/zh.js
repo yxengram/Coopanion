@@ -14,6 +14,12 @@ export default {
   'bubble.typeLabel': '打字说话',
   /** 打字气泡里把草稿带到对话页的按钮 */
   'bubble.expand': '在对话页继续写',
+  /** 打字框里粘贴的图片:缩略图上的移除按钮,和打字框下面的提示 */
+  'bubble.removeImage': '移除图片',
+  'bubble.tooManyImages': '打字框最多放 {max} 张图',
+  'bubble.imageUnreadable': '读不了这张图片',
+  'bubble.imageTooLarge': '这张图片缩小后仍超过 {mb}MB',
+  'bubble.imagesUnseen': '现在的模型看不到图片,{bot} 只会知道你发了几张图。',
 
   // 你说的话:语音识别中的样子和它的取消按钮;对话页发来的消息附的图片数
   'heard.more': '还在听…',

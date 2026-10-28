@@ -27,6 +27,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./web/*": "./web/*",
+    "./webui/key-capture.ts": "./src/webui/key-capture.ts",
     "./host/*": "./host/*"
   },
   "cortico": {
@@ -50,6 +51,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "cortico-provider-coo": "workspace:*",
     "koffi": "3.3.1",
     "opencc-js": "^1.4.1",
     "sherpa-onnx-node": "1.13.8",

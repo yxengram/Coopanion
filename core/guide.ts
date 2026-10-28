@@ -327,7 +327,7 @@ function api(origin: string, language: () => Language): ConsoleCall {
 
 interface VoiceState {
   enabled?: boolean;
-  engine?: 'funasr' | 'system';
+  engine?: 'funasr' | 'system' | 'api';
   model?: { phase: 'absent' | 'working' | 'ready' | 'error'; done: number; total: number | null; bytes: number; detail: string | null };
   input?: { mode?: 'hold' | 'toggle' | 'always'; hint?: string; keyLabel?: string; taps?: number; hotkeyProblem?: string | null };
 }

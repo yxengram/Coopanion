@@ -54,6 +54,8 @@ function fakeElectron({ display, cursor = { x: 5, y: 5 }, emitShow = true }) {
       this.bounds = { x: opts.x, y: opts.y, width: opts.width, height: opts.height };
       /** Every setIgnoreMouseEvents, oldest first: true while clicks pass through. */
       this.ignore = [];
+      /** The `forward` option of each of those calls. */
+      this.forward = [];
       this.sent = [];
       this.events = new Map();
       const wcEvents = new Map();
@@ -75,7 +77,7 @@ function fakeElectron({ display, cursor = { x: 5, y: 5 }, emitShow = true }) {
     getBounds() { return { ...this.bounds }; }
     setAlwaysOnTop(_on, level) { this.level = level; }
     setVisibleOnAllWorkspaces() {}
-    setIgnoreMouseEvents(ignore) { this.ignore.push(ignore); }
+    setIgnoreMouseEvents(ignore, opts) { this.ignore.push(ignore); this.forward.push(opts?.forward); }
     showInactive() { const was = this.visible; this.visible = true; if (!was && emitShow) this.emit('show'); }
     hide() { const was = this.visible; this.visible = false; if (was) this.emit('hide'); }
     isVisible() { return this.visible; }
@@ -512,6 +514,25 @@ describe('Linux/X11: the cursor from the X server, and the mouse lease', () => {
     h.tick(100);
     // over the panel, off the window
     expect(h.cursors().at(-1)).toBeNull();
+  });
+});
+
+describe('a click-through window on Windows forwards no mouse moves; the cursor reports come every 15 ms instead (upstream #465)', () => {
+  it.each([['win32', false, 20], ['linux', true, 3], ['darwin', true, 3]])('%s: forward %s, %i reports in 300 ms', async (platform, forward, reports) => {
+    const h = await startHost({ platform });
+    h.win.emit('ready-to-show');
+    // the window as it is made, and every verdict of the lease after it
+    expect(h.win.forward.length).toBeGreaterThan(0);
+    const before = h.cursors().length;
+    h.tick(300);
+    expect(h.cursors().length - before).toBe(reports);
+    h.send('pet:interactive', true);
+    h.tick(100);
+    expect(h.win.ignore.at(-1)).toBe(false);
+    h.send('pet:interactive', false);
+    h.tick(100);
+    expect(h.win.ignore.at(-1)).toBe(true);
+    expect(new Set(h.win.forward)).toEqual(new Set([forward]));
   });
 });
 

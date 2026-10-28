@@ -8,7 +8,8 @@
  * the pack's own (walking, falling, faces, drawing; most packs build it on the kit, `web/kit/body.js`).
  * What the World and the pages need without running it is in the manifest: names, the dress-up axes
  * and presets, what the bot is told the body looks like, the words it does (`vocab`, the whole of the
- * bot's vocabulary while it is on), its own sound files, and whether it walks. A pack may also list pairs of its
+ * bot's vocabulary while it is on), its own sound files and voice, whether it walks, how far its effects reach past
+ * its box (`effects`) and its bubbles' colours (`bubble`; upstream #434). A pack may also list pairs of its
  * expressions its body shows as one face when both are in one group (`pairs`: `"a+b": "eyes+mouth"` for a face the
  * body composes, or `"a+b": "<expression>"` for one of its words); the World keeps such a pair in one group only for a
  * pack that lists it, and sends a composed one eyes first, then mouth, which is how a plus kit body (doGroup) composes
@@ -60,7 +61,10 @@ export function unaliasSkin<T extends { figure?: string }>(skin: T): T {
   return skin.figure !== undefined && figureOf(skin.figure) !== skin.figure ? { ...skin, figure: figureOf(skin.figure) } : skin;
 }
 /** Kinds a pack's own sounds are filed under, as web/sound.js mutes them (BODY_SOUND_KINDS). */
-export const PACK_SOUND_KINDS = ['move', 'touch', 'face', 'snore'] as const;
+export const PACK_SOUND_KINDS = ['move', 'touch', 'face', 'snore', 'talk'] as const;
+/** The range of `voice.pitch`, and of `effects.reach` in 256-unit squares (upstream #434). */
+export const VOICE_PITCH = { min: .5, max: 2 } as const;
+export const EFFECTS_REACH_MAX = 2;
 /** Audio files every platform's Chromium decodes. */
 const AUDIO = new Set(['.ogg', '.mp3', '.wav']);
 
@@ -88,7 +92,17 @@ export interface FigurePreset {
   /** Colours the sleep z's and the listening and thinking marks. */
   accent?: string;
   console?: { light: ConsoleHues; dark: ConsoleHues };
+  /** The bubbles' colours while this preset is on, over the pack's own. */
+  bubble?: BubbleTheme;
 }
+
+/** A bubble's colours (hex): its fill, its text, and its outline with the tail. */
+export interface BubbleColors { fill: string; text: string; line: string }
+/** The bot's bubbles in each of the pet's themes; the lines the person said keep the page's. */
+export interface BubbleTheme { light: BubbleColors; dark: BubbleColors }
+
+/** How the body talks: `pitch` scales the page's babble and the speed its own `talk` sounds play at. */
+export interface PackVoice { pitch: number }
 
 export interface PackSound {
   /** Relative to the pack. */
@@ -125,6 +139,10 @@ export interface FigureManifest {
   sounds: Record<string, PackSound>;
   /** `walk`: whether it goes where it is told (`pet_walk_to`). */
   can: { walk: boolean };
+  voice: PackVoice;
+  /** `reach`: how far past the body's box its effects are drawn, in 256-unit squares at its scale, each side. */
+  effects: { reach: number };
+  bubble?: BubbleTheme;
 }
 
 export interface FigurePack {
@@ -150,6 +168,21 @@ const NAME_BREAK = /[,，、\s【】<>＜＞]/;
 const WORD_KINDS = new Set(['expression', 'motion']);
 type PacksText = PetText['packs'];
 const SOUND_NAME = /^[a-z][a-zA-Z0-9-]{0,31}$/;
+const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+/** `raw` as bubble colours, or undefined when it is not one whole set of hex colours per theme (left out, as a bad accent is). */
+function bubbleOf(raw: unknown): BubbleTheme | undefined {
+  const theme = (v: unknown): BubbleColors | null => {
+    const c = v as Record<string, unknown> | null;
+    return c && typeof c === 'object' && [c.fill, c.text, c.line].every((h) => typeof h === 'string' && HEX.test(h))
+      ? { fill: c.fill as string, text: c.text as string, line: c.line as string } : null;
+  };
+  const r = raw as Record<string, unknown> | null;
+  const light = theme(r?.light), dark = theme(r?.dark);
+  return light && dark ? { light, dark } : undefined;
+}
+/** A number in [min, max], else `fallback`. */
+const within = (v: unknown, min: number, max: number, fallback: number) => (typeof v === 'number' && v >= min && v <= max ? v : fallback);
 
 /** The vocabulary in `raw`, checked; a string says what is wrong with it. A word of a kind this version does not know is left out and named in `skipped`. */
 function readVocab(raw: unknown, skipped: string[], t: PacksText): VocabWord[] | string {
@@ -285,6 +318,7 @@ export function readManifest(dir: string, builtin = false, skipped: string[] = [
       ...(namesOf(p.name) ? { name: namesOf(p.name)! } : {}), ...(p.thumb ? { thumb: p.thumb as string } : {}),
       ...(typeof p.accent === 'string' ? { accent: p.accent } : {}),
       ...(p.console && typeof p.console === 'object' ? { console: p.console as FigurePreset['console'] } : {}),
+      ...(bubbleOf(p.bubble) ? { bubble: bubbleOf(p.bubble)! } : {}),
     });
   }
   const vocab = readVocab(raw.vocab, skipped, t);
@@ -294,9 +328,14 @@ export function readManifest(dir: string, builtin = false, skipped: string[] = [
   if (typeof sounds === 'string') return sounds;
   const can = (raw.can && typeof raw.can === 'object' ? raw.can : {}) as Record<string, unknown>;
   if (can.walk !== undefined && typeof can.walk !== 'boolean') skipped.push(t.badWalk(JSON.stringify(can.walk)));
+  // (upstream #434) a value out of range or incomplete is not used, as a bad accent is; an older app skips all three
+  const voice = { pitch: within((raw.voice as Record<string, unknown> | undefined)?.pitch, VOICE_PITCH.min, VOICE_PITCH.max, 1) };
+  const effects = { reach: within((raw.effects as Record<string, unknown> | undefined)?.reach, 0, EFFECTS_REACH_MAX, 0) };
+  const bubble = bubbleOf(raw.bubble);
   return {
     manifest: MANIFEST_VERSION, api: raw.api as number, id: raw.id, version: typeof raw.version === 'string' ? raw.version : '0.0.0',
-    name, about, entry: raw.entry, export: raw.export, axes, presets, vocab, pairs, sounds, can: { walk: can.walk !== false },
+    name, about, entry: raw.entry, export: raw.export, axes, presets, vocab, pairs, sounds, can: { walk: can.walk !== false }, voice, effects,
+    ...(bubble ? { bubble } : {}),
     ...(typeof raw.author === 'string' ? { author: raw.author } : {}),
     ...(typeof raw.license === 'string' ? { license: raw.license } : {}),
     ...(Array.isArray(raw.credits) ? { credits: raw.credits as FigureManifest['credits'] } : {}),

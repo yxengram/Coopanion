@@ -8,8 +8,9 @@
  * Everything shown comes from the World's stream (packages/cortico-world-desktop-pet/src/chat.ts);
  * the phase line is Core's RunPhase as the World passes it on. Written-out http(s) addresses in Coo's
  * lines and questions are links, as in the pet's bubbles (the pet's web/ui.js `linked`, upstream #297).
- * The ring in the composer (context.ts, upstream #318) reads `/api/status` when the page opens, at each
- * phase change and every few seconds while the window is visible.
+ * The ring in the composer (context.ts, upstream #318) shows while `companion.contextRing` is on (the 「习惯」 page,
+ * upstream #360, off by default; read once when the page opens) and only then reads `/api/status`: when the page
+ * opens, at each phase change and every few seconds while the window is visible.
  * What is typed and not sent outlives leaving the page and the window (upstream #256, text only: the
  * composer is Cortico's, whose attached images this page cannot read), under DRAFT_KEY in localStorage.
  */
@@ -27,6 +28,9 @@ import { requestMode } from '../mode.ts';
 import { contextGauge, contextRing, type ContextGauge, type ContextStatus } from './context.ts';
 
 const PET_PAGE = 'world:desktop-pet';
+/** The switch for the context ring, a key of Coopanion's `companion` config group (core/companion.ts). */
+const RING_GROUP = 'companion';
+const RING_KEY = 'companion.contextRing';
 /** How often the context ring reads `/api/status` while the window is visible, besides each phase change. */
 const CONTEXT_POLL_MS = 5000;
 /** Where the unsent text waits (upstream's key, so a later move to its composer keeps it). */
@@ -269,14 +273,17 @@ async function mount(ctx: FeatureContext): Promise<void> {
     else if (p?.state === 'handoff') { state = 'busy'; text = S.handoff; }
     phaseEl.dataset.state = state;
     phaseText.textContent = text;
-    ring.paint(gauge, p?.state === 'handoff');
+    ring.paint(showRing ? gauge : null, showRing && p?.state === 'handoff');
   };
 
   // ---- context ring: one request at a time; a read asked for meanwhile runs after it
   let gauge: ContextGauge | null = null;
+  /** Whether the 「习惯」 page has the ring on, as read when the page opened; off, `/api/status` is never read. */
+  let showRing = false;
   let reading = false;
   let readAgain = false;
   const readContext = (): void => {
+    if (!showRing) return;
     if (reading) { readAgain = true; return; }
     reading = true;
     void get<ContextStatus>('/api/status', { signal: ctx.signal }).then(
@@ -568,14 +575,24 @@ async function mount(ctx: FeatureContext): Promise<void> {
           case 'paused': paused = f.paused === true; refresh(); return;
           // the bot was renamed (「Coo 的名字」 or the rail): the thinking line, the queue notes and the input's hint follow
           case 'bot': bot = typeof f.bot === 'string' && f.bot ? f.bot : bot; composer.setPlaceholder(S.placeholder(bot)); refresh(); return;
-          case 'draft': if (typeof f.text === 'string' && f.text) composer.restore(f.text); composer.focus(); return;
+          // the pet's typing box carried its draft here, with the pictures pasted into it (upstream #430); pictures alone too
+          case 'draft': {
+            const text = typeof f.text === 'string' ? f.text : '';
+            const images = Array.isArray(f.images) ? f.images as WebUiImageAttachment[] : [];
+            if (text || images.length) composer.restore(text, images);
+            composer.focus();
+            return;
+          }
         }
       },
     },
   }));
 
   syncPhase();
-  readContext();
+  void get<{ groups?: Array<{ group: { id: string }; values?: Record<string, unknown> }> }>('/api/config', { signal: ctx.signal }).then((d) => {
+    showRing = d.groups?.find((g) => g.group.id === RING_GROUP)?.values?.[RING_KEY] === true;
+    readContext();
+  }, () => { /* the ring stays hidden */ });
   thread.append(ui.h('div', 'chat-empty', S.connecting));
 }
 

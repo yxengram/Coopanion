@@ -14,9 +14,13 @@ interface Host extends EventEmitter {
   crashes: number[];
   missingModuleExits: number;
   blocked: unknown;
+  shutdownAsked: boolean;
   start(): Promise<void>;
   stop(graceMs?: number): Promise<void>;
   restart(): Promise<void>;
+  send(msg: unknown): void;
+  expectStop(): void;
+  forgetStop(): void;
 }
 const { CoreHost, CORE_NODE_FLAGS, MISSING_MODULE_DELAYS_MS, isMissingModule, missingModuleDelay } = require('../app/core-host.cjs') as {
   CoreHost: new (opts: { appRoot: string, env: NodeJS.ProcessEnv, logDir: string, resolveProxy: (url: string) => Promise<string>, execPath?: string }) => Host;
@@ -211,6 +215,93 @@ describe('Core host', () => {
       expect(states).toEqual(['starting', 'running', 'stopped', 'starting', 'running', 'stopped']);
       expect(host.crashes).toEqual([]);
     } finally { first?.kill('SIGKILL'); host.child?.kill('SIGKILL'); }
+  });
+
+  // upstream #456: the settings window's power button shuts the Core down on purpose (app/shutdown-mark.cjs marks it)
+  describe('a shutdown from the console', () => {
+    /** A Core that is ready, then exits with `code` when told `test:exit` (what Cortico does after a shutdown). */
+    const consoleCore = (name: string) => {
+      const appRoot = join(scratch, name);
+      mkdirSync(join(appRoot, 'core'), { recursive: true });
+      writeFileSync(join(appRoot, 'core', 'boot.ts'), [
+        "process.on('message', (m) => { if (m?.type === 'test:exit') process.exit(m.code); if (m?.type === 'companion:shutdown') process.exit(0); });",
+        "process.send({ type: 'companion:ready', port: 1 });",
+      ].join('\n'));
+      const host = new CoreHost({ appRoot, logDir: join(scratch, 'logs'), execPath: electron, env: { PATH: process.env.PATH }, resolveProxy: async () => 'DIRECT' });
+      const states: [string, string | undefined][] = [];
+      host.on('state', (state: string, detail?: string) => states.push([state, detail]));
+      return { host, states };
+    };
+    const ready = (host: Host) => new Promise((r) => host.once('ready', r));
+    /** Has the running child exit with `code` and waits longer than the 3 s restart delay, so a restart would show. */
+    const exitAndWait = async (host: Host, code: number) => {
+      const exited = new Promise((r) => host.child!.once('exit', r));
+      host.send({ type: 'test:exit', code });
+      await exited;
+      await new Promise((r) => setTimeout(r, 3500));
+    };
+
+    // Cortico exits 0 after a complete shutdown and 1 when a step was skipped (bot.ts beginShutdown): both were asked for
+    for (const code of [0, 1]) {
+      it(`leaves Core stopped after the console asked for a shutdown (exit ${code}), with no restart and no notification`, async () => {
+        const { host, states } = consoleCore(`console-stop-${code}`);
+        try {
+          const up = ready(host);
+          await host.start();
+          await up;
+          host.expectStop();
+          await exitAndWait(host, code);
+          expect(host.child).toBeNull();
+          expect(host.state).toBe('stopped');
+          expect(host.crashes).toEqual([]);
+          expect(host.shutdownAsked).toBe(false);
+          // no detail: the app shows a notification only for a state with one
+          expect(states).toEqual([['starting', undefined], ['running', undefined], ['stopped', undefined]]);
+          // the tray's 「重新启动」 starts it again
+          const again = ready(host);
+          await host.restart();
+          await again;
+          expect(host.state).toBe('running');
+        } finally { await host.stop(); }
+      }, 20_000);
+    }
+
+    it('treats the exit as a crash again when the shutdown request was refused', async () => {
+      const { host, states } = consoleCore('console-refused');
+      try {
+        const up = ready(host);
+        await host.start();
+        await up;
+        host.expectStop();
+        host.forgetStop();
+        const restarted = ready(host);
+        await exitAndWait(host, 0);
+        await restarted;
+        expect(host.crashes).toHaveLength(1);
+        expect(states.map(([s]) => s)).toEqual(['starting', 'running', 'restarting', 'starting', 'running']);
+        // the restart is told (a notification in the app)
+        expect(states[2][1]).toBeTruthy();
+      } finally { await host.stop(); }
+    }, 20_000);
+
+    it('ignores a shutdown mark while no Core runs, and a new child starts unmarked', async () => {
+      const { host } = consoleCore('console-idle');
+      host.expectStop();
+      expect(host.shutdownAsked).toBe(false);
+      try {
+        // a mark left over from an earlier child (an exit while stopping clears it too, so it is set by hand here):
+        // the new child's start clears it, and that child's unexpected exit is a crash again
+        host.shutdownAsked = true;
+        const up = ready(host);
+        await host.start();
+        expect(host.shutdownAsked).toBe(false);
+        await up;
+        const restarted = ready(host);
+        await exitAndWait(host, 0);
+        await restarted;
+        expect(host.crashes).toHaveLength(1);
+      } finally { await host.stop(); }
+    }, 20_000);
   });
 
   // upstream #331: the Core asks for the system proxy of each host it reaches; the app answers from resolveProxy

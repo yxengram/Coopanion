@@ -2046,6 +2046,59 @@ describe('what the page holds a pack to', () => {
     }
   });
 
+  it("a pack's voice babbles with its own talk sounds at its pitch, muted with the talk kind; without them the tone babbles at it (upstream #434)", async () => {
+    const made = { tones: 0, clips: 0, rates: [], freqs: [] };
+    const param = (list) => ({ set value(v) { list?.push(v); }, get value() { return 0; }, setValueAtTime(v) { list?.push(v); }, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {}, setTargetAtTime() {} });
+    const node = () => ({ connect() {}, start() {}, stop() {}, frequency: param(), gain: param(), Q: {}, playbackRate: param() });
+    class Ctx {
+      constructor() { this.currentTime = 0; this.state = 'running'; this.sampleRate = 8; this.destination = {}; }
+      createGain() { return node(); }
+      createDynamicsCompressor() { return node(); }
+      createBiquadFilter() { return node(); }
+      createOscillator() { made.tones++; return { ...node(), frequency: param(made.freqs) }; }
+      createBufferSource() { made.clips++; return { ...node(), playbackRate: param(made.rates) }; }
+      createBuffer() { return { getChannelData: () => new Float32Array(8) }; }
+      decodeAudioData() { return Promise.resolve({}); }
+    }
+    const saved = { window: globalThis.window, document: globalThis.document, location: globalThis.location, fetch: globalThis.fetch };
+    Object.assign(globalThis, { window: { AudioContext: Ctx }, document: { hidden: false }, location: { href: 'http://127.0.0.1/' }, fetch: async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }) });
+    try {
+      const sfx = createSfx({ storageKey: 'test.sfx', random: () => .5 });
+      sfx.unlock();
+      // the page's own babble before any pack: the tone at pitch 1
+      sfx.babble('a');
+      expect(made.tones).toBe(1);
+      const f1 = made.freqs[0];
+      sfx.usePack('/packs/robot/', { la: { file: 'la.ogg', kind: 'talk', volume: 1 }, lo: { file: 'lo.ogg', kind: 'talk', volume: 1 } }, { voice: { pitch: 1.5 } });
+      await new Promise((r) => setTimeout(r, 0));
+      sfx.babble('a');
+      expect(made).toMatchObject({ tones: 1, clips: 1 });
+      expect(made.rates[0]).toBeCloseTo(1.5, 5);
+      sfx.configure({ kinds: { talk: false } });
+      sfx.babble('a');
+      expect(made.clips).toBe(1);
+      sfx.configure({ kinds: { talk: true } });
+      // no talk sounds: the tone babbles, at the pack's pitch; a pitch out of range is 1
+      sfx.usePack('/packs/robot/', {}, { voice: { pitch: 1.5 } });
+      made.freqs.length = 0;
+      sfx.babble('a');
+      expect(made).toMatchObject({ tones: 2, clips: 1 });
+      expect(made.freqs[0]).toBeCloseTo(f1 * 1.5, 5);
+      sfx.usePack('/packs/robot/', {}, { voice: { pitch: 9 } });
+      made.freqs.length = 0;
+      sfx.babble('a');
+      expect(made.freqs[0]).toBeCloseTo(f1, 5);
+      // (a pack's talk sound the body asks for by name plays as a talk sound, muted with that kind)
+      sfx.usePack('/packs/robot/', { la: { file: 'la.ogg', kind: 'talk', volume: 1 } }, {});
+      await new Promise((r) => setTimeout(r, 0));
+      sfx.configure({ kinds: { talk: false } });
+      sfx.play('la', 'move');
+      expect(made.clips).toBe(1);
+    } finally {
+      Object.assign(globalThis, saved);
+    }
+  });
+
   it('only our own bodies hear the plus tones; another pack asking for one hears what upstream plays (nothing)', () => {
     const { ctx, made } = countingCtx();
     const sfx = createSfx({ ctx });
@@ -2097,6 +2150,39 @@ function bareBody(opts = {}) {
   return body;
 }
 const stepBody = (body, seconds) => { for (let i = 0; i < seconds * 60; i++) body.step(1 / 60); };
+
+describe('what the bot is busy with, in the figure\'s frame (upstream #434)', () => {
+  it('the figure hears the status from its frame, with plus and without', () => {
+    for (const plus of [false, true]) {
+      const pet = barePet(undefined, { plus }), seen = [];
+      pet.setFigure({ draw: (g, face, o) => seen.push(o.status) });
+      run(pet, .1);
+      expect(seen.at(-1), String(plus)).toBe(null);
+      pet.setStatus('think');
+      run(pet, .1);
+      expect(seen.at(-1), String(plus)).toBe('think');
+      pet.setStatus(42);
+      run(pet, .1);
+      expect(seen.at(-1), String(plus)).toBe(null);
+    }
+  });
+
+  it("the body takes it from the page's set({ status }), and a set without it leaves it alone", () => {
+    const seen = [];
+    const fig = cooFigure(), draw = fig.draw.bind(fig);
+    fig.draw = (g, face, o) => { seen.push(o.status); return draw(g, face, o); };
+    const body = bareBody({ figure: fig, plus: true });
+    body.set({ thinking: true, status: 'think' });
+    stepBody(body, .1);
+    expect(seen.at(-1)).toBe('think');
+    body.set({ listening: true });
+    stepBody(body, .1);
+    expect(seen.at(-1)).toBe('think');
+    body.set({ thinking: false, status: null });
+    stepBody(body, .1);
+    expect(seen.at(-1)).toBe(null);
+  });
+});
 
 describe('a word the body cannot take', () => {
   it('is done at once, so the page goes on to the next word instead of waiting', () => {

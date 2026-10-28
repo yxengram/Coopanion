@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The chat page (console/features/chat, read from its staged place in build/cortico: run `pnpm run build:cortico`
- * after changing it): the context ring in the composer (upstream #318) is full where Coo's Persona asks for the
+ * after changing it): the context ring in the composer (upstream #318), shown only while `companion.contextRing` is
+ * on (the 「习惯」 page, upstream #360; off, `/api/status` is not read), is full where Coo's Persona asks for the
  * handoff, filled by the count `/api/status` reports and spinning while a handoff runs, as the phase line says;
  * addresses in Coo's lines and questions are links (#297); and the unsent text outlives leaving the page (#256).
  */
@@ -57,6 +58,9 @@ class FakeSocket {
 const settle = () => new Promise((r) => setTimeout(r, 30));
 let status;
 let statusReads;
+/** The `companion` group's values `/api/config` reports; null: no such group (an older Core). */
+let companion;
+let configReads;
 
 async function mountChat(language) {
   const [{ createWebUi }, { Lifecycle }, chat] = await load(language, 'ui/index.ts', 'core/lifecycle.ts', 'features/chat/index.ts');
@@ -113,9 +117,16 @@ describe.skipIf(!STAGED && !process.env.CI)('the chat page', () => {
     vi.stubGlobal('localStorage', new MemoryStorage());
     window.WebSocket = FakeSocket;
     statusReads = 0;
+    configReads = 0;
+    companion = { 'companion.contextRing': true };
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       const path = String(url).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
       if (path === '/api/status') { statusReads++; return new Response(JSON.stringify(status), { headers: { 'content-type': 'application/json' } }); }
+      if (path === '/api/config') {
+        configReads++;
+        const groups = [{ group: { id: 'core' }, values: { displayName: 'Coo' } }, ...(companion ? [{ group: { id: 'companion' }, values: companion }] : [])];
+        return new Response(JSON.stringify({ groups }), { headers: { 'content-type': 'application/json' } });
+      }
       return new Response('{}', { headers: { 'content-type': 'application/json' } });
     }));
   });
@@ -169,6 +180,36 @@ describe.skipIf(!STAGED && !process.env.CI)('the chat page', () => {
     lifecycle.dispose();
   });
 
+  it.each([
+    ['switched off', { 'companion.contextRing': false }],
+    ['never set', {}],
+    ['not reported', null],
+  ])('shows no ring and never reads /api/status while the 习惯 switch is %s', async (_name, values) => {
+    companion = values;
+    status = statusAt(30_000);
+    const { ring, socket, lifecycle } = await mountChat('zh');
+    await vi.waitFor(() => expect(configReads).toBe(1));
+    init(socket);
+    socket.frame({ t: 'phase', phase: { state: 'model', running: [] } });
+    socket.frame({ t: 'phase', phase: { state: 'handoff', running: [] } });
+    await settle();
+    expect(ring.hidden).toBe(true);
+    expect(ring.dataset.state ?? 'idle').not.toBe('busy');
+    expect(statusReads).toBe(0);
+    lifecycle.dispose();
+  });
+
+  it('reads the switch once when the page opens', async () => {
+    status = statusAt(30_000);
+    const { ring, socket, lifecycle } = await mountChat('en');
+    await vi.waitFor(() => expect(ring.hidden).toBe(false));
+    socket.frame({ t: 'phase', phase: { state: 'model', running: [] } });
+    socket.frame({ t: 'phase', phase: { state: 'idle', running: [] } });
+    await settle();
+    expect(configReads).toBe(1);
+    lifecycle.dispose();
+  });
+
   it("makes written-out addresses in Coo's lines and questions links", async () => {
     status = statusAt(10);
     const { root, socket, lifecycle } = await mountChat('zh');
@@ -217,5 +258,22 @@ describe.skipIf(!STAGED && !process.env.CI)('the chat page', () => {
     await vi.waitFor(() => expect(first.root.querySelector('textarea').value).toBe('take this back'));
     first.lifecycle.dispose();
     expect(localStorage.getItem(first.chat.DRAFT_KEY)).toBe('take this back');
+  });
+
+  it("puts the pet typing box's draft back with its pictures, a draft of pictures alone too, and sends them (upstream #430)", async () => {
+    status = statusAt(10);
+    const { root, socket, lifecycle } = await mountChat('zh');
+    init(socket);
+    const png = { name: 'shot.png', mime: 'image/png', base64: Buffer.from('png').toString('base64'), bytes: 3, width: 1, height: 1 };
+    socket.frame({ t: 'draft', text: '还有这张', images: [png] });
+    await vi.waitFor(() => expect(root.querySelector('textarea').value).toBe('还有这张'));
+    await vi.waitFor(() => expect(root.querySelectorAll('.prompt-input-host img')).toHaveLength(1));
+    root.querySelector('form').requestSubmit();
+    await vi.waitFor(() => expect(socket.sent.find((m) => m.t === 'send')).toMatchObject({ text: '还有这张', images: [{ mime: 'image/png', base64: png.base64 }] }));
+
+    socket.frame({ t: 'draft', text: '', images: [png, { ...png, name: 'b.png' }] });
+    await vi.waitFor(() => expect(root.querySelectorAll('.prompt-input-host img')).toHaveLength(2));
+    expect(root.querySelector('textarea').value).toBe('');
+    lifecycle.dispose();
   });
 });

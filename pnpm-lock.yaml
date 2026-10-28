@@ -133,6 +133,9 @@ importers:
 
   packages/cortico-world-desktop-pet:
     dependencies:
+      cortico-provider-coo:
+        specifier: workspace:*
+        version: link:../cortico-provider-coo
       koffi:
         specifier: 3.3.1
         version: 3.3.1

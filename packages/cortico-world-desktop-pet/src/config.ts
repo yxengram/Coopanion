@@ -3,7 +3,7 @@ import type { ConfigGroup } from 'cortico/core/config-schema.ts';
 import type { Language } from 'cortico/core/language.ts';
 import type { WorldSection } from 'cortico/world.ts';
 import type { SegmentConfig } from './asr/segmenter.ts';
-import { DEFAULT_HOTKEY } from './asr/hotkey.ts';
+import { DEFAULT_HOTKEY, DEFAULT_TYPE_KEY } from './asr/hotkey.ts';
 import { DECIDER_DEFAULT_MODEL } from './decider.ts';
 import type { SmallTalkFrequency } from './smalltalk.ts';
 import { petText } from './i18n/index.ts';
@@ -91,8 +91,14 @@ export type PetTheme = 'dark' | 'light';
 export type TouchWake = 'poke' | 'all' | 'none';
 /** hold: listen while the talk key is held; toggle: each press starts or stops listening; always: listen all the time. */
 export type MicMode = 'hold' | 'toggle' | 'always';
-/** funasr: FunASR's SenseVoiceSmall in this process (one model download, every platform); system: the recognizer Windows ships (nothing to download, less accurate). */
-export type AsrEngine = 'funasr' | 'system';
+/**
+ * funasr: FunASR's SenseVoiceSmall in this process (one model download, every platform); system: the recognizer Windows ships
+ * (nothing to download, less accurate); api: an OpenAI-compatible transcription service at `asr.api` (src/asr/transcription-api.ts, upstream #380).
+ */
+export type AsrEngine = 'funasr' | 'system' | 'api';
+
+/** The deployment secrets this World reads, by what they are for (Cortico's `storeSecret`: the deployment `.env`, owner-only). */
+export const DESKTOP_PET_SECRETS = { asrApiKey: 'DESKTOP_PET_ASR_API_KEY' } as const;
 
 export interface DesktopPetConfigSection extends WorldSection {
   /** Local server for the pet page, the dressing page and the pet window's socket. */
@@ -139,6 +145,8 @@ export interface DesktopPetConfigSection extends WorldSection {
   hoverButtons: string;
   /** Double-clicking the pet opens the typing box. */
   doubleClickChat: boolean;
+  /** A hotkey, written as the talk key is (`src/asr/hotkey.ts`), that opens the typing box from any window while `enabled` (upstream #361). */
+  typeKey: { enabled: boolean; hotkey: string };
   /** Keep what the person typed, said or sent from the chat page above the pet until it replies (upstream #279); off, speech shows only while it is heard. */
   saidBubbles: boolean;
   /** The bot may change its own looks and habits (src/self.ts), and asks before the rest. */
@@ -181,7 +189,13 @@ export interface DesktopPetConfigSection extends WorldSection {
     /** CPU threads for one FunASR decode; 0 = two. */
     threads: number;
     simplified: boolean;
+    /** How long Windows' recognizer and the transcription service get for one sentence. */
     timeoutMs: number;
+    /**
+     * Engine `api`: requests go to `baseUrl` + `/audio/transcriptions`; the API Key is the secret `DESKTOP_PET_SECRETS.asrApiKey`.
+     * Absent from configs written before it (read through the World's `apiCfg`).
+     */
+    api: { baseUrl: string; model: string };
     segment: SegmentConfig;
     mic: {
       mode: MicMode;
@@ -194,6 +208,9 @@ export interface DesktopPetConfigSection extends WorldSection {
     };
   };
 }
+
+/** The range of `asr.segment.thresholdDb`, in dBFS (the voice page's meter mark, upstream #435, is clamped to it). */
+export const THRESHOLD_DB_MIN = -80, THRESHOLD_DB_MAX = 0;
 
 export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
   enabled: false,
@@ -209,6 +226,7 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
   petX: null,
   hoverButtons: 'chat,voice',
   doubleClickChat: false,
+  typeKey: { enabled: false, hotkey: DEFAULT_TYPE_KEY },
   saidBubbles: true,
   selfAdjust: true,
   skin: {
@@ -225,6 +243,7 @@ export const DESKTOP_PET_DEFAULTS: DesktopPetConfigSection = {
     threads: 0,
     simplified: true,
     timeoutMs: 20_000,
+    api: { baseUrl: '', model: '' },
     segment: { thresholdDb: -42, minSpeechMs: 180, dispatchSilenceMs: 250, silenceMs: 600, maxUtteranceMs: 15_000, preRollMs: 320, minUtteranceMs: 350 },
     mic: { mode: 'hold', hotkey: DEFAULT_HOTKEY, deviceId: '', openOnPress: false },
   },
@@ -346,11 +365,13 @@ export function desktopPetAsrConfigGroup(language: Language = 'zh'): ConfigGroup
       title: c.asrGroup,
       properties: {
         [`${K}.asr.enabled`]: { type: 'boolean', title: c.asrEnabled.title, 'x-hot': true },
-        [`${K}.asr.engine`]: { type: 'string', title: c.asrEngine.title, enum: ['funasr', 'system'], description: c.asrEngine.description, 'x-hot': true },
+        [`${K}.asr.engine`]: { type: 'string', title: c.asrEngine.title, enum: ['funasr', 'system', 'api'], description: c.asrEngine.description, 'x-hot': true },
+        [`${K}.asr.api.baseUrl`]: { type: 'string', title: c.asrApiUrl.title, description: c.asrApiUrl.description, 'x-hot': true },
+        [`${K}.asr.api.model`]: { type: 'string', title: c.asrApiModel.title, description: c.asrApiModel.description, 'x-hot': true },
         [`${K}.asr.language`]: { type: 'string', title: c.asrLanguage.title, description: c.asrLanguage.description, 'x-hot': true },
         [`${K}.asr.threads`]: { type: 'integer', title: c.asrThreads.title, minimum: 0, maximum: 16, description: c.asrThreads.description, 'x-hot': true },
         [`${K}.asr.simplified`]: { type: 'boolean', title: c.asrSimplified.title, 'x-hot': true },
-        [`${K}.asr.segment.thresholdDb`]: { type: 'number', title: c.thresholdDb.title, minimum: -80, maximum: 0, 'x-suffix': 'dBFS', 'x-hot': true },
+        [`${K}.asr.segment.thresholdDb`]: { type: 'number', title: c.thresholdDb.title, minimum: THRESHOLD_DB_MIN, maximum: THRESHOLD_DB_MAX, 'x-suffix': 'dBFS', 'x-hot': true },
         [`${K}.asr.segment.silenceMs`]: { type: 'integer', title: c.silenceMs.title, minimum: 200, maximum: 5000, 'x-suffix': 'ms', 'x-hot': true },
         [`${K}.asr.segment.maxUtteranceMs`]: { type: 'integer', title: c.maxUtteranceMs.title, minimum: 2000, maximum: 60000, 'x-suffix': 'ms', 'x-hot': true },
       },

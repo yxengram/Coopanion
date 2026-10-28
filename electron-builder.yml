@@ -6,6 +6,10 @@ appId: ai.pal.coopanion
 productName: Coopanion
 copyright: Copyright © 2026 Pal-AI-Lab, yxengram
 electronVersion: 44.4.4
+# Electron's own locale data (Chromium's strings: context menus, form validation, file dialogs) only for the languages
+# Coopanion's own text has (app/i18n: zh and en), with zh-TW for Traditional Chinese systems (upstream #349 keeps its
+# 11 languages); a system in another language gets Chromium's strings in English. On macOS see mac.electronLanguages.
+electronLanguages: [en-US, zh-CN, zh-TW]
 directories:
   # no app: the app is build/app itself (electron-builder would take app/ instead if app/package.json existed)
   # the repository's dist/ (the release workflow uploads from there)
@@ -50,6 +54,8 @@ nsis:
 # the first open goes through Privacy & Security → Open Anyway (see the README). It lives in the
 # menu bar (LSUIElement), not the Dock; its data is in ~/Library/Application Support/Coopanion.
 mac:
+  # macOS locale folders (.lproj) use underscores and a bare en; zh_CN and zh_TW also hold InfoPlist.strings (below)
+  electronLanguages: [en, zh_CN, zh_TW]
   target:
     - target: dmg
     - target: zip

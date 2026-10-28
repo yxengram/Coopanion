@@ -62,3 +62,14 @@ export const runtimeDeps = (channel: PackChannel): Record<string, string> => ({
   express: '^4.22.3', ws: '^8.21.3', undici: '7.29.1', tsx: '^4.23.15', pnpm: '11.28.6',
   ...channel === 'portable' ? {} : { 'electron-updater': '^6.8.9' },
 });
+
+/**
+ * The workspace packages' own npm dependencies, for build/app/package.json. One workspace package depending on
+ * another (the desktop pet on cortico-provider-coo's `src/address.ts`, upstream #380) is left out: npm cannot fetch
+ * a `workspace:` version, and pack.ts copies every workspace package into node_modules itself.
+ */
+export const workspaceDeps = (workspace: readonly string[], manifests: ReadonlyArray<{ dependencies?: Record<string, string> }>): Record<string, string> => {
+  const deps: Record<string, string> = {};
+  for (const pkg of manifests) for (const [dep, version] of Object.entries(pkg.dependencies ?? {})) if (!workspace.includes(dep)) deps[dep] = version;
+  return deps;
+};

@@ -15,7 +15,8 @@ import { COO_CSS, mini, normalizeSkin, skinCss } from '../packages/cortico-world
 import { afterBubbles, dropActs, leftActs, pageLoop, slices, STEP_MAX, takeDeferred, walkHold } from '../packages/cortico-world-desktop-pet/web/body-host.js';
 import { attachSayActs, createActs, sayHeld } from '../packages/cortico-world-desktop-pet/web/acts.js';
 import { setLanguage, t } from '../packages/cortico-world-desktop-pet/web/i18n.js';
-import { accentColors, accentCss } from '../packages/cortico-world-desktop-pet/web/accent.js';
+import { accentColors, accentCss, bubbleColors, bubbleCss } from '../packages/cortico-world-desktop-pet/web/accent.js';
+import { createMic } from '../packages/cortico-world-desktop-pet/web/mic.js';
 import { SpeechText, speechTextSteps } from '../packages/cortico-world-desktop-pet/src/speech/index.ts';
 import { TEXT_PAUSE, textSteps } from '../packages/cortico-world-desktop-pet/web/speech.js';
 
@@ -97,9 +98,9 @@ function page() {
     applyTheme, clamp, f, ICONS, linked: (text, n) => linked(text, n, win.document), COO_CSS, mini, normalizeSkin, skinCss,
     OWN_PACKS: win.sound.OWN_PACKS, createSfx: win.sound.createSfx, createSpeech: win.voice.createSpeech, textSteps: win.voice.textSteps,
     afterBubbles, dropActs, leftActs, loadBody: async () => body, pageLoop, slices, STEP_MAX, takeDeferred, walkHold,
-    attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss,
+    attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss, bubbleColors, bubbleCss, createMic,
   };
-  win.eval(`const { applyTheme, clamp, f, ICONS, linked, COO_CSS, mini, normalizeSkin, skinCss, OWN_PACKS, createSfx, createSpeech, textSteps, afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold, attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss } = window.deps;\n${source}\n`
+  win.eval(`const { applyTheme, clamp, f, ICONS, linked, COO_CSS, mini, normalizeSkin, skinCss, OWN_PACKS, createSfx, createSpeech, textSteps, afterBubbles, dropActs, leftActs, loadBody, pageLoop, slices, STEP_MAX, takeDeferred, walkHold, attachSayActs, createActs, sayHeld, setLanguage, t, accentColors, accentCss, bubbleColors, bubbleCss, createMic } = window.deps;\n${source}\n`
     + 'window.page = { useBody: (b) => { body = b; }, onOrder, step: (dt) => { stepPage(dt); layout(dt); } };');
   const p = { ...win.page, win, log, asked, clock, body, bubble: win.document.querySelector('#bubble'), shown: (v) => onShown(v) };
   p.useBody(body);

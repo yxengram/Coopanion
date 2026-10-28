@@ -4,7 +4,9 @@
  * The child is `core/boot.ts` under the app's own runtime in Node mode, with `--import tsx`.
  * It reports `companion:ready` with the console port. It exits on purpose after asking for a
  * restart (`cortico:restart`, or `<dataDir>/.restart-request` written by the console), and is
- * started again; an unexpected exit is restarted after 3 s, at most 5 times in 5 minutes, except one
+ * started again; the console's power button asks it to shut down (`expectStop`, marked by main.cjs from the settings
+ * window's `POST /api/run/shutdown`), which leaves it stopped whatever its exit code; an unexpected exit is restarted
+ * after 3 s, at most 5 times in 5 minutes, except one
  * before `companion:ready` that could not find a module or package on stderr (what a start meets while an update is
  * still writing the runtime's files), which waits longer each time (MISSING_MODULE_DELAYS_MS) without counting toward
  * that budget, and one that said another process holds the data directory's instance lock (`companion:locked`) or that
@@ -96,6 +98,8 @@ class CoreHost extends EventEmitter {
     this.keyMissing = false;
     this.restartAsked = false;
     this.stopping = false;
+    /** The console asked the running child to shut down (the power button): its exit is intentional. */
+    this.shutdownAsked = false;
     this.crashes = [];
     /** Missing-module exits before ready since the last ready child: the index into MISSING_MODULE_DELAYS_MS. */
     this.missingModuleExits = 0;
@@ -147,6 +151,7 @@ class CoreHost extends EventEmitter {
     this.child = child;
     this.state = 'starting';
     this.restartAsked = false;
+    this.shutdownAsked = false;
     this.emit('state', this.state);
     child.on('message', (msg) => {
       if (msg?.type === 'companion:ready') {
@@ -195,7 +200,13 @@ class CoreHost extends EventEmitter {
       if (this.child !== child) return;
       this.child = null;
       this.port = null;
-      if (this.stopping) { this.state = 'stopped'; this.emit('state', this.state); return; }
+      if (this.stopping || this.shutdownAsked) {
+        // Cortico exits 1 after a shutdown with a skipped step: still asked for, not a crash
+        this.shutdownAsked = false;
+        this.state = 'stopped';
+        this.emit('state', this.state);
+        return;
+      }
       const flagged = this.dataDir && existsSync(join(this.dataDir, '.restart-request'));
       if (this.restartAsked || flagged) {
         this.state = 'restarting';
@@ -239,7 +250,7 @@ class CoreHost extends EventEmitter {
       setTimeout(() => { if (!this.stopping) void this.start(); }, 3000);
     };
     child.on('exit', (code, signal) => {
-      const startFailed = this.child === child && this.state === 'starting' && !this.stopping && !this.restartAsked;
+      const startFailed = this.child === child && this.state === 'starting' && !this.stopping && !this.restartAsked && !this.shutdownAsked;
       if (!startFailed || child.stderr.readableEnded) { exited(code, signal, startFailed); return; }
       // the last stderr lines can be read after the exit, and a failed start is judged on all of them
       let settled = false;
@@ -249,6 +260,16 @@ class CoreHost extends EventEmitter {
       child.stderr.once('end', settle);
       setTimeout(settle, 1000);
     });
+  }
+
+  /** The console's power button asked the running child to shut down; its exit is not a crash. */
+  expectStop() {
+    if (this.child) this.shutdownAsked = true;
+  }
+
+  /** The shutdown request did not reach the child or was refused, so a later exit is a crash again. */
+  forgetStop() {
+    this.shutdownAsked = false;
   }
 
   /** Sends a message to the running child; dropped while there is none. */

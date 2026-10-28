@@ -1,4 +1,4 @@
-<!-- Owner: src/definition.ts -->
+<!-- Owner: src/definition.ts, src/asr/transcription-api.ts -->
 
 <p align="center">
   <picture>
@@ -72,7 +72,7 @@ bot 在屏幕底边有一个小身体,由一个形象包提供(见下文):内置
 | `type` | 正文 | 投递 |
 |---|---|---|
 | `desktop-pet.speech` | `[语音] 伙伴:…` | flush |
-| `desktop-pet.message` | `[打字] 伙伴:…`(悬停按钮;`worlds.desktop-pet.doubleClickChat` 打开时也可双击;或对话页,可附图片) | preempt |
+| `desktop-pet.message` | `[打字] 伙伴:…`(悬停按钮;`worlds.desktop-pet.doubleClickChat` 打开时也可双击,`typeKey.enabled` 打开时也可按打字键;打字框和对话页都可附图片) | preempt |
 | `desktop-pet.answer` | `[回答] 伙伴回答「问题」:选了第 2 项「…」` / 自己写的 / 关掉没答 | flush,关掉没答为 debounce |
 | `desktop-pet.touch` | `[互动] 伙伴戳了你 3 下` / 摸了摸 / 拎起来甩了出去 / 摔晕 | `worlds.desktop-pet.touch.wakeOn` 选中的种类 debounce,其余 piggyback |
 | `desktop-pet.figure` | `[形象] 你现在的样子:…`(对方换了形象或打扮;bot 用 `pet_set` 自己换的不报) / `[形象] …没能显示出来(原因),你现在是 Coo 的样子` | 换装 debounce,显示失败 flush |
@@ -125,7 +125,9 @@ Windows 上每 0.8 秒用 GDI 取一小块身体周围的屏幕像素来比,其�
 4. 本包能解析到的 `electron` 包。
 
 没有窗口时,在浏览器里打开 `/pet` 也能看到桌宠;窗口连着时浏览器标签页只旁观,不接收指令,
-打字和偏好改动照样送到 World。
+打字和偏好改动照样送到 World。World 页的「桌宠窗口」灯只看窗口(`PetServer.petInWindow`,`petState().inWindow`):浏览器页面顶替窗口时灯不亮,
+说明里写一句浏览器页面已连接;窗口里的页面连 Coo 都画不出来(比如拿不到 WebGL,页面报 `figure` 的 `coo` 失败)时灯显示出错和原因,
+新页面连上或任何形象报成功时清掉。`petState().connected` 的含义不变(引导、开始页、托盘按它等桌宠页面)。
 
 黑白模式存在 `worlds.desktop-pet.theme`,默认 `dark`(浅色身体、深色气泡)。桌宠窗口、`/pet`、`/dress` 和控制台面板里的
 预览都按这一项画,与系统和控制台的深浅色设置无关。
@@ -144,10 +146,20 @@ Windows 上每 0.8 秒用 GDI 取一小块身体周围的屏幕像素来比,其�
 回答的气泡关掉 1 秒后淡出,没有回答的 8 秒后淡出。最多 3 条、合计 6 行,超出时最早的先淡出,即使还在等回答。点一下关掉一条,识别中的那条用「取消」。
 
 打字框(`openInput`)是多行的 textarea,随文字长高到六行后滚动;Enter 发送,Shift+Enter 换行,输入法选字时的 Enter(`isComposing` 或 keyCode 229)不发送。
+打字框里可以粘贴图片(上游 #430):按对话页的规则处理,只缩不放,长边不超过 2048;缩放后超过 6 MB 改用 JPEG,仍超过就不收并在框下提示。框里最多 4 张,一行缩略图;
+粘贴内容里有图片时只收图片。模型看不到图片时(`prefs.bot.imagesSeen` 为 false)框下提示 bot 只会知道发了几张。图片随 `text` 的 `images` 送给 World,
+World 用对话页同一套检查(张数、格式、单张 8 MB,`parseChatImages`),不合格的整条丢弃并写日志;合格的作为 blobs 随 `[打字]` 事件投递,事件正文不变(只有图片时正文为空)。
+「在对话页继续写」(`expand`)把文字和图片一起带过去,World 留着草稿(`draftImages`)给下一个打开的对话页,对话页把文字和图片放回输入框。
+
+打字键 `typeKey`(上游 #361)默认关(「习惯」页的「用打字键打开打字框」,经 pet 面板的 `setTypeKey` 修改;没有这一节的旧配置读作默认)。
+打开后在哪个窗口里按下 `typeKey.hotkey` 都打开桌宠的打字框,和悬停按钮打开的是同一个:World 给桌宠页发 `type`,桌宠隐藏时不发;框已经开着时再按一下只把键盘拿回来。
+写法和说话键相同,默认 `LeftCtrl*2`(快速按两下左 Ctrl,Mac 上是左 Control),连按时最后一下按下就算;「习惯」页录键与选按法(按一下、双击)的做法同「语音输入」面板(`src/webui/key-capture.ts`)。
+Windows 上桌宠窗口从前台窗口拿走键盘,打字框关掉后还回去;Mac 上打开打字框时激活应用。读键的方式和读不到时的原因同说话键(原因里说的是打字键),写在「习惯」页这一行下面。
 
 桌宠气泡和提问里写出的 http(s) 网址(`web/ui.js` 的 `urlRanges` / `linked`,上游 #297)打完字后变成链接,链接文字就是它打开的地址:
 只认写出来的裸网址,到空格或非 ASCII 字符为止,句末标点不算,网址自己开的括号留着;`[文字](网址)` 不渲染。链接 `target=_blank`,
-桌宠窗口里由宿主的 `guard` 交给系统浏览器(只放行 http(s))。带链接的气泡在指针停在上面时不收起。对话页用同一个 `linked`。
+桌宠窗口里由宿主的 `guard` 交给系统浏览器(只放行 http(s))。对话页用同一个 `linked`。
+指针停在 Coo 的气泡上时(上游 #430,`pointedAt`),说话的气泡和引导里不需要回答的一步都停住倒计时,移开后剩下的时间接着走完;带链接的也一样。停住期间排队的下一句等着。
 
 气泡尺寸 `window.bubbleSize` 缩放所有气泡的宽度、留白、圆角、尾巴和离头顶的距离,边框粗细不变;
 字体尺寸 `window.fontSize` 缩放气泡里的字和同一行的小图标,气泡的宽度不变。两项都是 0.8–1.6 倍、每档 0.05,默认 1(页面这时不设 CSS 变量,样子和以前逐项相同),不随桌宠的大小变。
@@ -155,13 +167,18 @@ Windows 上每 0.8 秒用 GDI 取一小块身体周围的屏幕像素来比,其�
 `pet_say` 回执报的显示时长(`estimateSeconds`)也按它算;World 把范围外或不是数的值当成范围内最近的一档(不是数时为 1)再发给页面,默认 1 时回执和以前一样。
 它们只是设置(「习惯」页的「气泡尺寸」「字体尺寸」「气泡速度」),不在 `pet_set` 里,环境提示词也不提。
 
-说话声(上游 #263、#265)`worlds.desktop-pet.speech.*`(音效组,默认关)开启后,气泡逐字念成音节库 `web/speech/` 里的短音节,代替「说话」类的叽咕声,
+说话声(上游 #263、#265)`worlds.desktop-pet.speech.*`(音效组,默认关)开启后,气泡逐字念成音节库 `web/speech/` 里的短音节,代替「说话」类的叽咕声(叽咕声的音色和音高由形象包的 `voice` 和 `talk` 音效定,见「形象包」;说话声开着时不看它们),
 随音效总开关和「说话」类开关,桌宠隐藏时也不出声(隐藏或关掉这两个开关时,已排好的音节当场停下,能听见后接着念这个气泡剩下的字);所有形象用同一个音节库(上游也只有这一个)。
 文字怎么念由 World 定(`src/speech`,经 `POST /api/speech`):各语言按读音规则和词典转成国际音标,再取最接近的音节——汉字按普通话(`data/zh.json`),
 一句话里有假名时按日语(词按常用漢字表付表的熟字训和 IPADIC,单个汉字按 Unihan),拉丁字母在英文界面和中文界面都按英语(先查 CMU 发音词典 `data/en.tsv.gz`),
 韩文、西里尔字母和数字也各有规则。词典在第一次用到时才载入。
 音高 `speech.pitch` 为 low/mid/high(300/400/500 Hz)或 custom(`speech.pitchHz`,200–700),语速 `speech.speed` 为每秒最多 10/13/16 个音节或 custom(`speech.unitsPerSecond`,6–20)。
 开启时气泡按标点分别停顿,字母文字打得更快,`pet_say` 回执报的显示时长也按这些步长算(`estimateSeconds` 的第三个参数);关着时回执和以前逐字节相同。
+
+声道(上游 #435):桌宠页的音效和说话声都经 `web/sound.js` 的主音量,后面接一个 StereoPannerNode,按 Coo 在它那块显示器工作区里的横向位置(`screenX - screen.availLeft + x`)
+从左 −1 到右 1 摆放,`setPan` 经 `setTargetAtTime` 平滑过去,变化不到 0.01 不写。和上游不同:主音量先混成单声道,声像器后再乘 √2,
+所以正中间和没有声像器时一样响(上游的等功率声像器在正中间左右各只有 0.71,整体轻 3 dB);形象包自带的立体声音频也混成单声道再摆放。
+给定的 AudioContext(`createSfx({ ctx })`,离线渲染音效)不接声像器;没有 `createStereoPanner` 的环境直连,声音居中。
 它们只是设置(「习惯」页的「说话声」),不在 `pet_set` 里,环境提示词也不提。音节库由 `scripts/speech-bank/build.py`(要联网用 Edge 的朗读服务)生成,本仓库直接用上游生成好的文件。
 
 识别引擎存在 `asr.engine`:
@@ -170,6 +187,7 @@ Windows 上每 0.8 秒用 GDI 取一小块身体周围的屏幕像素来比,其�
 |---|---|
 | `funasr`(默认) | FunASR 的 SenseVoiceSmall(int8),经 sherpa-onnx 的 Node 插件在 World 进程里识别;Windows x64、macOS arm64 / x64、Linux x64 都有预编译包 |
 | `system` | Windows 自带的语音识别(SAPI 听写,System.Speech),不用下载,准确度低一些;其他系统上按 `funasr` 处理 |
+| `api` | OpenAI 兼容的转写接口(上游 #380),`asr.api` 里填地址和模型(`src/asr/transcription-api.ts`);每个系统上都可用 |
 
 旧版本写下的 `auto`、`whisper` 都按 `funasr` 处理。
 
@@ -191,6 +209,17 @@ SenseVoice 一次识别整句;说话过程中每 0.5 秒把这句到目前为止
 按 `asr.language` 挑系统里装着的识别器。中文 Windows 自带 zh-CN 识别器;
 没有时面板写明去 Windows 设置 → 时间和语言 → 语言里装「语音识别」。
 
+`api` 一句收尾后整句发出(没有边说边显示):16 kHz、单声道、16 位的 WAV,经 Core 的全局 `fetch`(系统代理照常生效)
+`POST {asr.api.baseUrl}/audio/transcriptions`,multipart 字段 `file`、`model`(`asr.api.model`)、`response_format=json`,
+`asr.language` 是两个字母的代码时再带 `language`(`auto` 和 `yue` 不带);回应里的 `text` 就是这一句,照常经过幻觉过滤和繁转简。
+API Key 不进 config:「语音输入」面板经 `storeSecret` 存进部署 `.env`(仅本人可读)的 `DESKTOP_PET_ASR_API_KEY`(`DESKTOP_PET_SECRETS.asrApiKey`),
+每次请求按 `secret()` 现读,没存时不带 `Authorization`;面板只看得到存没存,含空白的 Key 在存之前就被拒绝。
+远程地址只收 https,本机和局域网可以用 http,规则与模型服务的相同(provider-coo 的 `src/address.ts` `plainRemote`,本包依赖它)。
+地址不能用、没填模型、请求失败(HTTP 状态和回应里的 `error.message`,不是这个格式时取回应正文的开头 300 字;`asr.timeoutMs` 内没回应;连不上)时,
+引擎停在出错,原因显示在面板的「识别服务」一行和桌宠的麦克风按钮上,失败的那句在识别结果里划掉;
+之后不再发请求,直到点「启动」、改了地址或模型,或在面板里存了新的 API Key。引擎因失败停下时麦克风随之关上,一句收尾要等的那段停顿不会再来:正在听的那句丢掉,开着的说话键(`toggle`)或按着的(`hold`)随之关掉,之前已识别的照常发出,没有就收起倾听气泡(`endDeafEpisode`,上游没有这一步,倾听气泡会一直挂着)。改了应用语言也会重新启动没在运行的引擎(和另外两个引擎一样),所以出错后换语言也会再试。
+早于这一项的配置没有 `asr.api`,按空读。
+
 下载都先写 `.partial`,完整后才改名到位。
 
 收音方式存在 `asr.mic`,在「语音输入」面板里改:
@@ -205,8 +234,13 @@ SenseVoice 一次识别整句;说话过程中每 0.5 秒把这句到目前为止
 默认 `LeftAlt*2`:快速按一下左 Alt(Mac 上是左 Option),紧接着按住说话。按完快速的那一下,World 给桌宠页发 `listen` 的 `ready`,Coo 先抬头看一眼,按住时立刻进入聆听。
 在哪个窗口里按都算;「语音输入」面板的说话键按钮录下组合键,旁边的下拉框选「双击再按住」(`*2`)或「直接按住」(不带 `*`),录键时保留当前的按法。桌宠麦克风按钮的角标显示说话键的简写(`Alt×2`、`F8`、`M4`),一直收音时显示 `AUTO`。
 Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 CoreGraphics 的 `CGEventSourceKeyState`,要在「系统设置 → 隐私与安全性 → 输入监控」里允许,第一次会弹出询问;Linux 上轮询 X11 的 `XQueryKeymap`(Wayland 下经 XWayland,只在 X11 窗口有键盘焦点时读得到;鼠标侧键读不到)。读不到时不识别说话(收音方式不会改成 `always`),面板和引导上写明原因。
-`asr.mic.deviceId` 选麦克风,留空用系统默认;设备列表由桌宠页在拿到麦克风权限后报上来。
+`asr.mic.deviceId` 选麦克风,留空用系统默认;设备列表由桌宠页上报(`web/mic.js`),设备名称需要麦克风权限:开麦成功后报,
+打开失败(权限被拒绝除外)时也报,默认设备打不开时可以换一个再试。
+系统默认输入设备改变时(`devicechange` 后默认设备的 deviceId、groupId 或名称变了),桌宠页关闭旧音频流并重新收音;指定麦克风时保留所选设备。
+音轨结束时重新开麦,打开失败(权限被拒绝除外)时在下一次设备变化后重试。
 麦克风在「开启语音输入」总开关开着时一直打开,电平条随时显示音量,说话键只决定哪一段送去识别。
+电平条上的门槛线(上游 #435)是 `asr.segment.thresholdDb`:`toggle`、`always` 下显示(`hold` 下门槛不起作用,不显示),可以拖动或聚焦后用方向键每次 ±1 dB,
+松开或按键时经 voice 面板的 `setThreshold` 保存(限在 −80–0 dBFS,线本身只到电平条的 −60),下一帧起按新门槛切句;门槛只看响度,和你一样响的别人说话照样会识别。
 `hold` 下开启 `asr.mic.openOnPress`(默认关,「语音输入」页的「按住时才打开麦克风」)后,桌宠页只在说话键按住时打开麦克风(World 发 `prefs` 的 `mic`),松开 500 ms 后关掉;倾听气泡等第一帧音频到了才出现。给一打开麦克风就切到通话模式的耳机用,按下到麦克风打开之间说的话收不到。麦克风关掉时电平条回到静音。
 
 ## 形象包
@@ -223,7 +257,9 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 桌宠页只转发指针、下指令,读回它报告的位置和发生的事。多数包用 `web/kit/body.js` 这套现成的身体,只自己画。
 
 桌宠页替对方把着几条线(`web/body-host.js`):身体报告的框不超出舞台,也不超过 kit 自己能把身体拉伸到的大小,
-只有框里的命中圆接收鼠标;摸、戳、拎这类互动只在页面刚转给它真实指针输入之后才算数,摔晕只在甩出去之后才算;
+只有框里的命中圆接收鼠标;身体背后的柔光亮着时,沙箱只露出框周围一圈(`haloRect`:每边框宽的 60%、上方框高的 80%,至少 80 / 130 像素,下面到地面;
+包声明了 `effects.reach` 时每边至少这么远,上游 #434),画得更远的特效看不到(本仓库没有 OBS 画面,`effects.reach` 只管这一圈);
+摸、戳、拎这类互动只在页面刚转给它真实指针输入之后才算数,摔晕只在甩出去之后才算;
 声音由页面播放,按设置里的类别和总开关静音。
 
 `figure.json`(`manifest: 2`,`api: 2`,读取与校验在 `src/packs.ts`):
@@ -235,17 +271,25 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 | `entry`、`export` | 模块路径和它导出的工厂函数 |
 | `model` | 交给工厂的 JSON(`opts.model`),可省 |
 | `axes` | 打扮的维度,每维一组选项(`id`、`name`、`thumb`);装扮页每维一行 |
-| `presets` | 维度组合的命名,可带 `accent` 和设置窗口配色 `console` |
+| `presets` | 维度组合的命名,可带 `accent`、设置窗口配色 `console` 和气泡配色 `bubble`(同下) |
 | `vocab` | 这个身体做的全部表情和动作,也就是它在场时 bot 的整张词表:每个词 `id`、`kind`(`expression` / `motion`)、`names`(按语言的名字列表)、`about`(它做这个词的样子)、`seconds`(连着做时最多等多久再做下一个;`walk`、`run` 过了这个时间还在走就等它停下,最多 90 秒),`lasting: true` 表示这是一个保持下去的姿势;`keepsArms: true`(只对 `lasting` 的 `kneel` 有用)表示身体跪着也画得出手势(kit 的 `figure.kneelArms`),手上的动作(和唱歌)不结束跪坐、能和跪坐写在同一组,别的值和别的词上都忽略 |
 | `pairs` | 可省。同一组里的两个表情显示成一张脸:`"a+b": "眼+嘴"`(合成:值是这两个 id 按「给眼的在前、给嘴的在后」用 `+` 连起来;键里先后无所谓),或 `"a+b": "<词>"`(别名:显示成词表里另一个表情)。`a`、`b` 是词表里两个不同的表情,都不是 `neutral`、`petrify`;别名的词也不能是这两个之一,也不是 `neutral`、`petrify`;同一对(不管先后)只能写一次;不合格时整个包读不进来。World 只为列出的对合并,其余照旧拆开;合成对按值的方向发给身体(眼在前),kit 的 plus 身体照收到的顺序合成。只列身体真做得出的:不会合成的身体(上游的 kit、没有 `doAll` 的)收到合成对时后一个表情胜出 |
-| `sounds` | 包自带的音频:名字 → `{ file, kind, volume }`,文件是包里的 `.ogg` `.mp3` `.wav`,`kind` 是 `move` `touch` `face` `snore` 之一;不存在的文件在扫描时记一条问题,那个声音不响 |
+| `sounds` | 包自带的音频:名字 → `{ file, kind, volume }`,文件是包里的 `.ogg` `.mp3` `.wav`,`kind` 是 `move` `touch` `face` `snore` `talk` 之一;`talk` 的声音在气泡打字时逐字轮流响,代替页面合成的叽咕声,同一个字总是同一个声音,随「说话」类开关(上游 #434);不存在的文件在扫描时记一条问题,那个声音不响 |
+| `voice` | 可省(上游 #434)。`{ pitch }`:叽咕声的音高倍数,0.5–2,默认 1;有 `talk` 声音时是它们的播放速度。说话声(音节库)开着时按设置里的音高,不看它 |
+| `effects` | 可省(上游 #434)。`{ reach }`:特效画到框外多远,以身体所在的 256 单位方格计,0–2,默认 0;柔光亮着时的可见范围按它放大 |
+| `bubble` | 可省(上游 #434)。bot 气泡的配色:`{ light, dark }`,各是 `{ fill, text, line }`(底色、字色、边框和尾巴,十六进制颜色),按桌宠的夜间模式取一套;打扮所穿预设(和 `accent` 的取法相同,`web/accent.js`)的 `bubble` 优先。人说的话的气泡不变。缺一套或颜色写错时整项不用 |
 | `can` | `{ walk: false }` 表示不会走,`pet_walk_to` 会拒绝 |
 | `author`、`license`、`credits`、`thumb`、`version` | 署名与展示 |
 
 `skin.scheme` 是一个预设的 id,或者各维的选项 id 按维度顺序用 `-` 连起来(所以选项 id 里不能有 `-`)。词的名字不能带
 `【】<>`、逗号、顿号或空白,也不能长过行内标记能装下的长度,不然脚本里写不出来。
 
+`voice`、`effects`、`bubble` 和 `talk` 声音都可省,值越界或不完整时整项不用(和 `accent` 一样);旧应用跳过这些字段,所以带它们的包在上游 v0.1.17 起都照常装得上。
+内置形象一个也不声明,导出给上游的包也没有。`/api/figures` 列出 `voice`、`effects`、`bubble`(没有时为 null)。
+
 工厂按 `factory(base, { model, scheme, kit, loadImage, asset, host })` 调用,返回一个身体;契约写在 `web/figure-frame.js` 开头。
+每个身体还收 `set({ status })`(上游 #434):bot 此刻在忙的类别,kit 把它放进交给 `figure.draw` 的 `frame.status`,形象可以自己演出在忙什么。
+本仓库的桌宠页没有上游的状态气泡,只知道 bot 在想:想的时候是 `'think'`,否则是 null。
 用 kit 的包只要 `kit.createBody(host, { figure, words })`:`figure` 每帧画一次,`words` 是 kit 本身没有的词怎么做。
 本仓库的桌宠页在 `talk` 里带上正在说的字(`talk(ch)`),kit 据此换口型;没带字的页面每次换下一种口型。
 `examples/whale/README.md` 是写形象包的完整说明,最后一节讲怎样把内置的大肥鱼(`pnpm run export:whale`)、Claude 娘(`pnpm run export:claude`)、GPT 娘(`pnpm run export:gpt`)、Gemini 娘(`pnpm run export:gemini`)和 Grok 娘(`pnpm run export:grok`)导出成别的 Coopanion 能装的包。20 秒内没准备好、或者跑的时候抛错,桌宠换回 Coo,并告诉 bot 现在按 Coo 的词表。

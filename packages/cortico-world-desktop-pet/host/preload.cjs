@@ -35,7 +35,8 @@ contextBridge.exposeInMainWorld('petHost', {
   /** The app language the page shows (from the World): the window process's own text (the tray's menu) follows it. */
   setLanguage: (code) => ipcRenderer.send('pet:language', String(code)),
   /**
-   * Where the cursor is, in page pixels, or null off the window: called every tenth of a second while the window is shown.
+   * Where the cursor is, in page pixels, or null off the window: called every 15 ms on Windows, every tenth of a second
+   * elsewhere, while the window is shown.
    * The second argument is its x in page pixels while it is on the window's display (over the Dock or the taskbar too,
    * clamped to the window), null on another display.
    */

@@ -52,6 +52,7 @@ describe('failures that used to hang or leave no window (#311)', () => {
   });
 
   it('keeps the settings window hidden on close: only the prompts page guards unsaved edits against an unload (#298)', () => {
-    expect(main).toMatch(/settings\.on\('close', \(e\) => \{\n\s+if \(quitting\) return;\n\s+e\.preventDefault\(\);\n\s+settings\.hide\(\);/);
+    // the size is saved first (settings-size.cjs, upstream #436), then the window only hides
+    expect(main).toMatch(/settings\.on\('close', \(e\) => \{\n\s+saveSettingsWindowSize\(settings\);\n\s+if \(quitting\) return;\n\s+e\.preventDefault\(\);\n\s+settings\.hide\(\);/);
   });
 });

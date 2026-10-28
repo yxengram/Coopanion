@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { slimTree } from './png-slim.ts';
 import { stripMapComments } from './map-strip.ts';
-import { builderArgs, packageManagerField, packChannel, PROJECT_DIR, runtimeDeps, type PackChannel } from './pack-builder.ts';
+import { builderArgs, packageManagerField, packChannel, PROJECT_DIR, runtimeDeps, workspaceDeps, type PackChannel } from './pack-builder.ts';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 /** build/app, electron-builder's project directory */
@@ -43,12 +43,11 @@ try {
 }
 const rootPkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as Record<string, unknown> & { version: string };
 const WORKSPACE = ['cortico-world-desktop-pet', 'cortico-world-cua', 'cortico-provider-coo'];
-/** Runtime dependencies (pack-builder.ts runtimeDeps: no updater in the portable build) and the workspace packages' own. */
-const DEPS: Record<string, string> = runtimeDeps(CHANNEL);
-for (const name of WORKSPACE) {
-  const pkg = JSON.parse(readFileSync(join(ROOT, 'packages', name, 'package.json'), 'utf8')) as { dependencies?: Record<string, string> };
-  Object.assign(DEPS, pkg.dependencies ?? {});
-}
+/** Runtime dependencies (pack-builder.ts runtimeDeps: no updater in the portable build) and the workspace packages' own, less each other (workspaceDeps). */
+const DEPS: Record<string, string> = {
+  ...runtimeDeps(CHANNEL),
+  ...workspaceDeps(WORKSPACE, WORKSPACE.map((name) => JSON.parse(readFileSync(join(ROOT, 'packages', name, 'package.json'), 'utf8')) as { dependencies?: Record<string, string> })),
+};
 
 const skip = (base: string) => (src: string) => {
   const rel = relative(base, src).split(sep);

@@ -138,6 +138,24 @@
    ]
   },
   {
+   "id": "skirt_shadow",
+   "tex": "skirt_shadow",
+   "src": "tex/skirt_shadow.png",
+   "z": 4.2,
+   "parent": "skirt",
+   "grid": [
+    8,
+    6
+   ],
+   "box": [
+    79.55,
+    168.41,
+    98.04,
+    69.42
+   ],
+   "blend": "multiply"
+  },
+  {
    "id": "leg_front",
    "tex": "leg_front",
    "z": 3,

@@ -48,7 +48,7 @@ export interface Vendor {
   model: string;
   /** Other model names offered next to `model` where one is typed; any name the service takes works. */
   models?: readonly string[];
-  /** Models that read images. */
+  /** Models that read images: creating an endpoint, or typing its model in the normal mode, marks it multimodal exactly when the model is listed here. */
   vision?: readonly string[];
   /** Context windows the service states, where `GET /models` does not report them. */
   contextWindows?: Readonly<Record<string, number>>;
@@ -92,11 +92,13 @@ export const VENDORS: readonly Vendor[] = [
     syntheticReasoning: true,
   },
   {
-    // Qwen3.8 takes none / low / medium / xhigh; qwen3.7-flash is cheaper up to 32K input
+    // Qwen3.8 takes none / low / medium / xhigh; qwen3.7-flash is cheaper up to 32K input. qwen3.8-max reads images
+    // as upstream Coopanion's table has listed it since v0.1.20 (未实测 here). Upstream #432 only added
+    // deepseek-v4.1-flash(-1017) to this list, models the fork's Qwen list does not carry
     id: 'qwen', name: '通义千问', nameEn: 'Qwen',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', keyUrl: 'https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key', keyHint: 'sk-…',
     secret: 'QWEN_API_KEY', model: 'qwen3.8-flash', models: ['qwen3.7-flash', 'qwen3.8-max'],
-    vision: ['qwen3.8-flash', 'qwen3.7-flash'], contextWindows: { 'qwen3.8-flash': 1_000_000 },
+    vision: ['qwen3.8-flash', 'qwen3.7-flash', 'qwen3.8-max'], contextWindows: { 'qwen3.8-flash': 1_000_000 },
     effort: { high: 'medium', max: 'xhigh' },
   },
   {

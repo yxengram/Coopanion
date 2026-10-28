@@ -20,10 +20,16 @@
  * (少/中/多 = at least 2 h / 1 h / 30 min apart) and the quiet hours.
  * The first row is the app language (`language` in the Core's `companion` group, features/language.ts): 中文 or
  * English, and any other language the config holds; a change saves it and reloads the window in it.
+ * The last card, 「其他」, has the Chat page's context ring (upstream #360): `companion.contextRing` in the Core's `companion`
+ * group, off by default; the Chat page reads it when it opens.
+ * 「打字键」 (upstream #361, off by default) is read from the pet panel's state (`typeKey`: the setting, its keys named in the
+ * app language, why they cannot be read) and saved through the panel's `setTypeKey`; its keys are set as the talk key's
+ * on the 语音输入 page (key-capture.ts), and how they are pressed is picked beside them.
  * 「Coo 的名字」 is `displayName` in Core's own `core` group, the name the rail shows and renames (upstream #320): the
  * pet menu, the chat page and computer use's question follow it at once; cleared, it saves Coopanion's default, Coo.
  */
 import { ICONS } from 'cortico-world-desktop-pet/web/ui.js';
+import { captureKey, PRESSES, splitTaps, withTaps } from 'cortico-world-desktop-pet/webui/key-capture.ts';
 import { saveVendorKey } from 'cortico-provider-coo/src/connect.ts';
 import { vendorById } from 'cortico-provider-coo/src/vendors.ts';
 import { get, post, setConfig } from '../../core/api.ts';
@@ -41,6 +47,9 @@ const NAME_KEY = 'displayName';
 const DEFAULT_NAME = 'Coo';
 const SOUND_GROUP = 'world:desktop-pet:sound';
 const DECIDER_GROUP = 'world:desktop-pet:decider';
+/** Coopanion's own group (core/companion.ts companionGroup): the Chat page's context ring (upstream #360), off by default. */
+const COMPANION_GROUP = 'companion';
+const RING_KEY = 'companion.contextRing';
 const PET_PAGE = 'world:desktop-pet';
 const panelPath = (method: string) => `/api/webui/providers/${encodeURIComponent(PET_PAGE)}/panels/pet/${method}`;
 /** The World's default decision model (DECIDER_DEFAULT_MODEL). */
@@ -169,6 +178,12 @@ export const TEXT = {
     hover: '悬停按钮',
     hoverHint: (n: number) => `鼠标停在 Coo 身上时旁边出现的按钮,最多 ${n} 个。`,
     dblclick: '双击 Coo 打开打字框',
+    typeKey: '用打字键打开打字框',
+    typeKeyHint: '在任何窗口里按下都有效。',
+    typeKeyChange: '更改',
+    typeKeyCancel: '取消',
+    typeKeyCapture: '按下新的打字键,可以是组合键或鼠标侧键…(Esc 取消)',
+    typeKeyPresses: { 2: '双击', 1: '按一下', 3: '三击' } as Record<number, string>,
     saidBubbles: '在 Coo 头顶显示你说的话',
     saidBubblesHint: '打字、语音和「对话」页发出的消息留在 Coo 头顶,Coo 回复后淡出。关掉后,语音只在识别时显示,识别完就淡出。',
     selfAdjust: '允许 Coo 自己调整',
@@ -217,6 +232,10 @@ export const TEXT = {
     modelGone: (model: string, fallback: string) => `${model} 在 OpenRouter 上用不了(没有提供它的服务端),这次运行改用默认的 ${fallback}。`,
     defaultGone: (model: string) => `默认的 ${model} 在 OpenRouter 上也用不了,现在只按心情里直接写出的词做表情或头部动作;换一个列表里的模型试试。`,
     overridden: '你改过桌宠的环境说明(旧模式的版本),决策模式下它仍会生效;想用新说明,请在「提示词」页还原。',
+    otherTitle: '其他',
+    ringLabel: '上下文圆环',
+    ring: '在对话页显示',
+    ringHint: '「对话」页的输入框里显示一个圆环,表示离整理之前的对话还有多远。',
   },
   en: {
     nav: 'Habits',
@@ -275,6 +294,12 @@ export const TEXT = {
     hover: 'Hover buttons',
     hoverHint: (n: number) => `Buttons beside Coo while the pointer rests on Coo, up to ${n}.`,
     dblclick: 'Double-click Coo to open the typing box',
+    typeKey: 'Open the typing box with a typing key',
+    typeKeyHint: 'Works whichever window is in front.',
+    typeKeyChange: 'Change',
+    typeKeyCancel: 'Cancel',
+    typeKeyCapture: 'Press the new typing key: a key combination or a mouse side button… (Esc cancels)',
+    typeKeyPresses: { 2: 'Double-press', 1: 'Single press', 3: 'Triple-press' } as Record<number, string>,
     saidBubbles: 'Show what you said above Coo',
     saidBubblesHint: 'What you type, say or send from the Chat page stays above Coo until Coo has replied. When off, speech shows only while it is recognized and fades once done.',
     selfAdjust: 'Let Coo change settings',
@@ -323,6 +348,10 @@ export const TEXT = {
     modelGone: (model: string, fallback: string) => `${model} is not available on OpenRouter (no endpoint serves it); using the default ${fallback} this run.`,
     defaultGone: (model: string) => `The default ${model} is not available on OpenRouter either; only a face or head move the feeling names outright is shown now. Try another model from the list.`,
     overridden: 'You edited the pet environment prompt (the classic version); it still applies in decider mode. Restore it on the System prompt page to use the new one.',
+    otherTitle: 'Other',
+    ringLabel: 'Context ring',
+    ring: 'Show on the Chat page',
+    ringHint: "A ring in the Chat page's input box shows how far the conversation is from being tidied up.",
   },
 };
 const S = pick(TEXT);
@@ -333,6 +362,9 @@ interface ConfigEntry { group: { id: string }; values?: Record<string, unknown> 
 const SCALE_SEND_MS = 80;
 
 const errText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** The typing key as the pet panel's state gives it (upstream #361): the setting, its keys named in the app language, why they cannot be read. */
+interface TypeKeyState { enabled: boolean; hotkey: string; keyLabel: string; problem: string | null }
 
 async function mount(ctx: FeatureContext): Promise<void> {
   const { ui, root, signal } = ctx;
@@ -404,6 +436,68 @@ async function mount(ctx: FeatureContext): Promise<void> {
   const hideFullscreen = ui.checkbox(S.hideFullscreen, { onChange: (on) => void save(KEYS.hideFullscreen, on) });
   const remember = ui.checkbox(S.remember, { onChange: (on) => void save(KEYS.remember, on) });
   const dblclick = ui.checkbox(S.dblclick, { onChange: (on) => void save(KEYS.dblclick, on) });
+  // 打字键: the switch, and while it is on the keys, a button to set others and how they are pressed
+  let typeKey: TypeKeyState = { enabled: false, hotkey: '', keyLabel: '', problem: null };
+  const typeSwitch = ui.checkbox(S.typeKey, { onChange: (on) => void setTypeKey({ enabled: on }) });
+  const typeKeyName = ui.h('span', 'companion-rangeval');
+  const typeKeyBtn = ui.button(S.typeKeyChange, { size: 'sm' });
+  const typePress = ui.select();
+  typePress.setAttribute('aria-label', S.typeKey);
+  typePress.addEventListener('change', () => void setTypeKey({ hotkey: withTaps(splitTaps(typeKey.hotkey).combo, Number(typePress.value)) }), opts);
+  const typeKeyBox = ui.h('div', 'companion-rangebox');
+  typeKeyBox.append(typeKeyName, typeKeyBtn, typePress);
+  const typeHint = ui.h('p', 'home-note', S.typeKeyHint);
+  const typeBox = ui.h('div', 'companion-typekey');
+  typeBox.append(typeSwitch.el, typeKeyBox, typeHint);
+  typeKeyBox.hidden = true;
+  let capture: { stop(): void } | null = null;
+  typeKeyBtn.addEventListener('click', () => {
+    if (capture) { capture.stop(); return; }
+    typeKeyName.textContent = '…';
+    typeKeyBtn.textContent = S.typeKeyCancel;
+    typeHint.textContent = S.typeKeyCapture;
+    typeHint.classList.remove('bad');
+    capture = captureKey(window, (combo) => {
+      capture = null;
+      typeKeyBtn.textContent = S.typeKeyChange;
+      // how the keys are pressed stays as picked
+      if (combo) void setTypeKey({ hotkey: withTaps(combo, splitTaps(typeKey.hotkey).taps) });
+      else renderTypeKey();
+    });
+  }, opts);
+  signal.addEventListener('abort', () => capture?.stop());
+  function renderTypeKey(next?: TypeKeyState): void {
+    if (next) typeKey = next;
+    typeSwitch.setChecked(typeKey.enabled);
+    typeKeyBox.hidden = !typeKey.enabled;
+    if (capture) return;
+    typeKeyName.textContent = typeKey.keyLabel;
+    // a key set to three presses in config.json keeps its choice; the row offers two or one
+    const { taps } = splitTaps(typeKey.hotkey);
+    const presses = PRESSES.filter((n) => n < 3 || n === taps);
+    if (typePress.dataset.list !== presses.join()) {
+      typePress.dataset.list = presses.join();
+      typePress.replaceChildren(...presses.map((n) => { const o = ui.h('option', null, S.typeKeyPresses[n] ?? String(n)); o.value = String(n); return o; }));
+    }
+    if (document.activeElement !== typePress) typePress.value = String(taps);
+    const problem = typeKey.enabled ? typeKey.problem : null;
+    typeHint.textContent = problem ?? S.typeKeyHint;
+    typeHint.classList.toggle('bad', !!problem);
+  }
+  /** Saves the typing key through the pet panel; the row follows the state it returns, a failure shows under the card. */
+  async function setTypeKey(patch: { enabled?: boolean; hotkey?: string }): Promise<void> {
+    try {
+      const st = await post<{ typeKey?: TypeKeyState }>(panelPath('setTypeKey'), { args: [patch] }, opts);
+      if (st?.typeKey) renderTypeKey(st.typeKey);
+      msg.textContent = S.saved;
+      msg.classList.remove('bad');
+    } catch (err) {
+      if (signal.aborted) return;
+      msg.textContent = S.saveFailed(errText(err));
+      msg.classList.add('bad');
+      renderTypeKey();
+    }
+  }
   const saidBubbles = ui.checkbox(S.saidBubbles, { onChange: (on) => void save(KEYS.saidBubbles, on) });
   const selfAdjust = ui.checkbox(S.selfAdjust, { onChange: (on) => void save(KEYS.selfAdjust, on) });
   // hover buttons: one round toggle per action, in the menu's order; picked ones are lit
@@ -463,6 +557,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     row('', remember.el, S.rememberHint),
     row(S.hover, hoverBox, S.hoverHint(MAX_HOVER)),
     row('', dblclick.el),
+    row('', typeBox),
     row('', saidBubbles.el, S.saidBubblesHint),
     row('', selfAdjust.el, S.selfAdjustHint),
     msg,
@@ -688,6 +783,13 @@ async function mount(ctx: FeatureContext): Promise<void> {
     renderModelNote();
   }).catch(() => {});
 
+  /* ---------- other: the Chat page's context ring ---------- */
+  const other = ui.sheet({ title: S.otherTitle });
+  const otherMsg = ui.msgline('');
+  const ring = ui.checkbox(S.ring, { onChange: (on) => void save(RING_KEY, on, COMPANION_GROUP, otherMsg) });
+  other.body.append(row(S.ringLabel, ring.el, S.ringHint), otherMsg);
+  root.append(other.el);
+
   /* ---------- behaviour ---------- */
   /** Whether the value was saved. */
   const save = (key: string, value: string | number | boolean, group = GROUP, line = msg): Promise<boolean> => saveAll({ [key]: value }, group, line);
@@ -746,6 +848,7 @@ async function mount(ctx: FeatureContext): Promise<void> {
     let soundValues: Record<string, unknown> = {};
     let deciderValues: Record<string, unknown> = {};
     let nameValues: Record<string, unknown> = {};
+    let companionValues: Record<string, unknown> = {};
     let appLanguage: Language = 'zh';
     try {
       const d = await get<{ groups?: ConfigEntry[] }>('/api/config', opts);
@@ -754,7 +857,9 @@ async function mount(ctx: FeatureContext): Promise<void> {
       soundValues = d.groups?.find((g) => g.group.id === SOUND_GROUP)?.values ?? {};
       deciderValues = d.groups?.find((g) => g.group.id === DECIDER_GROUP)?.values ?? {};
       nameValues = d.groups?.find((g) => g.group.id === NAME_GROUP)?.values ?? {};
+      companionValues = d.groups?.find((g) => g.group.id === COMPANION_GROUP)?.values ?? {};
     } catch { return; }
+    ring.setChecked(companionValues[RING_KEY] === true);
     if (typeof deciderValues[KEYS.deciderOn] === 'boolean') deciderOn.setChecked(deciderValues[KEYS.deciderOn] as boolean);
     if (typeof deciderValues[KEYS.deciderModel] === 'string' && document.activeElement !== deciderModel) {
       deciderModel.value = deciderValues[KEYS.deciderModel] as string;
@@ -765,7 +870,11 @@ async function mount(ctx: FeatureContext): Promise<void> {
       deciderTimeout.value = String(deciderValues[KEYS.deciderTimeout]);
       deciderTimeout.dataset.saved = deciderTimeout.value;
     }
-    void post<{ decider?: DeciderState; smallTalk?: SmallTalkState }>(panelPath('state'), { args: [] }, opts).then((st) => { renderDecider(st?.decider); renderTalkState(st?.smallTalk); }).catch(() => {});
+    void post<{ decider?: DeciderState; smallTalk?: SmallTalkState; typeKey?: TypeKeyState }>(panelPath('state'), { args: [] }, opts).then((st) => {
+      renderDecider(st?.decider);
+      renderTalkState(st?.smallTalk);
+      if (st?.typeKey) renderTypeKey(st.typeKey);
+    }).catch(() => {});
     const active = document.activeElement;
     if (active !== language && !language.disabled) {
       languageOption(appLanguage);

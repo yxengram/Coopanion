@@ -94,12 +94,17 @@ Claude 娘、GPT 娘、Gemini 娘和 Grok 娘也有第二维「服装」：`clas
 
 - `web/kit/rig.js`：一个小型的 Live2D 式渲染器。每个部件是一张贴图铺在一个网格上，网格点逐帧经过变形器链：
   `rot` 绕枢轴转动、缩放、平移，`warp` 在一个矩形上加位移场。WebGL2 绘制，拿不到时用 WebGL1。
+  `blend: 'multiply'` 的部件把下面已经画出的颜色相乘压暗，不改透明度，空白处不显示（上游 #388）。
 - `web/whale/figure.js`：模型本身。把 kit 每帧给的数据（腿的角度、坐下程度、视线、眨眼、表情、说话幅度、横向惯性）
   换成变形器参数；后发、刘海、裙摆、尾巴、两只鲸鳍、呆毛、两只手臂各有一个弹簧；眼睛、嘴、腮红每帧画进一张脸部贴图，
   挂在头部的变形器上。画布放在宠物自己的 SVG 组里，舞台的位置、挤压、倾斜、转身照常作用。
 - `web/whale/model.json`、`tex/`、`feat/`、`schemes/`：部件的位置（桌宠坐标，x=128 在身体下方，鞋底 y=256）、枢轴、贴图和五官贴图。
 
-部件（女仆装）：尾巴、后发、远侧手臂、两条腿、上身、站姿裙子、坐姿下半身、近侧手臂、远侧鲸鳍、脸、近侧鲸鳍、头侧蝴蝶结、刘海（含两侧垂发）、头饰、呆毛；冬装的见「服装」。
+部件（女仆装）：尾巴、后发、远侧手臂、两条腿、裙影、上身、站姿裙子、坐姿下半身、近侧手臂、远侧鲸鳍、脸、近侧鲸鳍、头侧蝴蝶结、刘海（含两侧垂发）、头饰、呆毛；冬装的见「服装」。
+
+腿上不画裙子的投影。裙影（`skirt_shadow`，`tex/skirt_shadow.png`，各套配色共用一张）是裙子轮廓往下拖出几个单位、越往下越淡的一层，挂在裙子的变形器上，
+图层在两条腿上面、裙子下面，用 `multiply` 只压暗已经画出的腿：被拎起或走动时腿摆开，阴影留在裙摆下面，不跟着腿走。
+坐下时和站姿裙子一起淡出；跪坐抬手时（跪坐下半身顶替站姿的裙子和腿）也藏起来。冬装的腿上本来没画投影，不加（上游 #388）。
 
 坐下时下半身换成单独画的一张坐姿图（裙摆摊在地上、两腿向前伸、两只鞋都露出来）：身体下沉到一半时，
 站姿的裙子和腿在两三帧内换成它，同时身体压扁一下；站起来是反过来。
@@ -319,6 +324,9 @@ Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pa
 包括被遮住的部分。配色表是和 ChatGPT（Pro）一起定的。
 围裙上的喷水小鲸鱼是手写的矢量图（`examples/whale/apron-whale.svg`）：围裙抹成空白布面后，按这套裙子的深色印在右下角
 （白色的眼睛和肚皮保持白色，乘上布面的明暗），坐姿的围裙是俯视的，印得扁一些；团成球的那张也一样。
+女仆装各套配色的腿原来在裙摆下方画着一条裙子的投影，是上游（Pal-AI-Lab/Coopanion #388）让 ChatGPT 在原图上抹掉的：膝盖的红晕和其余像素不动，
+透明度和原图逐像素一致；这里的 16 张腿贴图就是上游那 16 张（这里的腿和上游原来的逐字节相同）。裙影是程序从站姿裙子的透明度生成的（和这里的裙子透明度逐像素相同）。
+`scratch/art/recolor.py` 不再给腿换色（重新换色会把各套配色各自的编辑换掉）。
 
 新增的姿势和手臂（趴姿 `tex/lie_*.png`、招手 `tex/arm_wave*.png`、托腮 `tex/arm_chin.png`、欢呼 `tex/arm_cheer_*.png`、比心 `tex/arm_heart.png`、拜托、叉腰、抱抱 `tex/arm_pray.png`、`tex/arm_hips.png`、`tex/arm_hug.png`、挠头和有了 `tex/arm_scratch*.png`、`tex/arm_idea*.png`、奉茶 `tex/arm_tea.png`、跪坐 `tex/kneel_*.png`、趴着的嘴 `tex/lie_smile.png`、`tex/lie_talk.png`、指、捂嘴笑、抱臂、伸懒腰、屈膝礼 `tex/arm_point.png`、`tex/arm_cover*.png`、`tex/arm_cross.png`、`tex/arm_stretch.png`、`tex/arm_curtsy.png`、敬礼和比耶 `tex/arm_salute*.png`、`tex/arm_vsign*.png`、杯子和书 `tex/arm_cup.png`、`tex/arm_book.png`、拍手、摊手、抱头、举手、点赞、嘘、擦汗 `tex/arm_clap*.png`、`tex/arm_shrug.png`、`tex/arm_headhold.png`、`tex/arm_raise.png`、`tex/arm_thumbs.png`、`tex/arm_shush*.png`、`tex/arm_wipe.png`、加油、记笔记、对手指 `tex/arm_fist*.png`、`tex/arm_jot.png`、`tex/arm_twiddle.png`、捂脸、摸摸头 `tex/arm_hideface.png`、`tex/arm_pat*.png`、背面 `tex/back_body.png`、团成球 `tex/roll_ball.png`，
 `model.json` 的 `poses`）也来自 ChatGPT 的图像模型（gpt-image-2.5，经本地代理用 ChatGPT 订阅调用），和原来的贴图同源：

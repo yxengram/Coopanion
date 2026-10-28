@@ -103,14 +103,16 @@ export function onBody(layout, p) {
 }
 
 /**
- * The window the halo is drawn in for a body with `layout` (readLayout's) on a `size` stage ({ W, H, floorY }):
- * its box with the reach above around it, in whole pixels inside the stage; null when there is no box to draw around.
+ * The window the halo is drawn in for a body with `layout` (readLayout's) on a `size` stage ({ W, H, floorY, S }):
+ * its box with the reach above around it, and at least the pack's `effects` reach (`fx`, in 256-unit squares at the
+ * body's scale, upstream #434) on every side, in whole pixels inside the stage; null when there is no box to draw around.
  */
-export function haloRect(layout, size) {
+export function haloRect(layout, size, fx = 0) {
   const b = layout?.box;
   if (!b || !(b.w > 0) || !(b.h > 0)) return null;
-  const px = Math.max(HALO_REACH, b.w * HALO_SIDE, HALO_SIDE_PX), top = Math.max(HALO_REACH, b.h * HALO_TOP, HALO_TOP_PX);
-  const floor = Math.max(b.y + b.h, num(size.floorY, size.H)) + HALO_REACH;
+  const own = clampTo(num(fx), 0, BOX_MAX) * 256 * num(size.S, 1);
+  const px = Math.max(HALO_REACH, b.w * HALO_SIDE, HALO_SIDE_PX, own), top = Math.max(HALO_REACH, b.h * HALO_TOP, HALO_TOP_PX, own);
+  const floor = Math.max(b.y + b.h + own, num(size.floorY, size.H)) + HALO_REACH;
   const x = Math.max(0, Math.floor(b.x - px)), y = Math.max(0, Math.floor(b.y - top));
   const w = Math.min(Math.ceil(size.W), Math.ceil(b.x + b.w + px)) - x, h = Math.min(Math.ceil(size.H), Math.ceil(floor)) - y;
   return w > 0 && h > 0 ? { x, y, w, h } : null;
@@ -229,7 +231,7 @@ export function loadBody({ layer, pack, start, theme, bounds, onEvent, onSound, 
         const c = k ? `rgba(184,184,184,${k.toFixed(2)})` : '';
         const filter = k ? `drop-shadow(0 0 3px ${c}) drop-shadow(0 0 7px ${c})` : '';
         if (!HALO_CLIP) { frame.style.filter = filter; return; }
-        const r = k ? clipTo(trail.add(haloRect(layout, size), performance.now()), size) : null;
+        const r = k ? clipTo(trail.add(haloRect(layout, size, pack.effects?.reach), performance.now()), size) : null;
         // (the stage's size too: the frame inside the window keeps it)
         // a body that reports no box (a third-party pack's) keeps the halo over the whole stage, as before the clip
         const key = r ? `${r.x},${r.y},${r.w},${r.h},${size.W},${size.H},${c}` : k ? `all,${c}` : '';

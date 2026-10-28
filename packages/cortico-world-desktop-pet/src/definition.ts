@@ -3,7 +3,7 @@ import { runtimesRoot, modelsRoot } from 'cortico/paths.ts';
 import { envPromptOverridePath } from 'cortico/core/prefix.ts';
 import type { Language } from 'cortico/core/language.ts';
 import type { WorldDefinition } from 'cortico/world.ts';
-import { DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, type DesktopPetConfigSection, type PetSkin } from './config.ts';
+import { DESKTOP_PET_DEFAULTS, DESKTOP_PET_ID, DESKTOP_PET_SECRETS, type DesktopPetConfigSection, type PetSkin } from './config.ts';
 import { DesktopPetWorld, modelsDirFor, type PetBotControls, type PetMode } from './world.ts';
 import type { DecisionRecord } from './decider.ts';
 import type { Presence } from './smalltalk.ts';
@@ -80,6 +80,9 @@ export function desktopPetDefinition(assembly: DesktopPetAssembly = {}): WorldDe
         },
         runtimesRoot,
         modelsDir: () => modelsDirFor(modelsRoot()),
+        // the transcription service's key lives in the deployment .env (owner-only), never in config.json
+        asrApiKey: () => ctx.secret(DESKTOP_PET_SECRETS.asrApiKey),
+        storeAsrApiKey: (key) => ctx.storeSecret(DESKTOP_PET_SECRETS.asrApiKey, key),
         botName: () => assembly.botName?.() ?? ctx.botName,
         avatarFile: join(ctx.botDir, AVATAR_FILE),
         controls: assembly.controls,

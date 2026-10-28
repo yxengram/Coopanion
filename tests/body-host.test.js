@@ -40,4 +40,21 @@ describe('the halo around a body (web/body-host.js haloRect)', () => {
     expect(trail.add({ x: 400, y: 20, w: 50, h: 50 }, 2600)).toEqual({ x: 400, y: 20, w: 50, h: 50 });
     expect(trail.add(null, 6000)).toBe(null);
   });
+
+  it("a pack whose effects reach past its box gets that much room on every side (upstream #434), within the stage", () => {
+    const at = readLayout({ box: { x: 700, y: 300, w: 90, h: 100 } }, size);
+    const plain = haloRect(at, size);
+    expect(haloRect(at, size, 0)).toEqual(plain);
+    // one 256-unit square at S .42 is 107.52 px: more than the 80 px each side, less than the 130 px above
+    const one = haloRect(at, size, 1);
+    expect(one.x).toBe(Math.floor(700 - 107.52));
+    expect(one.y).toBe(plain.y);
+    // two squares (215.04 px): above too
+    const two = haloRect(at, size, 2);
+    expect(two).toMatchObject({ x: Math.floor(700 - 215.04), y: Math.floor(300 - 215.04) });
+    // capped at the kit's largest box (BOX_MAX, about 2.12 squares), and never a bad value
+    expect(haloRect(at, size, 99)).toEqual(haloRect(at, size, 1.5 * Math.SQRT2));
+    expect(haloRect(at, size, NaN)).toEqual(plain);
+    expect(haloRect(at, size, -1)).toEqual(plain);
+  });
 });

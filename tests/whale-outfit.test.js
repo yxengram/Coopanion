@@ -86,7 +86,7 @@ async function onKit(scheme, make = createPet, load) {
   const el = () => ({ setAttribute() {}, innerHTML: '' });
   const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
   const figure = { ...fig, draw: (g, fc, o) => fig.draw(g, fc, o) };
-  for (const k of ['anchors', 'poses', 'kneelArms', 'kneelArmsK', 'scheme']) Object.defineProperty(figure, k, { get: () => fig[k] });
+  for (const k of ['anchors', 'poses', 'kneelArms', 'kneelArmsK', 'kneelStills', 'scheme']) Object.defineProperty(figure, k, { get: () => fig[k] });
   const pet = make({ petG, shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
   pet.resize();
   const run = (s, each = () => {}) => { for (let i = 0; i < Math.round(s * 60); i++) { pet.step(1 / 60); pet.render(); each(rigSeen.st); } };
@@ -374,11 +374,17 @@ describe('the whale\'s outfits: `<scheme>-<outfit>`', () => {
         k.run(.5);
         k.pet.doWord('kneel'); k.run(3); k.pet.doWord('kneel'); k.run(1.5);
         let low = 0, both = 0;
-        // (the cheer's far arm, the one arm drawn under kneel_low's z, never shows over the hybrid: the hybrid has gone
-        // before the arm comes up)
+        // (a cheer keeps her kneeling, kneelStills: the hybrid, both drawn arms up over it; the far one, drawn under
+        // kneel_low's z as under the standing skirt, is raised clear of the lower body)
         k.pet.doWord('cheer'); k.run(1.5, st => { low = Math.max(low, st.alpha.kneel_low ?? 0); if ((st.alpha.kneel_low ?? 0) > 0 && (st.alpha.arm_cheer_far ?? 0) > 0) both++; });
         expect(low, look).toBe(1);
-        expect(both, look).toBe(0);
+        expect(both, look).toBeGreaterThan(0);
+        expect(k.pet.pet.kneel, look).toBe(true);
+        // back on the drawing, then plain sitting (a bow ends the kneel)
+        k.run(1.5);
+        expect(rigSeen.st.alpha.kneel_body, look).toBe(1);
+        k.pet.doWord('bow'); k.run(2.5);
+        expect(k.pet.pet.kneel, look).toBe(false);
         for (const id of ids) expect([undefined, 1], `${look} seated ${id}`).toContain(rigSeen.st.alpha[id]);
         k.pet.doWord('stand'); k.run(2);
         for (const id of ids) expect([undefined, 1], `${look} standing ${id}`).toContain(rigSeen.st.alpha[id]);

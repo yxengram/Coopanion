@@ -19,7 +19,7 @@
  *   and a head move the feeling names outright, or a nod for a feeling that clearly agrees, or nothing.
  */
 import {
-  APPENDAGES, APPENDAGE_NAMES, INLINE_TAG_MAX, channelsOf, clashes, firstName, moodLabel, pairKey, partOf, vocabId,
+  APPENDAGES, APPENDAGE_NAMES, INLINE_TAG_MAX, channelsOf, clashes, firstName, htmlTag, moodLabel, pairKey, partOf, vocabId,
   type Channel, type Pairs, type VocabWord,
 } from './script.ts';
 
@@ -189,23 +189,29 @@ function aboutOf(v: VocabWord, opts: QuestionOptions = {}): string {
 /**
  * A bubble's text in decider mode with the markers written out of habit taken out (the bot sees no words here, so
  * most are made up): every closed `【…】` (one line, at most 64 characters), and a `<…>` or `＜…＞` whose inside
- * names a word of `vocab` (`点头`) or is only CJK characters and `+＋、，` (`小声`, `开心+招手`). Other angle
- * brackets are the text itself (`<div>`, `a < b`, `3<5`, `<3`), unlike classic `parseScript`, which reads every
- * short `<…>` as a marker.
+ * names a word of `vocab` (`点头`) or is only CJK characters and `+＋、，` (`小声`, `开心+招手`). An HTML tag
+ * (`htmlTag`, as classic `parseScript` reads it) is not a marker: `<br>` is a line break, `<b>`, `</b>`,
+ * `<span class="x">` go, and `stripped` stays false for it (the receipt says nothing, as classic drops no word). Other
+ * angle brackets are the text itself (`a < b`, `3<5`, `<3`, `a<b 且 b>c`), unlike classic `parseScript`, which reads
+ * every short `<…>` as a marker.
  */
 export function stripMarkers(text: string, vocab: readonly VocabWord[]): { text: string; stripped: boolean } {
   const names = (inner: string) => inner.split(/[,，、\s+＋]+/).some((t) => t !== '' && vocabId(t, vocab) !== null);
   const cjkOnly = (inner: string) => /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー+＋、，]+$/u.test(inner);
   let stripped = false;
+  let changed = false;
   const out = text.replace(/【([^【】\n]*)】|<([^<>\n]*)>|＜([^＜＞\n]*)＞/g, (all, a?: string, b?: string, c?: string) => {
+    // first, as classic: a tag of any length; a pack's own word by a tag's name is no tag (htmlTag) and goes on
+    const tag = b !== undefined ? htmlTag(b, vocab) : null;
+    if (tag !== null) { changed = true; return tag; }
     const marker = a !== undefined
       ? a.length <= 64
       : (b ?? c ?? '').length <= INLINE_TAG_MAX && (names(b ?? c ?? '') || cjkOnly(b ?? c ?? ''));
     if (!marker) return all;
-    stripped = true;
+    stripped = changed = true;
     return '';
   });
-  return { text: stripped ? out.trim() : text, stripped };
+  return { text: changed ? out.trim() : text, stripped };
 }
 
 /* ---------------- state ---------------- */

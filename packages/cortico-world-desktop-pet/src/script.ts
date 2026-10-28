@@ -43,6 +43,12 @@ export interface VocabWord {
    * neither end it nor split from it in a group (`clashes`); only read with `lasting`.
    */
   keepsLeans?: boolean;
+  /**
+   * (kneel) The figure cheers, flinches and peeks kneeling (the kit's `figure.kneelStills`, KNEEL_STILLS: no hop, no step
+   * back, the arms and the face on the kneeling hybrid), so those neither end it nor split from it in a group
+   * (`clashes`); only read with `lasting`.
+   */
+  keepsStills?: boolean;
 }
 
 const lookups = new WeakMap<readonly VocabWord[], Map<string, VocabWord>>();
@@ -136,7 +142,8 @@ export const CHANNELS: Record<string, readonly Channel[]> = {
 /**
  * Kneeling for a figure that draws arm gestures kneeling (`keepsArms`): the arm is free; gestures that need her standing
  * or seated still (cheer, bow, flinch, peek, away, spin, curtsy, turn, closer, leanback, sway, stamp) still end it, so
- * they still split. A song is the exception (KNEEL_SINGS).
+ * they still split. A song is the exception (KNEEL_SINGS), and so are the leans for `keepsLeans` (KNEEL_LEANS) and
+ * cheer, flinch and peek for `keepsStills` (KNEEL_STILLS).
  */
 const KNEEL_WITH_ARMS: readonly Channel[] = ['body', 'stance'];
 /**
@@ -146,6 +153,11 @@ const KNEEL_WITH_ARMS: readonly Channel[] = ['body', 'stance'];
 const KNEEL_SINGS: ReadonlySet<string> = new Set(['song']);
 /** (keepsLeans) The leans of the body seated still that the kit keeps a kneel through (its KNEEL_LEANS, web/kit/body.js). */
 export const KNEEL_LEANS: ReadonlySet<string> = new Set(['closer', 'leanback', 'sway']);
+/**
+ * (keepsStills) The gestures needing her still that the kit keeps a kneel through for a figure that does them kneeling
+ * (its KNEEL_STILLS, web/kit/body.js): a cheer without the hop, a flinch without the step back, a peek without turning round.
+ */
+export const KNEEL_STILLS: ReadonlySet<string> = new Set(['cheer', 'flinch', 'peek']);
 /**
  * (decider prompt, `{{pet.parts}}`) What a figure moves besides face, arms and posture: the zh names of its tail's,
  * ears' and wings' words (the motions that take one of APPENDAGES alone), and the tail or wings it has none of, so the
@@ -168,13 +180,19 @@ export function channelsOf(v: VocabWord): readonly Channel[] {
   return CHANNELS[v.id] ?? (v.kind === 'expression' ? ['face'] : ['head', 'arm', 'body', 'stance']);
 }
 /**
+ * Whether a kneel `k` lasts through word `w` though the two take a part in common (`stance`): a song for keepsArms, a
+ * lean for keepsLeans, a cheer, a flinch or a peek for keepsStills.
+ */
+export function kneelKeeps(k: VocabWord, w: VocabWord): boolean {
+  return k.id === 'kneel' && ((!!k.keepsArms && KNEEL_SINGS.has(w.id)) || (!!k.keepsLeans && KNEEL_LEANS.has(w.id))
+    || (!!k.keepsStills && KNEEL_STILLS.has(w.id)));
+}
+/**
  * Whether words `a` and `b` take a part of her in common, so they cannot go at once (a kneel with keepsArms and a song
- * can, and a kneel with keepsLeans and a lean).
+ * can, a kneel with keepsLeans and a lean, and a kneel with keepsStills and a cheer, a flinch or a peek: `kneelKeeps`).
  */
 export function clashes(a: VocabWord, b: VocabWord): boolean {
-  const sings = (k: VocabWord, w: VocabWord) => k.id === 'kneel' && !!k.keepsArms && KNEEL_SINGS.has(w.id);
-  const leans = (k: VocabWord, w: VocabWord) => k.id === 'kneel' && !!k.keepsLeans && KNEEL_LEANS.has(w.id);
-  if (sings(a, b) || sings(b, a) || leans(a, b) || leans(b, a)) return false;
+  if (kneelKeeps(a, b) || kneelKeeps(b, a)) return false;
   const cs = channelsOf(b);
   return channelsOf(a).some((c) => cs.includes(c));
 }
@@ -271,11 +289,17 @@ const HTML_TAGS: ReadonlySet<string> = new Set([
   'br', 'wbr', 'hr', 'p', 'div', 'span', 'b', 'i', 'u', 's', 'em', 'strong', 'small', 'big', 'sub', 'sup', 'mark',
   'del', 'ins', 'strike', 'font', 'code', 'q', 'a', 'center',
 ]);
-const HTML_TAG = /^\/?([a-zA-Z][a-zA-Z0-9]*)(?:[ \t][^<>\n]*)?\/?$/;
+/**
+ * An attribute with a value (`class="x"`, `href='…'`, `size=3`, `href=/a?x=1`); a bare word is not one, so
+ * `a<b 且 b>c` is no tag.
+ */
+const HTML_ATTR = String.raw`[a-zA-Z_:][-a-zA-Z0-9_:.]*[ \t]*=[ \t]*(?:"[^"<>\n]*"|'[^'<>\n]*'|[^\s"'<>\x60]+)`;
+const HTML_TAG = new RegExp(String.raw`^\/?([a-zA-Z][a-zA-Z0-9]*)(?:[ \t]+${HTML_ATTR})*[ \t]*\/?$`);
 /**
  * What `<inner>` stands for in a bubble's text when it is an HTML tag (HTML_TAGS, opening, closing or self-closing,
- * with or without attributes): a line break for `<br>`, else nothing; null when it is not one, or names a word of
- * `vocab` (a pack's own word `b` stays a marker).
+ * with or without attributes, each with a value): a line break for `<br>`, else nothing; null when it is not one, or
+ * names a word of `vocab` (a pack's own word `b` stays a marker). Classic `parseScript` and decider `stripMarkers`
+ * both read tags with it.
  */
 export function htmlTag(inner: string, vocab: readonly VocabWord[]): string | null {
   const m = HTML_TAG.exec(inner);
@@ -374,13 +398,17 @@ const KNEEL_KEEPS: ReadonlyArray<readonly [string, string]> = [
   ['lookup', '抬头'], ['pant', '喘气'], ['closeeyes', '闭眼'], ['sneeze', '打喷嚏'],
 ];
 
+/** (keepsStills) KNEEL_STILLS as the kneel's note names them. */
+const KNEEL_STILL_NAMES: ReadonlyArray<readonly [string, string]> = [['cheer', '欢呼'], ['flinch', '后缩'], ['peek', '探头']];
+
 /**
  * How long a lasting word holds, as the prompt and `pet_act`'s receipt say it (web/kit/body.js `act`): sitting,
  * lying and sleeping stay through gestures and expressions and end on another posture or a move of the whole
  * body (walking, jumping, dancing...); kneeling stays through expressions and head gestures (nod, shake, sigh, tilt, droop,
  * blink, lookup, pant, closeeyes, sneeze) and ends on the next arm or whole-body motion, back to plain sitting; for a figure that draws arm gestures kneeling
  * (`keepsArms`), the arm gestures that take only the arm keep it too, and so does a song (KNEEL_SINGS), and for one that
- * leans kneeling (`keepsLeans`) so do 凑近, 后仰 and 晃来晃去 (KNEEL_LEANS); the moves of a
+ * leans kneeling (`keepsLeans`) so do 凑近, 后仰 and 晃来晃去 (KNEEL_LEANS), and for one that cheers, flinches and peeks
+ * kneeling (`keepsStills`) so do 欢呼, 后缩 and 探头 (KNEEL_STILLS); the moves of a
  * tail, ears or wings keep it as well. Given the figure's `vocab`, the kneel's note names only the head gestures and the
  * parts it has (a pack without 歪头 is not told it keeps one).
  */
@@ -390,12 +418,13 @@ export function lastingNote(v: VocabWord, vocab?: readonly VocabWord[]): string 
   const parts = APPENDAGES.filter((c) => !vocab || vocab.some((w) => w.kind === 'motion' && channelsOf(w).length === 1 && channelsOf(w)[0] === c));
   const keeps = ['换表情', ...KNEEL_KEEPS.filter(([id]) => !vocab || vocab.some((w) => w.id === id)).map(([, n]) => n),
     ...(parts.length ? [`${parts.map((c) => APPENDAGE_NAMES[c]).join('、')}的动作`] : [])].join('、');
-  if (v.keepsArms && v.keepsLeans) {
-    return `保持到下一个全身动作,然后变回普通坐着;${keeps}、只占「手」的手势、唱歌和凑近、后仰、晃来晃去都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着`;
-  }
-  return v.keepsArms
-    ? `保持到下一个全身动作,然后变回普通坐着;${keeps}、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着`
-    : `保持到下一个手或全身动作,然后变回普通坐着;${keeps}不影响`;
+  // (of the 「手,要站着或坐着不动」 words, the ones she does kneeling: KNEEL_STILLS of the figure's words, KNEEL_LEANS; these
+  // keep the kneel with or without keepsArms, as kneelKeeps and the kit's kneelStills / kneelLeans do)
+  const still = [...(v.keepsStills ? KNEEL_STILL_NAMES.filter(([id]) => !vocab || vocab.some((w) => w.id === id)).map(([, n]) => n) : []),
+    ...(v.keepsLeans ? ['凑近', '后仰', '晃来晃去'] : [])];
+  if (!v.keepsArms) return `保持到下一个手或全身动作,然后变回普通坐着;${[keeps, ...still].join('、')}不影响`;
+  const arms = still.length ? `只占「手」的手势、唱歌和${still.join('、')}` : '只占「手」的手势和唱歌';
+  return `保持到下一个全身动作,然后变回普通坐着;${keeps}、${arms}都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着`;
 }
 
 /**

@@ -103,7 +103,7 @@ describe.each(Object.keys(GIRLS))('%s: her outfits', (id) => {
     const el = () => ({ setAttribute() {}, innerHTML: '' });
     const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
     const figure = { ...fig, draw: (g, fc, o) => fig.draw(g, fc, o) };
-    for (const k of ['anchors', 'poses', 'gestures', 'roll', 'kneelArms', 'scheme', 'extent', 'hits', 'tearDrop']) Object.defineProperty(figure, k, { get: () => fig[k] });
+    for (const k of ['anchors', 'poses', 'gestures', 'roll', 'kneelArms', 'kneelStills', 'scheme', 'extent', 'hits', 'tearDrop']) Object.defineProperty(figure, k, { get: () => fig[k] });
     const pet = make({ petG, shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
     pet.resize();
     const run = (s, each = () => {}) => { for (let i = 0; i < Math.round(s * 60); i++) { pet.step(1 / 60); pet.render(); each(rigSeen.st); } };
@@ -201,6 +201,7 @@ describe.each(Object.keys(GIRLS))('%s: her outfits', (id) => {
       for (const n of G.changed) expect(loads).not.toContain(`tex/${n}.png`);
       expect(fig.poses).toEqual({ lie: true, back: true });
       expect(fig.kneelArms).toBe(true);
+      expect(fig.kneelStills).toBe(true);
       expect(fig.roll).toBeUndefined();
       // what a saved winter look loads before her first frame, well inside upstream's 20 s READY_MS from a local server
       // (the same budget as the classic start's in the export tests, which count every feat/ file: so does this)
@@ -232,6 +233,43 @@ describe.each(Object.keys(GIRLS))('%s: her outfits', (id) => {
       pet.doWord('lie'); run(2.5, st => { most = Math.max(most, st.alpha.lie_body ?? 0); });
       expect(most).toBe(0);
     } finally { done(); }
+  });
+
+  it('cheers, flinches and peeks kneeling in both outfits (kneelStills): the hybrid with the same drawings, the kneel kept, the legs still', async () => {
+    const seen = {};
+    for (const look of ['original', 'original-winter']) {
+      const { pet, run, done } = await onKit(look);
+      try {
+        run(.5);
+        for (const w of ['cheer', 'flinch', 'peek']) {
+          pet.doWord('kneel'); run(2.5);
+          expect(rigSeen.st.alpha.kneel_body, `${look} ${w}`).toBe(1);
+          const x = pet.pet.x, shown = new Set(), legs = [];
+          let mixed = 0;
+          pet.doWord(w);
+          run(2.6, st => {
+            expect(pet.pet.kneel, `${look} ${w}`).toBe(true);
+            expect(pet.pet.x, `${look} ${w}`).toBe(x);
+            const k = st.alpha.kneel_body ?? 0, l = st.alpha.kneel_low ?? 0;
+            if (k > 0 && k < 1) mixed++;
+            if (l >= 1) { legs.push(st.kneelLow.ty ?? 0); for (const [pid, a] of Object.entries(st.alpha)) if (a > 0 && POSE_IDS.has(pid)) shown.add(pid); }
+          });
+          expect(mixed, `${look} ${w}`).toBeLessThanOrEqual(2);
+          expect(legs.length, `${look} ${w}`).toBeGreaterThan(30);
+          expect(Math.max(...legs) - Math.min(...legs), `${look} ${w}`).toBeLessThan(1e-9);
+          expect(shown.has('kneel_low'), `${look} ${w}`).toBe(true);
+          (seen[w] ??= []).push([...shown].sort());
+          run(1.5);
+          expect(rigSeen.st.alpha.kneel_body, `${look} ${w}`).toBe(1);
+          pet.doWord('stand'); run(2.5);
+        }
+      } finally { done(); }
+    }
+    // the same drawings in the winter outfit as in the classic clothes (her cheer's, 哎呀's and magnifier arms)
+    for (const [w, [classic, winter]] of Object.entries(seen)) {
+      expect(winter, w).toEqual(classic);
+      expect(classic.some(p => /^pose_(cheer|oops|search)/.test(p)), `${w} ${classic}`).toBe(true);
+    }
   });
 
   /** Plays every word of hers in a look; which pose parts each one shows (`<word>:<part id>`), and any non-finite state. */

@@ -42,7 +42,7 @@ import { Packer, Segmenter, rmsDb, type SegmentConfig, type SegmentSink, type Ut
 import { comboLabel, hotkeyBadge, hotkeyLabel, parseHotkey, splitTaps, watchHotkey, type KeyWatcher } from './asr/hotkey.ts';
 import { joinSpeech, looksHallucinated } from './asr/result.ts';
 import { toSimplified } from './asr/simplify.ts';
-import { APPENDAGES, KNEEL_LEANS, channelsOf, estimateSeconds, firstName, lastingNote, membersOf, parseActions, parseScript, partsNote, vocabChange, vocabTable, type Pairs, type Told, type VocabWord } from './script.ts';
+import { APPENDAGES, channelsOf, estimateSeconds, firstName, kneelKeeps, lastingNote, membersOf, parseActions, parseScript, partsNote, vocabChange, vocabTable, type Pairs, type Told, type VocabWord } from './script.ts';
 import { ActivityGroup, ChatSockets, SELF_TYPE, chatHistory, chatItem } from './chat.ts';
 import { DECIDER_TOOL_DECLS, DESKTOP_PET_TOOL_DECLS } from './tools.ts';
 import {
@@ -1951,7 +1951,8 @@ export class DesktopPetWorld implements World {
   private async sayFeeling(args: Record<string, unknown>): Promise<ToolOutcome> {
     const raw = typeof args.text === 'string' ? args.text : '';
     const feeling = typeof args.feeling === 'string' ? args.feeling.trim().slice(0, FEELING_MAX) : '';
-    // markers written out of habit are taken out, never done; other brackets (<div>, a < b) are the text
+    // markers written out of habit are taken out, never done; HTML tags as classic (<br> a line break, <b> gone);
+    // other brackets (a < b, 3<5) are the text
     const { text, stripped } = stripMarkers(raw.trim(), this.vocab());
     if (!text) return { text: '[pet_say 没执行] text 是空的。不想说话就不调用。', failed: true };
     const id = nextId('s');
@@ -2583,8 +2584,8 @@ export class DesktopPetWorld implements World {
 
   /**
    * Follows a kneel through the words sent: a kneel starts one; a word that ends it (`lastingNote`: anything but a
-   * face, a head gesture, a tail's, ears' or wings' move, with `keepsArms` an arm-only gesture or a song, and with
-   * `keepsLeans` 凑近, 后仰 or 晃来晃去) ends it.
+   * face, a head gesture, a tail's, ears' or wings' move, with `keepsArms` an arm-only gesture or a song, with
+   * `keepsLeans` 凑近, 后仰 or 晃来晃去, and with `keepsStills` 欢呼, 后缩 or 探头: kneelKeeps) ends it.
    */
   private notePosture(entries: readonly string[]): void {
     const vocab = this.vocab();
@@ -2600,8 +2601,8 @@ export class DesktopPetWorld implements World {
       if (!this.kneeling || v.kind === 'expression') continue;
       const cs = channelsOf(v);
       const keeps = (cs.length === 1 && (cs[0] === 'head' || APPENDAGES.includes(cs[0])))
-        || (!!kneel?.keepsArms && ((cs.length === 1 && cs[0] === 'arm') || id === 'song'))
-        || (!!kneel?.keepsLeans && KNEEL_LEANS.has(id));
+        || (!!kneel?.keepsArms && cs.length === 1 && cs[0] === 'arm')
+        || (!!kneel && kneelKeeps(kneel, v));
       if (!keeps) this.kneeling = false;
     }
     // told as her posture until the page shows it (the next call's [位置] and body question would say the old one)

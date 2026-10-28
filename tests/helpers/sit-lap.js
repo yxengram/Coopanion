@@ -10,7 +10,7 @@ import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 
 /** An 8-bit RGBA PNG's pixels. */
-function rgba(url) {
+export function rgba(url) {
   const b = readFileSync(url), w = b.readUInt32BE(16), h = b.readUInt32BE(20);
   expect(b[24] === 8 && b[25] === 6 && b[28] === 0, 'an 8-bit RGBA PNG, not interlaced').toBe(true);
   const idat = [];
@@ -28,7 +28,7 @@ function rgba(url) {
 }
 
 /** The texel of `part` (its box, its texture `T`) at rig point (x, y). */
-function texel(T, box, x, y) {
+export function texel(T, box, x, y) {
   const tx = Math.min(T.w - 1, Math.max(0, Math.floor((x - box[0]) / box[2] * T.w)));
   const ty = Math.min(T.h - 1, Math.max(0, Math.floor((y - box[1]) / box[3] * T.h)));
   return T.px.subarray((ty * T.w + tx) * 4, (ty * T.w + tx) * 4 + 4);

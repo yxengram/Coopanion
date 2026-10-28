@@ -412,6 +412,12 @@ export const HEAD_GESTURES = new Set(['nod', 'shake', 'sigh', 'tilt', ...Object.
  * upper body (`figure.kneelLeans`: the whale, on her kneeling hybrid) keeps kneeling through them; for any other they end it.
  */
 export const KNEEL_LEANS = ['closer', 'leanback', 'sway'];
+/**
+ * (plus) Gestures that need her still (standing or seated) and that a figure does on its kneeling hybrid too
+ * (`figure.kneelStills`: the four girls and the whale): it keeps kneeling through them, doing them as seated (a cheer
+ * without the hop, a flinch without the step back) and a peek without turning round to the pointer; for any other they end it.
+ */
+export const KNEEL_STILLS = ['cheer', 'flinch', 'peek'];
 export const ARM_GESTURES = ['wave', 'shiver', 'heart', 'song', 'serve', 'salute', 'vsign', 'point', 'cover', 'cross', 'stretch',
   'pray', 'scratch', 'idea', 'hug', 'hips', 'spout', 'sip', 'read', 'muse', 'fist', 'jot', 'twiddle',
   'clap', 'shrug', 'headhold', 'raise', 'thumbs', 'shush', 'wipe', 'oops', 'weep', 'hideface', 'pat'];
@@ -570,6 +576,8 @@ function ellipseCircles([cx, cy, rx, ry], n = 7, grow = 1.015) {
  *   ARM_GESTURES do not end a kneel; the World groups them with kneeling when the pack's `kneel` word has `keepsArms`.
  * - `kneelLeans: true`: the figure plays KNEEL_LEANS (closer, leanback, sway) on its kneeling upper body (the whale), so
  *   they do not end a kneel; the World groups them with kneeling when the pack's `kneel` word has `keepsLeans`.
+ * - `kneelStills: true`: the figure cheers, flinches and peeks kneeling (KNEEL_STILLS, on its kneeling hybrid), so they
+ *   do not end a kneel; the World groups them with kneeling when the pack's `kneel` word has `keepsStills`.
  */
 export function createPet(els, opts) {
   const { petG, shadowEl, fxG } = els;
@@ -753,9 +761,10 @@ export function createPet(els, opts) {
     if (plus && a === 'song' && !own && (pet.listening || (pet.mode !== 'idle' && pet.mode !== 'sit'))) return false;
     // (plus) kneeling lasts until a motion moves more than her head: nod, shake, sigh and tilt keep it (expressions are no
     // motion), and so do the moves of a tail, ears or wings and, for a figure that draws arms kneeling, an arm gesture;
-    // anything else is plain sitting again (and for a figure that leans kneeling, `kneelLeans`, the leans keep it too)
+    // anything else is plain sitting again (and for a figure that leans kneeling, `kneelLeans`, the leans keep it too, and
+    // for one that cheers, flinches and peeks kneeling, `kneelStills`, those)
     const keepKneel = !own && (a === 'kneel' || HEAD_GESTURES.has(a) || !!APPENDAGE_MOVES[a] || (!!custom?.kneelArms && ARM_GESTURES.includes(a))
-      || (!!custom?.kneelLeans && KNEEL_LEANS.includes(a)));
+      || (!!custom?.kneelLeans && KNEEL_LEANS.includes(a)) || (!!custom?.kneelStills && KNEEL_STILLS.includes(a)));
     if (plus && !keepKneel) pet.kneel = false;
     // (plus) an asked-for expression outlives the motion (stone does not: any motion ends it; nor does falling asleep).
     // Anything else in the slot goes; the own face of a motion still playing in another channel comes back from `own`
@@ -818,9 +827,9 @@ export function createPet(els, opts) {
         holdFace('surprised', 1.1, 'arm'); play('flinch', 'move'); break;
       }
       case 'peek':
-        // lean in and look ahead; first turn to the pointer if it is behind
+        // lean in and look ahead; first turn to the pointer if it is behind (not kneeling: kneelStills keeps her on her knees)
         if (!seated) setMode('idle');
-        if (pointer.inside && (pointer.x - pet.x) * pet.facing < -40) pet.facing *= -1;
+        if (!(plus && pet.kneel) && pointer.inside && (pointer.x - pet.x) * pet.facing < -40) pet.facing *= -1;
         pulse('peek', 2.4); holdFace('peeking', 2.4, 'arm'); play('peek', 'move'); break;
       // back turned in a huff for a while, then round again (Coo hides her face, a figure with a back view shows it,
       // any other figure looks the other way); lying on her front, only the pout

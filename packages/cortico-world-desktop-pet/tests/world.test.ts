@@ -467,10 +467,10 @@ describe('with a pet page', () => {
     cleanup.push(() => page.close());
     const out = await tool(world, 'pet_act').handler({ actions: ['跪坐+招手'] }, ctx) as { text: string };
     expect((await page.next((m) => m.t === 'act')).actions).toEqual(['kneel+wave']);
-    expect(out.text).toContain('kneel 保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、只占「手」的手势和唱歌都不影响(她跪着做)');
+    expect(out.text).toContain('kneel 保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、只占「手」的手势、唱歌和欢呼、后缩、探头都不影响(她跪着做)');
     expect(out.text).not.toContain('不能同时做');
-    const cheer = await tool(world, 'pet_act').handler({ actions: ['跪坐+欢呼'] }, ctx) as { text: string };
-    expect(cheer.text).toContain('跪坐 和 欢呼 不能同时做,改成先后做。');
+    const bow = await tool(world, 'pet_act').handler({ actions: ['跪坐+鞠躬'] }, ctx) as { text: string };
+    expect(bow.text).toContain('跪坐 和 鞠躬 不能同时做,改成先后做。');
     // a song keeps the kneel in the kit (she sings kneeling): one group, no note
     const song = await tool(world, 'pet_act').handler({ actions: ['跪坐+唱歌'] }, ctx) as { text: string };
     expect(song.text).toContain('kneel+song');
@@ -484,7 +484,7 @@ describe('with a pet page', () => {
     const out = await tool(world, 'pet_act').handler({ actions: ['跪坐+凑近'] }, ctx) as { text: string };
     expect((await page.next((m) => m.t === 'act')).actions).toEqual(['kneel+closer']);
     expect(out.text).not.toContain('不能同时做');
-    expect(out.text).toContain('唱歌和凑近、后仰、晃来晃去都不影响(她跪着做)');
+    expect(out.text).toContain('唱歌和欢呼、后缩、探头、凑近、后仰、晃来晃去都不影响(她跪着做)');
     const kneeling = () => (world as unknown as { kneeling: boolean }).kneeling;
     expect(kneeling()).toBe(true);
     await tool(world, 'pet_act').handler({ actions: ['晃来晃去'] }, ctx);
@@ -492,6 +492,33 @@ describe('with a pet page', () => {
     // a bow still gets her up
     await tool(world, 'pet_act').handler({ actions: ['鞠躬'] }, ctx);
     expect(kneeling()).toBe(false);
+  });
+
+  it('pet_act does a kneel and a cheer, a flinch or a peek at once for the girls and the whale (keepsStills), and each keeps her kneeling; Coo splits them', async () => {
+    for (const [figure, scheme] of [['claude-chan', 'original'], ['grok-chan', 'original-winter'], ['whale', 'deepseek-cape']]) {
+      const { world } = await mounted((c) => { c.skin.figure = figure; c.skin.scheme = scheme; });
+      const page = await FakePage.open(origin(world));
+      cleanup.push(() => page.close());
+      const kneeling = () => (world as unknown as { kneeling: boolean }).kneeling;
+      const out = await tool(world, 'pet_act').handler({ actions: ['跪坐+欢呼'] }, ctx) as { text: string };
+      expect((await page.next((m) => m.t === 'act')).actions, figure).toEqual(['kneel+cheer']);
+      expect(out.text, figure).not.toContain('不能同时做');
+      expect(out.text, figure).toContain('欢呼、后缩、探头');
+      expect(kneeling(), figure).toBe(true);
+      for (const n of ['后缩', '探头', '好耶']) {
+        await tool(world, 'pet_act').handler({ actions: [n] }, ctx);
+        expect(kneeling(), `${figure} ${n}`).toBe(true);
+      }
+      // a bow still gets her up
+      await tool(world, 'pet_act').handler({ actions: ['鞠躬'] }, ctx);
+      expect(kneeling(), figure).toBe(false);
+    }
+    const { world } = await mounted((c) => { c.skin.figure = 'coo'; });
+    const page = await FakePage.open(origin(world));
+    cleanup.push(() => page.close());
+    const out = await tool(world, 'pet_act').handler({ actions: ['跪坐+欢呼'] }, ctx) as { text: string };
+    expect(out.text).toContain('跪坐 和 欢呼 不能同时做,改成先后做。');
+    expect((world as unknown as { kneeling: boolean }).kneeling).toBe(false);
   });
 
   it('dresses as the built-in Claude-chan, with her words (no spout)', async () => {

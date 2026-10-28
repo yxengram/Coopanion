@@ -1,0 +1,24 @@
+{
+ "claude-chan": {
+  "classic/capelet": "a34d09ed5366ad120e59bf8a22162e8c2f48ccab638b59efb3d1a52c712e79b5",
+  "classic/sit_top": "b2ed33b70243d079021ccf35ee8018e437356c3831f1ac97d3bf62a67ff7800e",
+  "winter/capelet": "41e22c733a13c40ee0fc6c092f19be4070765dc163102ddbeff980567388e2c3",
+  "winter/sit_top": "7baaa139f889e2555173561e9109b204926c5a3bbf92cd7b0bb1304c4dd8d116"
+ },
+ "gpt-chan": {
+  "classic/torso": "0dcb8b62be664f6293ddb0284c6fe21b4d81f80ebba2294aaf3abf081ebdf073",
+  "classic/sit_top": "e5865dcf567ebb465f93cdbb09e4b9b2b31e9a7a79999a2b6376d20885536a2d",
+  "winter/torso": "d509783cc18051195691e23bee8fa4586d032bda01297c9a0baad6111bf855be",
+  "winter/sit_top": "a0645885c6302e1546d57b17dc8e6ccb145a4ab45ef436bb68a4c73060b1d07a"
+ },
+ "gemini-chan": {
+  "classic/torso": "f60564f8d2a79cdcceea368ed40fe4c49f28085280df7134385c6fe4c4511afd",
+  "winter/torso": "eadd32853bb791ab022ba4ad04420e32867840a337e6a2ab9275f936fad2f1a2"
+ },
+ "grok-chan": {
+  "classic/torso": "66c1df7df17cd23e61b3ed5aa700eb1b2bed5687f5fcdeb55e544e2f2a463e98",
+  "classic/sit_top": "c7ffd4d6ea4bcf025f711ccb674ee6292f32ca9369c93a7ba691026090d4f34b",
+  "winter/torso": "d078eaf086b42c5d8c34889a05ff2b6ea80428feefbc8f245d3c1fe3866f408d",
+  "winter/sit_top": "7268c1326e10f7de2decec7fdd033613df406d5b0154a917b008d78bd30a9b4b"
+ }
+}

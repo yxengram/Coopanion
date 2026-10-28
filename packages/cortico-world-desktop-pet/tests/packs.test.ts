@@ -275,6 +275,9 @@ describe('figure packs', () => {
     // only the whale leans in, leans back and sways kneeling (keepsLeans, the kit's figure.kneelLeans)
     expect(whale!.filter((w) => w.keepsLeans).map((w) => w.id)).toEqual(['kneel']);
     for (const v of [coo!, claude!, gpt!, gemini!, grok!]) expect(v.some((w) => w.keepsLeans)).toBe(false);
+    // the whale and the four girls cheer, flinch and peek kneeling (keepsStills, the kit's figure.kneelStills); Coo does not
+    for (const v of [whale!, claude!, gpt!, gemini!, grok!]) expect(v.filter((w) => w.keepsStills).map((w) => w.id)).toEqual(['kneel']);
+    expect(coo!.some((w) => w.keepsStills)).toBe(false);
     expect(coo!.find((w) => w.id === 'petrify')!.seconds).toBe(3.2);
   });
 
@@ -292,6 +295,14 @@ describe('figure packs', () => {
     expect(vocabOf({ lasting: true, keepsArms: true, keepsLeans: true })).toMatchObject({ lasting: true, keepsArms: true, keepsLeans: true });
     expect(vocabOf({ lasting: true, keepsLeans: 'yes' })).not.toHaveProperty('keepsLeans');
     expect(vocabOf({ keepsLeans: true })).not.toHaveProperty('keepsLeans');
+  });
+
+  it('reads keepsStills only as true on a lasting word', () => {
+    const vocabOf = (w: Record<string, unknown>) => { const m = readManifest(pack({ ...base, vocab: [{ ...word, ...w }] })); if (typeof m === 'string') throw new Error(m); return m.vocab[0]; };
+    expect(vocabOf({ lasting: true, keepsStills: true })).toMatchObject({ lasting: true, keepsStills: true });
+    expect(vocabOf({ lasting: true, keepsArms: true, keepsLeans: true, keepsStills: true })).toMatchObject({ lasting: true, keepsArms: true, keepsLeans: true, keepsStills: true });
+    expect(vocabOf({ lasting: true, keepsStills: 'yes' })).not.toHaveProperty('keepsStills');
+    expect(vocabOf({ keepsStills: true })).not.toHaveProperty('keepsStills');
   });
 
   it('refuses a word name a script could never write: a marker\'s separator in it, longer than an inline marker, or naming two words', () => {

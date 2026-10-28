@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, KNEEL_LEANS, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX, PANT, pantBreath, SNEEZE, sneezeOf, eyesClosed } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { ADD_KEYS, APPENDAGE_MOVES, ARM_GESTURES, KNEEL_LEANS, KNEEL_STILLS, createBody, createPet, FACES, HEAD_GESTURES, KIT_EXPRESSIONS, KIT_MOTIONS, PLUS_EXPRESSIONS, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, PLUS_MOTIONS, ROLL_D, STAND, TILT, tiltOf, HEAD_MORE, BODY_MORE, STAMP, stampLift, CLAP, clapShut, TEAR_FX, PANT, pantBreath, SNEEZE, sneezeOf, eyesClosed } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { cooFigure, defaultSkin, figure, HEAD_TOP } from '../packages/cortico-world-desktop-pet/web/coo/coo.js';
 import { createSfx, EXPR_TONES, OWN_PACKS, SOUND_KINDS, TONES } from '../packages/cortico-world-desktop-pet/web/sound.js';
 import { readLayout, touchGate } from '../packages/cortico-world-desktop-pet/web/body-host.js';
@@ -2819,6 +2819,72 @@ describe('an asked-for face outlives the motions after it (plus)', () => {
     // a bow still gets her up
     const bow = barePet();
     bow.setFigure({ kneelArms: true, kneelLeans: true, draw() {} });
+    run(bow, 1);
+    bow.act('kneel');
+    run(bow, 1);
+    bow.act('bow');
+    expect(bow.pet.kneel).toBe(false);
+  });
+
+  it('a figure that cheers, flinches and peeks kneeling (kneelStills, the girls and the whale) keeps a kneel through them, seated: no hop, no step back, no turn', () => {
+    expect(KNEEL_STILLS).toEqual(['cheer', 'flinch', 'peek']);
+    for (const w of KNEEL_STILLS) {
+      expect(ARM_GESTURES, w).not.toContain(w);
+      // without the flag (kneelArms only, or upstream's kit) the kneel ends, as before: plain sitting
+      const plain = barePet();
+      plain.setFigure({ kneelArms: true, draw() {} });
+      run(plain, 1);
+      plain.act('kneel');
+      run(plain, 1);
+      expect(plain.act(w), w).toBe(true);
+      expect(plain.pet.kneel, w).toBe(false);
+      expect(plain.pet.mode, w).toBe('sit');
+      // with it she keeps kneeling and plays the gesture (the pulse) seated; the pointer behind her
+      const k = barePet();
+      k.setFigure({ kneelArms: true, kneelStills: true, draw() {} });
+      run(k, 1);
+      k.act('kneel');
+      run(k, 1);
+      const x = k.pet.x, facing = k.pet.facing, p = k.toStage(128, 128);
+      k.pointerMove({ x: p.x - k.pet.facing * 300, y: p.y });
+      expect(k.act(w), w).toBe(true);
+      expect(k.pet.pulse?.kind, w).toBe(w);
+      if (w === 'flinch') expect(k.pet.pulse.dx, w).toBe(0);
+      let modes = new Set(), xs = new Set(), faces = new Set();
+      for (let i = 0; i < 3 * 60; i++) { k.step(1 / 60); k.render(); modes.add(k.pet.mode); xs.add(k.pet.x); faces.add(k.pet.facing); }
+      expect([...modes], w).toEqual(['sit']);
+      expect([...xs], w).toEqual([x]);
+      expect([...faces], w).toEqual([facing]);
+      expect(k.pet.kneel, w).toBe(true);
+      // and as one group from standing, either order (the World groups 跪坐+欢呼 for a kneel word with keepsStills)
+      for (const ws of [['kneel', w], [w, 'kneel']]) {
+        const g = barePet();
+        g.setFigure({ kneelArms: true, kneelStills: true, draw() {} });
+        run(g, 1);
+        const gx = g.pet.x;
+        expect(g.doGroup(ws), ws.join('+')).toEqual([true, true]);
+        expect(g.pet.pulse?.kind, ws.join('+')).toBe(w);
+        const seen = new Set();
+        for (let i = 0; i < 3 * 60; i++) { g.step(1 / 60); g.render(); seen.add(g.pet.mode); }
+        expect([...seen], ws.join('+')).toEqual(['sit']);
+        expect(g.pet.x, ws.join('+')).toBe(gx);
+        expect(g.pet.kneel, ws.join('+')).toBe(true);
+      }
+    }
+    // standing, a peek still turns to the pointer behind her, and seated (not kneeling) too, as before
+    for (const seat of [null, 'sit']) {
+      const s = barePet();
+      s.setFigure({ kneelArms: true, kneelStills: true, draw() {} });
+      run(s, 1);
+      if (seat) { s.act(seat); run(s, 1); }
+      const facing = s.pet.facing, p = s.toStage(128, 128);
+      s.pointerMove({ x: p.x - facing * 300, y: p.y });
+      s.act('peek');
+      expect(s.pet.facing, String(seat)).toBe(-facing);
+    }
+    // a bow still gets her up
+    const bow = barePet();
+    bow.setFigure({ kneelArms: true, kneelStills: true, draw() {} });
     run(bow, 1);
     bow.act('kneel');
     run(bow, 1);

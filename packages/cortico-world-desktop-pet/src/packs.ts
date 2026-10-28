@@ -209,10 +209,13 @@ function readVocab(raw: unknown, skipped: string[], t: PacksText): VocabWord[] |
     const about = namesOf(w.about);
     if (!about) return t.noWordAbout(id);
     if (typeof w.seconds !== 'number' || !(w.seconds > 0) || !Number.isFinite(w.seconds)) return t.badSeconds(id);
-    // (keepsArms / keepsLeans: a lasting word, kneeling, that the figure keeps through arm gestures / through leaning in,
-    // leaning back and swaying; read only with lasting)
+    // (keepsArms / keepsLeans / keepsStills: a lasting word, kneeling, that the figure keeps through arm gestures / through
+    // leaning in, leaning back and swaying / through a cheer, a flinch and a peek; read only with lasting)
     const lasting = w.lasting === true
-      ? { lasting: true, ...(w.keepsArms === true ? { keepsArms: true } : {}), ...(w.keepsLeans === true ? { keepsLeans: true } : {}) }
+      ? {
+        lasting: true, ...(w.keepsArms === true ? { keepsArms: true } : {}), ...(w.keepsLeans === true ? { keepsLeans: true } : {}),
+        ...(w.keepsStills === true ? { keepsStills: true } : {}),
+      }
       : {};
     out.push({ id, kind: w.kind as VocabWord['kind'], names, about, seconds: w.seconds, ...lasting });
   }

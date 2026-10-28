@@ -2,8 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, RAISE_HIGH, lyingMouth, sipLift, rollTurn, ballMix, BALL_IN, BALL_OUT, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, LOOKUP, BODY_LEAN, WAG, appendagesOf, ARM_TWIN, SWAP_AT, handsIn, RAISE_ENTRY, FACE_ARMS, FACE_ARM, FACE_ARM_NOT, faceArmStep, KNEEL_FACE_SKIP, KNEEL_LEANS, NECK_HANDS, RAISE_AS, WEEP, weepPose, PAT_BOB } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
-import { CLAP, createPet, TEAR_FX, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn, HEAD_MORE, SNEEZE } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
+import { poseMix, lieStep, LIE_CUT, BODY_CUT, kneelStep, sitStep, seatStep, liftAnchors, lieDeformers, kickField, KICK, eyesShut, waveHandover, ARM_LIMIT, ARM_SPRING, cheerHandover, CHEER_TO, CHEER_ENV, chinWanted, FAR_ARM_GESTURES, backTailField, backView, awayStep, PROP_GESTURES, BOTH_HANDS, NEAR_RAISES, BENT_RAISES, FAR_RAISES, RAISE_TO, RAISE_HIGH, lyingMouth, sipLift, rollTurn, ballMix, BALL_IN, BALL_OUT, ballLift, ballAngle, ROLL_D as WHALE_ROLL_D, createWhaleFigure, kneelAlphas, KNEEL_ARMS_HOLD, KNEEL_LOW_UNDER, gesturesOf, headMoves, KNEEL_HEAD, kneelHeadField, partsOf, drawnEye, DRAWN_EYES, TILT_BACK, TILT_DEG, tiltEased, DROOP, LOOKUP, BODY_LEAN, WAG, appendagesOf, ARM_TWIN, SWAP_AT, handsIn, RAISE_ENTRY, FACE_ARMS, FACE_ARM, FACE_ARM_NOT, faceArmStep, KNEEL_FACE_SKIP, KNEEL_LEANS, NECK_HANDS, RAISE_AS, WEEP, weepPose, PAT_BOB, SEAT_LIFT, KNEEL_STILLS as WHALE_KNEEL_STILLS } from '../packages/cortico-world-desktop-pet/web/whale/figure.js';
+import { CLAP, createPet, TEAR_FX, FACES, mixFace, PLUS_FACES, PLUS_MIXES, PLUS_MIX_FACES, ROLL_D, rollTurn as coreRollTurn, HEAD_MORE, SNEEZE, KNEEL_STILLS as KIT_KNEEL_STILLS } from '../packages/cortico-world-desktop-pet/web/kit/body.js';
 import { readManifest } from '../packages/cortico-world-desktop-pet/src/packs.ts';
 import { pointOf } from '../packages/cortico-world-desktop-pet/web/claude-chan/motion.js';
 import { chainPoint, meshGap } from './helpers/mesh.js';
@@ -851,7 +851,8 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
     const src = readFileSync(new URL('figure.js', WHALE), 'utf8');
     // (only with the kneeling drawing: a dress without it kneels as the seated rig, whose head the points follow down)
     expect(src).toMatch(/seat = seatStep\(seat, o, \{[^}]*kneelRaise: KNEEL && kneelOK\(\) \? KNEEL_RAISE : 0[^}]*\}, dt\);/);
-    expect(src).toMatch(/get anchors\(\) \{ return liftAnchors\(POINTS, seat\.up\); \}/);
+    // (seated, the larger of that and the seated rig's own lift: the test of SEAT_LIFT below)
+    expect(src).toMatch(/get anchors\(\) \{ return liftAnchors\(POINTS, Math\.max\(seat\.up, seatLift\(\)\)\); \}/);
     expect(src).not.toMatch(/const POINTS = \{[^;]*kneelRaise/);
     const K = 29 - model.poses.kneel.headDrop, POINTS = { gaze: [140, 110], tears: [[120, 120], [150, 120]], hearts: [96, 176, 62], bubble: [128, 18] };
     const el = () => ({ setAttribute() {}, innerHTML: '' });
@@ -897,7 +898,8 @@ describe('lying mouths and kneeling, as the whale draws them', () => {
     expect(off).toBeLessThan(.5);
     expect(down).toBeLessThan(.5);
     expect(sink()).toBeCloseTo(0, 0);
-    // a sit word after a kneel: the kneeling drawing goes, and so does the raise (the seated rig's points are the kit's)
+    // a sit word after a kneel: the kneeling drawing goes, and so does seatStep's raise (what is left is the seated
+    // rig's own lift, SEAT_LIFT, which this stand-in leaves out: see the test of her seated points)
     pet.doWord('kneel'); run(3);
     pet.doWord('sit'); run(2);
     expect(seat.kneelB).toBe(0);
@@ -1562,6 +1564,9 @@ describe('a face and a gesture at once, as the whale draws them', () => {
       const go = s => run(s, x => { st = x; });
       const mean = (at, s) => { let a = 0, n = 0; run(s, x => { st = x; a += at(x); n++; }); return a / n; };
       const span = (word, s, at) => { pet.doWord(word); const xs = []; run(s, x => { st = x; xs.push(at(x)); }); return xs; };
+      // (16 degrees of neck and 5 px of brow read as a head lift at desktop size; her body drawings have their own neck
+      // and collar, so nothing behind the chin shows, maid or cape)
+      expect(LOOKUP).toEqual({ pitch: .8, neck: 16, look: 5, brow: 5 });
       go(1);
       for (const mode of ['stand', 'sit']) {
         pet.doWord(mode); go(2.5);
@@ -1636,15 +1641,79 @@ describe('a face and a gesture at once, as the whale draws them', () => {
         xs = [...fx().matchAll(MIST)].map(m => [+m[1], +m[2]]);
         const m = pet.toStage(...pointOf(D, 'headFeat', rigSeen.st, ...mouth0)), S = pet.toStage(0, 1).y - pet.toStage(0, 0).y;
         const cy = xs.reduce((a, p) => a + p[1], 0) / xs.length, cx = xs.reduce((a, p) => a + p[0], 0) / xs.length;
-        // (seated, the kit's points for her were measured some 7-9 units under her live head, the tear spots too: the
-        // mist comes from her chin there, still well under her eyes)
-        expect(Math.abs(cy - m.y) / S, mode).toBeLessThan(mode === 'stand' ? 3 : 8);
+        // (seated too: her points rise with the seated rig's head, SEAT_LIFT; they were some 7-9 units under it, the
+        // mist from her chin)
+        expect(Math.abs(cy - m.y) / S, mode).toBeLessThan(3);
         expect(Math.abs(cx - m.x) / S, mode).toBeLessThan(8);
-        const eyes = pet.toStage(...pointOf(D, 'headFeat', rigSeen.st, ...A.tears[0]));
-        expect((cy - eyes.y) / S, mode).toBeGreaterThan(4);
+        // under her tear spots (her mouth is only some 3 units under them), and well under her eyes
+        const tear = pet.toStage(...pointOf(D, 'headFeat', rigSeen.st, ...A.tears[0])), eyes = pet.toStage(...pointOf(D, 'headFeat', rigSeen.st, ...A.gaze));
+        expect((cy - tear.y) / S, mode).toBeGreaterThan(2);
+        expect((cy - eyes.y) / S, mode).toBeGreaterThan(10);
         run(1.5);
       }
     } finally { done(); rand.mockRestore(); }
+  });
+
+  it('seated, gives the kit her points where the seated rig draws her head (SEAT_LIFT), maid and cape; standing, kneeling and lying they stay', async () => {
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(.3);
+    for (const scheme of [undefined, 'deepseek-cape']) {
+      const { pet, run, fig, done } = await whaleOnKit(createPet, scheme);
+      try {
+        expect(fig.scheme).toBe(scheme ?? 'deepseek-maid');
+        let st = null;
+        const go = sec => run(sec, x => { st = x; });
+        go(1);
+        // (the rig is mounted with the first frame: the winter outfit's, with its hood)
+        expect(rigSeen.tree.parts.some(p => p.id === 'hood_front'), scheme).toBe(!!scheme);
+        // her points as drawn standing (the figure's own, unraised)
+        const RAW = JSON.parse(JSON.stringify(fig.anchors)), D = rigSeen.tree.deformers;
+        // each head point the kit uses (every one liftAnchors raises): [where the kit puts it, the same point through her head]
+        const pairs = A => {
+          const out = [];
+          for (const k of ['gaze', 'tear', 'z', 'bubble', 'spout', 'bulb', 'mouth']) if (RAW[k]) out.push([k, A[k], RAW[k]]);
+          for (const k of ['tears', 'glints']) for (let i = 0; i < (RAW[k]?.length ?? 0); i++) out.push([`${k}${i}`, A[k][i], RAW[k][i]]);
+          out.push(['hearts', [(A.hearts[0] + A.hearts[1]) / 2, A.hearts[2]], [(RAW.hearts[0] + RAW.hearts[1]) / 2, RAW.hearts[2]]]);
+          return out;
+        };
+        const offs = () => pairs(fig.anchors).map(([k, a, r]) => {
+          const d = pointOf(D, 'headFeat', st, ...r);
+          return [k, a[0] - d[0], a[1] + pet.pet.low - d[1]];
+        });
+        // standing they are on her head (a few units off by the breath and the idle tilt, the kit reading them a frame
+        // before she draws; the furthest from her neck the most)
+        for (const [k, dx, dy] of offs()) { expect(Math.abs(dx), k).toBeLessThan(3.5); expect(Math.abs(dy), k).toBeLessThan(3.5); }
+        pet.doWord('sit'); go(3);
+        expect(pet.pet.sitK).toBeCloseTo(1, 3);
+        expect(st.alpha.kneel_body ?? 0).toBe(0);
+        // seated, on the seated rig's head too: the kit sinks them by its `low` (29), her body sinks SEAT_LIFT less
+        // (what is left is as standing: her breath scales the body about her feet, the idle tilt turns the head)
+        expect(fig.anchors.bubble[1]).toBeCloseTo(RAW.bubble[1] - SEAT_LIFT, 1);
+        for (const [k, dx, dy] of offs()) { expect(Math.abs(dx), k).toBeLessThan(3.5); expect(Math.abs(dy), k).toBeLessThan(3.5); }
+        // and the kit's own spots for them: the bubble's, and the mist's at her mouth
+        const S = pet.toStage(0, 1).y - pet.toStage(0, 0).y;
+        const drawnBubble = pet.toStage(...pointOf(D, 'headFeat', st, ...RAW.bubble));
+        expect(Math.abs(pet.anchor().y - drawnBubble.y) / S).toBeLessThan(3.2);
+        // standing again, exactly the standing points
+        pet.doWord('stand'); go(3);
+        expect(fig.anchors).toEqual(RAW);
+        // kneeling on the drawing, raised to its head as before (seatStep's `up`, more than the seated rig's lift)
+        pet.doWord('kneel'); go(3);
+        expect(st.alpha.kneel_body).toBe(1);
+        expect(fig.anchors.bubble[1]).toBeCloseTo(RAW.bubble[1] - (29 - model.poses.kneel.headDrop), 1);
+        // getting up from it the points only rise, never drop toward the seated sink on the way
+        const sink = () => fig.anchors.bubble[1] + pet.pet.low - RAW.bubble[1];
+        pet.doWord('stand');
+        let last = sink(), down = 0;
+        run(4, () => { const v = sink(); down = Math.max(down, v - last); last = v; });
+        expect(down).toBeLessThan(.5);
+        expect(fig.anchors).toEqual(RAW);
+        // lying, the lying points (the kit blends into them; liftAnchors leaves them alone)
+        pet.doWord('lie'); go(3);
+        expect(pet.pet.lieK).toBeCloseTo(1, 3);
+        expect(fig.anchors.lie).toEqual(RAW.lie);
+      } finally { done(); }
+    }
+    rand.mockRestore();
   });
 
   it('kneeling and lying, a head gesture cutting a held tilt short brings her head back over a few frames, not in one', async () => {
@@ -1792,6 +1861,26 @@ describe('a face and a gesture at once, as the whale draws them', () => {
     } finally { done(); }
   });
 
+  it("draws determined's eyes narrowed (v0.12: shorter than her open eyeball, sized to their boxes in every scheme)", () => {
+    // xe_determined2 (scratch/whale_faces/picks_determined2.json): a narrowed, level almond. The first determined eye
+    // (xe_determined) only flattened the upper lid and stood taller than her eyeball (boxes 138 and 123 px high), so at
+    // pet size it read as her round eyes; a build.py run that cut the old pick again would bring those boxes back.
+    expect(model.feat.sprites.determined_eyeL).toEqual([548, 624, 716, 729]);
+    expect(model.feat.sprites.determined_eyeR).toEqual([822, 634, 897, 731]);
+    for (const k of ['eyeL', 'eyeR']) {
+      const [, y0, , y1] = model.feat.sprites[`determined_${k}`], ball = model.feat.eyes[k].ball;
+      expect(y1 - y0, k).toBeLessThan(.92 * (ball[3] - ball[1]));
+      // still over her eye, not shifted off it
+      expect(y0, k).toBeGreaterThanOrEqual(model.feat.eyes[k].lash[1]);
+      expect(y1, k).toBeLessThanOrEqual(ball[3]);
+    }
+    // the cape outfit draws the same feat sprites; each scheme's copy is the same size as its box
+    for (const id of SCHEMES) for (const k of ['eyeL', 'eyeR']) {
+      const [x0, y0, x1, y1] = model.feat.sprites[`determined_${k}`], { w, h, colorType } = png(new URL(`${dir(id)}feat/determined_${k}.png`, WHALE));
+      expect([w, h, colorType], `${id} determined_${k}`).toEqual([x1 - x0, y1 - y0, 6]);
+    }
+  });
+
   it("blinks smug's, angry's, sad's and shy's drawn eyes shut with the painted lid and its lash line, not a squashed sliver", async () => {
     // a 2D context that notes the images drawn into it (each loaded image keeps its file name)
     const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
@@ -1860,7 +1949,7 @@ describe('a face and a gesture at once, as the whale draws them', () => {
 describe('arm gestures kneeling: the kneeling hybrid (her live upper body over poses.kneelLow), as the whale draws it', () => {
   const KL = model.poses.kneelLow, KD = model.poses.kneel;
   /** The whale's own figure.js on the kit's body (plus), without a GPU (`missing`: textures that fail to load). */
-  async function onKit(missing = [], scheme = undefined, { noLeans = false } = {}) {
+  async function onKit(missing = [], scheme = undefined, { noLeans = false, noStills = false } = {}) {
     const any = new Proxy(function () {}, { get: (_, k) => (k === Symbol.toPrimitive ? () => 0 : k === 'then' ? undefined : any), set: () => true, apply: () => any });
     const doc = globalThis.document;
     globalThis.document = { createElement: () => any, createElementNS: () => any };
@@ -1869,9 +1958,11 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
     const petG = { setAttribute() {}, append() {}, contains: () => true, getScreenCTM: () => null, textContent: '' };
     const seen = { fig, o: null, st: null };
     const figure = { ...fig, draw(g, fc, o) { seen.o = o; fig.draw(g, fc, o); seen.st = rigSeen.st; } };
-    for (const k of ['anchors', 'poses', 'kneelArms', 'kneelArmsK', 'kneelLeans']) Object.defineProperty(figure, k, { get: () => fig[k] });
-    // (noLeans: as on a kit that does not read figure.kneelLeans, upstream's, which ends a kneel for a lean)
+    for (const k of ['anchors', 'poses', 'kneelArms', 'kneelArmsK', 'kneelLeans', 'kneelStills']) Object.defineProperty(figure, k, { get: () => fig[k] });
+    // (noLeans: as on a kit that does not read figure.kneelLeans, upstream's, which ends a kneel for a lean; noStills the
+    // same for figure.kneelStills and a cheer, a flinch or a peek)
     if (noLeans) delete figure.kneelLeans;
+    if (noStills) delete figure.kneelStills;
     const pet = createPet({ petG, shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
     pet.resize();
     seen.pet = pet;
@@ -1951,7 +2042,7 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
     } finally { s.done(); }
   });
 
-  it('opens the hybrid for her drawn arms (a heart, a held cup, a raised hand, her chin on her hand), not for a song, a spout or a face\'s arm angles; a cheer ends the kneel', async () => {
+  it('opens the hybrid for her drawn arms (a heart, a held cup, a raised hand, her chin on her hand), not for a song, a spout or a face\'s arm angles; a bow ends the kneel', async () => {
     const s = await onKit();
     try {
       const peak = (word, sec = 2) => { kneelDown(s); let m = 0; if (word) s.pet.doWord(word); s.run(sec, () => { m = Math.max(m, s.alpha('kneel_low')); }); return m; };
@@ -1972,7 +2063,7 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
       expect(s.alpha('arm_twiddle')).toBe(1);
       s.pet.setExpr('neutral'); s.run(1.5);
       expect(s.alpha('kneel_low')).toBe(0);
-      s.pet.doWord('cheer'); s.run(.2);
+      s.pet.doWord('bow'); s.run(.2);
       expect(s.o.kneel).toBe(false);
     } finally { s.done(); }
   });
@@ -2044,6 +2135,85 @@ describe('arm gestures kneeling: the kneeling hybrid (her live upper body over p
           u.run(1.5, () => { low = Math.max(low, u.alpha('kneel_low')); });
           expect(u.o.kneel, `${scheme} ${w}`).toBe(false);
           expect(low, `${scheme} ${w}`).toBe(0);
+          u.pet.doWord('stand'); u.run(3);
+        }
+      } finally { u.done(); }
+    }
+  });
+
+  it('cheers, flinches and peeks kneeling on the hybrid\'s upper body (KNEEL_STILLS), the kneeling legs still, no hop, no step back, in both outfits', async () => {
+    expect(WHALE_KNEEL_STILLS).toEqual(KIT_KNEEL_STILLS);
+    for (const scheme of ['deepseek', 'deepseek-cape', 'claude']) {
+      const s = await onKit([], scheme);
+      try {
+        expect(s.fig.kneelStills, scheme).toBe(true);
+        for (const w of WHALE_KNEEL_STILLS) {
+          kneelDown(s);
+          const x = s.pet.pet.x, facing = s.pet.pet.facing, p = s.pet.toStage(128, 128), tag = `${scheme} ${w}`;
+          s.pet.pointerMove({ x: p.x - facing * 300, y: p.y });
+          expect(s.pet.doWord(w), tag).toBe(true);
+          const xs = [];
+          s.run(2.6, () => {
+            expect(s.pet.pet.kneel, tag).toBe(true);
+            expect(s.pet.pet.mode, tag).toBe('sit');
+            expect(s.pet.pet.x, tag).toBe(x);
+            expect(s.pet.pet.facing, tag).toBe(facing);
+            const st = s.st;
+            xs.push({ low: s.alpha('kneel_low'), body: s.alpha('kneel_body'), sit: s.alpha('skirt_sit'), legs: [st.kneelLow?.a ?? 0, st.kneelLow?.ty ?? 0], cheer: s.alpha('arm_cheer_near'), k: s.o.gesture?.k ?? 1 });
+          });
+          const mid = xs.filter(x => x.k > .2 && x.k < .6);
+          // the hybrid, cut in and out whole, never the drawing and it half seen, never her seated skirt
+          expect(mid.length, tag).toBeGreaterThan(10);
+          expect(mid.every(x => x.low === 1 && x.body === 0), tag).toBe(true);
+          expect(xs.filter(x => !((x.low === 0 || x.low === 1) && (x.body === 0 || x.body === 1) && (x.sit === 0 || x.body === 1))), tag).toEqual([]);
+          // the kneeling legs keep still on the floor (her body's own turn is the hybrid's, as for a lean: < .5°)
+          const span = f => Math.max(...mid.map(f)) - Math.min(...mid.map(f));
+          expect(span(x => x.legs[0]), tag).toBeLessThan(.5);
+          expect(span(x => x.legs[1]), tag).toBe(0);
+          // a cheer's drawn arms show on the hybrid
+          if (w === 'cheer') expect(Math.max(...mid.map(x => x.cheer)), tag).toBe(1);
+          s.run(1);
+          expect(s.alpha('kneel_body'), tag).toBe(1);
+          expect(s.alpha('kneel_low'), tag).toBe(0);
+          expect(s.o.kneel, tag).toBe(true);
+          s.pet.doWord('stand'); s.run(3);
+        }
+        // as one group from standing, either order: she goes down as for 跪坐+招手 (the seated rig on the way down, as her
+        // kneel from standing always has, then one cut to the hybrid)
+        const down = {};
+        for (const w of ['wave', ...WHALE_KNEEL_STILLS]) {
+          for (const ws of [['kneel', w], [w, 'kneel']]) {
+            const tag = `${scheme} ${ws.join('+')}`;
+            s.run(.5);
+            expect(s.pet.doGroup(ws), tag).toEqual([true, true]);
+            let sit = 0, low = 0;
+            s.run(2, () => { if (s.alpha('skirt_sit') > 0 && s.alpha('kneel_body') < 1 && s.alpha('kneel_low') < 1) sit++; low = Math.max(low, s.alpha('kneel_low')); });
+            expect(low, tag).toBe(1);
+            down[ws.join('+')] = sit;
+            expect(sit, tag).toBe(down['kneel+wave']);
+            expect(s.o.kneel, tag).toBe(true);
+            s.pet.doWord('stand'); s.run(3);
+          }
+        }
+        // getting up mid-cheer: the hybrid, then the kneeling drawing, never the seated body
+        kneelDown(s);
+        s.pet.doWord('cheer'); s.run(.5);
+        expect(s.alpha('kneel_low')).toBe(1);
+        s.pet.doWord('stand');
+        let seated = 0;
+        s.run(4, () => { if (s.alpha('skirt_sit') > 0 && s.alpha('kneel_body') < 1 && s.alpha('kneel_low') < 1) seated++; });
+        expect(seated, scheme).toBe(0);
+        expect(s.alpha('kneel_low'), scheme).toBe(0);
+        expect(s.alpha('kneel_body'), scheme).toBe(0);
+      } finally { s.done(); }
+      // a kit that ends the kneel for them (upstream's rule, no kneelStills read): she sits as before
+      const u = await onKit([], scheme, { noStills: true });
+      try {
+        for (const w of WHALE_KNEEL_STILLS) {
+          kneelDown(u);
+          u.pet.doWord(w);
+          u.run(1.5);
+          expect(u.o.kneel, `${scheme} ${w}`).toBe(false);
           u.pet.doWord('stand'); u.run(3);
         }
       } finally { u.done(); }

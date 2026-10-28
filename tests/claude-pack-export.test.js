@@ -111,7 +111,7 @@ describe('exported Claude-chan pack', () => {
     // she has no tail, ears or wings of her own to move: none of their words
     for (const id of ['wag', 'earflick', 'earsup', 'earsdown', 'wingbeat']) expect(m.vocab.some((w) => w.id === id), id).toBe(false);
     // she draws arm gestures kneeling: her kneel says so (keepsArms), and her pack ships the drawing's lower body
-    expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true });
+    expect(m.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true, keepsArms: true, keepsStills: true });
     expect(m.vocab.length).toBe(builtin.vocab.length);
     expect(m.axes).toEqual(builtin.axes);
     expect(m.presets).toEqual(builtin.presets);
@@ -153,6 +153,8 @@ describe('exported Claude-chan pack', () => {
       // (upstream reads the kneel as lasting and leaves keepsArms out: one by one, its World sends kneel and then a wave, and the bundled kit keeps the kneel)
       expect(r.vocab.find((w) => w.id === 'kneel')).toMatchObject({ lasting: true });
       expect(r.vocab.find((w) => w.id === 'kneel')).not.toHaveProperty('keepsArms');
+      // (nor keepsStills: its World sends 跪坐 and 欢呼 one by one, and its kit gets her up for the cheer)
+      expect(r.vocab.find((w) => w.id === 'kneel')).not.toHaveProperty('keepsStills');
       const scan = upstream.scanPacks([], [root]);
       expect(scan.problems).toEqual([]);
       expect(scan.packs.map((p) => p.id)).toEqual([PACK_ID]);

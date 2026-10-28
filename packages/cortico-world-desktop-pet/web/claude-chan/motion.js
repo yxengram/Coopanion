@@ -229,11 +229,14 @@ export const LIE_TILT = 10;
  */
 export const DROOP = { pitch: .9, neckTy: 3.5, look: 4 };
 /**
- * A look up (抬头): standing or seated the face pitches up (angleY), the eyes look up at you (`look`, up), the head rises a
- * touch on the neck (rig units) and the brows lift (master px); kneeling the drawing's head lifts (KNEEL_HEAD.up), lying it
- * turns up about the chin (LIE_MORE.up). Her body stays as it is: leaning back (leanback) is the one that takes it along.
+ * A look up (抬头): standing or seated the face pitches up (angleY), the eyes look up at you (`look`, up: past the -5 a
+ * pointer reaches, face.js lifts the iris on), the head rises on the neck (rig units) and the brows lift (master px);
+ * kneeling the drawing's head lifts (KNEEL_HEAD.up), lying it turns up about the chin (LIE_MORE.up). Her body stays as it
+ * is: leaning back (leanback) is the one that takes it along. The textures that carry her collar (capelet and sit_top, both
+ * outfits) have a neck painted under the chin, from above a full lift's chin down into the collar
+ * (scratch/next/polish/neck/build_throat.py), so a full lift shows a neck, never a gap or the old flat stub.
  */
-export const LOOKUP = { pitch: .9, neckTy: 3, look: 5, brow: 3.5 };
+export const LOOKUP = { pitch: .9, neckTy: 6, look: 8, brow: 5 };
 /** A sneeze's head (headMoves): the jolt as a nod of `jolt` at most, the caught breath as a breath in of `windup` and a look up of `up`. */
 export const SNEEZE_HEAD = { jolt: 1.3, windup: .9, up: .5 };
 /**
@@ -1176,7 +1179,8 @@ export function createMotion(model, R) {
     if (swayG) st.body.a += BODY_LEAN.swayBody * swayG;
     if (is('stretch')) st.body.sy *= 1 + .05 * smooth(.2, .45, gk) * hold;
     if (curt) { st.body.sy *= 1 - .07 * curt; st.body.sx *= 1 + .03 * curt; }
-    if (cheer) st.body.ty -= 4 * Math.abs(Math.sin(t * 11)) * cheer;
+    // (kneeling, kneelStills, she cheers on her knees: no bounce of the whole of her, which would lift the kneeling legs)
+    if (cheer && !kneelNow) st.body.ty -= 4 * Math.abs(Math.sin(t * 11)) * cheer;
     if (is('salute')) st.body.sy *= 1 + .03 * Math.sin(Math.PI * clamp(gk / .15, 0, 1));
     if (fc.rock && face === 'coax') st.body.a += 3 * fc.rock;
     if (is('roll') && ROLL && caps.pose('roll')) {

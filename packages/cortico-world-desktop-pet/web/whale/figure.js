@@ -222,6 +222,11 @@ export function faceArmStep(F, want, busy, dt) {
  * body: its waist leans and rocks, the kneeling legs stay on the floor.
  */
 export const KNEEL_LEANS = ['closer', 'leanback', 'sway'];
+/**
+ * (kneel) The gestures needing her still that she does kneeling too (a cheer, a flinch, a peek: the kit's KNEEL_STILLS,
+ * kept here for a kit without them), on the kneeling hybrid: her live upper body and arms, no hop, no step back.
+ */
+export const KNEEL_STILLS = ['cheer', 'flinch', 'peek'];
 
 export function poseMix(lieK) {
   const poseA = smooth(.2, .45, lieK), standA = poseA >= 1 ? 0 : 1;
@@ -277,6 +282,12 @@ export function seatStep(S, o, { sitK, airborne = false, lying = false, kneelOK 
   return { sitB, kneelK, kneelB, armsB, prevSit: sit, up };
 }
 const SEATED_NOT = { sitB: 0, kneelK: 0, kneelB: 0, armsB: 0, prevSit: 0, up: 0 };
+/**
+ * How much less her body sinks seated than the kit's hips (29): the seated drawing's lowest point is 19.4 above the
+ * soles. Her head and the points the kit draws by it (figure.anchors: the mist, tears, z's, bubble…) rise by it too, by
+ * her sit; without that the points sat that far under her seated head (the mist from her chin).
+ */
+export const SEAT_LIFT = 9.6;
 /**
  * (kneel) The kneeling drawing's and the hybrid's alphas from seatStep's shares: the drawing dissolves over the opaque
  * hybrid (`drawA`), the hybrid (`lowA`) is opaque whenever it has a share, one frame either way.
@@ -419,10 +430,11 @@ export const LIE_TILT = 10;
 export const DROOP = { pitch: .7, neck: 9, look: 4 };
 /**
  * A look up (抬头): standing or seated the face pitches up (angleY), the eyes look up at you (`look`, up), the neck bends
- * back a little (degrees) and the brows lift (master px); kneeling the drawing's head lifts (KNEEL_HEAD.up), lying it
- * turns up about the chin (LIE_MORE.up). Her body stays as it is: leaning back (leanback) is the one that takes it along.
+ * back (degrees; her body drawings have their own neck and collar, so nothing behind the chin shows, maid or cape) and the
+ * brows lift (master px); kneeling the drawing's head lifts (KNEEL_HEAD.up), lying it turns up about the chin
+ * (LIE_MORE.up). Her body stays as it is: leaning back (leanback) is the one that takes it along.
  */
-export const LOOKUP = { pitch: .8, neck: 10, look: 5, brow: 3.5 };
+export const LOOKUP = { pitch: .8, neck: 16, look: 5, brow: 5 };
 /** A sneeze's head (headMoves): the jolt as a nod of `jolt` at most, the caught breath as a breath in of `windup` and a look up of `up`. */
 export const SNEEZE_HEAD = { jolt: 1.3, windup: .9, up: .5 };
 /**
@@ -931,6 +943,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
   let seat = SEATED_NOT;  // her seated lower body and kneeling drawing (seatStep)
   // kneeling, her head sits this much higher than the seated rig's (which the points otherwise follow down)
   const KNEEL_RAISE = KNEEL ? f1(29 - KNEEL.headDrop) : 0;
+  /** How far her points rise for the seated rig's head now (SEAT_LIFT by her sit; none once she is up). */
+  const seatLift = () => (sitK > 1e-3 ? SEAT_LIFT * sitK : 0);
   /** Whether her back can show now: she has the drawing and is standing (seated or lying she turns as before). */
   const backable = () => !!BACK && backOK() && sitK < .5 && !lieK;
 
@@ -1471,6 +1485,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // (kneel) leaning in, leaning back or swaying on the kneeling hybrid's upper body, while the kit keeps her kneeling (one
     // that does not, upstream's rule, ends the kneel for them: then she sits, one cut, no hybrid on the way)
     const leanG = KNEEL_LEANS.includes(g?.kind) && gk > .02 && gk < .9 && !!o.kneel;
+    // (kneel) a cheer, a flinch or a peek kneeling, the kit keeping her kneeling (kneelStills): her arms show on the hybrid
+    // (a cheer's always open it; a flinch's and a peek's arm angles only kneeling, as unseen under the drawing)
+    const stillG = KNEEL_STILLS.includes(g?.kind) && gk > .02 && gk < .9 && !!o.kneel;
     // (turning away without her back drawing, seated say, she turns her face away and drops her chin a little)
     const awayFace = backable() ? 0 : away;
     const gNeck = nod * 7 + shake * 2.5 + bow * 10 + wave * 4 - flinch * 8 + peek * (4 + 1.5 * Math.sin(t * 5)) + awayFace * 3 + sip * 4 + (propG === 'read' || propG === 'jot' ? 5 * hold : faceG === 'jot' ? 5 * faceUp : 0) - 2 * inh + 6 * exh - (raiseG === 'vsign' ? 6 * raise : 0) + (propG === 'curtsy' ? 6 * hold : 0)
@@ -1531,8 +1548,8 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     // arm angles her faces give, unseen while she kneels as before). That opens the hybrid; once in it, her chin's hand
     // still coming down and KNEEL_ARMS_HOLD after keep it, so back-to-back gestures stay one stretch. A chin still
     // coming down does not open it (a kneel asked right after thinking seated goes straight to the drawing, one cut).
-    // (her face's arm pose, and leaning in or back or swaying, open it too)
-    const posed = (gk > .02 && gk < .9 && (wave || heart || cheer || shiver || propG || raiseG)) || chinOn || faceK > 0 || leanG;
+    // (her face's arm pose, leaning in or back or swaying, and a flinch or a peek kneeling open it too)
+    const posed = (gk > .02 && gk < .9 && (wave || heart || cheer || shiver || propG || raiseG)) || chinOn || faceK > 0 || leanG || stillG;
     armsT = posed || chinK > 0 ? 0 : armsT + dt;
     const withArms = kneelLowOK() && (posed || (seat.armsB > 0 && armsT < KNEEL_ARMS_HOLD));
     seat = seatStep(seat, o, { sitK, airborne, lying: !!lieK, kneelOK: !!KNEEL && kneelOK(), kneelRaise: KNEEL && kneelOK() ? KNEEL_RAISE : 0, withArms }, dt);
@@ -1597,9 +1614,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     const armF = armFBase + gaitF - shiver * 1.2 * Math.sin(t * 43 + 1) - flap * 9 * Math.sin(t * 24 + 1);
 
     /* deformer states */
-    // the kit sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles
+    // the kit sinks the hips 29 when seated; the sitting drawing's lowest point is 19.4 above the soles (SEAT_LIFT)
     // going down to lie she tips forward off the seat before the lying drawing takes over
-    st.body = { a: -sway * 1.2 + (held ? (o.swing || 0) * .15 : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA), ty: low - 9.6 * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
+    st.body = { a: -sway * 1.2 + (held ? (o.swing || 0) * .15 : 0) + 10 * smooth(.05, .3, lieK) * (1 - poseA), ty: low - SEAT_LIFT * sitK, sx: (1 + .006 * breath + .04 * plop) * (1 - .03 * shiver), sy: (1 - .012 * breath - .06 * plop) * (1 - .03 * flinch) };
     // stretching she grows tall on her toes; a curtsy sinks low with a little bow
     if (propG === 'stretch') st.body.sy *= 1 + .05 * smooth(.2, .45, gk) * hold;
     const curt = propG === 'curtsy' ? Math.sin(Math.PI * clamp((gk - .15) / .7, 0, 1)) * hold : 0;
@@ -1619,7 +1636,7 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
       if (!(ROLL && rollOK())) st.body.ty -= 46 * Math.sin(Math.PI * rollTurn(gk));
     }
     // (in the kneeling hybrid her upper body rises from the seated rig's sink to the kneeling drawing's head: headDrop)
-    const waistUp = seat.armsB > 0 && KLOW ? KNEEL.headDrop - (low - 9.6 * sitK) : 0;
+    const waistUp = seat.armsB > 0 && KLOW ? KNEEL.headDrop - (low - SEAT_LIFT * sitK) : 0;
     st.waist = { a: bow * 20 - flinch * 6 + peek * 9 + BODY_LEAN.closer * closer - BODY_LEAN.back * leanback + swayWaist + 3 * titter - 3 * inh + 6 * exh, ty: waistUp, sy: (1 - .07 * titter) * (1 + .03 * inh - .03 * exh) };
     if (propG === 'curtsy') st.waist.a += 10 * Math.sin(Math.PI * clamp((gk - .15) / .7, 0, 1)) * hold;
     // leaning in toward you her upper body and head come nearer (larger), leaning back they go a little further off
@@ -2125,15 +2142,22 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
      * this keeps a kneel through them; a kit that does not ends the kneel for them as before.
      */
     get kneelLeans() { return (kneelLowOK() && kneelOK()) || !(KNEEL && cur.kneel); },
+    /**
+     * (plus) She cheers, flinches and peeks kneeling too (KNEEL_STILLS, on the hybrid's upper body: no hop, no step back),
+     * so a kit that reads this keeps a kneel through them; a kit that does not ends the kneel for them as before.
+     */
+    get kneelStills() { return (kneelLowOK() && kneelOK()) || !(KNEEL && cur.kneel); },
     /** (kneel) The kneeling hybrid's share now (0..1; for tests and tools). */
     get kneelArmsK() { return kneelAlphas(seat).lowA; },
     schemes: SCHEMES,
     outfits: OUTFITS,
     /**
      * The points the kit uses (read every frame), raised for her kneeling head (seatStep's `up`: she gives the raise,
-     * so there is no `kneelRaise` for the kit to add).
+     * so there is no `kneelRaise` for the kit to add), and seated for the seated rig's head, which sinks SEAT_LIFT less
+     * than the kit's `low` (the larger of the two: kneeling on the drawing its head is higher still; a dress without
+     * the drawing kneels as the seated rig).
      */
-    get anchors() { return liftAnchors(POINTS, seat.up); },
+    get anchors() { return liftAnchors(POINTS, Math.max(seat.up, seatLift())); },
     model,
   };
 }

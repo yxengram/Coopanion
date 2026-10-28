@@ -76,7 +76,7 @@ export function resolveMouth(list, has) {
   return { kind: 'line', form: .2, w: 1 };
 }
 
-function planEye(k, e, i, face, fc, o, t, has, lx, ly, tilt, shut) {
+function planEye(k, e, i, face, fc, o, t, has, lx, ly, up, tilt, shut) {
   const spr = (fam, extra) => (has(`${fam}_${k}`) ? { kind: 'sprite', name: `${fam}_${k}`, ...extra } : null);
   const squash = { sy: 1 - .85 * (o.eyeClose || 0) }, blinkSq = { sy: 1 - .9 * shut };
   if (e.shape === 'ring' || e.shape === 'lid') {
@@ -92,7 +92,10 @@ function planEye(k, e, i, face, fc, o, t, has, lx, ly, tilt, shut) {
     }
     // the iris fills most of the eye: it only shifts a little, so the white never shows past the outline
     const open = (e.shape === 'ring' ? clamp((e.ry ?? 16) / (e.rx ?? 16), 0, 1) * (tilt ? .8 : 1) : clamp((e.ry ?? 0) / 16, 0, 1)) * (1 - shut);
-    const ix = clamp(lx + (e.dx || 0), -6, 6), iy = clamp(ly * .7 + (e.dy || 0) * .7, -3.5, 3.5);
+    // (a look up (抬头) looks further up than the pointer or any face's lookAt (-4 at most): what of it lies past -5
+    // (`up`, 0..-3) lifts the iris on past that clamp, at most 2.1 master px; a sneeze's caught breath, half a look up,
+    // gets there only with a face of its own and the pointer above her, by .7 at most)
+    const ix = clamp(lx + (e.dx || 0), -6, 6), iy = clamp(ly * .7 + (e.dy || 0) * .7, -3.5, 3.5) + up * .7;
     // (each eye's inner corner faces the middle: the lid tilts toward it)
     return { kind: 'open', k, open, ix, iy: iy + (e.shape === 'lid' ? 3 : 0), tilt: tilt * (k === 'eyeL' ? 1 : -1), glint: fc.sparkle ? 1 : 0 };
   }
@@ -141,10 +144,10 @@ function planMouth(fc, face, o, t, has, whole = face) {
  */
 export function planFace(fc, face, o, t, has) {
   const shut = Math.max(o.blink || 0, o.eyeClose || 0), look = o.look || [0, 0];
-  const lx = clamp(look[0], -6, 6), ly = clamp(look[1], -5, 5);
+  const lx = clamp(look[0], -6, 6), ly = clamp(look[1], -5, 5), up = clamp(look[1] + 5, -3, 0);
   const tilt = fc.brows === 'angry' ? .2 : fc.brows === 'sad' ? -.16 : 0;
   const P = partsOf(fc, face);
-  const eyes = (fc.eyes || []).slice(0, 2).map((e, i) => planEye(EYES[i], e, i, P.eyes, fc, o, t, has, lx, ly, tilt, shut));
+  const eyes = (fc.eyes || []).slice(0, 2).map((e, i) => planEye(EYES[i], e, i, P.eyes, fc, o, t, has, lx, ly, up, tilt, shut));
   return { eyes, mouth: planMouth(fc, P.mouth, o, t, has, face) };
 }
 

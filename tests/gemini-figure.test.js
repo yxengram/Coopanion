@@ -16,8 +16,10 @@ import * as KneelMotion from '../packages/cortico-world-desktop-pet/web/gemini-c
 import { describeKneelArms } from './helpers/kneel-arms.js';
 import { describeArmCut } from './helpers/arm-cut.js';
 import { describeWeepSneeze } from './helpers/weep-sneeze.js';
+import { describeSeatAnchors } from './helpers/seat-anchors.js';
 import { describeLieCut } from './helpers/lie-cut.js';
 import { describeLapHands, describeSitLap } from './helpers/sit-lap.js';
+import { describeThroat } from './helpers/throat.js';
 import { describeFloorFace } from './helpers/floor-face.js';
 import * as FaceModule from '../packages/cortico-world-desktop-pet/web/gemini-chan/face.js';
 import { createGeminiFigure, GESTURES } from '../packages/cortico-world-desktop-pet/web/gemini-chan/figure.js';
@@ -2322,8 +2324,10 @@ describeFloorFace('Gemini-chan', { dir: DIR, M: KneelMotion, F: FaceModule, GEST
 /* ---------- arm drawings cut in for each other, never half seen at once (the four girls share these: tests/helpers/arm-cut.js) ---------- */
 describeArmCut('Gemini-chan', { dir: DIR, M: KneelMotion, GESTURES });
 describeWeepSneeze('Gemini-chan', { dir: DIR, M: KneelMotion, GESTURES });
+describeSeatAnchors('Gemini-chan', { dir: DIR, M: KneelMotion, GESTURES });
 describeLieCut('Gemini-chan', { dir: DIR, M: KneelMotion, GESTURES });
 
 // seated with a gesture: the standing skirt under the sunk torso, not a blurred fill (scratch/art/sit_lap.py)
 describeSitLap('Gemini-chan', { dir: DIR });
+describeThroat('Gemini-chan', { dir: DIR, M: KneelMotion, planFace: FaceModule.planFace, restShows: ['sit_top'] });
 describeLapHands('Gemini-chan', { dir: DIR });

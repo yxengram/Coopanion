@@ -328,11 +328,21 @@ describe('pet_say', () => {
     expect(out).toContain('下次带上 feeling');
     expect(out).toContain('不用写标记');
     expect(m.mock.requests).toHaveLength(0);
-    // brackets that name no word are the text: code, comparisons
-    const code = textOf(await tool(m.world, 'pet_say').handler({ text: '用 <div> 包起来,a < b 而且 c > d' }, ctx));
+    // brackets that name no word are the text (comparisons); HTML tags go as in classic, <br> a line break, and are
+    // not called markers in the receipt
+    const code = textOf(await tool(m.world, 'pet_say').handler({ text: '用 <div> 包起来,a < b 而且 c > d,如果 a<b 且 b>c' }, ctx));
     const say2 = await p.next((x) => x.t === 'say' && x.id !== say.id);
-    expect(say2.beats).toEqual([{ actions: [], text: '用 <div> 包起来,a < b 而且 c > d', anchors: [] }]);
+    expect(say2.beats).toEqual([{ actions: [], text: '用  包起来,a < b 而且 c > d,如果 a<b 且 b>c', anchors: [] }]);
     expect(code).not.toContain('不用写标记');
+    const html = textOf(await tool(m.world, 'pet_say').handler({ text: '第一行<br>第二行 <b>重点</b>' }, ctx));
+    const say3 = await p.next((x) => x.t === 'say' && x.id !== say.id && x.id !== say2.id);
+    expect(say3.beats).toEqual([{ actions: [], text: '第一行\n第二行 重点', anchors: [] }]);
+    expect(html).not.toContain('不用写标记');
+    const both = textOf(await tool(m.world, 'pet_say').handler({ text: '【开心】<b>好</b>呀' }, ctx));
+    const say4 = await p.next((x) => x.t === 'say' && ![say.id, say2.id, say3.id].includes(x.id));
+    expect(say4.beats).toEqual([{ actions: [], text: '好呀', anchors: [] }]);
+    expect(both).toContain('不用写标记');
+    expect(textOf(await tool(m.world, 'pet_say').handler({ text: '<br/>' }, ctx))).toContain('text 是空的');
     const empty = await tool(m.world, 'pet_say').handler({ text: ' ', feeling: 'x' }, ctx);
     expect(empty).toMatchObject({ failed: true });
   });

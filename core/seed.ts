@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// vendors.ts imports nothing, so the seed still runs and tests without Cortico
+import { vendorOf } from 'cortico-provider-coo/src/vendors.ts';
 
 export const DEPLOYMENT = 'companion';
 export const ENDPOINT = 'deepseek';
@@ -13,6 +15,8 @@ export const DISPLAY_NAME = 'Coo';
 export const MODULE = 'coo';
 /** The module the endpoints of versions up to 0.1.2 name; it became `coo`. */
 const OLD_MODULE = 'deepseek';
+/** Written in the deployment directory once `untickTextOnlyImages` has run: later starts leave 「接受图片」 as the person sets it. */
+export const IMAGES_MARK = 'images-migrated.json';
 /** SHA-256 of the self-description versions 0.1.0 (after the rename) and 0.1.1 seeded, line endings as LF. */
 const OLD_CONSTITUTION = 'cfcb7527cbf3518ab9f077ee711c86661a70613b9e5caeb992b30a603490e5cf';
 export const SEED_DIR = fileURLToPath(new URL('./seed/', import.meta.url));
@@ -79,7 +83,8 @@ export function languageSwitchPatch(pet: LanguagePetValues, from: string, to: st
  * Writes the first-run files that are missing; existing files are left as the operator made them,
  * except a self-description still exactly as an older version seeded it, which becomes the current
  * one, endpoints of the old `deepseek` module, which now belong to `coo`, and the names Cortico 0.2
- * changed (`moveTerminalToConsole`), and a decision model OpenRouter removed (`moveRetiredDecider`). A new deployment config
+ * changed (`moveTerminalToConsole`), a decision model OpenRouter removed (`moveRetiredDecider`), and, once, 「接受图片」 on
+ * endpoints that were not sent images before 0.12 (`untickTextOnlyImages`). A new deployment config
  * gets `language` (the system's, `newInstallLanguage` in language.ts) and, when that is not Chinese,
  * `newInstallWorlds`; an existing one keeps its own, or none, which reads as Chinese.
  */
@@ -114,8 +119,45 @@ export function seed(home: string, language = 'zh'): void {
   if (!existsSync(join(deploy, 'avatar.png'))) copyFileSync(join(SEED_DIR, 'avatar.png'), join(deploy, 'avatar.png'));
   upgradeSeededConstitution(workspace);
   moveEndpointsToCoo(join(home, 'providers'));
+  untickTextOnlyImages(deploy, join(home, 'providers'));
   moveTerminalToConsole(deploy);
   moveRetiredDecider(deploy);
+}
+
+/**
+ * Up to 0.11, an endpoint of the `coo` module at a built-in service's address got images only when 「接受图片」
+ * (`multimodal`) was on and the service listed its model as reading them (`Vendor.vision`); since upstream #432 the
+ * box alone decides. So that an endpoint seeded with the box on (`deepseek-flash`) and later moved to a text-only model
+ * (`deepseek-v4-pro`) does not start sending images the service refuses, the first start of 0.12 turns the box off on
+ * each `coo` endpoint whose address is a built-in service's (`vendorOf`) and whose model that service does not list
+ * (or which names none): exactly the built-in services' endpoints that were not sent images before. Endpoints at other
+ * addresses (which got none before either, but whose box now means what it says), the
+ * `chatgpt` module's (which always went by the box alone) and files it cannot read stay as they are. Runs once,
+ * after `moveEndpointsToCoo` (a 0.1.x `deepseek` endpoint counts): `IMAGES_MARK` in the deployment directory records
+ * it, so a box ticked again later stays ticked. A new install runs it too, before anyone can change an endpoint; its
+ * seeded `deepseek-flash` is listed, so only the mark is written.
+ */
+function untickTextOnlyImages(deploy: string, providers: string): void {
+  const mark = join(deploy, IMAGES_MARK);
+  if (existsSync(mark)) return;
+  for (const dir of readdirSync(providers, { withFileTypes: true })) {
+    const file = join(providers, dir.name, 'config.json');
+    if (!dir.isDirectory() || !existsSync(file)) continue;
+    let config: { kind?: unknown; baseUrl?: unknown; multimodal?: unknown; spec?: { model?: unknown } };
+    try {
+      config = JSON.parse(readText(file)) as typeof config;
+    } catch {
+      continue;
+    }
+    if (!config || typeof config !== 'object' || config.kind !== MODULE || config.multimodal !== true || typeof config.baseUrl !== 'string') continue;
+    const vendor = vendorOf(config.baseUrl);
+    if (!vendor) continue;
+    const model = config.spec?.model;
+    if (typeof model === 'string' && model && (vendor.vision ?? []).includes(model)) continue;
+    config.multimodal = false;
+    writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+  }
+  writeFileSync(mark, JSON.stringify({ version: '0.12.0' }) + '\n');
 }
 
 /**
@@ -218,8 +260,14 @@ function moveEndpointsToCoo(providers: string): void {
   for (const dir of readdirSync(providers, { withFileTypes: true })) {
     const file = join(providers, dir.name, 'config.json');
     if (!dir.isDirectory() || !existsSync(file)) continue;
-    const config = JSON.parse(readFileSync(file, 'utf8')) as { kind?: string };
-    if (config.kind !== OLD_MODULE) continue;
+    let config: { kind?: unknown };
+    try {
+      // (one it cannot read, or one with a byte order mark, used to stop the start here)
+      config = JSON.parse(readText(file)) as typeof config;
+    } catch {
+      continue;
+    }
+    if (!config || typeof config !== 'object' || config.kind !== OLD_MODULE) continue;
     config.kind = MODULE;
     writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   }

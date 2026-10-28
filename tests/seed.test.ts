@@ -6,7 +6,8 @@ import { CORE_DEFAULTS } from 'cortico/core/config.ts';
 import { CoreState } from 'cortico/core/state.ts';
 import type { CoreConfig } from 'cortico/core/types.ts';
 import { loadDeployment } from 'cortico/deploy.ts';
-import { DEPLOYMENT, ENDPOINT, KEY_NAME, prefixFromBeforeConsole, RETIRED_DECIDERS, seed } from '../core/seed.ts';
+import { DEPLOYMENT, ENDPOINT, IMAGES_MARK, KEY_NAME, prefixFromBeforeConsole, RETIRED_DECIDERS, seed } from '../core/seed.ts';
+import { VENDORS, vendorById } from 'cortico-provider-coo/src/vendors.ts';
 import { DECIDER_DEFAULT_MODEL, DECIDER_FALLBACK_MODELS } from 'cortico-world-desktop-pet';
 
 /** The self-description 0.1.1 seeded (0.1.0's after the rename). */
@@ -265,6 +266,99 @@ describe('a decision model OpenRouter removed (the default up to v0.10.0) moves 
     writeFileSync(broken.cfg, text);
     expect(() => seed(broken.home)).not.toThrow();
     expect(readFileSync(broken.cfg, 'utf8')).toBe(text);
+  });
+});
+
+describe('upgrading to 0.12: 「接受图片」 alone decides now (upstream #432), so endpoints that got no images before are unticked once', () => {
+  /** A v0.11.0 data folder: its deployment config and these endpoints, without the mark. */
+  function v011(endpoints: Record<string, Record<string, unknown> | string>): { home: string; file: (name: string) => string } {
+    const home = mkdtempSync(join(tmpdir(), 'cc-seed-'));
+    mkdirSync(join(home, DEPLOYMENT), { recursive: true });
+    writeFileSync(join(home, DEPLOYMENT, 'config.json'), JSON.stringify({ displayName: 'Coo', language: 'zh', activeProvider: ENDPOINT }, null, 2) + '\n');
+    const file = (name: string) => join(home, 'providers', name, 'config.json');
+    for (const [name, config] of Object.entries(endpoints)) {
+      mkdirSync(join(home, 'providers', name), { recursive: true });
+      writeFileSync(file(name), typeof config === 'string' ? config : JSON.stringify(config, null, 2) + '\n');
+    }
+    return { home, file };
+  }
+  const deepseek = (model: string, more: Record<string, unknown> = {}) => ({
+    kind: 'coo', baseUrl: 'https://api.deepseek.com', secret: KEY_NAME,
+    spec: { model, thinking: true, reasoningEffort: 'high', maxTokens: 8192 }, multimodal: true, pricing: [], options: {}, ...more,
+  });
+
+  it('turns it off on a built-in service\'s endpoint whose model that service does not list as reading images, and nothing else in it', () => {
+    expect(vendorById('deepseek')?.vision).not.toContain('deepseek-v4-pro');
+    const { home, file } = v011({ deepseek: deepseek('deepseek-v4-pro'), nomodel: { ...deepseek(''), spec: {} } });
+    seed(home);
+    expect(read(file('deepseek'))).toEqual({ ...deepseek('deepseek-v4-pro'), multimodal: false });
+    // no model: no images went out before either
+    expect(read(file('nomodel'))).toMatchObject({ multimodal: false, spec: {} });
+    expect(existsSync(join(home, DEPLOYMENT, IMAGES_MARK))).toBe(true);
+  });
+
+  it('turns it off on every built-in service, at its address with or without a path after it, as the old check read it', () => {
+    const endpoints: Record<string, Record<string, unknown>> = {};
+    for (const v of VENDORS) endpoints[v.id] = { kind: 'coo', baseUrl: v.baseUrl + '/', spec: { model: 'not-a-vision-model' }, multimodal: true };
+    const { home, file } = v011(endpoints);
+    seed(home);
+    for (const v of VENDORS) expect(read(file(v.id)).multimodal, v.id).toBe(false);
+  });
+
+  it('leaves a model the service lists, a box already off, and endpoints at other addresses as they are', () => {
+    const custom = { kind: 'coo', baseUrl: 'http://127.0.0.1:8080/v1', spec: { model: 'llava' }, multimodal: true };
+    const near = { kind: 'coo', baseUrl: 'https://api.deepseek.com.example.org', spec: { model: 'deepseek-v4-pro' }, multimodal: true };
+    const qwen = vendorById('qwen')!;
+    const listed = { kind: 'coo', baseUrl: qwen.baseUrl, spec: { model: qwen.vision![0] }, multimodal: true };
+    const off = deepseek('deepseek-v4-pro', { multimodal: false });
+    const { home, file } = v011({ deepseek: deepseek('deepseek-flash'), custom, near, listed, off });
+    const before = Object.fromEntries(['deepseek', 'custom', 'near', 'listed', 'off'].map((n) => [n, readFileSync(file(n), 'utf8')]));
+    seed(home);
+    for (const [n, text] of Object.entries(before)) expect(readFileSync(file(n), 'utf8'), n).toBe(text);
+  });
+
+  it('leaves the chatgpt module\'s endpoints (always by the box alone) and other modules alone', () => {
+    const chatgpt = { kind: 'chatgpt', baseUrl: 'https://api.openai.com/v1', spec: { model: 'not-a-vision-model' }, multimodal: true };
+    const other = { kind: 'openai-compatible', baseUrl: 'https://api.deepseek.com', spec: { model: 'deepseek-v4-pro' }, multimodal: true };
+    const { home, file } = v011({ chatgpt, other });
+    seed(home);
+    expect(read(file('chatgpt'))).toEqual(chatgpt);
+    expect(read(file('other'))).toEqual(other);
+  });
+
+  it('counts a 0.1.x endpoint of the old deepseek module, which becomes coo first', () => {
+    const { home, file } = v011({ deepseek: deepseek('deepseek-v4-pro', { kind: 'deepseek' }) });
+    seed(home);
+    expect(read(file('deepseek'))).toMatchObject({ kind: 'coo', multimodal: false });
+  });
+
+  it('runs once: a box ticked again afterwards stays ticked', () => {
+    const { home, file } = v011({ deepseek: deepseek('deepseek-v4-pro') });
+    seed(home);
+    expect(read(file('deepseek')).multimodal).toBe(false);
+    writeFileSync(file('deepseek'), JSON.stringify(deepseek('deepseek-v4-pro'), null, 2) + '\n');
+    seed(home);
+    seed(home);
+    expect(read(file('deepseek')).multimodal).toBe(true);
+  });
+
+  it('a new install starts with the box on and keeps a later move to a text-only model with the box ticked', () => {
+    const home = mkdtempSync(join(tmpdir(), 'cc-seed-'));
+    seed(home);
+    const endpoint = join(home, 'providers', ENDPOINT, 'config.json');
+    expect(read(endpoint)).toMatchObject({ multimodal: true, spec: { model: 'deepseek-flash' } });
+    expect(existsSync(join(home, DEPLOYMENT, IMAGES_MARK))).toBe(true);
+    writeFileSync(endpoint, JSON.stringify(deepseek('deepseek-v4-pro'), null, 2) + '\n');
+    seed(home);
+    expect(read(endpoint).multimodal).toBe(true);
+  });
+
+  it('skips a file it cannot read, reads one with a byte order mark, and still writes the mark', () => {
+    const { home, file } = v011({ broken: '{ not json', deepseek: '﻿' + JSON.stringify(deepseek('deepseek-v4-pro')) });
+    expect(() => seed(home)).not.toThrow();
+    expect(readFileSync(file('broken'), 'utf8')).toBe('{ not json');
+    expect(read(file('deepseek')).multimodal).toBe(false);
+    expect(existsSync(join(home, DEPLOYMENT, IMAGES_MARK))).toBe(true);
   });
 });
 

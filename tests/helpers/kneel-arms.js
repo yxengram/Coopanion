@@ -50,7 +50,7 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
   };
 
   /** Her motion on the kit (plus), as the figure runs it: the last frame's output, the frame, and the figure's points. */
-  function onKit({ without = [] } = {}) {
+  function onKit({ without = [], noStills = false } = {}) {
     const R = M.buildRig(model), motion = M.createMotion(model, R), A = M.anchorsOf(model, R);
     const caps = { pose: id => !without.includes(id) && (!!R.ARM[id] || !!R.W[id]), tex: () => true };
     const seen = { R, motion, last: null, o: null, bad: [] };
@@ -67,9 +67,12 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
       gestures: GESTURES,
       get poses() { return { lie: !!R.W.lie, back: true }; },
       get kneelArms() { return !!R.W.kneelLow && caps.pose('kneelLow') && caps.pose('kneel'); },
+      get kneelStills() { return !!R.W.kneelLow && caps.pose('kneelLow') && caps.pose('kneel'); },
       get anchors() { return M.liveAnchors(A, motion.sitRaise); },
       extent: M.extentOf(model, R), hits: M.hitsOf(model, R),
     };
+    // (noStills: as on a kit that does not read figure.kneelStills, upstream's, which ends a kneel for a cheer)
+    if (noStills) delete fig.kneelStills;
     const el = () => ({ setAttribute() {}, innerHTML: '' });
     seen.fig = fig;
     seen.pet = createPet({ petG: el(), shadowEl: el(), fxG: el() }, { sfx: { play() {} }, figure: fig, plus: true, roam: 'off', bounds: () => ({ W: 1200, H: 400, floorY: 380, S: .42 }) });
@@ -440,6 +443,111 @@ export function describeKneelArms(name, { dir, M, make, GESTURES }) {
         checked++;
       });
       expect(checked).toBeGreaterThan(10);
+    });
+
+    it('cheers, flinches and peeks kneeling (kneelStills) on the hybrid: her cheer, 哎呀 and magnifier arms, the kneeling legs still, no hop, no step back, no turn', () => {
+      for (const [w, pose] of [['cheer', 'cheer'], ['flinch', 'oops'], ['peek', 'search']]) {
+        const s = onKit();
+        kneelDown(s);
+        const x = s.pet.pet.x, facing = s.pet.pet.facing, p = s.pet.toStage(128, 128);
+        // (the pointer behind her: standing or seated a peek would turn her round to it first)
+        s.pet.pointerMove({ x: p.x - facing * 300, y: p.y });
+        expect(s.pet.doWord(w), w).toBe(true);
+        let mixed = 0, posed = 0, hybrid = 0;
+        const legs = [];
+        s.run(2.6, () => {
+          const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+          if (k > 0 && k < 1) mixed++;
+          expect(k >= 1 || l >= 1 || (k === 0 && l === 0), w).toBe(true);
+          expect(s.o.kneel, w).toBe(true);
+          expect(s.pet.pet.mode, w).toBe('sit');
+          expect(s.pet.pet.x, w).toBe(x);
+          expect(s.pet.pet.facing, w).toBe(facing);
+          // (the seated body never shows)
+          expect(s.alpha('sit_skirt'), w).toBe(0);
+          posed = Math.max(posed, s.motion.arms[pose] || 0);
+          if (l >= 1) {
+            hybrid++;
+            const { kneelLow, body } = s.last.st;
+            legs.push(kneelLow.ty ?? 0);
+            // the lower body turns and squashes with her body, so the waist stays shut
+            for (const q of ['a', 'sx', 'sy']) expect(kneelLow[q], `${w} ${q}`).toBe(body[q]);
+          }
+        });
+        expect(mixed, w).toBeLessThanOrEqual(Math.ceil(M.BODY_CUT * 60));
+        expect(posed, w).toBe(1);
+        expect(hybrid, w).toBeGreaterThan(30);
+        // no hop: the kneeling legs stay where they are on the floor (a cheer's bounce would lift them)
+        expect(Math.max(...legs) - Math.min(...legs), w).toBeLessThan(1e-9);
+        s.run(4);
+        expect(s.alpha('kneel_body'), w).toBe(1);
+        expect(s.alpha('kneel_low'), w).toBe(0);
+        expect(s.o.kneel, w).toBe(true);
+        expect(s.bad, w).toEqual([]);
+      }
+    });
+
+    it('kneels and cheers, flinches or peeks at once from standing, either order: straight into the hybrid, never the seated body', () => {
+      for (const w of ['cheer', 'flinch', 'peek']) {
+        for (const ws of [['kneel', w], [w, 'kneel']]) {
+          const s = onKit(), tag = ws.join('+');
+          s.run(.5);
+          const x = s.pet.pet.x;
+          expect(s.pet.doGroup(ws), tag).toEqual([true, true]);
+          let seated = 0, mixed = 0, low = 0;
+          s.run(2, () => {
+            if (s.alpha('sit_skirt') > 0) seated++;
+            const k = s.alpha('kneel_body'), l = s.alpha('kneel_low');
+            if (k > 0 && k < 1) mixed++;
+            low = Math.max(low, l);
+            expect(s.pet.pet.mode, tag).toBe('sit');
+          });
+          expect(seated, tag).toBe(0);
+          expect(mixed, tag).toBeLessThanOrEqual(Math.ceil(M.BODY_CUT * 60));
+          expect(low, tag).toBe(1);
+          expect(s.pet.pet.x, tag).toBe(x);
+          expect(s.o.kneel, tag).toBe(true);
+          s.run(3);
+          expect(s.alpha('kneel_body'), tag).toBe(1);
+        }
+      }
+    });
+
+    it('gets up from the middle of a cheer by the hybrid and the kneeling drawing, never the seated body', () => {
+      const s = onKit();
+      kneelDown(s);
+      s.pet.doWord('cheer');
+      s.run(.5);
+      expect(s.motion.kneelArmsK).toBe(1);
+      s.pet.doWord('stand');
+      let seated = 0, cheering = 0;
+      const legs = [];
+      s.run(4, () => {
+        if (s.alpha('sit_skirt') > 0) seated++;
+        // (on the way up the kit's kneel is off, but the hybrid's legs stay on the floor: no cheer's bounce lifts them)
+        if (s.alpha('kneel_low') >= 1) { legs.push(s.last.st.kneelLow.ty ?? 0); if (s.o.gesture?.kind === 'cheer') cheering++; }
+      });
+      expect(seated).toBe(0);
+      expect(cheering).toBeGreaterThan(10);
+      expect(Math.max(...legs) - Math.min(...legs)).toBeLessThan(1e-9);
+      expect(s.alpha('kneel_low')).toBe(0);
+      expect(s.alpha('kneel_body')).toBe(0);
+      expect(s.bad).toEqual([]);
+    });
+
+    it('says the kit may keep a kneel through a cheer, a flinch and a peek only with the files there; a kit that does not read it ends the kneel as before', async () => {
+      const fig = await make();
+      expect(fig.kneelStills).toBe(true);
+      expect((await make(['kneel_low'])).kneelStills).toBe(false);
+      for (const w of ['cheer', 'flinch', 'peek']) {
+        for (const opt of [{ noStills: true }, { without: ['kneelLow'] }]) {
+          const s = onKit(opt);
+          kneelDown(s);
+          s.pet.doWord(w);
+          s.run(.3);
+          expect(s.o.kneel, `${w} ${JSON.stringify(opt)}`).toBe(false);
+        }
+      }
     });
 
     it('says the kit may keep a kneel through arm gestures only with the files there; without them a wave ends it', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUBBLE_SPEED_MAX, DESKTOP_PET_DEFAULTS } from '../src/config.ts';
 import { figurePacks } from '../src/packs.ts';
-import { CHANNELS, channelsOf, clashes, estimateSeconds, lastingNote, type Channel, pairKey, partsNote, parseActions as actionsIn, parseScript as scriptIn, vocabId, vocabTable, INLINE_TAG_MAX, type Pairs, type VocabWord } from '../src/script.ts';
+import { CHANNELS, channelsOf, clashes, estimateSeconds, KNEEL_STILLS, kneelKeeps, lastingNote, type Channel, pairKey, partsNote, parseActions as actionsIn, parseScript as scriptIn, vocabId, vocabTable, INLINE_TAG_MAX, type Pairs, type VocabWord } from '../src/script.ts';
 
 // Coo's words, as the body on screen gives them
 const VOCAB = figurePacks([]).packs.find((p) => p.id === 'coo')!.manifest.vocab;
@@ -67,6 +67,12 @@ describe('parseScript', () => {
     // a word of the pack's own named like a tag stays its word
     const b: VocabWord = { id: 'b', kind: 'motion', names: { zh: ['蹦'] }, about: { zh: '蹦' }, seconds: 1 };
     expect(scriptIn('<b>好', [b]).beats).toEqual([{ actions: [], text: '好', anchors: [{ at: 0, actions: ['b'] }] }]);
+    // attributes have values ("x", 'x', x); a bare word after a tag's name is no attribute, so a comparison is no tag
+    // (an inline marker then, as any short <…>: its words are dropped and reported)
+    expect(parseScript(`<font color='red' size=3>红</font>`)).toEqual({ beats: [{ actions: [], text: '红', anchors: [] }], dropped: [], notes: [] });
+    expect(parseScript('看<a href=https://example.com/a?x=1&y=2>这里</a>')).toEqual({ beats: [{ actions: [], text: '看这里', anchors: [] }], dropped: [], notes: [] });
+    expect(parseScript('如果 a<b 且 b>c').dropped).toEqual(['b', '且', 'b']);
+    expect(parseScript('x<i 和 j>y').dropped).toEqual(['i', '和', 'j']);
     // an unclosed or multi-line one is text, as before
     expect(parseScript('a<br').beats[0].text).toBe('a<br');
     expect(parseScript('a<span\nclass="x">b').beats[0].text).toBe('a<span\nclass="x">b');
@@ -635,9 +641,10 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
   });
 
   it('still splits a kneel from gestures that need her standing or seated still, and from a turn', () => {
-    const cheer = girlScript('【跪坐+欢呼】');
-    expect(cheer.beats[0].actions).toEqual(['kneel', 'cheer']);
-    expect(cheer.notes).toEqual(['跪坐 和 欢呼 不能同时做,改成先后做。']);
+    const bow = girlScript('【跪坐+鞠躬】');
+    expect(bow.beats[0].actions).toEqual(['kneel', 'bow']);
+    expect(bow.notes).toEqual(['跪坐 和 鞠躬 不能同时做,改成先后做。']);
+    for (const s of ['【跪坐+背过身】', '【跪坐+转圈】']) expect(girlScript(s).beats[0].actions, s).toHaveLength(2);
     expect(girlScript('【跪坐+转身】').beats[0].actions).toEqual(['kneel', 'turn']);
     expect(girlScript('【跪坐+点头+开心】').beats[0].actions).toEqual(['kneel+nod+happy']);
   });
@@ -650,14 +657,16 @@ describe('kneeling for a figure that draws arm gestures kneeling (keepsArms)', (
       expect(got.notes, s).toEqual([]);
     }
     expect(clashes(kneel, GIRL.find((v) => v.id === 'song')!)).toBe(false);
-    expect(clashes(kneel, GIRL.find((v) => v.id === 'cheer')!)).toBe(true);
+    expect(clashes(kneel, GIRL.find((v) => v.id === 'bow')!)).toBe(true);
     // a song still splits from a walk, and Coo's kneel (no flag) from a song
     expect(girlScript('【走走+唱歌】').beats[0].actions).toEqual(['walk', 'song']);
     expect(parseScript('【跪坐+唱歌】').beats[0].actions).toEqual(['kneel', 'song']);
   });
 
   it('says how long the kneel lasts by the flag, in the vocabulary table and the note', () => {
-    expect(lastingNote(kneel)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴、耳朵、翅膀的动作、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(kneel)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴、耳朵、翅膀的动作、只占「手」的手势、唱歌和欢呼、后缩、探头都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    // (without keepsStills, a kneel word with keepsArms only: a third-party pack's)
+    expect(lastingNote({ ...kneel, keepsStills: undefined })).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴、耳朵、翅膀的动作、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
     expect(lastingNote(cooKneel)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴、耳朵、翅膀的动作不影响');
     expect(row('kneel', GIRL)).toContain(lastingNote(kneel, GIRL));
     expect(row('kneel', GIRL)).not.toContain('也占手');
@@ -703,7 +712,7 @@ describe('kneeling for a figure that leans kneeling (keepsLeans)', () => {
       expect(clashes(word(GIRL, 'kneel'), word(GIRL, id)), id).toBe(true);
     }
     // the other gestures that need her still still end it (a bow, a cheer), and a stamp stands her up
-    for (const id of ['bow', 'cheer', 'stamp']) expect(clashes(word(WHALE, 'kneel'), word(WHALE, id)), id).toBe(true);
+    for (const id of ['bow', 'away', 'stamp']) expect(clashes(word(WHALE, 'kneel'), word(WHALE, id)), id).toBe(true);
     const got = scriptIn('【跪坐+凑近】', WHALE);
     expect(got.beats[0].actions).toEqual(['kneel+closer']);
     expect(got.notes).toEqual([]);
@@ -711,8 +720,69 @@ describe('kneeling for a figure that leans kneeling (keepsLeans)', () => {
   });
 
   it('says in the kneel note that the leans keep it, for her only (the girls\' note is unchanged)', () => {
-    expect(lastingNote(word(WHALE, 'kneel'), WHALE)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴的动作、只占「手」的手势、唱歌和凑近、后仰、晃来晃去都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
-    expect(lastingNote(word(GIRL, 'kneel'), GIRL)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、只占「手」的手势和唱歌都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(word(WHALE, 'kneel'), WHALE)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、尾巴的动作、只占「手」的手势、唱歌和欢呼、后缩、探头、凑近、后仰、晃来晃去都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    expect(lastingNote(word(GIRL, 'kneel'), GIRL)).toBe('保持到下一个全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、低头、眨眨眼、抬头、喘气、闭眼、打喷嚏、只占「手」的手势、唱歌和欢呼、后缩、探头都不影响(她跪着做);「手,要站着或坐着不动」那组别的动作会让她变回普通坐着');
+    // (the leans without keepsStills: as before it)
+    expect(lastingNote({ ...word(WHALE, 'kneel'), keepsStills: undefined }, WHALE)).toContain('只占「手」的手势、唱歌和凑近、后仰、晃来晃去都不影响');
+  });
+});
+
+describe('kneeling for a figure that cheers, flinches and peeks kneeling (keepsStills)', () => {
+  // the four girls' and the whale's `kneel` say keepsStills (the kit's figure.kneelStills); Coo's does not
+  const packs = figurePacks([]).packs;
+  const vocabOf = (id: string) => packs.find((p) => p.id === id)!.manifest.vocab;
+  const word = (v: readonly VocabWord[], id: string) => v.find((w) => w.id === id)!;
+  const FIGS = ['claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan', 'whale'];
+  const row = (id: string, vocab: readonly VocabWord[]) => vocabTable(vocab).split('\n').find((l) => l.startsWith(`- ${id} `))!;
+
+  it('is on the kneel of the girls and the whale only, with keepsArms', () => {
+    for (const id of FIGS) expect(word(vocabOf(id), 'kneel'), id).toMatchObject({ lasting: true, keepsArms: true, keepsStills: true });
+    expect(word(vocabOf('coo'), 'kneel').keepsStills).toBeUndefined();
+    expect([...KNEEL_STILLS]).toEqual(['cheer', 'flinch', 'peek']);
+  });
+
+  it('does a kneel and a cheer, a flinch or a peek as one group, either order, with no note; other gestures needing her still still split', () => {
+    for (const id of FIGS) {
+      const v = vocabOf(id), k = word(v, 'kneel');
+      for (const [n, w] of [['欢呼', 'cheer'], ['后缩', 'flinch'], ['探头', 'peek']] as const) {
+        expect(clashes(k, word(v, w)), `${id} ${w}`).toBe(false);
+        expect(clashes(word(v, w), k), `${id} ${w}`).toBe(false);
+        expect(kneelKeeps(k, word(v, w)), `${id} ${w}`).toBe(true);
+        for (const [s, want] of [[`【跪坐+${n}】`, `kneel+${w}`], [`【${n}+跪坐】`, `${w}+kneel`], [`【跪坐+${n}+开心】`, `kneel+${w}+happy`]]) {
+          const got = scriptIn(s, v);
+          expect(got.beats[0].actions, `${id} ${s}`).toEqual([want]);
+          expect(got.notes, `${id} ${s}`).toEqual([]);
+        }
+      }
+      // still one after the other: two of them, or one with another arm word (they take her arms)
+      expect(scriptIn('【跪坐+欢呼+招手】', v).beats[0].actions, id).toHaveLength(2);
+      expect(scriptIn('【欢呼+探头】', v).beats[0].actions, id).toEqual(['cheer', 'peek']);
+      for (const w of ['bow', 'away', 'spin', 'turn', 'stamp']) expect(clashes(k, word(v, w)), `${id} ${w}`).toBe(true);
+    }
+    // Coo's kneel (no flag) splits from them, as before
+    const coo = vocabOf('coo');
+    for (const w of KNEEL_STILLS) expect(clashes(word(coo, 'kneel'), word(coo, w)), w).toBe(true);
+    expect(scriptIn('【跪坐+欢呼】', coo).notes).toEqual(['跪坐 和 欢呼 不能同时做,改成先后做。']);
+    // the flag alone, without keepsArms on the word, still frees nothing but these three
+    const bare = { ...word(coo, 'kneel'), keepsStills: true };
+    expect(clashes(bare, word(coo, 'cheer'))).toBe(false);
+    expect(clashes(bare, word(coo, 'wave'))).toBe(true);
+    // and its note says so: the three do not end the kneel (a hand gesture still does), as kneelKeeps has it
+    expect(lastingNote(bare, coo)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、欢呼、后缩、探头不影响');
+    expect(lastingNote({ ...bare, keepsStills: undefined, keepsLeans: true }, coo)).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头、凑近、后仰、晃来晃去不影响');
+    for (const w of ['cheer', 'flinch', 'peek']) expect(kneelKeeps(bare, word(coo, w)), w).toBe(true);
+  });
+
+  it('names them in the kneel\'s note only with the flag, and only the ones the figure has; Coo\'s note is unchanged', () => {
+    const v = vocabOf('claude-chan'), k = word(v, 'kneel');
+    expect(lastingNote(k, v)).toContain('只占「手」的手势、唱歌和欢呼、后缩、探头都不影响(她跪着做)');
+    expect(lastingNote(k, v.filter((w) => w.id !== 'peek'))).toContain('只占「手」的手势、唱歌和欢呼、后缩都不影响(她跪着做)');
+    expect(lastingNote(k, v.filter((w) => !KNEEL_STILLS.has(w.id)))).toContain('只占「手」的手势和唱歌都不影响(她跪着做)');
+    expect(lastingNote(word(vocabOf('coo'), 'kneel'), vocabOf('coo'))).toBe('保持到下一个手或全身动作,然后变回普通坐着;换表情、点头、摇头、叹气、歪头不影响');
+    for (const id of FIGS) expect(row('kneel', vocabOf(id)), id).toContain('欢呼、后缩、探头');
+    // (the 部位 column is the same: 身 for her kneel, 手,要站着或坐着不动 for the three)
+    for (const w of KNEEL_STILLS) expect(channelsOf(word(v, w)), w).toEqual(['arm', 'stance']);
+    expect(channelsOf(k)).toEqual(['body', 'stance']);
   });
 });
 

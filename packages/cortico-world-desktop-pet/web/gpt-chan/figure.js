@@ -326,6 +326,12 @@ export async function createGptFigure(base = new URL('./', import.meta.url), opt
      * keeps a kneel through its ARM_GESTURES; without the files (a scheme, an old pack) a gesture ends the kneel as before.
      */
     get kneelArms() { return !!R.W.kneelLow && caps.pose('kneelLow') && caps.pose('kneel'); },
+    /**
+     * (plus) She cheers, flinches and peeks kneeling too (the kit's KNEEL_STILLS, on the hybrid: her cheer's, flinch's
+     * and magnifier's arms, no hop, no step back), so a kit that reads this keeps a kneel through them; a kit that does
+     * not, or a dress without the files, ends the kneel for them as before.
+     */
+    get kneelStills() { return !!R.W.kneelLow && caps.pose('kneelLow') && caps.pose('kneel'); },
     schemes: SCHEMES,
     outfits: OUTFITS,
     /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { figurePacks } from '../src/packs.ts';
-import { parseActions, vocabId, type VocabWord } from '../src/script.ts';
+import { parseActions, parseScript, vocabId, type VocabWord } from '../src/script.ts';
 import {
   PICK_DEFAULTS, buildQuestions, buildRequest, buildState, DECIDER_DEFAULT_MODEL, DECIDER_FALLBACK_MODELS, DECIDER_MIN_CONTEXT, DeciderClient, errorGist, failureText, LOCAL_FALLBACK, localPick, modelGone, parseAnswers, parseDeciderModels, parseUsage, pickGroup, questionOf,
   QUESTION_IDS, stripMarkers, type Answer, type Question, type QuestionId,
@@ -457,20 +457,66 @@ describe('the listing of decision models (GET /api/v1/models?output_modalities=d
 describe('stripMarkers (decider mode keeps brackets that are not words)', () => {
   const vocab = packOf('claude-chan').manifest.vocab;
   it.each([
-    ['用 <div> 标签写', '用 <div> 标签写', false],
     ['a < b 而且 c > d', 'a < b 而且 c > d', false],
     ['我觉得 3<5 是对的', '我觉得 3<5 是对的', false],
     ['<3 爱你', '<3 爱你', false],
+    // comparisons whose first letter is a tag's name (b, i): no attribute with a value, so no tag
+    ['如果 a<b 且 b>c 就行', '如果 a<b 且 b>c 就行', false],
+    ['x<i 和 j>y', 'x<i 和 j>y', false],
+    ['a<b and c>d', 'a<b and c>d', false],
+    ['<bb>好', '<bb>好', false],
     ['【重要】明天开会', '明天开会', true],
     ['【超开心】好', '好', true],
     ['<小声>悄悄说', '悄悄说', true],
-    ['<b>粗体</b>', '<b>粗体</b>', false],
     ['<Nod>好', '好', true],
     ['他说<点头>好', '他说好', true],
     ['【开心】你好', '你好', true],
     ['【开心+招手】你好＜眨眼＞呀', '你好呀', true],
   ] as const)('%s', (input, out, stripped) => {
     expect(stripMarkers(input, vocab)).toEqual({ text: out, stripped });
+  });
+
+  // HTML tags read as classic parseScript reads them (htmlTag): not markers, so no receipt note (stripped false)
+  it.each([
+    ['第一行<br>第二行', '第一行\n第二行', false],
+    ['第一行<br/>第二行<BR />三', '第一行\n第二行\n三', false],
+    ['<br>你好<br>', '你好', false],
+    ['<b>粗体</b>', '粗体', false],
+    ['<b>重点</b>来了<span class="x">嗯</span>', '重点来了嗯', false],
+    ["<font color='red' size=3>红</font>", '红', false],
+    ['用 <div> 标签写', '用  标签写', false],
+    ['看<a href="https://example.com/a/rather/long/path/to/somewhere">这里</a>', '看这里', false],
+    // an unquoted value may hold = (a query string)
+    ['看<a href=https://example.com/a?x=1&y=2>这里</a>', '看这里', false],
+    ['【开心】<b>好</b>呀<br>嗯', '好呀\n嗯', true],
+    ['<b>好</b><点头>', '好', true],
+    // unclosed or over two lines: text, as in classic
+    ['a<br', 'a<br', false],
+    ['a<span\nclass="x">b', 'a<span\nclass="x">b', false],
+    // ＜…＞ is never a tag (classic reads only < as one)
+    ['＜b＞好', '＜b＞好', false],
+  ] as const)('HTML: %s', (input, out, stripped) => {
+    expect(stripMarkers(input, vocab)).toEqual({ text: out, stripped });
+  });
+
+  it('a text of tags alone is empty; a pack word named like a tag stays a marker', () => {
+    expect(stripMarkers('<br><br/>', vocab)).toEqual({ text: '', stripped: false });
+    const b: VocabWord = { id: 'b', kind: 'motion', names: { zh: ['蹦'] }, about: { zh: '蹦' }, seconds: 1 };
+    expect(stripMarkers('<b>好', [b])).toEqual({ text: '好', stripped: true });
+  });
+
+  it('leaves the same bubble text as classic parseScript for text, HTML tags and markers of known words', () => {
+    const texts = [
+      '第一行<br>第二行', '<b>重点</b>来了<span class="x">嗯</span>', '看<a href="https://example.com/a/rather/long/path/to/somewhere">这里</a>',
+      '用 <div> 标签写', '<p>一段</p><hr>', '看<a href=https://example.com/a?x=1&y=2>这里</a>', '【开心】你好<点头>呀<br/>嗯', 'a<br', '没有标记的话',
+    ];
+    for (const t of texts) {
+      const classic = parseScript(t, vocab).beats.map((b) => b.text).join('');
+      const got = stripMarkers(t, vocab).text;
+      // the same characters, and the same line breaks (classic also trims each beat; spaces may differ there)
+      expect(got.replace(/\s+/g, ''), t).toBe(classic.replace(/\s+/g, ''));
+      expect(got.split('\n').length, t).toBe(classic.split('\n').length);
+    }
   });
 });
 

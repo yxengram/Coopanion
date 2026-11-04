@@ -390,7 +390,10 @@ export const soundRows = (sounds) => sounds.map((s) => `| \`${s.name}\` | ${KIND
 /** The README's install steps, for a pack named `manifest.name.zh`. */
 export const installSection = (manifest) => `## 安装
 
-把整个 \`${manifest.id}\` 文件夹复制到数据目录下的 \`home/companion/data/figures/\` 里(没有 \`figures\` 就新建),
+**v0.1.20 及以后**:在装扮页「形象」一行的最后点「导入」,选这个包的 zip(或解压出来的 \`${manifest.id}\` 文件夹)。
+装好就出现在「形象」一行里,不用重启。
+
+**更早的版本**(没有「导入」):把整个 \`${manifest.id}\` 文件夹复制到数据目录下的 \`home/companion/data/figures/\` 里(没有 \`figures\` 就新建),
 即 \`<数据目录>/home/companion/data/figures/${manifest.id}/figure.json\`。数据目录:
 
 - Windows:安装目录下的 \`data\`(和 \`Coopanion.exe\` 在同一个文件夹里)

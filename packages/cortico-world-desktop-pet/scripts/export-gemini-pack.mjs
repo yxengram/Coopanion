@@ -25,7 +25,7 @@ Coopanion 的桌宠形象「Gemini 娘」导出成的形象包(id \`${manifest.i
 她有两套服装:常服和冬装,在装扮页的「服装」一行里选(原版也有这一行),换服装是一帧切换。
 
 ${installSection(manifest)}
-然后重启 Coopanion,在装扮页最上面一行「形象」里选「${manifest.name.zh}」。
+复制后重启 Coopanion,在装扮页最上面一行「形象」里选「${manifest.name.zh}」。
 
 在 Coopanion 自己(${SOURCE_URL})里,这个包是内置 Gemini 娘的别名:装了不会多出一个形象,
 配置里选着它时显示的就是内置的「Gemini 娘」。

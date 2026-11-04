@@ -27,7 +27,7 @@ Coopanion 的桌宠形象「DeepSeek 大肥鱼」导出成的形象包(id \`${ma
 原版没有的 ${sounds.length} 个音效事先渲染成了 \`sounds/*.wav\`。${manifest.axes[1] ? '\n冬装的手上动作和整身的姿势都画好了:毛绒袖口带蓝色小蝴蝶结的手臂,跪坐(跪着也能做手上的动作)、趴下、背影和翻滚时团成的球,\n八套配色各一份。' : ''}
 
 ${installSection(manifest)}
-然后重启 Coopanion,在装扮页最上面一行「形象」里选「${manifest.name.zh}」,配色${manifest.axes[1] ? '和服装' : ''}在下面${manifest.axes[1] ? '两行' : '一行'}。
+复制后重启 Coopanion,在装扮页最上面一行「形象」里选「${manifest.name.zh}」,配色${manifest.axes[1] ? '和服装' : ''}在下面${manifest.axes[1] ? '两行' : '一行'}。
 
 在 Coopanion 自己(${SOURCE_URL})里,这个包是内置大肥鱼的别名:装了不会多出一个形象,
 配置里选着它时显示的就是内置的「DeepSeek 大肥鱼」,配色不变。

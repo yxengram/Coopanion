@@ -99,7 +99,7 @@ GitHub Actions 会构建 Windows 安装包、Windows 便携版 zip 和两个 Mac
 ## 提交改动
 
 - 提 PR 前先跑 `pnpm run test`、`pnpm run test:worlds`、`pnpm run typecheck`、`pnpm run typecheck:web` 和 `pnpm run typecheck:worlds`，CI 也会跑这些检查。
-- 改到用户能看到的行为时,同步更新 [README](../README.md)。
+- 改到用户能看到的行为时,同步更新说明:[README](../README.md)(和 `README_zh.md`)只写这个分支和上游的不同,一两句话;细节写进 [docs/FORK.md](FORK.md)(和 `FORK.en.md`)。上游也有、行为一样的功能不用写,上游的 README 已经写了。
 - 贡献按 AGPL-3.0-or-later 发布,不用签协议,见 [CONTRIBUTING.md](../CONTRIBUTING.md)。
 
 ## CI 检查与手动冒烟测试

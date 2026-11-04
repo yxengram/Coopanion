@@ -57,7 +57,7 @@ More detail on the figures, expressions and motions, expression decisions and sm
 - **Where updates come from**: auto-update, download links and the one-line installer all point at this fork (yxengram/Coopanion), not upstream.
 - **Usage statistics**: this fork sends no anonymous statistics at all and creates no install ID. Upstream sends them by default; you can turn that off in its settings.
 - **Computer use**: on by default, but Coo asks you before each round of looking at the screen or using the mouse and keyboard. Upstream has it off by default.
-- **Settings window**: in normal mode, Computer use has a page of its own, and World extensions appear only in advanced mode.
+- **Settings window**: in normal mode, Computer use has a page of its own; the Extensions page appears only in advanced mode (upstream calls it World extensions and shows it in normal mode).
 - **Languages**: only Chinese and English are complete; the nine other languages translate only the pages that come from Cortico. The prompts sent to the model are always in Chinese, and Coo answers in the app's language.
 
 ### What upstream has and this fork doesn't
@@ -75,6 +75,7 @@ This fork follows upstream up to v0.2.13 (Cortico 0.2.9), and some upstream feat
   - the whale's third outfit, the Crew uniform;
   - Coo's color schemes Principle: Lantern, Grail, Forge, Heart and Winter;
   - walk targets declared by a pack (standing on top of a window, for example).
+- Computer use: upstream asks you once more before Coo types into a terminal or presses Win+R; this fork has no such extra check.
 - Settings and the guide: OBS output, the alarm list, status icons above Coo's head, `PARTNER.md` memory with its Git history, and choosing Coo's temperament and how it responds to interactions during the guide.
 - Languages and models: 11 complete UI languages, Whisper speech recognition, the international platforms of several model services, the Chat Completions protocol, and StepFun Step Plan.
 - The Steam version.

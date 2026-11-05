@@ -151,6 +151,8 @@ describe('figure packs', () => {
     expect(problems).toEqual([]);
     expect(packs.map((p) => p.id)).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']);
     expect(PACK_ALIASES).toEqual({
+      'yxengram-whale': 'whale', 'yxengram-claude-chan': 'claude-chan', 'yxengram-gpt-chan': 'gpt-chan', 'yxengram-gemini-chan': 'gemini-chan',
+      'yxengram-grok-chan': 'grok-chan',
       'coopanion-whale': 'whale', 'coopanion-claude-chan': 'claude-chan', 'coopanion-gpt-chan': 'gpt-chan', 'coopanion-gemini-chan': 'gemini-chan',
       'coopanion-grok-chan': 'grok-chan',
     });
@@ -162,7 +164,7 @@ describe('figure packs', () => {
 
   it('takes our GPT-chan exported as a pack for the built-in one, next to the other exports', () => {
     const root = mkdtempSync(join(tmpdir(), 'packs-'));
-    for (const id of ['coopanion-gpt-chan', 'coopanion-claude-chan', 'coopanion-whale', 'coopanion-gemini-chan', 'coopanion-grok-chan']) {
+    for (const id of Object.keys(PACK_ALIASES)) {
       mkdirSync(join(root, id));
       writeFileSync(join(root, id, 'figure.json'), JSON.stringify({ ...base, id }));
     }
@@ -540,7 +542,7 @@ describe('importing figure packs from the dressing page', () => {
 
   it('refuses a built-in id and a built-in\'s exported copy, and says why a broken pack cannot go in', async () => {
     const { imp, packDir } = importer();
-    const zip = zipSync({ ...robotFiles('a/', 'whale'), ...robotFiles('b/', 'coopanion-gpt-chan'), 'c/figure.json': strToU8('{"manifest":9}'), ...robotFiles('d/', 'coo') });
+    const zip = zipSync({ ...robotFiles('a/', 'whale'), ...robotFiles('b/', 'yxengram-gpt-chan'), 'c/figure.json': strToU8('{"manifest":9}'), ...robotFiles('d/', 'coo') });
     const staged = await imp.stage(files(filesFromZip(zip)), false);
     if ('error' in staged) throw new Error(staged.error);
     expect(staged.packs).toEqual([]);

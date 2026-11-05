@@ -266,7 +266,7 @@ Windows 上经 koffi 轮询 Win32 `GetAsyncKeyState` 读取;macOS 上轮询 Core
 
 | 字段 | 含义 |
 |---|---|
-| `id` | 小写字母、数字和 `-`,不能和内置包(`coo`、`whale`、`claude-chan`、`gpt-chan`、`gemini-chan`、`grok-chan`)重名;`coopanion-whale`、`coopanion-claude-chan`、`coopanion-gpt-chan`、`coopanion-gemini-chan`、`coopanion-grok-chan`(大肥鱼、Claude 娘、GPT 娘、Gemini 娘和 Grok 娘导出给别的 Coopanion 用的包)在这里当作内置的那个,装了也不列出来,`skin.figure` 写它时显示内置的那条 |
+| `id` | 小写字母、数字和 `-`,不能和内置包(`coo`、`whale`、`claude-chan`、`gpt-chan`、`gemini-chan`、`grok-chan`)重名;`yxengram-whale`、`yxengram-claude-chan`、`yxengram-gpt-chan`、`yxengram-gemini-chan`、`yxengram-grok-chan`(大肥鱼、Claude 娘、GPT 娘、Gemini 娘和 Grok 娘导出给别的 Coopanion 用的包,以及它们以前的 id `coopanion-<id>`)在这里当作内置的那个,装了也不列出来,`skin.figure` 写它时显示内置的那条 |
 | `name`、`about` | 按语言的名字;`about` 写这个身体长什么样,原样放进 bot 的环境提示词 |
 | `entry`、`export` | 模块路径和它导出的工厂函数 |
 | `model` | 交给工厂的 JSON(`opts.model`),可省 |

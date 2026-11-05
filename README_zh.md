@@ -90,16 +90,20 @@
 
 | 下载 | 形象 | 表情和动作 | 服装 | 大小 |
 | ---- | ---- | ---------- | ---- | ---- |
-| [**全部五个**](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-all-figures.zip) | 下面五个都在一个 zip 里 | | | 184 MB |
-| [coopanion-whale.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-whale.zip) | 大肥鱼 | 133 | 8 套配色 × 女仆装 / 冬装 | 58 MB |
-| [coopanion-claude-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-claude-chan.zip) | Claude 娘 | 132 | 常服 / 冬装 | 27 MB |
-| [coopanion-gpt-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-gpt-chan.zip) | GPT 娘 | 134 | 常服 / 冬装 | 41 MB |
-| [coopanion-gemini-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-gemini-chan.zip) | Gemini 娘 | 137 | 常服 / 冬装 | 26 MB |
-| [coopanion-grok-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-grok-chan.zip) | Grok 娘 | 133 | 常服 / 冬装 | 33 MB |
+| [**全部五个**](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-all-figures.zip) | 下面五个都在一个 zip 里 | | | 184 MB |
+| [yxengram-whale.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-whale.zip) | 大肥鱼 扩展版 | 133 | 8 套配色 × 女仆装 / 冬装 | 58 MB |
+| [yxengram-claude-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-claude-chan.zip) | Claude 娘 | 132 | 常服 / 冬装 | 27 MB |
+| [yxengram-gpt-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-gpt-chan.zip) | GPT 娘 | 134 | 常服 / 冬装 | 41 MB |
+| [yxengram-gemini-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-gemini-chan.zip) | Gemini 娘 | 137 | 常服 / 冬装 | 26 MB |
+| [yxengram-grok-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-grok-chan.zip) | Grok 娘 | 133 | 常服 / 冬装 | 33 MB |
 
 导入「全部五个」时会列出五个形象，默认都勾上，一次就能装好。它超过 128 MB，要原版 v0.2.16 及以后才能导入（会提示文件较大，确认即可）；更早的原版不收这么大的包，请一个一个导入单独的包。
 
-用原版 v0.2.17 的导入功能试过：五个单独的包和「全部五个」都能装上、正常显示。校验值见 [SHA256SUMS](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/SHA256SUMS)，所有文件也可以在 [packs-v0.12.0](https://github.com/yxengram/Coopanion/releases/tag/packs-v0.12.0) 页面下载。
+用原版 v0.2.18 的导入功能试过：五个单独的包和「全部五个」都能装上，五个形象都能正常显示。校验值见 [SHA256SUMS](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/SHA256SUMS)，所有文件也可以在 [packs-v0.12.0](https://github.com/yxengram/Coopanion/releases/tag/packs-v0.12.0) 页面下载。
+
+这些包是这个分支做的，不是 Coopanion 官方出品。
+
+如果装过改名前的旧包（文件名以 `coopanion-` 开头，大肥鱼那个叫「Coopanion 大肥鱼」），请**先在装扮页卸载旧包，再导入新包**：新旧包的 id 不同，不会自动覆盖；四位娘的新旧包名字和图都一样，都装上后分不出哪个是旧的。正在用的形象被卸载后，桌宠会换回 Coo，导入后再选一次就好。原版 v0.2.7 起才能在装扮页卸载，更早的版本请删掉数据目录下 `home/companion/data/figures/` 里以 `coopanion-` 开头的文件夹。已经都装上的话，也可以这样删。
 
 贴图的许可见下面的[许可](#许可)：四位娘的贴图只限非商业使用。
 

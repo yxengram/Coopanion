@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * Exports the built-in Claude-chan (web/claude-chan/) as the figure pack `coopanion-claude-chan`, which other copies
+ * Exports the built-in Claude-chan (web/claude-chan/) as the figure pack `yxengram-claude-chan`, which other copies
  * of the desktop pet can install, upstream's v0.1.17 included: `node scripts/export-claude-pack.mjs [outDir]
- * [--upstream <ref>]` (default `build/packs` under the repository root) writes `<outDir>/coopanion-claude-chan/`.
+ * [--upstream <ref>]` (default `build/packs` under the repository root) writes `<outDir>/yxengram-claude-chan/`.
  * The work is scripts/export-pack.mjs's; this file is her descriptor (names, licence, README).
  *
  * Her art is for non-commercial use only (THIRD_PARTY_NOTICES.md): the manifest's licence and the pack's README say so.
- * In Coopanion itself the id `coopanion-claude-chan` is an alias of the built-in Claude-chan (src/packs.ts
+ * In this fork the id `yxengram-claude-chan` is an alias of the built-in Claude-chan (src/packs.ts
  * PACK_ALIASES). Used by tests/claude-pack-export.test.js; nothing renders or writes on import.
  */
 import {
-  PKG_REL, SOURCE_URL, installSection, moduleClosure, packExporter, runCli, soundSection,
+  PKG_REL, SOURCE_URL, UPSTREAM_URL, installSection, moduleClosure, packExporter, runCli, soundSection,
 } from './export-pack.mjs';
 
 /** The pack's README, in Chinese. */
@@ -18,8 +18,9 @@ export function packReadme(manifest, sounds) {
   const code = moduleClosure(manifest.entry).sort().map((m) => `\`${m}\``).join('、');
   return `# ${manifest.name.zh}
 
-Coopanion 的桌宠形象「Claude 娘」导出成的形象包(id \`${manifest.id}\`,版本 ${manifest.version}),可以装进别的 Coopanion
-(包括原版 v0.1.17 及以后)。她带着自己的 kit(\`kit/body.js\`、\`kit/rig.js\`、\`kit/outfit.js\`),所以在原版里也会全部 ${manifest.vocab.length} 个表情和动作:
+yxengram 维护的 Coopanion 分支(${SOURCE_URL})把桌宠形象「Claude 娘」导出成的形象包(id \`${manifest.id}\`,版本 ${manifest.version}),
+**不是 Coopanion 官方出品**。可以装进别的 Coopanion
+(包括 Pal-AI-Lab 的原版 v0.1.17 及以后)。她带着自己的 kit(\`kit/body.js\`、\`kit/rig.js\`、\`kit/outfit.js\`),所以在原版里也会全部 ${manifest.vocab.length} 个表情和动作:
 捧着书看、坐在铺开的裙摆上、趴着看书、跪坐、翻滚、唱歌、喝茶、屈膝礼、比耶……(和内置的她一样,没有喷水)。
 原版没有的 ${sounds.length} 个音效事先渲染成了 \`sounds/*.wav\`。
 她有两套服装:常服和冬装,在装扮页的「服装」一行里选(原版也有这一行),换服装是一帧切换。
@@ -27,7 +28,7 @@ Coopanion 的桌宠形象「Claude 娘」导出成的形象包(id \`${manifest.i
 ${installSection(manifest)}
 复制后重启 Coopanion,在装扮页最上面一行「形象」里选「${manifest.name.zh}」。
 
-在 Coopanion 自己(${SOURCE_URL})里,这个包是内置 Claude 娘的别名:装了不会多出一个形象,
+在这个分支 v0.12.0 之后的版本里,这个包是内置 Claude 娘的别名:装了不会多出一个形象,
 配置里选着它时显示的就是内置的「Claude 娘」。
 
 ## 在原版里的已知限制
@@ -39,29 +40,30 @@ ${installSection(manifest)}
 ${soundSection(sounds)}
 ## 许可
 
-- 代码(${code})是 AGPL-3.0-or-later,全文见 \`LICENSE\`;
-  源码在 ${SOURCE_URL}(\`${PKG_REL}/web/\`),导出脚本是 \`${PKG_REL}/scripts/export-claude-pack.mjs\`。
+- 代码(${code})是 AGPL-3.0-or-later,全文见 \`LICENSE\`,改自原版 Coopanion(${UPSTREAM_URL});
+  这个分支的源码在 ${SOURCE_URL}(\`${PKG_REL}/web/\`),导出脚本是 \`${PKG_REL}/scripts/export-claude-pack.mjs\`。
 - 贴图(\`tex/\`、\`feat/\`、\`outfits/\`、\`thumbs/\`)不在 AGPL 授权范围内,**只限非商业使用**:角色设定是 ZipZipPipe（Bilibili）
-  画的 Claude 同人形象;图由 GPT 的图像模型按这个设定生成,再由 Coopanion 拆件。
-  冬装(\`outfits/winter/\`)是 Coopanion 用 GPT 的图像模型对她的这些图做的换装编辑,同样按这个设定画。
-  原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们随 Coopanion 分发。
+  画的 Claude 同人形象;图由 GPT 的图像模型以原作的图为参考、照原作的画风重画,再由这个分支的维护者拆件。
+  冬装(\`outfits/winter/\`)是这个分支的维护者用 GPT 的图像模型对她的这些图做的换装编辑,同样按这个设定画。
+  原作者允许免费非商业使用,所以这些贴图同样只限非商业使用。它们随这个形象包分发。
 - 音效由上面的代码合成,和代码同一许可。
 `;
 }
 
 export const CLAUDE = {
   dir: 'claude-chan',
-  id: 'coopanion-claude-chan',
+  id: 'yxengram-claude-chan',
   // short: upstream's dress tile has room for a few characters
   name: { zh: 'Claude 娘', en: 'Claude-chan' },
   entry: 'claude-chan/figure.js',
   factory: 'createClaudeFigure',
   fallbackScheme: 'original',
-  author: (base) => `${base.author ?? 'Coopanion'} (${SOURCE_URL})`,
+  author: () => `yxengram (${SOURCE_URL})`,
   license: `代码 AGPL-3.0-or-later,源码在 ${SOURCE_URL};贴图只限非商业使用,不在 AGPL 范围内,见 README.md`,
   credits: (base) => [
     ...(base.credits ?? []),
-    { role: '代码(AGPL-3.0-or-later)', name: 'Coopanion', url: SOURCE_URL },
+    { role: '原版桌宠和 kit 代码', name: 'Pal-AI-Lab', url: UPSTREAM_URL },
+    { role: '修改和新增的代码(AGPL-3.0-or-later)', name: 'yxengram', url: SOURCE_URL },
   ],
   readme: packReadme,
 };

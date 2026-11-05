@@ -65,7 +65,7 @@ describe('exported whale pack', () => {
     const builtinIds = BUILTIN_PACKS.map((b) => JSON.parse(readFileSync(join(b.dir, 'figure.json'), 'utf8')).id);
     expect(builtinIds).toEqual(['coo', 'whale', 'claude-chan', 'gpt-chan', 'gemini-chan', 'grok-chan']);
     expect(builtinIds).not.toContain(m.id);
-    expect(m.name).toEqual({ zh: 'Coopanion 大肥鱼', en: 'Coopanion Whale' });
+    expect(m.name).toEqual({ zh: '大肥鱼 扩展版', en: 'Whale Extended' });
     const whale = builtin('whale');
     expect(m.vocab).toEqual(whale.vocab);
     // she draws arm gestures and leans kneeling: her kneel says so (keepsArms, keepsLeans)

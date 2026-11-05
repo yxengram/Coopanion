@@ -67,7 +67,7 @@ describe('exported GPT-chan pack', () => {
   it('builds a manifest our World and upstream v0.1.17 accept', async () => {
     const m = await buildManifest({ upstreamTones, volumes: { song: .05 } });
     expect(m).toMatchObject({ manifest: 2, api: 2, id: PACK_ID, entry: 'gpt-chan/figure.js', export: 'createGptBody', model: 'model.json' });
-    expect(PACK_ID).toBe('coopanion-gpt-chan');
+    expect(PACK_ID).toBe('yxengram-gpt-chan');
     expect(m.name).toEqual({ zh: 'GPT 娘', en: 'GPT-chan' });
     const ids = BUILTIN_PACKS.map((b) => JSON.parse(readFileSync(join(b.dir, 'figure.json'), 'utf8')).id);
     expect(ids).not.toContain(m.id);

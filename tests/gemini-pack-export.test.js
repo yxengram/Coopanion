@@ -71,7 +71,7 @@ describe('exported Gemini-chan pack', () => {
   it('builds a manifest our World and upstream v0.1.17 accept', async () => {
     const m = await buildManifest({ upstreamTones, volumes: { song: .05 } });
     expect(m).toMatchObject({ manifest: 2, api: 2, id: PACK_ID, entry: 'gemini-chan/figure.js', export: 'createGeminiBody', model: 'model.json' });
-    expect(PACK_ID).toBe('coopanion-gemini-chan');
+    expect(PACK_ID).toBe('yxengram-gemini-chan');
     expect(m.name).toEqual({ zh: 'Gemini 娘', en: 'Gemini-chan' });
     const ids = BUILTIN_PACKS.map((b) => JSON.parse(readFileSync(join(b.dir, 'figure.json'), 'utf8')).id);
     expect(ids).not.toContain(m.id);

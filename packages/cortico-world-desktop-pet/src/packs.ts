@@ -43,11 +43,15 @@ export const FIGURE_API_OLDEST = 2;
 export const COO = 'coo';
 /**
  * Installed pack ids that stand for a built-in pack: our whale, Claude-chan, GPT-chan, Gemini-chan and Grok-chan
- * exported for other copies of the app (`coopanion-whale`, `coopanion-claude-chan`, `coopanion-gpt-chan`,
- * `coopanion-gemini-chan`, `coopanion-grok-chan`, scripts/export-*-pack.mjs) are the built-in ones here, with the same
- * scheme ids. Such a pack is not listed, and a skin naming it shows the built-in one.
+ * exported for other copies of the app (`yxengram-whale`, `yxengram-claude-chan`, `yxengram-gpt-chan`,
+ * `yxengram-gemini-chan`, `yxengram-grok-chan`, scripts/export-*-pack.mjs) are the built-in ones here, with the same
+ * scheme ids. The same goes for the ids those packs had before they were renamed (`coopanion-<id>`, changed so that nobody
+ * takes them for official packs), which old configs and installs may still name. Such a pack is not listed, and a skin naming
+ * it shows the built-in one.
  */
 export const PACK_ALIASES: Readonly<Record<string, string>> = {
+  'yxengram-whale': 'whale', 'yxengram-claude-chan': 'claude-chan', 'yxengram-gpt-chan': 'gpt-chan',
+  'yxengram-gemini-chan': 'gemini-chan', 'yxengram-grok-chan': 'grok-chan',
   'coopanion-whale': 'whale', 'coopanion-claude-chan': 'claude-chan', 'coopanion-gpt-chan': 'gpt-chan',
   'coopanion-gemini-chan': 'gemini-chan', 'coopanion-grok-chan': 'grok-chan',
 };

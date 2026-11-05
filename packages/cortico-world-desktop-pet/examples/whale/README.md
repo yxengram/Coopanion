@@ -286,9 +286,9 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
 ## 导出成形象包
 
 `pnpm run export:whale [输出目录]`（即 `node packages/cortico-world-desktop-pet/scripts/export-whale-pack.mjs`，默认输出到仓库的 `build/packs`）
-把大肥鱼导出成 `coopanion-whale/` 形象包，原版 v0.1.17 起的 Coopanion 也能装：放进数据目录的 `home/companion/data/figures/`。
+把大肥鱼导出成 `yxengram-whale/` 形象包，原版 v0.1.17 起的 Coopanion 也能装：放进数据目录的 `home/companion/data/figures/`。
 
-- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 133 个词，id 改成 `coopanion-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
+- `figure.json` 照抄 `web/whale/figure.json` 的配色、预设和全部 133 个词，id 改成 `yxengram-whale`，`entry` 是 `whale/figure.js`，带上许可和源码地址。
 - `whale/figure.js`、`kit/body.js`、`kit/rig.js`、`model.json` 原样复制；贴图只复制模型和 `figure.js` 真正会载入的（每套配色在每套服装下各载入一遍：每个姿势、五官、冬装自己的 `outfits/cape/`、缩略图），缺一个就报错。原版也认识两维，装扮页照样有「服装」一行，画面由包里的 `figure.js` 画。
 - 音效：kit 会要、而原版 `web/sound.js` 没有的音色（和 `git show v0.1.17:` 的那份比对得出，比对的上游版本可以用 `--upstream <ref>` 换；现在大肥鱼是 41 个；Claude 娘的包没有 spout 和摇尾巴的 wag、多加油、记笔记、对手指、哎呀的 fist、jot、twiddle、oops，是 40 个；GPT 娘再多 wag 和扇翅膀的 wingbeat，42 个；Gemini 娘再多 wag、炸毛的 bristle 和抖耳朵的 earflick，43 个；Grok 娘再多扇翅膀的 wingbeat，41 个），用 `node_modules` 里的 Electron
   离线渲染（`scripts/render-sounds.cjs`：隐藏窗口里 `createSfx({ ctx: OfflineAudioContext, volume: 1, compress: false })`，固定随机种子，每次结果相同），
@@ -296,19 +296,19 @@ Coo 的圆环还是转满一圈好站正，路不够的那部分转在半空里�
   渲染出来是静音或超过满幅都会报错。
 - 包里的 `README.md` 写了安装方法和在原版里的限制（唱歌不能打断、口型轮流换、包里音效的第一次播放可能没声音）。
 
-在 Coopanion 自己里 `coopanion-whale` 是内置大肥鱼的别名（`src/packs.ts` 的 `PACK_ALIASES`）：装了不会多出一个形象，配置里选着它时显示的就是内置的那个。
+在这个分支 v0.12.0 之后的版本里 `yxengram-whale` 是内置大肥鱼的别名（`src/packs.ts` 的 `PACK_ALIASES`）：装了不会多出一个形象，配置里选着它时显示的就是内置的那个。改名前发布的包 id 是 `coopanion-<id>`，改名是为了不让人以为是官方的包，旧 id 同样是别名。
 `tests/whale-pack-export.test.js` 不渲染、不用 Electron，检查生成的清单能通过 `readManifest`、复制的文件齐全。
 
-Claude 娘用同一套办法导出：`pnpm run export:claude [输出目录]`（`scripts/export-claude-pack.mjs`）写出 `coopanion-claude-chan/`，
+Claude 娘用同一套办法导出：`pnpm run export:claude [输出目录]`（`scripts/export-claude-pack.mjs`）写出 `yxengram-claude-chan/`，
 名字「Claude 娘」，带着她的整张词表（没有喷水）、`claude-chan/` 下 `figure.js` 引入的全部模块（按 import 算出来，都得在包里）、kit、
 贴图和音效（大肥鱼那些里去掉只有喷水才用的 `spout`：kit 里只在她词表没有的词的 `case` 行上播放的音色不带）。她的贴图只限非商业使用，清单的 `license` 和包里的 `README.md` 都写明了。
-在 Coopanion 自己里 `coopanion-claude-chan` 同样是内置 Claude 娘的别名；`tests/claude-pack-export.test.js` 还用 `git show v0.1.17:` 取原版的 `packs.ts` 检查清单。
-GPT 娘也一样：`pnpm run export:gpt [输出目录]`（`scripts/export-gpt-pack.mjs`）写出 `coopanion-gpt-chan/`，名字「GPT 娘」，词表、模块、音效的算法和 Claude 娘相同，
-贴图同样只限非商业使用；`coopanion-gpt-chan` 是内置 GPT 娘的别名，`tests/gpt-pack-export.test.js` 做同样的检查。
-Gemini 娘同理：`pnpm run export:gemini [输出目录]`（`scripts/export-gemini-pack.mjs`）写出 `coopanion-gemini-chan/`，名字「Gemini 娘」，
-贴图只限非商业使用；`coopanion-gemini-chan` 是内置 Gemini 娘的别名，`tests/gemini-pack-export.test.js` 做同样的检查。
-Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pack.mjs`）写出 `coopanion-grok-chan/`，名字「Grok 娘」，
-贴图只限非商业使用；`coopanion-grok-chan` 是内置 Grok 娘的别名，`tests/grok-pack-export.test.js` 做同样的检查。
+在这个分支里 `yxengram-claude-chan` 同样是内置 Claude 娘的别名；`tests/claude-pack-export.test.js` 还用 `git show v0.1.17:` 取原版的 `packs.ts` 检查清单。
+GPT 娘也一样：`pnpm run export:gpt [输出目录]`（`scripts/export-gpt-pack.mjs`）写出 `yxengram-gpt-chan/`，名字「GPT 娘」，词表、模块、音效的算法和 Claude 娘相同，
+贴图同样只限非商业使用；`yxengram-gpt-chan` 是内置 GPT 娘的别名，`tests/gpt-pack-export.test.js` 做同样的检查。
+Gemini 娘同理：`pnpm run export:gemini [输出目录]`（`scripts/export-gemini-pack.mjs`）写出 `yxengram-gemini-chan/`，名字「Gemini 娘」，
+贴图只限非商业使用；`yxengram-gemini-chan` 是内置 Gemini 娘的别名，`tests/gemini-pack-export.test.js` 做同样的检查。
+Grok 娘同理：`pnpm run export:grok [输出目录]`（`scripts/export-grok-pack.mjs`）写出 `yxengram-grok-chan/`，名字「Grok 娘」，
+贴图只限非商业使用；`yxengram-grok-chan` 是内置 Grok 娘的别名，`tests/grok-pack-export.test.js` 做同样的检查。
 四个娘的包也带着冬装：`kit/outfit.js`、`outfits/winter/` 下她冬装的全部贴图和两张服装缩略图，原版的装扮页照样有「服装」一行（各自的 `tests/*-pack-export.test.js` 检查这些文件都在，`tests/girl-outfit.test.js` 只用包里的文件在原版 v0.1.17 的 kit 上画冬装）。
 五个脚本只是各自的描述（id、名字、许可、README），导出的活都在 `scripts/export-pack.mjs` 里。
 

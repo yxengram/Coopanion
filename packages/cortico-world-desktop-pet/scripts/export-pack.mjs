@@ -1,9 +1,9 @@
 /**
  * Exports a built-in figure (web/<dir>/) as a figure pack other copies of the desktop pet can install, upstream's
  * v0.1.17 included. Each figure has a thin wrapper with its descriptor and CLI: scripts/export-whale-pack.mjs
- * (`coopanion-whale`), scripts/export-claude-pack.mjs (`coopanion-claude-chan`), scripts/export-gpt-pack.mjs
- * (`coopanion-gpt-chan`), scripts/export-gemini-pack.mjs (`coopanion-gemini-chan`), scripts/export-grok-pack.mjs
- * (`coopanion-grok-chan`); `node <wrapper> [outDir] [--upstream <ref>]` (default `build/packs` under the repository
+ * (`yxengram-whale`), scripts/export-claude-pack.mjs (`yxengram-claude-chan`), scripts/export-gpt-pack.mjs
+ * (`yxengram-gpt-chan`), scripts/export-gemini-pack.mjs (`yxengram-gemini-chan`), scripts/export-grok-pack.mjs
+ * (`yxengram-grok-chan`); `node <wrapper> [outDir] [--upstream <ref>]` (default `build/packs` under the repository
  * root) writes `<outDir>/<pack id>/`.
  *
  * A pack carries its own kit: the figure's modules (every one its entry imports, transitively) keep their path under
@@ -13,7 +13,7 @@
  * (scripts/render-sounds.cjs) and shipped as `sounds/<name>.wav`; a tone only one of the kit's words plays is left out
  * when the figure's vocab lacks that word. Only the textures the model and the figure actually load are copied.
  *
- * In Coopanion itself a pack's id is an alias of its built-in (src/packs.ts PACK_ALIASES). Nothing renders or writes
+ * In this fork a pack's id is an alias of its built-in (src/packs.ts PACK_ALIASES). Nothing renders or writes
  * on import; tests use the exporter's functions (`packExporter(descriptor)`).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -29,6 +29,8 @@ export const WEB = join(PKG, 'web');
 export const PKG_REL = relative(ROOT, PKG).split('\\').join('/').replace(/\/$/, '');
 
 export const SOURCE_URL = 'https://github.com/yxengram/Coopanion';
+/** The original app this fork's code comes from: its authors keep their credit in every pack. */
+export const UPSTREAM_URL = 'https://github.com/Pal-AI-Lab/Coopanion';
 /**
  * The upstream release the packs were checked against. Which tones a pack ships comes from sound.js itself (the
  * tones it marks `plus` are ours); this tag is only a cross-check (`--upstream <ref>`), since in a clone of the fork
@@ -409,7 +411,7 @@ export const soundSection = (sounds) => `## 音效
 |---|---|---|
 ${soundRows(sounds)}
 
-都是 44.1 kHz、16 位单声道 WAV,由 Coopanion 的 \`web/sound.js\` 离线渲染(固定随机种子,每次导出结果相同)。
+都是 44.1 kHz、16 位单声道 WAV,由这个分支的 \`web/sound.js\` 离线渲染(固定随机种子,每次导出结果相同)。
 文件按峰值 -1 dBFS 存,\`figure.json\` 里每个声音的 \`volume\` 把它调回内置音色的响度。设置里关掉「动作」或「表情」音效时它们也一起静音。
 `;
 

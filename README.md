@@ -90,16 +90,20 @@ Upstream v0.1.20 and later: on the Dress up page, click "Import" at the end of t
 
 | Download | Figure | Expressions and motions | Outfits | Size |
 | -------- | ------ | ----------------------- | ------- | ---- |
-| [**All five**](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-all-figures.zip) | the five below in one zip | | | 184 MB |
-| [coopanion-whale.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-whale.zip) | DeepSeek Whale | 133 | 8 color schemes × maid / winter | 58 MB |
-| [coopanion-claude-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-claude-chan.zip) | Claude-chan | 132 | classic / winter | 27 MB |
-| [coopanion-gpt-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-gpt-chan.zip) | GPT-chan | 134 | classic / winter | 41 MB |
-| [coopanion-gemini-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-gemini-chan.zip) | Gemini-chan | 137 | classic / winter | 26 MB |
-| [coopanion-grok-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/coopanion-grok-chan.zip) | Grok-chan | 133 | classic / winter | 33 MB |
+| [**All five**](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-all-figures.zip) | the five below in one zip | | | 184 MB |
+| [yxengram-whale.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-whale.zip) | Whale Extended | 133 | 8 color schemes × maid / winter | 58 MB |
+| [yxengram-claude-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-claude-chan.zip) | Claude-chan | 132 | classic / winter | 27 MB |
+| [yxengram-gpt-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-gpt-chan.zip) | GPT-chan | 134 | classic / winter | 41 MB |
+| [yxengram-gemini-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-gemini-chan.zip) | Gemini-chan | 137 | classic / winter | 26 MB |
+| [yxengram-grok-chan.zip](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/yxengram-grok-chan.zip) | Grok-chan | 133 | classic / winter | 33 MB |
 
 Importing "All five" lists all five figures, all checked, so you can install them in one go. It is over 128 MB, so it needs upstream v0.2.16 or later, which warns that it is large (go ahead anyway); older versions refuse packs that big, so import the single packs one by one there.
 
-Tested with upstream v0.2.17's import: each pack on its own and "All five" install and display correctly. Checksums are in [SHA256SUMS](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/SHA256SUMS); every file is also on the [packs-v0.12.0](https://github.com/yxengram/Coopanion/releases/tag/packs-v0.12.0) page. The packs' READMEs are in Chinese.
+Tested with upstream v0.2.18's import: each pack on its own and "All five" install, and all five figures display correctly. Checksums are in [SHA256SUMS](https://github.com/yxengram/Coopanion/releases/download/packs-v0.12.0/SHA256SUMS); every file is also on the [packs-v0.12.0](https://github.com/yxengram/Coopanion/releases/tag/packs-v0.12.0) page. The packs' READMEs are in Chinese.
+
+These packs are made by this fork; they are not official Coopanion packs.
+
+If you installed the older packs from before the rename (their file names start with `coopanion-`, and the whale one is called "Coopanion Whale"), **uninstall them on the Dress up page before importing the new ones**. The new packs have new ids, so they don't replace the old ones, and the four girls' old and new packs have the same name and picture, so you can't tell them apart once both are installed. If you uninstall the figure in use, the pet changes back to Coo; pick the figure again after importing. Uninstalling on the Dress up page needs upstream v0.2.7 or later. On older versions delete the folders starting with `coopanion-` in `home/companion/data/figures/` in the data folder; do the same if you already have both installed.
 
 For the artwork's license, see [License](#license) below: the four girls' art is for non-commercial use only.
 

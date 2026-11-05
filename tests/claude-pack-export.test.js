@@ -71,7 +71,7 @@ describe('exported Claude-chan pack', () => {
   it('builds a manifest our World and upstream v0.1.17 accept', async () => {
     const m = await buildManifest({ upstreamTones, volumes: { song: .05 } });
     expect(m).toMatchObject({ manifest: 2, api: 2, id: PACK_ID, entry: 'claude-chan/figure.js', export: 'createClaudeBody', model: 'model.json' });
-    expect(PACK_ID).toBe('coopanion-claude-chan');
+    expect(PACK_ID).toBe('yxengram-claude-chan');
     expect(m.name).toEqual({ zh: 'Claude 娘', en: 'Claude-chan' });
     const ids = BUILTIN_PACKS.map((b) => JSON.parse(readFileSync(join(b.dir, 'figure.json'), 'utf8')).id);
     expect(ids).not.toContain(m.id);

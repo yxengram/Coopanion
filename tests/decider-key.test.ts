@@ -1,19 +1,23 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openRouterKey } from '../core/decider-key.ts';
 import { vendorById, vendorEntry } from 'cortico-provider-coo';
 
 // test-only files live under node_modules/.cache (vitest on Windows cannot load from the temp dir; these are only read)
+const made: string[] = [];
 const root = () => {
   const base = join(process.cwd(), 'node_modules', '.cache');
   mkdirSync(base, { recursive: true });
-  return mkdtempSync(join(base, 'decider-key-'));
+  const dir = mkdtempSync(join(base, 'decider-key-'));
+  made.push(dir);
+  return dir;
 };
 const OR = vendorById('openrouter')!;
 const saved = process.env.OPENROUTER_API_KEY;
 afterEach(() => {
   if (saved === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = saved;
+  for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
 function endpoint(dir: string, name: string, key: string | null, secret = OR.secret) {

@@ -126,6 +126,11 @@ CI 在 Windows、macOS、Linux 上各跑一遍上面五项检查,另外:
 - [ ] Linux Wayland(经 XWayland):同上看一遍，记下和 X11 不一样的地方。
 - [ ] Linux:托盘图标出现(GNOME 要装 AppIndicator 扩展),菜单能显示、隐藏桌宠。
 
+macOS 的权限检查有两点要注意(CUA 的输入、录屏、监听):
+
+- 从终端直接启动同一个可执行文件时，TCC 认定的负责进程不同，权限预检会失败；这不代表用户没给应用授权。要验证权限，通过 LaunchServices 启动已安装的应用。
+- Mac 包是临时签名(ad hoc)，新构建的身份不继承原授权：系统设置里同名开关开着，预检仍可能是 false，只切换开关也没用。从权限列表删掉旧条目，再重新添加 `/Applications/Coopanion.app` 才恢复。
+
 ## 界面语言
 
 应用的语言就是 Cortico 的 `Language`(`vendor/cortico/src/core/language.ts`),存在部署配置 `<数据目录>/home/companion/config.json` 的 `language` 里,说明在 `core/language.ts` 开头。

@@ -20,7 +20,7 @@
  */
 import {
   APPENDAGES, APPENDAGE_NAMES, INLINE_TAG_MAX, channelsOf, clashes, firstName, htmlTag, moodLabel, pairKey, partOf, vocabId,
-  type Channel, type Pairs, type VocabWord,
+  type Pairs, type VocabWord,
 } from './script.ts';
 
 /**
@@ -573,9 +573,6 @@ export function localPick(feeling: string, vocab: readonly VocabWord[], posture:
   }
   return none;
 }
-
-/** The channels a question's words take, for tests: every word of a question takes that question's part. */
-export const QUESTION_CHANNEL: Record<QuestionId, Channel> = { face: 'face', head: 'head', arm: 'arm', body: 'body', tail: 'tail', ears: 'ears', wings: 'wings' };
 
 /* ---------------- the client ---------------- */
 

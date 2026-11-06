@@ -43,34 +43,3 @@ export function toSimplified(text: string): string {
   for (const ch of text) out += simplifyChar(ch);
   return out;
 }
-
-// ---------------------------------------------------------------------------
-// 出口纠错表:人名、圈内词这类按音猜字的固定错法,在这一层整段替换。
-// ---------------------------------------------------------------------------
-
-type Correction = readonly [wrong: string, right: string];
-
-/**
- * 解析配置里的纠错表:每条 `错=对`(也认 `错→对`),条目之间换行或分号隔开。
- * 空条目、没有分隔符的行、左边为空的行都跳过;左边越长越先替换,免得短词先把长词拆掉。
- */
-export function parseCorrections(text: string): Correction[] {
-  const out: Correction[] = [];
-  for (const raw of text.split(/[\n;；]/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    const at = line.search(/[=→]/);
-    if (at <= 0) continue;
-    const wrong = line.slice(0, at).trim();
-    const right = line.slice(at + 1).trim();
-    if (!wrong) continue;
-    out.push([wrong, right]);
-  }
-  return out.sort((a, b) => b[0].length - a[0].length);
-}
-
-export function applyCorrections(text: string, table: readonly Correction[]): string {
-  let out = text;
-  for (const [wrong, right] of table) out = out.split(wrong).join(right);
-  return out;
-}

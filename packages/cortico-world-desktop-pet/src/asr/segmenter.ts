@@ -68,16 +68,6 @@ export interface SegmentConfig {
   minUtteranceMs: number;
 }
 
-export const SEGMENT_DEFAULTS: SegmentConfig = {
-  thresholdDb: -42,
-  minSpeechMs: 180,
-  dispatchSilenceMs: 250,
-  silenceMs: 500,
-  maxUtteranceMs: 15_000,
-  preRollMs: 320,
-  minUtteranceMs: 350,
-};
-
 /** 一帧的均方根电平(dBFS);全零帧记 -100 而不是 -Infinity */
 export function rmsDb(frame: Int16Array): number {
   if (frame.length === 0) return -100;
@@ -242,12 +232,6 @@ export interface PackConfig {
   /** 少于这么多字的识别结果丢掉:噪声与语气词识别出来常是一两个字 */
   minChars: number;
 }
-
-export const PACK_DEFAULTS: PackConfig = {
-  joinGapMs: 0,
-  maxHoldMs: 8000,
-  minChars: 2,
-};
 
 /**
  * 识别结果的攒批。`add` 收句子,`due` 到点交货——**时钟由调用方给**,

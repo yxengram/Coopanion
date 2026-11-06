@@ -98,7 +98,6 @@ const SMALLTALK_ASK_BUSY_MS = 30 * 60_000;
 /** Longest `pet_quiet`: a quiet that outlasts a day is a setting, which `pet_set` changes. */
 const QUIET_MAX_MIN = 24 * 60;
 const FRAME_MS = 20;
-const SAMPLE_RATE = 16_000;
 /** The shortest wait for a walk the page was sent. */
 const WALK_TIMEOUT_MS = 30_000;
 /** Top walking and running speeds on the page in px/s (the kit's `vMax` in web/kit/body.js). */

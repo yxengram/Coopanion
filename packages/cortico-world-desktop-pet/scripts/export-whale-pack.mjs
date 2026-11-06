@@ -45,12 +45,18 @@ ${soundSection(sounds)}
 
 - 代码(\`whale/figure.js\`、\`kit/body.js\`、\`kit/rig.js\`)是 AGPL-3.0-or-later,全文见 \`LICENSE\`,改自原版 Coopanion(${UPSTREAM_URL});
   这个分支的源码在 ${SOURCE_URL}(\`${PKG_REL}/web/\`),导出脚本是 \`${PKG_REL}/scripts/export-whale-pack.mjs\`。
-- 贴图(\`tex/\`、\`feat/\`、\`schemes/\`、\`outfits/\`、\`thumbs/\`)不在 AGPL 授权范围内:由 ChatGPT 的图像模型按参考图生成后拆件,
-  ${(manifest.credits ?? []).filter((c) => !c.url).map((c) => `${c.role}「${c.name}」`).join(',')};原版的大肥鱼贴图和冬装取自 Pal-AI-Lab 的原版,围裙上的喷水小鲸鱼是这个分支自己画的。
-  它们随这个形象包分发,想在别处使用请自行确认原设的权利。
+- 贴图(\`tex/\`、\`feat/\`、\`schemes/\`、\`outfits/\`、\`thumbs/\`)不在 AGPL 授权范围内,按 CC BY-NC-SA 4.0(https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans)授权:
+  **只限非商业使用**,使用时要署名,改编后要用相同协议共享。
+  - 署名:${(manifest.credits ?? []).filter((c) => !CODE_CREDITS.includes(c.name)).map((c) => `${c.role} ${c.name}(${c.url})`).join(';')}。
+  - 修改:Pal-AI-Lab 的原版用 ChatGPT 的图像模型按参考图生成贴图后拆件,并做了配色和冬装;这个分支在此基础上用图像模型编辑、
+    重画了新的手势、姿势和表情,以及冬装的手臂和整身姿势,再拆件、按区域换色。围裙上的喷水小鲸鱼是这个分支自己画的。
+  - 这不代表两位作者认可这个形象包。
 - 音效由上面的代码合成,和代码同一许可。
 `;
 }
+
+/** Who the manifest credits for the code, not for the art; the README's art credits are the others. */
+const CODE_CREDITS = ['Pal-AI-Lab', 'yxengram'];
 
 export const WHALE = {
   dir: 'whale',
@@ -60,7 +66,7 @@ export const WHALE = {
   factory: 'createWhaleFigure',
   fallbackScheme: 'deepseek',
   author: () => `yxengram (${SOURCE_URL})`,
-  license: `代码 AGPL-3.0-or-later,源码在 ${SOURCE_URL};贴图不在 AGPL 范围内,见 README.md`,
+  license: `代码 AGPL-3.0-or-later,源码在 ${SOURCE_URL};贴图不在 AGPL 范围内,按 CC BY-NC-SA 4.0 授权(非商业、署名、相同方式共享),见 README.md`,
   credits: (base) => [
     ...(base.credits ?? []),
     { role: '原版桌宠和大肥鱼', name: 'Pal-AI-Lab', url: UPSTREAM_URL },

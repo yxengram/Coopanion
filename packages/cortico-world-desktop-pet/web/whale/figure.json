@@ -15,11 +15,13 @@
   "credits": [
     {
       "role": "角色原设",
-      "name": "溟月(上善无形)"
+      "name": "上善无形(角色「溟月」)",
+      "url": "https://www.bilibili.com/opus/1231977657712771073"
     },
     {
       "role": "DeepSeek 女仆二创",
-      "name": "ZipZipPipe"
+      "name": "ZipZipPipe",
+      "url": "https://t.bilibili.com/1231980045693616162"
     }
   ],
   "entry": "figure.js",

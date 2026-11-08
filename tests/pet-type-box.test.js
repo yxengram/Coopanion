@@ -82,7 +82,8 @@ function paste(p, files) {
   input.dispatchEvent(e);
   return e;
 }
-const settle = () => new Promise((r) => setTimeout(r, 20));
+/** Until the box shows `n` thumbnails: a picture gets there through the page's FileReader tasks, which a busy runner may be slow to reach. */
+const thumbnails = (p, n) => expect.poll(() => p.bubble.querySelectorAll('.b-img').length).toBe(n);
 const submit = (p) => p.bubble.querySelector('form').dispatchEvent(new p.win.Event('submit', { cancelable: true }));
 const note = (p) => { const n = p.bubble.querySelector('.b-note'); return n.hidden ? '' : n.textContent; };
 const say = (p, id, text) => p.onOrder({ t: 'say', id, beats: [{ text, actions: [], anchors: [] }] });
@@ -101,7 +102,7 @@ describe('pictures pasted into the typing box (upstream #430)', () => {
     p.openInput();
     const e = paste(p, [['a 10x10.png', 'image/png'], ['b 20x10.jpg', 'image/jpeg']]);
     expect(e.defaultPrevented).toBe(true);
-    await settle();
+    await thumbnails(p, 2);
     expect([...p.bubble.querySelectorAll('.b-img img')].map((i) => i.getAttribute('src').split(';')[0])).toEqual(['data:image/png', 'data:image/jpeg']);
     p.bubble.querySelector('textarea').value = '这是什么';
     submit(p);
@@ -110,7 +111,7 @@ describe('pictures pasted into the typing box (upstream #430)', () => {
 
     p.openInput();
     paste(p, [['c 5x5.webp', 'image/webp']]);
-    await settle();
+    await thumbnails(p, 1);
     submit(p);
     expect(p.sent.at(-1)).toMatchObject({ t: 'text', text: '', images: [{ mime: 'image/webp' }] });
     expect(p.lines().at(-1).images).toBe(1);
@@ -123,7 +124,7 @@ describe('pictures pasted into the typing box (upstream #430)', () => {
     expect(paste(p, []).defaultPrevented).toBe(false);
     expect(paste(p, [['notes.txt', 'text/plain']]).defaultPrevented).toBe(false);
     paste(p, [['a 10x10.png', 'image/png'], ['b 10x10.png', 'image/png']]);
-    await settle();
+    await thumbnails(p, 2);
     p.bubble.querySelector('.b-img button').click();
     expect(p.bubble.querySelectorAll('.b-img')).toHaveLength(1);
     p.bubble.querySelector('.b-img button').click();
@@ -137,13 +138,12 @@ describe('pictures pasted into the typing box (upstream #430)', () => {
     const p = page();
     p.openInput();
     paste(p, [['a 1x1.png', 'image/png'], ['b 1x1.png', 'image/png'], ['c 1x1.png', 'image/png']]);
-    await settle();
+    await thumbnails(p, 3);
     paste(p, [['d 1x1.png', 'image/png'], ['e 1x1.png', 'image/png']]);
-    await settle();
     expect(p.bubble.querySelectorAll('.b-img')).toHaveLength(3);
     expect(note(p)).toBe(t('bubble.tooManyImages', { max: 4 }));
     paste(p, [['d 1x1.png', 'image/png']]);
-    await settle();
+    await thumbnails(p, 4);
     expect(p.bubble.querySelectorAll('.b-img')).toHaveLength(4);
   });
 
@@ -176,13 +176,13 @@ describe('pictures pasted into the typing box (upstream #430)', () => {
     p.onOrder({ t: 'prefs', bot: { name: 'Mochi', imagesSeen: false, buttons: {} } });
     p.openInput();
     paste(p, [['a 1x1.png', 'image/png']]);
-    await settle();
+    await thumbnails(p, 1);
     expect(note(p)).toBe('The current model cannot see images; Mochi only learns how many you sent.');
     const q = page();
     q.onOrder({ t: 'prefs', bot: { name: 'Mochi', imagesSeen: true, buttons: {} } });
     q.openInput();
     paste(q, [['a 1x1.png', 'image/png']]);
-    await settle();
+    await thumbnails(q, 1);
     expect(note(q)).toBe('');
   });
 
@@ -191,7 +191,7 @@ describe('pictures pasted into the typing box (upstream #430)', () => {
     p.onOrder({ t: 'prefs', bot: { name: 'Coo', imagesSeen: true, buttons: { chat: true } } });
     p.openInput();
     paste(p, [['a 30x20.png', 'image/png']]);
-    await settle();
+    await thumbnails(p, 1);
     p.bubble.querySelector('textarea').value = '还有这张';
     p.bubble.querySelector('.b-expand').click();
     expect(p.sent.at(-1)).toEqual({ t: 'expand', text: '还有这张', images: [{ name: 'a 30x20.png', mime: 'image/png', base64: Buffer.alloc(10).toString('base64'), bytes: 10, width: 30, height: 20 }] });
